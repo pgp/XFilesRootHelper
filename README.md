@@ -12,6 +12,7 @@ The native library/executable file operations helper for XFiles, which can also 
     ```
 - From a bash shell:
     ```shell
+    cd CMAKE
     cmake -H. -Bbuild
     cmake --build build -- -j2
     ```
@@ -28,6 +29,7 @@ The native library/executable file operations helper for XFiles, which can also 
     ```shell
     export CC=$(which gcc-8)
     export CXX=$(which g++-8)
+    cd CMAKE
     cmake -H. -Bbuild
     cmake --build build -- -j2
     ```
@@ -38,11 +40,12 @@ The native library/executable file operations helper for XFiles, which can also 
 - Install [CMake](https://cmake.org/download)
 - Add CMake to system PATH from installation GUI
 - From a command prompt:
-    ```shell
+    ```bat
     set CC=c:\MinGW\bin\gcc.exe
     set CXX=c:\MinGW\bin\g++.exe
-    cmake -G "MinGW Makefiles" -H. -Bbuild
-    cmake --build build -- -j2
+    cd CMAKE
+    cmake -G "MinGW Makefiles" -H. -Bwinbuild
+    cmake --build winbuild -- -j2
     ```
 
 **BSD (e.g. FreeBSD, TrueOS)**
@@ -54,6 +57,7 @@ The native library/executable file operations helper for XFiles, which can also 
     ```shell
     export CC=$(which gcc8)
     export CXX=$(which g++8)
+    cd CMAKE
     cmake -H. -Bbuild
     cmake --build build -- -j2
     ```
