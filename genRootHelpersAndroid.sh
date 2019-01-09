@@ -4,7 +4,7 @@ set -e
 
 NDKDIR=/home/pgp/Android/Sdk/ndk-bundle
 
-XFILES_ASSET_DIR=/home/pgp/android-workspace/XFiles/libs
+XFILES_ASSET_DIR=/media/pgp/Dati/android-workspace/XFiles/libs
 mkdir -p $XFILES_ASSET_DIR 
 
 MAINDIR=$(pwd)
@@ -24,13 +24,13 @@ export PATH=$PATH:$NDKDIR
 cd $FORMAT7ZDIR
 # rm -rf ../obj/*
 # rm -rf ../libs/*
-ndk-build -j4
+ndk-build -j12
 
 # build roothelper executable shared object (r)
 cd $RHDIR
 # rm -rf ../obj/*
 # rm -rf ../libs/*
-ndk-build -j4
+ndk-build -j12
 
 # rename to libr.so (for gradle to accept it as embeddable in apk)
 cd $RHLIBDIR

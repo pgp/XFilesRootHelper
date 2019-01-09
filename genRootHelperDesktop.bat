@@ -1,4 +1,4 @@
 cd CMAKE
-cmake --build build -- -j4
+cmake --build winbuild -- -j4
 
 robocopy ..\cert ..\bin /s /e

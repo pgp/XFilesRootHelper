@@ -18,7 +18,7 @@ if(DEFINED USE_X11)
 endif()
 
 if(WIN32) # -O3 allows fast data transfer (order of Gbps)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -Wl,--stack,67108864 -Wa,-mbig-obj")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -mavx -Wl,--stack,67108864 -Wa,-mbig-obj")
 else()
 	if(DEFINED USE_X11)
 		if(X11_FOUND)
@@ -29,7 +29,7 @@ else()
 	else()
 	endif()
 
-	add_compile_options(-O3)
+	add_compile_options(-O3 -mavx)
 endif()
 
 set(BOTAN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../botanAm/desktop")
