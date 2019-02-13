@@ -2209,9 +2209,10 @@ void xreMain() {
 int MY_CDECL main(int argc, const char *argv[]) {
 	initLogging();
 	registerExitRoutines();
+	print_roothelper_version();
 	if (prog_is_xre(argv[0])) {
 		if(argc >= 2 && mode_is_help(argv[1])) {
-			print_help();
+			print_help(argv[0]);
 		}
 		else {
 			PRINTUNIFIED("xre mode by filename, won't accept further command line arguments\n");
@@ -2224,7 +2225,7 @@ int MY_CDECL main(int argc, const char *argv[]) {
 			xreMain();
 		}
 		else if(mode_is_help(argv[1])) {
-			print_help();
+			print_help(argv[0]);
 		}
 		else { // capture second argument as UID, third as socket name
 			PRINTUNIFIED("rh mode\n");
