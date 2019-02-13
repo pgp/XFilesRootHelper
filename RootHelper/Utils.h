@@ -436,7 +436,7 @@ int mkpath(const std::wstring& s_, mode_t _unused_) {
     std::wstring s = s_ + L"\\"; // just to avoid code duplication after for loop
     const wchar_t* cstr = s.c_str();
 
-    if (s_.size() < 3) return -1; // "C:\"
+    if (s.size() < 3) return -1; // "C:\"
 
     if (!((cstr[0] >= L'a' && cstr[0] <= L'z') || (cstr[0] >= L'A' && cstr[0] <= L'Z'))) {
         std::wcerr<<L"Invalid unit name for path "<<s_<<std::endl;
