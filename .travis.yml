@@ -31,7 +31,7 @@ matrix:
             - mingw
             - cmake
       env:
-        - MATRIX_EVAL="set CC=gcc && set CXX=g++ && cd CMAKE && cmake -G \"MinGW Makefiles\" -H. -Bbuild"
+        - MATRIX_EVAL="export CC=gcc && export CXX=g++ && cd CMAKE && cmake -G \"MinGW Makefiles\" -H. -Bbuild"
 
 before_script:
   - eval "${MATRIX_EVAL}"
