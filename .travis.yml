@@ -1,0 +1,39 @@
+language: cpp
+
+matrix:
+  include:
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-8
+            - cmake
+            - libx11-dev
+      env:
+         - MATRIX_EVAL="CC=gcc-8 && CXX=g++-8 && cd CMAKE && cmake -H. -Bbuild" 
+
+    - os: osx
+      osx_image: xcode10
+      addons:
+        homebrew:
+          packages:
+            - cmake
+      env:
+        - MATRIX_EVAL="CC=clang && CXX=clang++ && cd CMAKE && cmake -H. -Bbuild"
+
+    - os: windows
+      addons:
+        chocolatey:
+          packages:
+            - mingw
+            - cmake
+      env:
+        - MATRIX_EVAL='set CC=gcc && set CXX=g++ && cd CMAKE && cmake -G "MinGW Makefiles" -H. -Bbuild'
+
+before_script:
+  - eval "${MATRIX_EVAL}"
+
+script:
+- cmake --build build -- -j4
