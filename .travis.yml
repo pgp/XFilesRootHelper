@@ -19,9 +19,10 @@ matrix:
       addons:
         homebrew:
           packages:
+            - gcc
             - cmake
       env:
-        - MATRIX_EVAL="CC=clang && CXX=clang++ && cd CMAKE && cmake -H. -Bbuild"
+        - MATRIX_EVAL="export CC=gcc-8 && export CXX=g++-8 && cd CMAKE && cmake -H. -Bbuild"
 
     - os: windows
       addons:
@@ -30,7 +31,7 @@ matrix:
             - mingw
             - cmake
       env:
-        - MATRIX_EVAL='set CC=gcc && set CXX=g++ && cd CMAKE && cmake -G "MinGW Makefiles" -H. -Bbuild'
+        - MATRIX_EVAL="set CC=gcc && set CXX=g++ && cd CMAKE && cmake -G \"MinGW Makefiles\" -H. -Bbuild"
 
 before_script:
   - eval "${MATRIX_EVAL}"
