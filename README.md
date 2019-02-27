@@ -1,6 +1,8 @@
 # XFilesRootHelper
 The native library/executable file operations helper for XFiles, which can also be used as standalone file server from other platforms
 
+[![Build Status](https://travis-ci.org/pgp/XFilesRootHelper.svg?branch=master)](https://travis-ci.org/pgp/XFilesRootHelper)
+
 # Build instructions (step-by-step)
 **Android**
 - Follow instructions described in main [XFiles](https://github.com/pgp/XFiles) repository's README in order to generate the executable library needed for the Android app
