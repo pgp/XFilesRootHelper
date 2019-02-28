@@ -12,7 +12,19 @@ matrix:
             - cmake
             - libx11-dev
       env:
+         - TARGETTING_ANDROID=false
          - MATRIX_EVAL="CC=gcc-8 && CXX=g++-8 && cd CMAKE && cmake -H. -Bbuild" 
+    
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-8
+      env:
+         - TARGETTING_ANDROID=true
+         - MATRIX_EVAL="" 
 
     - os: osx
       osx_image: xcode10
@@ -22,6 +34,7 @@ matrix:
             - gcc
             - cmake
       env:
+        - TARGETTING_ANDROID=false
         - MATRIX_EVAL="export CC=gcc-8 && export CXX=g++-8 && cd CMAKE && cmake -H. -Bbuild"
 
     - os: windows
@@ -31,10 +44,12 @@ matrix:
             - mingw
             - cmake
       env:
+        - TARGETTING_ANDROID=false
         - MATRIX_EVAL="export CC=gcc && export CXX=g++ && cd CMAKE && cmake -G \"MinGW Makefiles\" -DCMAKE_SH=\"CMAKE_SH-NOTFOUND\" -H. -Bbuild"
 
 before_script:
   - eval "${MATRIX_EVAL}"
 
 script:
-- cmake --build build -- -j4
+- if $TARGETTING_ANDROID; then source ./genRootHelpersAndroid_travis.sh;
+  else cmake --build build -- -j4; fi
