@@ -1524,11 +1524,55 @@ void client_ls(IDescriptor& cl, IDescriptor& rcl) {
 	}
 }
 
+/**
+ * Used by Android JNI side for allowing upload of files provided through a content uri by third-party apps,
+ * by receiving the extracted file descriptors of those files over the Unix Domain Socket
+ */
+#ifndef _WIN32
+void client_upload_from_fds(IDescriptor& cl, IDescriptor& rcl, const request_type rq) {
+    PRINTUNIFIED("IN CLIENT UPLOAD FROM FDS\n");
+    // receive total size (accumulated Java-side using content resolver query) for setting external progress
+    uint64_t totalSize,totalFiles=0;
+    cl.readAllOrExit(&totalSize,sizeof(uint64_t));
+
+    // send "client upload" request to server
+    rcl.writeAllOrExit(&rq, sizeof(uint8_t));
+
+    for(;;) {
+        // receive destination path including desired filename and source file size (by Java), and file descriptor (by JNI)
+        // here, we have an already open file descriptor to read from
+        std::string destPath = readStringWithLen(cl);
+        if(destPath.empty()) break;
+        uint64_t size;
+        cl.readAllOrExit(&size,sizeof(uint64_t));
+
+        int receivedFd = recvfd((dynamic_cast<PosixDescriptor&>(cl)).desc);
+        if(receivedFd < 0) {
+            PRINTUNIFIEDERROR("Error receiving file descriptor over UDS\n");
+            threadExit();
+        }
+
+        PosixDescriptor receivedFd_(receivedFd);
+        OSUploadFromFileDescriptorWithProgress(receivedFd_,destPath,size,&cl,rcl);
+
+        cl.writeAllOrExit(&maxuint,sizeof(uint64_t));
+        PRINTUNIFIED("End of file in caller\n");
+    }
+
+    // send end of files indicator to local descriptor
+    cl.writeAllOrExit(&maxuint_2,sizeof(uint64_t));
+
+    // send end of list to remote descriptor
+    static constexpr uint8_t endOfList = 0xFF;
+    rcl.writeAllOrExit(&endOfList,sizeof(uint8_t));
+}
+#endif
+
 // FIXME mainly common code between client_upload and server_download, refactor with if statements (conditionally toggle different code blocks)
 // client sending upload request and content (and sending progress indication back on cl unix socket)
 // client UPLOADS to server
 void client_upload(IDescriptor& cl, IDescriptor& rcl) {
-	static constexpr uint8_t up_rq = ACTION_UPLOAD;
+    PRINTUNIFIED("IN CLIENT UPLOAD\n");
 	// receive list of source-destination path pairs from cl
 	std::vector<std::pair<std::string,std::string>> v = receivePathPairsList(cl);
 	
@@ -1550,7 +1594,7 @@ void client_upload(IDescriptor& cl, IDescriptor& rcl) {
     cl.writeAllOrExit(&(counts.tSize),sizeof(uint64_t));
 	
 	// send "client upload" request to server
-	rcl.writeAllOrExit(&up_rq, sizeof(uint8_t));
+	rcl.writeAllOrExit(&ACTION_UPLOAD, sizeof(uint8_t));
 	
 	for (auto& item : v)
 		genericUploadBasicRecursiveImplWithProgress(item.first,item.second,rcl,&cl);
@@ -1897,7 +1941,10 @@ void tlsClientSessionEventLoop(RingBuffer& inRb, Botan::TLS::Client& client, IDe
 				client_download(cl,rcl);
 				break;
 			case ACTION_UPLOAD:
-				client_upload(cl,rcl);
+                                if (rq.flags == 0)
+                                    client_upload(cl,rcl);
+                                else
+                                    client_upload_from_fds(cl,rcl,rq);
 				break;
 			default:
 				PRINTUNIFIEDERROR("Unexpected data received by client session thread from local socket, exiting thread...\n");

@@ -5,6 +5,7 @@
 #include <jni.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include "../af_unix_utils.h"
 #include "botan_all.h"
 
 // DUPLICATED CODE, possibly move in common header
@@ -34,12 +35,19 @@ Java_it_pgp_Native_stringFromJNI(JNIEnv *env, jclass type) {
     return env->NewStringUTF(hello.c_str());
 }
 
+
+// filename over UDS is sent Java-side, on the wrapped instance of udsToSendFdOver (LocalSocket)
+JNIEXPORT jint JNICALL
+Java_it_pgp_Native_sendDetachedFD(JNIEnv *env, jclass type, jint udsToSendFdOver, jint fdToSend) {
+	return sendfd(udsToSendFdOver,fdToSend);
+}
+// after return, progress is received Java-side, using the LocalSocket object as well
+
 JNIEXPORT jint JNICALL
 Java_it_pgp_Native_isSymLink(JNIEnv *env, jclass type, jstring path_) {
 	int ret;
 	struct stat st = {};
 	const char* path = (const char*)(env->GetStringUTFChars(path_,NULL));
-	size_t length = (size_t)(env->GetStringLength(path_));
 	lstat(path,&st);
 	ret = S_ISLNK(st.st_mode)?1:0;
 	env->ReleaseStringUTFChars(path_, path);

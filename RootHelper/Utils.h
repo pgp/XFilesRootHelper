@@ -596,6 +596,74 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
     return 0;
 }
 
+#ifndef _WIN32
+template<typename STR>
+ssize_t OSUploadFromFileDescriptorWithProgress(IDescriptor& input, const STR& destination, uint64_t thisFileSize, IDescriptor* outDesc, IDescriptor& networkDesc) {
+    static constexpr uint8_t fileFlag = 0x00;
+
+    // TODO send also struct stat's mode_t in order to set destination permissions
+
+    // TO BE SENT OVER NETWORK SOCKET: fileOrDir flag, full (destination) pathname and file size
+    auto dp = TOUNIXPATH(destination);
+    uint16_t destLen = dp.size();
+    PRINTUNIFIED("File size for upload is %lu\n",thisFileSize);
+
+    // one single write command to remote socket wrapper
+    uint32_t totalRqSize = sizeof(uint8_t)+sizeof(uint16_t)+destLen+sizeof(uint64_t);
+    std::vector<uint8_t> buffer(totalRqSize);
+    uint8_t* v = &buffer[0];
+    memcpy(v,&fileFlag,sizeof(uint8_t));
+    memcpy(v+sizeof(uint8_t),&destLen,sizeof(uint16_t));
+    memcpy(v+sizeof(uint8_t)+sizeof(uint16_t),dp.c_str(),destLen);
+    memcpy(v+sizeof(uint8_t)+sizeof(uint16_t)+destLen,&thisFileSize,sizeof(uint64_t));
+    networkDesc.writeAllOrExit(v,totalRqSize);
+
+    if (outDesc) outDesc->writeAllOrExit(&thisFileSize,sizeof(uint64_t));
+    PRINTUNIFIED("File size: %llu\n",thisFileSize);
+
+    uint64_t currentProgress = 0;
+
+    // std::vector<uint8_t> buffer(REMOTE_IO_CHUNK_SIZE);
+    buffer.resize(REMOTE_IO_CHUNK_SIZE);
+    v = &buffer[0]; // reassign pointer in order to account for realloc relocations
+
+    // FIXME duplicated code from downloadRemoteItems, refactor into a function
+    /********* quotient + remainder IO loop *********/
+    uint64_t quotient = thisFileSize / REMOTE_IO_CHUNK_SIZE;
+    uint64_t remainder = thisFileSize % REMOTE_IO_CHUNK_SIZE;
+
+    PRINTUNIFIED("Chunk info: quotient is %lu, remainder is %lu\n",quotient,remainder);
+
+    for(uint64_t i=0;i<quotient;i++) {
+        input.readAllOrExit(v,REMOTE_IO_CHUNK_SIZE);
+        networkDesc.writeAllOrExit(v,REMOTE_IO_CHUNK_SIZE);
+
+        // send progress information back to local socket
+        currentProgress += REMOTE_IO_CHUNK_SIZE;
+
+        if (outDesc) outDesc->writeAllOrExit(&currentProgress,sizeof(uint64_t));
+        PRINTUNIFIED("Progress: %llu\n",currentProgress);
+    }
+
+    if (remainder != 0) {
+        input.readAllOrExit(v,remainder);
+        networkDesc.writeAllOrExit(v,remainder);
+
+        // send progress information back to local socket
+        currentProgress += remainder;
+
+        if (outDesc) outDesc->writeAllOrExit(&currentProgress,sizeof(uint64_t));
+        PRINTUNIFIED("Progress: %llu\n",currentProgress);
+    }
+    /********* end quotient + remainder IO loop *********/
+
+    // end-of-progress indicator removed from here, performed in caller unconditionally
+
+    input.close();
+    return 0;
+}
+#endif
+
 // LEGACY
 // counts total regular files and folders in a directory subtree; special files are not counted
 template<typename STR>
@@ -1003,7 +1071,7 @@ std::vector<std::pair<std::string,std::string>> receivePathPairsList(IDescriptor
     for(;;) {
         std::vector<std::string> f = readPairOfStringsWithPairOfLens(desc);
         if (f[0].empty()) break;
-        v.push_back(std::make_pair(f[0],f[1]));
+        v.emplace_back(f[0],f[1]);
     }
     return v;
 }

@@ -47,7 +47,7 @@ constexpr int MAX_CLIENTS = 20; // 10 short ops, 10 longterm ops sessions
 #define ACTION_FILE_IO 0x0F // flags: 000 - client sends stream (written to file), 111 - client receives stream (read from file)
 
 #define ACTION_DOWNLOAD 0x10
-#define ACTION_UPLOAD 0x11
+constexpr uint8_t ACTION_UPLOAD = 0x11; // flags: 000 - receive list of path pairs, 111 - receive file descriptors over UDS (one by one)
 
 #define REMOTE_SERVER_MANAGEMENT 0x12 // flags: 010 - get status, 111 - start, 000 - stop
 

@@ -1,12 +1,14 @@
 #ifndef __ROOTHELPER_VERSION_H__
 #define __ROOTHELPER_VERSION_H__
 
-#include <iostream>
+// #include <iostream>
+#include "unifiedlogging.h" 
 
-const std::string _ROOTHELPER_VERSION_ = "1.0.1_20190213";
+const char* _ROOTHELPER_VERSION_ = "1.0.2_20190325";
 
 inline void print_roothelper_version() {
-	std::cout<<"Roothelper version "<<_ROOTHELPER_VERSION_<<std::endl;
+	// std::cout<<"Roothelper version "<<_ROOTHELPER_VERSION_<<std::endl;
+	PRINTUNIFIED("Roothelper version %s\n",_ROOTHELPER_VERSION_);
 }
 
 #endif /* __ROOTHELPER_VERSION_H__ */
