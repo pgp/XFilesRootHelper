@@ -123,7 +123,7 @@ public:
     void go() {
         Botan::System_RNG rng_;
         Botan::TLS::Session_Manager_In_Memory session_mgr(rng_);
-        const std::string next_protos = "";
+        const std::string next_protos;
         Basic_Credentials_Manager creds;
         const std::vector<std::string> protocols_to_offer = Botan::split_on(next_protos, ',');
         auto version = Botan::TLS::Protocol_Version::TLS_V12;

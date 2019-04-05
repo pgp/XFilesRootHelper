@@ -44,7 +44,7 @@ public:
        {
           try
           {
-             cert.certs.push_back(Botan::X509_Certificate(in));
+             cert.certs.emplace_back(Botan::X509_Certificate(in));
           }
 //          catch(std::exception& e) {
           catch(...) {
@@ -105,7 +105,7 @@ public:
           if(std::find(algos.begin(), algos.end(), i.key->algo_name()) == algos.end())
              continue;
 
-          if(hostname != "" && !i.certs[0].matches_dns_name(hostname))
+          if(!hostname.empty() && !i.certs[0].matches_dns_name(hostname))
              continue;
 
           return i.certs;

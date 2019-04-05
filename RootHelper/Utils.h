@@ -359,7 +359,7 @@ int assemble_ls_resp_from_filepath(const std::wstring& filepath, const std::wstr
 }
 #else
 int assemble_ls_resp_from_filepath(const std::string& filepath, const std::string& nameOnly, ls_resp_t& responseEntry) {
-    struct stat st;
+    struct stat st{};
     if (lstat(filepath.c_str(), &st) < 0) return -1;
     responseEntry.filename = nameOnly;
     responseEntry.date = st.st_mtime;                      // last modification time
@@ -395,7 +395,7 @@ std::wstring getParentDir(std::wstring child) {
 
 #else
 
-std::string getParentDir(std::string child) {
+std::string getParentDir(const std::string& child) {
     auto sep = getSystemPathSeparator();
     if (child == sep) return "";
     ssize_t last = child.find_last_of(sep);
@@ -941,7 +941,7 @@ int genericDeleteBasicImpl(const std::string& path) {
                 // non-empty directory that was already visited
                 // it means some files within cannot be deleted
                 // so, remove it from stack anyway
-                if (p.second == true) {
+                if (p.second) {
                     // PRINTUNIFIED("non-empty dir, already visited: %s\n",x.c_str());
                     if (!popped) S.pop();
                     continue;
@@ -1226,7 +1226,7 @@ void hashFile(IDescriptor& inOutDesc) {
 
     std::vector<uint8_t> digest = rh_computeHash(filepath, rh_hashLabels[algorithm]);
 
-    if (digest.size() == 0) {
+    if (digest.empty()) {
         PRINTUNIFIEDERROR("Size is 0");
         sendErrorResponse(inOutDesc);
         return;

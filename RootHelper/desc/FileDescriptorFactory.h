@@ -23,7 +23,7 @@ public:
 class FileDescriptorFactory {
 public:
     std::unique_ptr<IDescriptor> create(const std::string& filename, const std::string& openMode, int& errCode) {
-        PosixDescriptor* pd = new PosixDescriptor(filename,openMode);
+        auto pd = new PosixDescriptor(filename,openMode);
         if (pd->desc <= 0) errCode = errno;
         return std::unique_ptr<IDescriptor>(pd);
     }

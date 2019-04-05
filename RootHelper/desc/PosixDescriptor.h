@@ -44,7 +44,7 @@ public:
     inline ssize_t read(void* buf, size_t count) {return ::read(desc,buf,count);}
 
     ssize_t readAll(void* buf_, size_t count) {
-        uint8_t* buf = (uint8_t*)buf_;
+        auto buf = (uint8_t*)buf_;
         size_t alreadyRead = 0;
         size_t remaining = count;
         for(;;) {
@@ -72,7 +72,7 @@ public:
     inline ssize_t write(const void* buf, size_t count) {return ::write(desc,buf,count);}
 
     ssize_t writeAll(const void* buf_, size_t count) {
-        uint8_t* buf = (uint8_t*)buf_;
+        auto buf = (uint8_t*)buf_;
         size_t alreadyWritten = 0;
         size_t remaining = count;
         for(;;) {

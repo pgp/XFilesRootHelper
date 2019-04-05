@@ -21,8 +21,8 @@ private:
     std::stack<std::string>* NamesOnly; // auxiliary stack with same ordering of S, where filenames are pushed only where in NAME mode
     size_t rootLen;
 
-    std::string getParentDir(std::string child) {
-        size_t last = child.find_last_of("/");
+    std::string getParentDir(const std::string& child) {
+        size_t last = child.find_last_of('/');
         return child.substr(0, last);
     }
 
@@ -198,14 +198,6 @@ public:
                 throw std::runtime_error("invalid enum value for dir iteration mode");
         }
         return true;
-    }
-
-    std::string getCurrentFilename() { // the name only of the return path of a next() call
-        return currentName;
-    }
-
-    std::string getCurrent() {
-        return current;
     }
 };
 

@@ -116,7 +116,7 @@ int renamePathMakeAncestors(std::string oldPath, std::string newPath) {
 	int efd_parent = existsIsFileIsDir_(parent);
 		switch(efd_parent) {
 			case 0: // not existing
-				if (mkpathCopyPermissionsFromNearestAncestor(parent.c_str()) != 0)
+				if (mkpathCopyPermissionsFromNearestAncestor(parent) != 0)
 					return -1;
 				break;
 			case 1: // existing file

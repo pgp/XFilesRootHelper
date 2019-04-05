@@ -49,7 +49,7 @@ public:
             recursiveListing(recursiveListing_),
             openError(false) {} // BEWARE!!! https://stackoverflow.com/questions/4622225/boolean-variables-arent-always-false-by-default
 
-    virtual ~IDirIterator() {}; // necessary, otherwise subclasses destructor won't be called (type resolution is on assigned pointer, which is of type IDirIterator)
+    virtual ~IDirIterator() = default; // necessary, otherwise subclasses destructor won't be called (type resolution is on assigned pointer, which is of type IDirIterator)
 
     virtual bool next() = 0; // assigns current, and optionally currentName
 
