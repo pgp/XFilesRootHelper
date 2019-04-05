@@ -191,7 +191,7 @@ void deleteFile(IDescriptor& inOutDesc) {
 // not really a problem, since compress task is forked into a new process
 // compress or update (TODO) if the destination archive already exists
 void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
-  Func_CreateObject createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
+  auto createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
   if (!createObjectFunc) {
     PrintError("Can not get CreateObject");
     exit(-1);
@@ -259,7 +259,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
     std::unique_ptr<IDirIterator<std::string>> dirIt;
 
     if (nOfItemsToCompress == 0) {
-      dirIt = itf.createIterator(srcFolder.c_str(), RELATIVE_WITHOUT_BASE, false);
+      dirIt = itf.createIterator(srcFolder, RELATIVE_WITHOUT_BASE, false);
       while (dirIt->next())
       {
 		std::string curEntString = dirIt->getCurrent();
@@ -294,7 +294,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
       for (i = 0; i < nOfItemsToCompress; i++)
       {
         // stat current item, if it's a directory, open a stdfsIterator over it with parent prepend mode
-        struct stat st;
+        struct stat st{};
         stat(currentEntries[i].c_str(), &st); // filepath is relative path (filename only)
         if (S_ISDIR(st.st_mode))
         {
@@ -370,13 +370,13 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
   // check existence of destination archive's parent directory
   // if not existing, create it, if creation fails send error message
   std::string destParentDir = getParentDir(destArchive);
-  if (mkpathCopyPermissionsFromNearestAncestor(destParentDir.c_str()) != 0) {
+  if (mkpathCopyPermissionsFromNearestAncestor(destParentDir) != 0) {
 	  PRINTUNIFIEDERROR("Unable to create destination archive's parent directory\n");
 	  sendErrorResponse(inOutDesc);
 	  return;
   }
 
-  COutFileStream *outFileStreamSpec = new COutFileStream;
+  auto outFileStreamSpec = new COutFileStream;
   CMyComPtr<IOutStream> outFileStream = outFileStreamSpec;
   if (!outFileStreamSpec->Create(archiveName, false))
   {
@@ -394,14 +394,13 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
   int extRet = getFileExtension(destArchive,outExt);
   if (extRet < 0) goto unknownOutType;
   
-  if (outExt.compare("7z") == 0) {
+  if (outExt == "7z") {
 	  archiveType = _7Z;
-	  
   }
-  else if (outExt.compare("zip") == 0) {
+  else if (outExt == "zip") {
 	  archiveType = ZIP;
   }
-  else if (outExt.compare("tar") == 0) {
+  else if (outExt == "tar") {
 	  archiveType = TAR;
   }
   
@@ -421,7 +420,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
     return;
   }
 
-  CArchiveUpdateCallback *updateCallbackSpec = new CArchiveUpdateCallback;
+  auto updateCallbackSpec = new CArchiveUpdateCallback;
   
   updateCallbackSpec->setDesc(&inOutDesc); // for publishing progress
   
@@ -474,7 +473,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
 		sendErrorResponse(inOutDesc);
 		return;
       }
-      int setPropertiesResult;
+      int setPropertiesResult = 0;
       switch (archiveType) {
 		  case _7Z:
 			setPropertiesResult = setProperties->SetProperties(names_7z, values_7z, 3); // last param: kNumProps
@@ -535,7 +534,7 @@ std::string toUppercaseStringCopy(const std::string& strToConvert) {
 	return ret;
 }
 
-std::string getVirtualInnerNameForStreamArchive(std::string archiveName, ArchiveType archiveType) {
+std::string getVirtualInnerNameForStreamArchive(const std::string& archiveName, ArchiveType archiveType) {
 	std::string uppercaseString = toUppercaseStringCopy(archiveName);
 	std::string ext;
 	switch (archiveType) {
@@ -563,7 +562,7 @@ that is, files or folders themselves without their sub-tree nodes)
  */
 void extractFromArchive(IDescriptor& inOutDesc)
 {
-	Func_CreateObject createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
+	auto createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
 	if (!createObjectFunc)
 	{
 		PrintError("Can not get CreateObject");
@@ -627,7 +626,7 @@ void extractFromArchive(IDescriptor& inOutDesc)
 	}
   
 
-	CInFileStream *fileSpec = new CInFileStream;
+	auto fileSpec = new CInFileStream;
 	CMyComPtr<IInStream> file = fileSpec;
 
 	if (!fileSpec->Open(archiveName)) {
@@ -638,7 +637,7 @@ void extractFromArchive(IDescriptor& inOutDesc)
 	}
 
 	{
-    CArchiveOpenCallback *openCallbackSpec = new CArchiveOpenCallback;
+    auto openCallbackSpec = new CArchiveOpenCallback;
     CMyComPtr<IArchiveOpenCallback> openCallback(openCallbackSpec);
     openCallbackSpec->PasswordIsDefined = (!password.empty());
     openCallbackSpec->Password = FString(UTF8_to_wchar(password.c_str()).c_str());;
@@ -663,7 +662,7 @@ void extractFromArchive(IDescriptor& inOutDesc)
   }
 
   // Extract command
-  CArchiveExtractCallback *extractCallbackSpec = new CArchiveExtractCallback;
+  auto extractCallbackSpec = new CArchiveExtractCallback;
   // generate virtual single-child name by archive name in case of stream archive types
   if (archiveType == XZ || archiveType == GZ || archiveType == BZ2)
 	extractCallbackSpec->streamArchiveOnlyChildFilenameOnly = UTF8_to_wchar(
@@ -684,7 +683,7 @@ void extractFromArchive(IDescriptor& inOutDesc)
 
   HRESULT result;
 
-  if (currentEntries.size() == 0)
+  if (currentEntries.empty())
   { // extract all
     result = archive->Extract(nullptr, (UInt32)(Int32)(-1), false, extractCallback);
   }
@@ -717,7 +716,7 @@ void extractFromArchive(IDescriptor& inOutDesc)
 
 // for GZ,BZ2,XZ archives (that contains only one file stream with no attributes)
 // do not even check header, will be checked on extract, just return name without extension
-void listStreamArchive(IDescriptor& inOutDesc, std::string archiveName, ArchiveType archiveType) {
+void listStreamArchive(IDescriptor& inOutDesc, const std::string& archiveName, ArchiveType archiveType) {
 	std::string virtualInnerName = getVirtualInnerNameForStreamArchive(archiveName, archiveType);
 									
 	inOutDesc.writeAllOrExit( &RESPONSE_OK, sizeof(uint8_t));
@@ -737,7 +736,7 @@ void listStreamArchive(IDescriptor& inOutDesc, std::string archiveName, ArchiveT
 // only UTF-8 codepoint 0 contains the \0 byte (unlike UTF-16)
 // web source: http://stackoverflow.com/questions/6907297/can-utf-8-contain-zero-byte
 void listArchive(IDescriptor& inOutDesc) {
-	Func_CreateObject createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
+	auto createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
 	if (!createObjectFunc) {
 		PrintError("Can not get CreateObject");
 		exit(-1);
@@ -781,7 +780,7 @@ void listArchive(IDescriptor& inOutDesc) {
 
 	//////////////////////////////////////
 	
-	CInFileStream *fileSpec = new CInFileStream;
+	auto fileSpec = new CInFileStream;
 	CMyComPtr<IInStream> file = fileSpec;
 	
 	if (!fileSpec->Open(archiveName)) {
@@ -792,7 +791,7 @@ void listArchive(IDescriptor& inOutDesc) {
 	}
 	
 	{
-		CArchiveOpenCallback *openCallbackSpec = new CArchiveOpenCallback;
+		auto openCallbackSpec = new CArchiveOpenCallback;
 		CMyComPtr<IArchiveOpenCallback> openCallback(openCallbackSpec);
 		
 		openCallbackSpec->PasswordIsDefined = (!password.empty());
@@ -820,7 +819,6 @@ void listArchive(IDescriptor& inOutDesc) {
 	for (UInt32 i = 0; i < numItems; i++) {
 		// assemble and send response
 		ls_resp_t responseEntry{};
-		char tmp1[1024] = {};
 		{
 			// Get uncompressed size of file
 			NCOM::CPropVariant prop;
@@ -1036,7 +1034,7 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 				if (haystack.find(needle) != std::string::npos) {
 					find_resp_t findEntry{};
 					
-					std::string filepathname = pathConcat(basepath.c_str(),dir->d_name);
+					std::string filepathname = pathConcat(basepath,dir->d_name);
 					if (assemble_ls_resp_from_filepath(filepathname,dir->d_name,findEntry.fileItem)!=0) {
 						PRINTUNIFIEDERROR("Unable to stat file path: %s\n",filepathname.c_str());
 						continue;
@@ -1054,7 +1052,7 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 	else { // search in subfolders
 		PRINTUNIFIED("Entering recursive listing...\n");
 		// std::unique_ptr<IDirIterator<std::string>> dirIt = itf.createIterator(basepath.c_str(), FULL, true, RECURSIVE);
-		std::unique_ptr<IDirIterator<std::string>> dirIt = itf.createIterator(basepath.c_str(), FULL, true, SMART_SYMLINK_RESOLUTION);
+		std::unique_ptr<IDirIterator<std::string>> dirIt = itf.createIterator(basepath, FULL, true, SMART_SYMLINK_RESOLUTION);
 		while (dirIt->next()) {
 			std::string curEntString = dirIt->getCurrent();
 			std::string curEntName = dirIt->getCurrentFilename();
@@ -1093,7 +1091,7 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 
 #ifdef __linux__
 bool authenticatePeer(int nativeDesc) {
-  struct ucred cred; // members: pid_t pid, uid_t uid, gid_t gid
+  struct ucred cred{}; // members: pid_t pid, uid_t uid, gid_t gid
   socklen_t len = sizeof(cred);
 
   if (getsockopt(nativeDesc, SOL_SOCKET, SO_PEERCRED, &cred, &len) < 0) {
@@ -1206,8 +1204,7 @@ void readOrWriteFile(IDescriptor& inOutDesc, uint8_t flags) {
 		}
 		
 		sendOkResponse(inOutDesc);
-		
-		uint32_t readBytes,writtenBytes;
+
 		// start streaming file from client till EOF or any error
 		PRINTUNIFIED("Receiving stream...\n");
 		for(;;) {
@@ -1269,9 +1266,9 @@ void setDates(const char* filepath, IDescriptor& inOutDesc,uint8_t flags) {
 void setOwnership(const char* filepath, IDescriptor& inOutDesc,uint8_t flags) {
 	PRINTUNIFIED("Setting file ownership\n");
 	PRINTUNIFIED("Flags: %u\n",flags);
-	uint32_t owner,group;
-	if (B0(flags)) inOutDesc.readAllOrExit(&owner,sizeof(uint32_t));
-	if (B1(flags)) inOutDesc.readAllOrExit(&group,sizeof(uint32_t));
+	int32_t owner = -1,group = -1;
+	if (B0(flags)) inOutDesc.readAllOrExit(&owner,sizeof(int32_t));
+	if (B1(flags)) inOutDesc.readAllOrExit(&group,sizeof(int32_t));
 	
 	struct stat st = {}; // in case of expected modification of only one between owner and group, take the other from here
 	int ret = getFileType_(filepath,&st);
@@ -1291,7 +1288,7 @@ void setOwnership(const char* filepath, IDescriptor& inOutDesc,uint8_t flags) {
 void setPermissions(const char* filepath, IDescriptor& inOutDesc) {
 	PRINTUNIFIED("Setting file permissions\n");
 	uint32_t perms_;
-	mode_t* perms = (mode_t*)(&perms_);
+	auto perms = (mode_t*)(&perms_);
 	inOutDesc.readAllOrExit(&perms_,sizeof(uint32_t)); // mode_t should be 4 byte, avoiding hanging if not so
 	
 	int ret = chmod(filepath, *perms);
@@ -1836,9 +1833,9 @@ int connect_with_timeout(int& sock_fd, struct addrinfo* p, unsigned timeout_seco
 	//~ struct sockaddr_in addr; 
 	long arg;
 	fd_set myset; 
-	struct timeval tv; 
-	int valopt; 
-	socklen_t lon; 
+	struct timeval tv{};
+	int valopt;
+	socklen_t lon;
 
 	// Create socket 
 	// sock_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -2162,7 +2159,7 @@ void clientSession(int cl) {
 		  PRINTUNIFIED("Received exit request, exiting...\n");
 		  exit(0);
 	  }
-	  else {
+      else {
 		  serveRequest(cl,rq);
 	  }
     }
