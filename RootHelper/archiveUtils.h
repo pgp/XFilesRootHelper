@@ -1,6 +1,7 @@
 #ifndef _WIN32
 #ifndef __RH_ARCHIVE_UTILS_H__
 #define __RH_ARCHIVE_UTILS_H__
+#include <cstdint>
 
 #include "StdAfx.h"
 
@@ -12,6 +13,7 @@
 #include "../CPP/Common/IntToString.h"
 #include "../CPP/Common/StringConvert.h"
 
+#include "../CPP/Windows/TimeUtils.h"
 #include "../CPP/Windows/DLL.h"
 #include "../CPP/Windows/FileDir.h"
 #include "../CPP/Windows/FileFind.h"
@@ -28,6 +30,10 @@
 #include "../C/7zVersion.h"
 
 #include "archiveTypeDetector.h"
+
+
+#include "af_unix_utils.h"
+#include "desc/PosixDescriptor.h"
 
 // You can find the list of all GUIDs in Guid.txt file.
 // use another CLSIDs, if you want to support other formats (zip, rar, ...).
@@ -295,7 +301,7 @@ STDMETHODIMP CArchiveExtractCallback::SetCompleted(const UInt64* completeValue)
 STDMETHODIMP CArchiveExtractCallback::GetStream(UInt32 index,
                                                 ISequentialOutStream **outStream, Int32 askExtractMode)
 {
-  *outStream = 0;
+  *outStream = nullptr;
   _outFileStream.Release();
 
   {
@@ -428,7 +434,8 @@ STDMETHODIMP CArchiveExtractCallback::PrepareOperation(Int32 askExtractMode)
   case NArchive::NExtract::NAskMode::kExtract:
     _extractMode = true;
     break;
-  };
+  }
+
   switch (askExtractMode)
   {
   case NArchive::NExtract::NAskMode::kExtract:
@@ -440,7 +447,8 @@ STDMETHODIMP CArchiveExtractCallback::PrepareOperation(Int32 askExtractMode)
   case NArchive::NExtract::NAskMode::kSkip:
     PrintString(kSkippingString);
     break;
-  };
+  }
+
   PrintString(_filePath);
   return S_OK;
 }
@@ -615,7 +623,7 @@ public:
   FStringVector FailedFiles;
   CRecordVector<HRESULT> FailedCodes;
 
-  CArchiveUpdateCallback() : PasswordIsDefined(false), AskPassword(false), DirItems(0){};
+  CArchiveUpdateCallback() : PasswordIsDefined(false), AskPassword(false), DirItems(nullptr){};
 
   ~CArchiveUpdateCallback() { Finilize(); }
   HRESULT Finilize();
@@ -661,6 +669,7 @@ STDMETHODIMP CArchiveUpdateCallback::GetUpdateItemInfo(UInt32 /* index */,
 
 STDMETHODIMP CArchiveUpdateCallback::GetProperty(UInt32 index, PROPID propID, PROPVARIANT *value)
 {
+  // PRINTUNIFIED("GetProperty invoked for index %u",index);
   NCOM::CPropVariant prop;
 
   if (propID == kpidIsAnti)
@@ -721,7 +730,8 @@ static void GetStream2(const wchar_t *name)
 
 STDMETHODIMP CArchiveUpdateCallback::GetStream(UInt32 index, ISequentialInStream **inStream)
 {
-  RINOK(Finilize());
+  // PRINTUNIFIED("GetStream invoked for index %u",index);
+  RINOK(Finilize())
 
   const CDirItem &dirItem = (*DirItems)[index];
   GetStream2(dirItem.Name);
@@ -730,7 +740,7 @@ STDMETHODIMP CArchiveUpdateCallback::GetStream(UInt32 index, ISequentialInStream
     return S_OK;
 
   {
-    CInFileStream *inStreamSpec = new CInFileStream;
+    auto inStreamSpec = new CInFileStream;
     CMyComPtr<ISequentialInStream> inStreamLoc(inStreamSpec);
     FString path = DirPrefix + dirItem.FullPath;
     if (!inStreamSpec->Open(path))
@@ -779,7 +789,7 @@ STDMETHODIMP CArchiveUpdateCallback::GetVolumeStream(UInt32 index, ISequentialOu
   fileName += L'.';
   fileName += res;
   fileName += VolExt;
-  COutFileStream *streamSpec = new COutFileStream;
+  auto streamSpec = new COutFileStream;
   CMyComPtr<ISequentialOutStream> streamLoc(streamSpec);
   if (!streamSpec->Create(us2fs(fileName), false))
     return ::GetLastError();
@@ -803,6 +813,256 @@ STDMETHODIMP CArchiveUpdateCallback::CryptoGetTextPassword2(Int32 *passwordIsDef
   *passwordIsDefined = BoolToInt(PasswordIsDefined);
   return StringToBstr(Password, password);
 }
+
+
+/***************************************************/
+/********* ArchiveUpdateCallbackFromFd *************/
+/***************************************************/
+
+struct PosixCompatDirItem {
+    // int fd; // fd received over UDS
+    struct stat st;
+    std::string filename;
+
+    PosixCompatDirItem(std::string& filename_, struct stat st_) :
+            filename(filename_), st(st_) /*, fd(-1)*/ {}
+};
+
+class ArchiveUpdateCallbackFromFd : public IArchiveUpdateCallback2,
+                                    public ICryptoGetTextPassword2,
+                                    public CMyUnknownImp
+{
+public:
+    MY_UNKNOWN_IMP2(IArchiveUpdateCallback2, ICryptoGetTextPassword2)
+
+    // IProgress
+    STDMETHOD(SetTotal)
+    (UInt64 size);
+    STDMETHOD(SetCompleted)
+    (const UInt64 *completeValue);
+
+    // IUpdateCallback2
+    STDMETHOD(GetUpdateItemInfo)
+    (UInt32 index,
+     Int32 *newData, Int32 *newProperties, UInt32 *indexInArchive);
+    STDMETHOD(GetProperty)
+    (UInt32 index, PROPID propID, PROPVARIANT *value);
+    STDMETHOD(GetStream)
+    (UInt32 index, ISequentialInStream **inStream);
+    STDMETHOD(SetOperationResult)
+    (Int32 operationResult);
+    STDMETHOD(GetVolumeSize)
+    (UInt32 index, UInt64 *size);
+    STDMETHOD(GetVolumeStream)
+    (UInt32 index, ISequentialOutStream **volumeStream);
+
+    STDMETHOD(CryptoGetTextPassword2)
+    (Int32 *passwordIsDefined, BSTR *password);
+
+public:
+    /** BEGIN RootHelper - Progress fields */
+    // file descriptor for publishing progress
+    IDescriptor& inOutDesc;
+    int udsNative;
+    uint64_t lastProgress,totalSize;
+    /** END RootHelper - Progress fields */
+
+    std::vector<PosixCompatDirItem> fdList; // maps index to pairs (fd,filename)
+
+
+    bool PasswordIsDefined;
+    UString Password;
+    bool AskPassword;
+
+    bool m_NeedBeClosed;
+
+    FStringVector FailedFiles; // store filenames only?
+    CRecordVector<HRESULT> FailedCodes;
+
+    ArchiveUpdateCallbackFromFd(IDescriptor& inOutDesc_) :
+                                    inOutDesc(inOutDesc_),
+                                    PasswordIsDefined(false),
+                                    AskPassword(false),
+                                    udsNative((dynamic_cast<PosixDescriptor&>(inOutDesc)).desc) {};
+
+    ~ArchiveUpdateCallbackFromFd() { Finilize(); }
+    HRESULT Finilize();
+
+    /* Will read one fd at a time (i.e. when needed) from inOutDesc */
+    void Init() {
+        m_NeedBeClosed = false;
+        FailedFiles.Clear();
+        FailedCodes.Clear();
+    }
+
+    // receive filenames and stats to be available to getProperty callback (fds not received yet at this stage)
+    void receiveStats() {
+        for(;;) {
+            std::string filename = readStringWithLen(inOutDesc);
+            if(filename.empty()) break;
+            struct stat st{};
+            inOutDesc.readAllOrExit(&st,sizeof(struct stat));
+            fdList.emplace_back(PosixCompatDirItem(filename,st));
+        }
+    }
+};
+
+STDMETHODIMP ArchiveUpdateCallbackFromFd::SetTotal(UInt64 size)
+{
+    totalSize = size;
+    PRINTUNIFIED("setTotal called in update, size is %llu\n",size);
+    writeAllOrExitProcess(inOutDesc, &size, sizeof(uint64_t)); // publish total information
+    return S_OK;
+}
+
+STDMETHODIMP ArchiveUpdateCallbackFromFd::SetCompleted(const UInt64* completeValue)
+{
+    if (*completeValue == totalSize || *completeValue - lastProgress >= 1000000) { // do not waste too much cpu in publishing progress
+        PRINTUNIFIED("setCompleted called in update, current value is %llu\n",*completeValue);
+        writeAllOrExitProcess(inOutDesc, completeValue, sizeof(uint64_t)); // publish progress information
+        lastProgress = *completeValue;
+    }
+    return S_OK;
+}
+
+STDMETHODIMP ArchiveUpdateCallbackFromFd::GetUpdateItemInfo(UInt32 /* index */,
+                                                            Int32 *newData, Int32 *newProperties, UInt32 *indexInArchive)
+{
+    if (newData)
+        *newData = BoolToInt(true);
+    if (newProperties)
+        *newProperties = BoolToInt(true);
+    if (indexInArchive)
+        *indexInArchive = (UInt32)(Int32)-1;
+    return S_OK;
+}
+
+
+// PGP
+#if __WORDSIZE == 32
+auto UNIXTimestampToWindowsFILETIME = NWindows::NTime::UnixTimeToFileTime;
+#elif __WORDSIZE == 64
+auto UNIXTimestampToWindowsFILETIME = NWindows::NTime::UnixTime64ToFileTime;
+#else
+#error Unable to detect ABI size
+#endif
+// PGP
+
+STDMETHODIMP ArchiveUpdateCallbackFromFd::GetProperty(UInt32 index, PROPID propID, PROPVARIANT *value)
+{
+    // PRINTUNIFIED("GetProperty invoked for index %u",index);
+    NCOM::CPropVariant prop;
+
+    if (propID == kpidIsAnti)
+    {
+        prop = false;
+        prop.Detach(value);
+        return S_OK;
+    }
+
+    {
+        auto& currentDirItem = fdList[index];
+        FILETIME ft{};
+        switch (propID) {
+            case kpidPath:
+                prop = UString(UTF8_to_wchar(currentDirItem.filename).c_str()); // TODO check: path or filename only?
+                break;
+            case kpidIsDir:
+                prop = S_ISDIR(currentDirItem.st.st_mode);
+                break;
+            case kpidSize:
+                prop = (UInt64)(currentDirItem.st.st_size);
+                break;
+            case kpidAttrib:
+                prop = currentDirItem.st.st_mode; // TODO likely wrong, posix attribs vs windows ones
+                break;
+            case kpidCTime:
+                UNIXTimestampToWindowsFILETIME(currentDirItem.st.st_ctime,ft);
+                prop = ft;
+                break;
+            case kpidATime:
+                UNIXTimestampToWindowsFILETIME(currentDirItem.st.st_atime,ft);
+                prop = ft;
+                break;
+            case kpidMTime:
+                UNIXTimestampToWindowsFILETIME(currentDirItem.st.st_mtime,ft);
+                prop = ft;
+                break;
+        }
+    }
+    prop.Detach(value);
+    return S_OK;
+}
+
+HRESULT ArchiveUpdateCallbackFromFd::Finilize()
+{
+    if (m_NeedBeClosed)
+    {
+        PrintNewLine();
+        m_NeedBeClosed = false;
+    }
+    return S_OK;
+}
+
+STDMETHODIMP ArchiveUpdateCallbackFromFd::GetStream(UInt32 index, ISequentialInStream **inStream)
+{
+    // By construction, here all the file stats item have already been received
+    // PRINTUNIFIED("GetStream invoked for index %u",index);
+    RINOK(Finilize())
+
+    auto& currentDirItem = fdList[index];
+
+    GetStream2(UTF8_to_wchar(currentDirItem.filename).c_str());
+
+    if (S_ISDIR(currentDirItem.st.st_mode))
+        return S_OK;
+
+    {
+        // TODO TO BE CHECKED - Assumption: getStream called once for each file, and in order
+        int fdToBeReceived = recvfd(udsNative);
+        auto inStreamSpec = new CInFdStream(fdToBeReceived);
+        CMyComPtr<ISequentialInStream> inStreamLoc(inStreamSpec);
+        *inStream = inStreamLoc.Detach();
+    }
+    return S_OK;
+}
+
+STDMETHODIMP ArchiveUpdateCallbackFromFd::SetOperationResult(Int32 /* operationResult */)
+{
+    m_NeedBeClosed = true;
+    return S_OK;
+}
+
+STDMETHODIMP ArchiveUpdateCallbackFromFd::GetVolumeSize(UInt32 index, UInt64 *size)
+{
+    return S_FALSE;
+}
+
+STDMETHODIMP ArchiveUpdateCallbackFromFd::GetVolumeStream(UInt32 index, ISequentialOutStream **volumeStream)
+{
+    return S_FALSE;
+}
+
+STDMETHODIMP ArchiveUpdateCallbackFromFd::CryptoGetTextPassword2(Int32 *passwordIsDefined, BSTR *password)
+{
+    if (!PasswordIsDefined)
+    {
+        if (AskPassword)
+        {
+            // You can ask real password here from user
+            // Password = GetPassword(OutStream);
+            // PasswordIsDefined = true;
+            PrintError("Password is not defined");
+            return E_ABORT;
+        }
+    }
+    *passwordIsDefined = BoolToInt(PasswordIsDefined);
+    return StringToBstr(Password, password);
+}
+
+/***************************************************/
+/********* ArchiveUpdateCallbackFromFd *************/
+/***************************************************/
 
 #endif /* __RH_ARCHIVE_UTILS_H__ */
 #endif /* _WIN32 */

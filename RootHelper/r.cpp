@@ -187,10 +187,201 @@ void deleteFile(IDescriptor& inOutDesc) {
 }
 
 
+void compressToArchiveFromFds(IDescriptor& inOutDesc) {
+    auto createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
+    if (!createObjectFunc) {
+        PrintError("Can not get CreateObject");
+        exit(-1);
+    }
+
+    auto updateCallbackSpec = new ArchiveUpdateCallbackFromFd(inOutDesc); // inOutDesc for publishing progress and for receiving fds and stats
+
+    // BEGIN RECEIVE DATA: list of filenames and struct stats from content provider (via JNI)
+    updateCallbackSpec->receiveStats();
+
+    // ...then destArchive
+    std::string destArchive = readStringWithLen(inOutDesc);
+    PRINTUNIFIED("received destination archive path is:\t%s\n", destArchive.c_str());
+
+    FString archiveName(UTF8_to_wchar(destArchive.c_str()).c_str());
+
+    // receive compress options
+    compress_rq_options_t compress_options = {};
+    readcompress_rq_options(inOutDesc,compress_options);
+    PRINTUNIFIED("received compress options:\tlevel %u, encryptHeader %s, solid %s\n",
+                 compress_options.compressionLevel,
+                 compress_options.encryptHeader?"true":"false",
+                 compress_options.solid?"true":"false");
+
+    // read password, if provided
+    std::string password = readStringWithByteLen(inOutDesc);
+    if (password.empty()) PRINTUNIFIED("No password provided, archive will not be encrypted\n");
+
+    PRINTUNIFIED("Number of items to compress is %u\n",updateCallbackSpec->fdList.size());
+
+    // END RECEIVE DATA (except fds, which are received one at a time when needed during compression)
+
+    // create archive command
+
+    // check existence of destination archive's parent directory
+    // if not existing, create it, if creation fails send error message
+    std::string destParentDir = getParentDir(destArchive);
+    if (mkpathCopyPermissionsFromNearestAncestor(destParentDir) != 0) {
+        PRINTUNIFIEDERROR("Unable to create destination archive's parent directory\n");
+        sendErrorResponse(inOutDesc);
+        return;
+    }
+
+    auto outFileStreamSpec = new COutFileStream;
+    CMyComPtr<IOutStream> outFileStream = outFileStreamSpec;
+    if (!outFileStreamSpec->Create(archiveName, false))
+    {
+        PrintError("can't create archive file");
+        // errno = EACCES; // or EEXIST // errno should already be set
+        sendErrorResponse(inOutDesc);
+        return;
+    }
+
+    CMyComPtr<IOutArchive> outArchive;
+    // get extension of dest file in order to choose archive encoder, return error on not supported extension
+    // only 7Z,ZIP and TAR for now
+    std::string outExt;
+    ArchiveType archiveType = UNKNOWN;
+    int extRet = getFileExtension(destArchive,outExt);
+    if (extRet < 0) goto unknownOutType;
+
+    if (outExt == "7z") {
+        archiveType = _7Z;
+    }
+    else if (outExt == "zip") {
+        archiveType = ZIP;
+    }
+    else if (outExt == "tar") {
+        archiveType = TAR;
+    }
+
+    unknownOutType:
+    if (archiveType == UNKNOWN) {
+        PrintError("Unable to find any codec associated to the output archive extension for the pathname ", archiveName);
+        errno = 23458;
+        sendErrorResponse(inOutDesc);
+        return;
+    }
+
+    if (createObjectFunc(&(archiveGUIDs[archiveType]), &IID_IOutArchive, (void **)&outArchive) != S_OK)
+    {
+        PrintError("Can not get class object");
+        errno = 12344;
+        sendErrorResponse(inOutDesc);
+        return;
+    }
+
+    CMyComPtr<IArchiveUpdateCallback2> updateCallback(updateCallbackSpec);
+
+    // TAR does not support password-protected archives, however setting password
+    // doesn't result in error (archive is simply not encrypted anyway), so no need
+    // to add explicit input parameter check
+    updateCallbackSpec->PasswordIsDefined = (!password.empty());
+    updateCallbackSpec->Password = FString(UTF8_to_wchar(password.c_str()).c_str());
+
+    updateCallbackSpec->Init();
+
+    // ARCHIVE OPTIONS
+    // independently from what options are passed to roothelper, the ones
+    // which are not-compatible with the target archive format are ignored
+
+    // names
+    const wchar_t *names_7z[] =
+            {
+                    L"x", // compression level
+                    L"s", // solid mode
+                    L"he" // encrypt filenames
+            };
+
+    const wchar_t *names_zip[] =
+            {
+                    L"x", // compression level
+            };
+
+    // values
+    NWindows::NCOM::CPropVariant values_7z[3] =
+            {
+                    (UInt32)(compress_options.compressionLevel),	// compression level
+                    (compress_options.solid > 0),					// solid mode
+                    (compress_options.encryptHeader > 0)			// encrypt filenames
+            };
+
+    NWindows::NCOM::CPropVariant values_zip[1] =
+            {
+                    (UInt32)(compress_options.compressionLevel)	// compression level
+            };
+
+    CMyComPtr<ISetProperties> setProperties;
+    outArchive->QueryInterface(IID_ISetProperties, (void **)&setProperties);
+    if (!setProperties)
+    {
+        PrintError("ISetProperties unsupported");
+        errno = 12377;
+        sendErrorResponse(inOutDesc);
+        return;
+    }
+    int setPropertiesResult = 0;
+    switch (archiveType) {
+        case _7Z:
+            setPropertiesResult = setProperties->SetProperties(names_7z, values_7z, 3); // last param: kNumProps
+            break;
+        case ZIP:
+            setPropertiesResult = setProperties->SetProperties(names_zip, values_zip, 1);
+            break;
+        default:
+            break; // do not set any option for TAR and other types
+    }
+
+    if(setPropertiesResult) {
+        PrintError("Unable to setProperties for archive");
+        errno = 12378;
+        sendErrorResponse(inOutDesc);
+        return;
+    }
+    // END ARCHIVE OPTIONS
+
+    sendOkResponse(inOutDesc); // means: archive init OK, from now on start compressing and publishing progress
+
+    HRESULT result = outArchive->UpdateItems(outFileStream, updateCallbackSpec->fdList.size(), updateCallback);
+
+    updateCallbackSpec->Finilize();
+
+    if (result != S_OK)
+    {
+        PrintError("Update Error");
+        errno = 12345;
+        sendEndProgressAndErrorResponse(inOutDesc);
+        return;
+    }
+
+    // unreachable in case or error
+    FOR_VECTOR(i, updateCallbackSpec->FailedFiles)
+    {
+        PrintNewLine();
+        PrintError("Error for file", updateCallbackSpec->FailedFiles[i]);
+    }
+
+    // if (updateCallbackSpec->FailedFiles.Size() != 0) exit(-1);
+
+    sendEndProgressAndOkResponse(inOutDesc);
+
+    PRINTUNIFIED("compress completed\n");
+    // delete updateCallbackSpec; // commented, causes segfault
+}
+
 // segfaults on the third invocation
 // not really a problem, since compress task is forked into a new process
 // compress or update (TODO) if the destination archive already exists
 void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
+  if(flags) {
+      compressToArchiveFromFds(inOutDesc);
+      return;
+  }
   auto createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
   if (!createObjectFunc) {
     PrintError("Can not get CreateObject");

@@ -3,6 +3,12 @@
 #ifndef __FILE_STREAMS_H
 #define __FILE_STREAMS_H
 
+#ifndef _WIN32
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
 #if defined(_WIN32) || defined(UNIX_USE_WIN_FILE)
 #define USE_WIN_FILE
 #endif
@@ -97,6 +103,62 @@ public:
   STDMETHOD(GetProps)(UInt64 *size, FILETIME *cTime, FILETIME *aTime, FILETIME *mTime, UInt32 *attrib);
   STDMETHOD(GetProps2)(CStreamFileProps *props);
   #endif
+};
+
+// PGP
+// class for handling already opened file descriptors (e.g. the ones coming from Android content providers)
+class CInFdStream:
+        public IInStream,
+        public IStreamGetSize,
+        public CMyUnknownImp
+{
+    bool _ignoreSymbolicLink;
+public:
+    bool SupportHardLinks;
+    int posixFd;
+    UInt32 processedSoFar; // FIXME what happens for input files greater than 4 Gb?
+
+    IInFileStream_Callback *Callback;
+    My_UINT_PTR CallbackRef;
+
+    virtual ~CInFdStream() {::close(posixFd);}
+
+    explicit CInFdStream(int posixFd_) : posixFd(posixFd_),processedSoFar(0){};
+
+    MY_QUERYINTERFACE_BEGIN2(IInStream)
+      MY_QUERYINTERFACE_ENTRY(IStreamGetSize)
+    MY_QUERYINTERFACE_END
+    MY_ADDREF_RELEASE
+
+    STDMETHOD(Read)(void *data, UInt32 size, UInt32 *processedSize) {
+        // TODO to be checked - assumption: processedSize is a pointer, the pointed value of which to populate with the current processed size
+        // 2 possible hypotheses: increment directly the processedSize
+        // or
+        // overwrite it with accumulated internal variable (CURRENTLY USED)
+        auto readBytes = ::read(posixFd,data,size);
+        if (readBytes > 0) {
+            processedSoFar += readBytes;
+            *processedSize = processedSoFar;
+        }
+        return readBytes;
+    }
+
+    STDMETHOD(Seek)(Int64 offset, UInt32 seekOrigin, UInt64 *newPosition) {
+        // TODO to be checked - assumption: store the returned offset in newPosition
+        auto returnedOffset = ::lseek(posixFd,offset,seekOrigin);
+        if (returnedOffset != ((off_t)(-1))) {
+            *newPosition = returnedOffset;
+        }
+        return returnedOffset; // TODO check coherence of macro definitions for SEEK_CUR, etc...
+    }
+
+    STDMETHOD(GetSize)(UInt64 *size) {
+        struct stat st{};
+        auto ret = ::fstat(posixFd,&st);
+        *size = st.st_size;
+        return ret;
+        // TODO which size to be set in case of failure? (uint(-1)? 0? none at all?)
+    }
 };
 
 class CStdInFileStream:
