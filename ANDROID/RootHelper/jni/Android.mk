@@ -71,6 +71,7 @@ LOCAL_SRC_FILES := \
   ../../../CPP/Windows/FileName.cpp \
   ../../../CPP/Windows/PropVariant.cpp \
   ../../../CPP/Windows/PropVariantConv.cpp \
+  ../../../CPP/Windows/TimeUtils.cpp \
   ../../../CPP/myWindows/wine_date_and_time.cpp \
   ../../../C/Threads.c \
 
