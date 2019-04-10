@@ -3,9 +3,11 @@
 #define _RH_ANDROIDJNI_WRAPPER_H_
 
 #include <jni.h>
+#include <android/log.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "../af_unix_utils.h"
+#include "../iowrappers_common.h"
 #include "botan_all.h"
 
 // DUPLICATED CODE, possibly move in common header
@@ -44,10 +46,30 @@ Java_it_pgp_Native_sendDetachedFD(JNIEnv *env, jclass type, jint udsToSendFdOver
 // after return, progress is received Java-side, using the LocalSocket object as well
 
 JNIEXPORT jint JNICALL
+Java_it_pgp_Native_sendfstat(JNIEnv *env, jclass type, jint udsToSendStatOver, jint fd, jstring filename_) {
+	struct stat st{};
+	auto pfd = PosixDescriptor(udsToSendStatOver);
+	if (fstat(fd,&st) == 0) { // send filename and struct stat
+		const char* filename = (const char*)(env->GetStringUTFChars(filename_,nullptr));
+		std::string s(filename);
+		writeStringWithLen(pfd,s);
+		pfd.writeAllOrExit(&st,sizeof(struct stat));
+		close(fd);
+		env->ReleaseStringUTFChars(filename_, filename);
+		return 0;
+	}
+	else {
+		__android_log_print(ANDROID_LOG_ERROR, "RHJNIWrapper", "Unable to stat fd %d",fd);
+		close(fd);
+		return -1;
+	}
+}
+
+JNIEXPORT jint JNICALL
 Java_it_pgp_Native_isSymLink(JNIEnv *env, jclass type, jstring path_) {
 	int ret;
 	struct stat st = {};
-	const char* path = (const char*)(env->GetStringUTFChars(path_,NULL));
+	const char* path = (const char*)(env->GetStringUTFChars(path_,nullptr));
 	lstat(path,&st);
 	ret = S_ISLNK(st.st_mode)?1:0;
 	env->ReleaseStringUTFChars(path_, path);
@@ -56,7 +78,7 @@ Java_it_pgp_Native_isSymLink(JNIEnv *env, jclass type, jstring path_) {
 
 JNIEXPORT jint JNICALL
 Java_it_pgp_Native_nHashCode(JNIEnv *env, jclass type, jbyteArray input_) {
-	jbyte *input = env->GetByteArrayElements(input_, NULL);
+	jbyte *input = env->GetByteArrayElements(input_, nullptr);
 	jsize l = env->GetArrayLength(input_);
 	jint h = hashCodeDefault((uint8_t*)input,l);
 	env->ReleaseByteArrayElements(input_, input, 0);
@@ -79,9 +101,9 @@ JNIEXPORT jbyteArray JNICALL Java_it_pgp_Native_spongeForHashViewShake(JNIEnv *e
 
 //~ JNIEXPORT void JNICALL
 //~ Java_it_pgp_Native_c20StreamGen(JNIEnv *env, jclass type, jbyteArray key_, jbyteArray output_) {
-	//~ jbyte *key = env->GetByteArrayElements(key_, NULL);
+	//~ jbyte *key = env->GetByteArrayElements(key_, nullptr);
 	//~ jsize keyLen = env->GetArrayLength(key_);
-	//~ jbyte *output = env->GetByteArrayElements(output_, NULL);
+	//~ jbyte *output = env->GetByteArrayElements(output_, nullptr);
 	//~ jsize outputLen = env->GetArrayLength(output_);
 	
 	//~ uint8_t nonce[8] = {};
@@ -108,9 +130,9 @@ JNIEXPORT jbyteArray JNICALL Java_it_pgp_Native_spongeForHashViewShake(JNIEnv *e
 //~ // arbitrary input, arbitrary output lengths
 //~ JNIEXPORT void JNICALL
 //~ Java_it_pgp_Native_spongeForHashView(JNIEnv *env, jclass type, jbyteArray input_, jbyteArray output_) {
-	//~ jbyte *input = env->GetByteArrayElements(input_, NULL);
+	//~ jbyte *input = env->GetByteArrayElements(input_, nullptr);
 	//~ jsize inputLen = env->GetArrayLength(input_);
-	//~ jbyte *output = env->GetByteArrayElements(output_, NULL);
+	//~ jbyte *output = env->GetByteArrayElements(output_, nullptr);
 	//~ jsize outputLen = env->GetArrayLength(output_);
 	
 	//~ uint8_t nonce[8] = {};
