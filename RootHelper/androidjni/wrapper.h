@@ -45,7 +45,8 @@ Java_it_pgp_Native_sendDetachedFD(JNIEnv *env, jclass type, jint udsToSendFdOver
 }
 // after return, progress is received Java-side, using the LocalSocket object as well
 
-JNIEXPORT jint JNICALL
+// returns file size, -1 on error
+JNIEXPORT jlong JNICALL
 Java_it_pgp_Native_sendfstat(JNIEnv *env, jclass type, jint udsToSendStatOver, jint fd, jstring filename_) {
 	struct stat st{};
 	auto pfd = PosixDescriptor(udsToSendStatOver);
@@ -56,7 +57,7 @@ Java_it_pgp_Native_sendfstat(JNIEnv *env, jclass type, jint udsToSendStatOver, j
 		pfd.writeAllOrExit(&st,sizeof(struct stat));
 		close(fd);
 		env->ReleaseStringUTFChars(filename_, filename);
-		return 0;
+		return st.st_size;
 	}
 	else {
 		__android_log_print(ANDROID_LOG_ERROR, "RHJNIWrapper", "Unable to stat fd %d",fd);
