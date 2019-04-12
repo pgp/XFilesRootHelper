@@ -1,31 +1,99 @@
 #ifndef IDESCRIPTOR_H
 #define IDESCRIPTOR_H
 
+#include <cstdio>
+#include <cstdlib>
+#include <thread>
+#include <string>
+
+#ifdef _WIN32
+#include "../common_win.h"
+#else
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/un.h>
+#include <sys/types.h>
+#include <fcntl.h>
+
+#include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#endif
+
+#include "../unifiedlogging.h"
+
 // both binary
 typedef enum {
-	READ,
-	WRITE
+    READ,
+    WRITE
 } FileOpenMode;
-
-// TODO *all and *allOrExit methods are common implementations, should be defined here
 
 // interface, only pure virtual functions
 class IDescriptor {
 public:
-	virtual ssize_t read(void* buf, size_t count) = 0;
-	virtual ssize_t readAll(void* buf, size_t count) = 0;
-	virtual void readAllOrExit(void* buf, size_t count) = 0;
-	virtual ssize_t write(const void* buf, size_t count) = 0;
-	virtual ssize_t writeAll(const void* buf, size_t count) = 0;
-	virtual void writeAllOrExit(const void* buf, size_t count) = 0;
-	virtual void close() = 0;
-	virtual ~IDescriptor() {};
+    virtual ssize_t read(void* buf, size_t count) = 0;
+    virtual ssize_t write(const void* buf, size_t count) = 0;
+    virtual void close() = 0;
+
+    virtual ssize_t readAll(void* buf_, size_t count) {
+        auto buf = (uint8_t*)buf_;
+        size_t alreadyRead = 0;
+        size_t remaining = count;
+        for(;;) {
+            ssize_t curr = read(buf+alreadyRead,remaining);
+            if (curr <= 0) return curr; // EOF
+
+            remaining -= curr;
+            alreadyRead += curr;
+
+            if (remaining == 0) return count; // all expected bytes read
+        }
+    }
+
+    virtual void readAllOrExit(void* buf, size_t count) {
+        ssize_t readBytes = readAll(buf,count);
+        ssize_t count_ = count;
+        if (readBytes < count_) {
+            PRINTUNIFIEDERROR("Exiting thread %ld on read error\n",std::this_thread::get_id());
+            close();
+            threadExit();
+        }
+    }
+
+    virtual ssize_t writeAll(const void* buf_, size_t count) {
+        auto buf = (uint8_t*)buf_;
+        size_t alreadyWritten = 0;
+        size_t remaining = count;
+        for(;;) {
+            ssize_t curr = write(buf+alreadyWritten,remaining);
+            if (curr <= 0) return curr; // EOF
+
+            remaining -= curr;
+            alreadyWritten += curr;
+
+            if (remaining == 0) return count; // all expected bytes written
+        }
+    }
+
+    virtual void writeAllOrExit(const void* buf, size_t count) {
+        ssize_t writtenBytes = writeAll(buf,count);
+        ssize_t count_ = count;
+        if (writtenBytes < count_) {
+            PRINTUNIFIEDERROR("Exiting thread %ld on write error\n",std::this_thread::get_id());
+            close();
+            threadExit();
+        }
+    }
+
+    virtual ~IDescriptor() = default;
 };
 
 class IDescriptorFactory {
 public:
-	virtual std::unique_ptr<IDescriptor> createFileDescriptor(std::string file_, FileOpenMode mode_) = 0;
-	virtual std::unique_ptr<IDescriptor> createNetworkDescriptor() = 0;
+    virtual std::unique_ptr<IDescriptor> createFileDescriptor(std::string file_, FileOpenMode mode_) = 0;
+    virtual std::unique_ptr<IDescriptor> createNetworkDescriptor() = 0;
 };
 
 #endif /* IDESCRIPTOR_H */
