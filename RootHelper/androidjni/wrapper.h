@@ -66,6 +66,24 @@ Java_it_pgp_Native_sendfstat(JNIEnv *env, jclass type, jint udsToSendStatOver, j
 	}
 }
 
+JNIEXPORT jstring JNICALL
+Java_it_pgp_Native_getPathFromFd(JNIEnv *env, jclass type, jstring fdNumAsString) {
+ const char *name = env->GetStringUTFChars(fdNumAsString, nullptr);//Java String to C Style string
+ std::string s = std::string("/proc/self/fd/") + name;
+ constexpr unsigned BUFSIZE = 4096;
+ static char path[BUFSIZE];
+ jstring result;
+ memset(path,0,BUFSIZE);
+
+ if (readlink(s.c_str(),path,BUFSIZE) < 0) { // output string will remain empty on error
+    __android_log_print(ANDROID_LOG_ERROR, "RHJNIWrapper", "Unable to readlink fd %s",name);
+ };
+
+ env->ReleaseStringUTFChars(fdNumAsString, name);
+ result = env->NewStringUTF(path); // C style string to Java String
+ return result;
+}
+
 JNIEXPORT jint JNICALL
 Java_it_pgp_Native_isSymLink(JNIEnv *env, jclass type, jstring path_) {
 	int ret;

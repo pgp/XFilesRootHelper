@@ -4,7 +4,7 @@
 // #include <iostream>
 #include "unifiedlogging.h" 
 
-const char* _ROOTHELPER_VERSION_ = "1.0.3_20190412";
+const char* _ROOTHELPER_VERSION_ = "1.0.3_20190413";
 
 inline void print_roothelper_version() {
 	// std::cout<<"Roothelper version "<<_ROOTHELPER_VERSION_<<std::endl;
