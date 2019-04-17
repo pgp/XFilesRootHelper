@@ -2,6 +2,7 @@
 #ifndef __RH_ARCHIVE_UTILS_H__
 #define __RH_ARCHIVE_UTILS_H__
 #include <cstdint>
+#include <utility>
 
 #include "StdAfx.h"
 
@@ -819,13 +820,39 @@ STDMETHODIMP CArchiveUpdateCallback::CryptoGetTextPassword2(Int32 *passwordIsDef
 /********* ArchiveUpdateCallbackFromFd *************/
 /***************************************************/
 
+//struct PosixCompatDirItem {
+//    // int fd; // fd received over UDS
+//    struct stat st;
+//    std::string filename;
+//
+//    PosixCompatDirItem(std::string& filename_, struct stat st_) :
+//            filename(filename_), st(st_) /*, fd(-1)*/ {}
+//};
+
+// for debugging using python client
 struct PosixCompatDirItem {
     // int fd; // fd received over UDS
-    struct stat st;
+    uint32_t st_mode;
+    uint64_t st_size;
+    uint64_t st_archivetime;
+    uint64_t st_creationtime;
+    uint64_t st_modificationtime;
+
     std::string filename;
 
-    PosixCompatDirItem(std::string& filename_, struct stat st_) :
-            filename(filename_), st(st_) /*, fd(-1)*/ {}
+//    PosixCompatDirItem(
+//            std::string filename,
+//            uint32_t stMode,
+//            uint64_t stSize,
+//            uint64_t stArchivetime,
+//            uint64_t stCreationtime,
+//            uint64_t stModificationtime) : filename(std::move(filename)),
+//                                           st_mode(stMode),
+//                                           st_size(stSize),
+//                                           st_archivetime(stArchivetime),
+//                                           st_creationtime(stCreationtime),
+//                                           st_modificationtime(stModificationtime) {}
+    explicit PosixCompatDirItem(std::string filename) : filename(std::move(filename)) {}
 };
 
 class ArchiveUpdateCallbackFromFd : public IArchiveUpdateCallback2,
@@ -867,7 +894,7 @@ public:
     uint64_t lastProgress,totalSize;
     /** END RootHelper - Progress fields */
 
-    std::vector<PosixCompatDirItem> fdList; // maps index to pairs (fd,filename)
+    std::vector<PosixCompatDirItem> fstatsList;
 
 
     bool PasswordIsDefined;
@@ -900,9 +927,18 @@ public:
         for(;;) {
             std::string filename = readStringWithLen(inOutDesc);
             if(filename.empty()) break;
-            struct stat st{};
-            inOutDesc.readAllOrExit(&st,sizeof(struct stat));
-            fdList.emplace_back(PosixCompatDirItem(filename,st));
+//            struct stat st{};
+//            inOutDesc.readAllOrExit(&st,sizeof(struct stat));
+//            fstatsList.emplace_back(PosixCompatDirItem(filename,st));
+
+            // DEBUG: read necessary fields one at a time
+            PosixCompatDirItem p(filename);
+            inOutDesc.readAllOrExit(&(p.st_mode), sizeof(uint32_t));
+            inOutDesc.readAllOrExit(&(p.st_size), sizeof(uint64_t));
+            inOutDesc.readAllOrExit(&(p.st_archivetime), sizeof(uint64_t));
+            inOutDesc.readAllOrExit(&(p.st_creationtime), sizeof(uint64_t));
+            inOutDesc.readAllOrExit(&(p.st_modificationtime), sizeof(uint64_t));
+            fstatsList.emplace_back(p);
         }
     }
 };
@@ -961,31 +997,37 @@ STDMETHODIMP ArchiveUpdateCallbackFromFd::GetProperty(UInt32 index, PROPID propI
     }
 
     {
-        auto& currentDirItem = fdList[index];
+        auto& currentDirItem = fstatsList[index];
         FILETIME ft{};
         switch (propID) {
             case kpidPath:
                 prop = UString(UTF8_to_wchar(currentDirItem.filename).c_str()); // TODO check: path or filename only?
                 break;
             case kpidIsDir:
-                prop = S_ISDIR(currentDirItem.st.st_mode);
+//                prop = S_ISDIR(currentDirItem.st.st_mode);
+                prop = S_ISDIR(currentDirItem.st_mode);
                 break;
             case kpidSize:
-                prop = (UInt64)(currentDirItem.st.st_size);
+//                prop = (UInt64)(currentDirItem.st.st_size);
+                prop = (UInt64)(currentDirItem.st_size);
                 break;
             case kpidAttrib:
-                prop = currentDirItem.st.st_mode; // TODO likely wrong, posix attribs vs windows ones
+//                prop = currentDirItem.st.st_mode; // TODO likely wrong, posix attribs vs windows ones
+                prop = currentDirItem.st_mode;
                 break;
             case kpidCTime:
-                UNIXTimestampToWindowsFILETIME(currentDirItem.st.st_ctime,ft);
+//                UNIXTimestampToWindowsFILETIME(currentDirItem.st.st_ctime,ft);
+                UNIXTimestampToWindowsFILETIME(currentDirItem.st_creationtime,ft);
                 prop = ft;
                 break;
             case kpidATime:
-                UNIXTimestampToWindowsFILETIME(currentDirItem.st.st_atime,ft);
+//                UNIXTimestampToWindowsFILETIME(currentDirItem.st.st_atime,ft);
+                UNIXTimestampToWindowsFILETIME(currentDirItem.st_archivetime,ft);
                 prop = ft;
                 break;
             case kpidMTime:
-                UNIXTimestampToWindowsFILETIME(currentDirItem.st.st_mtime,ft);
+//                UNIXTimestampToWindowsFILETIME(currentDirItem.st.st_mtime,ft);
+                UNIXTimestampToWindowsFILETIME(currentDirItem.st_modificationtime,ft);
                 prop = ft;
                 break;
         }
@@ -1010,15 +1052,24 @@ STDMETHODIMP ArchiveUpdateCallbackFromFd::GetStream(UInt32 index, ISequentialInS
     // PRINTUNIFIED("GetStream invoked for index %u",index);
     RINOK(Finilize())
 
-    auto& currentDirItem = fdList[index];
+    constexpr uint64_t maxuint = -1;
+    
+    inOutDesc.writeAllOrExit(&maxuint,sizeof(uint64_t)); // send EOF for previous file, so that client knows it has to send next fd
+
+    auto& currentDirItem = fstatsList[index];
 
     GetStream2(UTF8_to_wchar(currentDirItem.filename).c_str());
 
-    if (S_ISDIR(currentDirItem.st.st_mode))
+//    if (S_ISDIR(currentDirItem.st.st_mode))
+    if (S_ISDIR(currentDirItem.st_mode))
         return S_OK;
 
     {
-        // TODO TO BE CHECKED - Assumption: getStream called once for each file, and in order
+        // TODO TO BE CHECKED - Assumption: getStream called once for each file, and NOT concurrently from different threads
+        // send fd request using index and receive fd
+        // PRINTUNIFIEDERROR("Sending index after EOF: %u",index);
+        inOutDesc.writeAllOrExit(&index,sizeof(UInt32)); // inOutDesc and udsNative are actually the same descriptor
+        // PRINTUNIFIEDERROR("Receiving fd for index: %u",index);
         int fdToBeReceived = recvfd(udsNative);
         auto inStreamSpec = new CInFdStream(fdToBeReceived);
         CMyComPtr<ISequentialInStream> inStreamLoc(inStreamSpec);

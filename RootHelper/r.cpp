@@ -197,11 +197,13 @@ void compressToArchiveFromFds(IDescriptor& inOutDesc) {
     auto updateCallbackSpec = new ArchiveUpdateCallbackFromFd(inOutDesc); // inOutDesc for publishing progress and for receiving fds and stats
 
     // BEGIN RECEIVE DATA: list of filenames and struct stats from content provider (via JNI)
+    PRINTUNIFIED("[fds]receiving stats...");
     updateCallbackSpec->receiveStats();
+    PRINTUNIFIED("[fds]receiving stats completed");
 
     // ...then destArchive
     std::string destArchive = readStringWithLen(inOutDesc);
-    PRINTUNIFIED("received destination archive path is:\t%s\n", destArchive.c_str());
+    PRINTUNIFIED("[fds]received destination archive path is:\t%s\n", destArchive.c_str());
 
     FString archiveName(UTF8_to_wchar(destArchive.c_str()).c_str());
 
@@ -217,7 +219,7 @@ void compressToArchiveFromFds(IDescriptor& inOutDesc) {
     std::string password = readStringWithByteLen(inOutDesc);
     if (password.empty()) PRINTUNIFIED("No password provided, archive will not be encrypted\n");
 
-    PRINTUNIFIED("Number of items to compress is %u\n",updateCallbackSpec->fdList.size());
+    PRINTUNIFIED("Number of items to compress is %zu\n",updateCallbackSpec->fstatsList.size());
 
     // END RECEIVE DATA (except fds, which are received one at a time when needed during compression)
 
@@ -347,15 +349,16 @@ void compressToArchiveFromFds(IDescriptor& inOutDesc) {
 
     sendOkResponse(inOutDesc); // means: archive init OK, from now on start compressing and publishing progress
 
-    HRESULT result = outArchive->UpdateItems(outFileStream, updateCallbackSpec->fdList.size(), updateCallback);
+    HRESULT result = outArchive->UpdateItems(outFileStream, updateCallbackSpec->fstatsList.size(), updateCallback);
+    inOutDesc.writeAllOrExit(&maxuint_2,sizeof(uint64_t));
 
     updateCallbackSpec->Finilize();
 
     if (result != S_OK)
     {
         PrintError("Update Error");
-        errno = 12345;
-        sendEndProgressAndErrorResponse(inOutDesc);
+        if (errno == 0) errno = 12345;
+        sendErrorResponse(inOutDesc);
         return;
     }
 
@@ -368,7 +371,7 @@ void compressToArchiveFromFds(IDescriptor& inOutDesc) {
 
     // if (updateCallbackSpec->FailedFiles.Size() != 0) exit(-1);
 
-    sendEndProgressAndOkResponse(inOutDesc);
+    sendOkResponse(inOutDesc);
 
     PRINTUNIFIED("compress completed\n");
     // delete updateCallbackSpec; // commented, causes segfault
@@ -416,7 +419,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
   
   std::vector<std::string> currentEntries; // actually, this will contain only filenames, not full paths
   
-  PRINTUNIFIED("Number of items to compress is %u\n",nOfItemsToCompress);
+  PRINTUNIFIED("Number of items to compress is %" PRIu32 "\n",nOfItemsToCompress);
 
   if (nOfItemsToCompress != 0) {
 	currentEntries.reserve(nOfItemsToCompress);
@@ -737,6 +740,8 @@ std::string getVirtualInnerNameForStreamArchive(const std::string& archiveName, 
 			break;
 		case BZ2:
 			ext = ".BZ2";
+		default:
+			break;
 	}
 	
 	return has_suffix(uppercaseString,ext)?
@@ -960,6 +965,8 @@ void listArchive(IDescriptor& inOutDesc) {
 		case BZ2:
 			listStreamArchive(inOutDesc,getFilenameFromFullPath(archivepath),archiveType);
 			return;
+		default:
+			break;
 	}
 	
 	if (createObjectFunc(&(archiveGUIDs[archiveType]), &IID_IInArchive, (void **)&archive) != S_OK) {

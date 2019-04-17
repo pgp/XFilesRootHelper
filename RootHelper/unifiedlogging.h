@@ -1,6 +1,9 @@
 #ifndef _RH_UNIFIED_LOGGING_H_
 #define _RH_UNIFIED_LOGGING_H_
 
+#define __STDC_FORMAT_MACROS
+#include <cinttypes>
+
 #include <iostream>
 #include <string>
 #include <cstdarg>

@@ -54,7 +54,17 @@ Java_it_pgp_Native_sendfstat(JNIEnv *env, jclass type, jint udsToSendStatOver, j
 		const char* filename = (const char*)(env->GetStringUTFChars(filename_,nullptr));
 		std::string s(filename);
 		writeStringWithLen(pfd,s);
-		pfd.writeAllOrExit(&st,sizeof(struct stat));
+
+		// legacy, send whole struct stat
+		// pfd.writeAllOrExit(&st,sizeof(struct stat));
+
+		// new, send only necessary fields
+		pfd.writeAllOrExit(&(st.st_mode),sizeof(uint32_t));
+		pfd.writeAllOrExit(&(st.st_size),sizeof(uint64_t));
+		pfd.writeAllOrExit(&(st.st_atime), sizeof(uint64_t));
+		pfd.writeAllOrExit(&(st.st_ctime), sizeof(uint64_t));
+		pfd.writeAllOrExit(&(st.st_mtime), sizeof(uint64_t));
+
 		close(fd);
 		env->ReleaseStringUTFChars(filename_, filename);
 		return st.st_size;

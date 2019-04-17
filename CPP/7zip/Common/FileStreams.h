@@ -107,7 +107,6 @@ public:
 
 // PGP
 // class for handling already opened file descriptors (e.g. the ones coming from Android content providers)
-// (IMPLEMENTATION NOT WORKING)
 class CInFdStream:
         public ISequentialInStream,
         public CMyUnknownImp
@@ -115,20 +114,21 @@ class CInFdStream:
 public:
     MY_UNKNOWN_IMP
 
-    int posixFd;
+    const int posixFd;
 
-    virtual ~CInFdStream() {
+    ~CInFdStream() override {
         ::close(posixFd);
     }
 
     explicit CInFdStream(int posixFd_) : posixFd(posixFd_) {};
 
-    STDMETHOD(Read)(void *data, UInt32 size, UInt32 *processedSize) {
+    STDMETHOD(Read)(void *data, UInt32 size, UInt32 *processedSize) override {
         auto readBytes = ::read(posixFd,data,size);
-        if (readBytes > 0 && processedSize != nullptr) {
+        if (readBytes >= 0 && processedSize != nullptr) {
             *processedSize = readBytes; // behaviour deduced from CBufferInStream::Read in StreamObjects.cpp (p7zip source tree)
+            return S_OK;
         }
-        return readBytes;
+        else return S_FALSE;
     }
 };
 
@@ -139,7 +139,7 @@ class CStdInFileStream:
 public:
   MY_UNKNOWN_IMP
 
-  virtual ~CStdInFileStream() {}
+  virtual ~CStdInFileStream() = default;
   STDMETHOD(Read)(void *data, UInt32 size, UInt32 *processedSize);
 };
 

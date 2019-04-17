@@ -420,7 +420,7 @@ void read_fileitem_sock_t(fileitem_sock_t& fileitem, IDescriptor& desc) {
 
     if (fileitem.flag == 0x00) {
         desc.readAllOrExit(&(fileitem.size),sizeof(uint64_t));
-        PRINTUNIFIED("File info: %s size: %lu\n",fileitem.file.c_str(),fileitem.size);
+        PRINTUNIFIED("File info: %s size: %" PRIu64 "\n",fileitem.file.c_str(),fileitem.size);
     }
     else {
         PRINTUNIFIED("Dir info: %s\n",fileitem.file.c_str());
@@ -539,7 +539,7 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
     auto dp = TOUNIXPATH(destination);
     uint16_t destLen = dp.size();
     uint64_t thisFileSize = fileinfo.size;
-    PRINTUNIFIED("File size for upload is %lu\n",thisFileSize);
+    PRINTUNIFIED("File size for upload is %" PRIu64 "\n",thisFileSize);
 
     // one single write command to remote socket wrapper
     uint32_t totalRqSize = sizeof(uint8_t)+sizeof(uint16_t)+destLen+sizeof(uint64_t);
@@ -552,7 +552,7 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
     networkDesc.writeAllOrExit(v,totalRqSize);
 
 	if (outDesc) outDesc->writeAllOrExit(&thisFileSize,sizeof(uint64_t));
-    PRINTUNIFIED("File size: %llu\n",thisFileSize);
+    PRINTUNIFIED("File size: %" PRIu64 "\n",thisFileSize);
 
     uint64_t currentProgress = 0;
 
@@ -565,7 +565,7 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
     uint64_t quotient = thisFileSize / REMOTE_IO_CHUNK_SIZE;
     uint64_t remainder = thisFileSize % REMOTE_IO_CHUNK_SIZE;
 
-    PRINTUNIFIED("Chunk info: quotient is %lu, remainder is %lu\n",quotient,remainder);
+    PRINTUNIFIED("Chunk info: quotient is %" PRIu64 ", remainder is %" PRIu64 "\n",quotient,remainder);
 
     for(uint64_t i=0;i<quotient;i++) {
         input->readAllOrExit(v,REMOTE_IO_CHUNK_SIZE);
@@ -575,7 +575,7 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
         currentProgress += REMOTE_IO_CHUNK_SIZE;
 
 		if (outDesc) outDesc->writeAllOrExit(&currentProgress,sizeof(uint64_t));
-        PRINTUNIFIED("Progress: %llu\n",currentProgress);
+        PRINTUNIFIED("Progress: %" PRIu64 "\n",currentProgress);
     }
 
     if (remainder != 0) {
@@ -586,7 +586,7 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
         currentProgress += remainder;
         
         if (outDesc) outDesc->writeAllOrExit(&currentProgress,sizeof(uint64_t));
-        PRINTUNIFIED("Progress: %llu\n",currentProgress);
+        PRINTUNIFIED("Progress: %" PRIu64 "\n",currentProgress);
     }
     /********* end quotient + remainder IO loop *********/
 
@@ -606,7 +606,7 @@ ssize_t OSUploadFromFileDescriptorWithProgress(IDescriptor& input, const STR& de
     // TO BE SENT OVER NETWORK SOCKET: fileOrDir flag, full (destination) pathname and file size
     auto dp = TOUNIXPATH(destination);
     uint16_t destLen = dp.size();
-    PRINTUNIFIED("File size for upload is %lu\n",thisFileSize);
+    PRINTUNIFIED("File size for upload is %" PRIu64 "\n",thisFileSize);
 
     // one single write command to remote socket wrapper
     uint32_t totalRqSize = sizeof(uint8_t)+sizeof(uint16_t)+destLen+sizeof(uint64_t);
@@ -619,7 +619,7 @@ ssize_t OSUploadFromFileDescriptorWithProgress(IDescriptor& input, const STR& de
     networkDesc.writeAllOrExit(v,totalRqSize);
 
     if (outDesc) outDesc->writeAllOrExit(&thisFileSize,sizeof(uint64_t));
-    PRINTUNIFIED("File size: %llu\n",thisFileSize);
+    PRINTUNIFIED("File size: %" PRIu64 "\n",thisFileSize);
 
     uint64_t currentProgress = 0;
 
@@ -632,7 +632,7 @@ ssize_t OSUploadFromFileDescriptorWithProgress(IDescriptor& input, const STR& de
     uint64_t quotient = thisFileSize / REMOTE_IO_CHUNK_SIZE;
     uint64_t remainder = thisFileSize % REMOTE_IO_CHUNK_SIZE;
 
-    PRINTUNIFIED("Chunk info: quotient is %lu, remainder is %lu\n",quotient,remainder);
+    PRINTUNIFIED("Chunk info: quotient is %" PRIu64 ", remainder is %" PRIu64 "\n",quotient,remainder);
 
     for(uint64_t i=0;i<quotient;i++) {
         input.readAllOrExit(v,REMOTE_IO_CHUNK_SIZE);
@@ -642,7 +642,7 @@ ssize_t OSUploadFromFileDescriptorWithProgress(IDescriptor& input, const STR& de
         currentProgress += REMOTE_IO_CHUNK_SIZE;
 
         if (outDesc) outDesc->writeAllOrExit(&currentProgress,sizeof(uint64_t));
-        PRINTUNIFIED("Progress: %llu\n",currentProgress);
+        PRINTUNIFIED("Progress: %" PRIu64 "\n",currentProgress);
     }
 
     if (remainder != 0) {
@@ -653,7 +653,7 @@ ssize_t OSUploadFromFileDescriptorWithProgress(IDescriptor& input, const STR& de
         currentProgress += remainder;
 
         if (outDesc) outDesc->writeAllOrExit(&currentProgress,sizeof(uint64_t));
-        PRINTUNIFIED("Progress: %llu\n",currentProgress);
+        PRINTUNIFIED("Progress: %" PRIu64 "\n",currentProgress);
     }
     /********* end quotient + remainder IO loop *********/
 
@@ -806,7 +806,7 @@ void listDir(IDescriptor& inOutDesc) {
                 return;
             }
 
-            PRINTUNIFIED("sent: %s\t%s\t%lu\n", responseEntry.filename.c_str(), responseEntry.permissions, responseEntry.size);
+            PRINTUNIFIED("sent: %s\t%s\t%" PRIu64 "\n", responseEntry.filename.c_str(), responseEntry.permissions, responseEntry.size);
         }
     }
     else {
@@ -843,7 +843,7 @@ void listDir(IDescriptor& inOutDesc) {
                 return;
             }
 
-            PRINTUNIFIED("sent: %s\t%s\t%lu\n", responseEntry.filename.c_str(), responseEntry.permissions, responseEntry.size);
+            PRINTUNIFIED("sent: %s\t%s\t%" PRIu64 "\n", responseEntry.filename.c_str(), responseEntry.permissions, responseEntry.size);
         }
     }
 
@@ -891,7 +891,7 @@ void listDir(IDescriptor& inOutDesc) {
             return;
         }
 
-        PRINTUNIFIED("sent: %s\t%s\t%lu\n", responseEntry.filename.c_str(), responseEntry.permissions, responseEntry.size);
+        PRINTUNIFIED("sent: %s\t%s\t%" PRIu64 "\n", responseEntry.filename.c_str(), responseEntry.permissions, responseEntry.size);
     }
 
     // list termination indicator
@@ -1017,13 +1017,13 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
 
             // propagate size to local socket
 			if(cl) cl->writeAllOrExit(&(fileitem.size),sizeof(uint64_t));
-            PRINTUNIFIED("Fileitem size: %llu\n",fileitem.size);
+            PRINTUNIFIED("Fileitem size: %" PRIu64 "\n",fileitem.size);
 
             /********* quotient + remainder IO loop *********/
             uint64_t quotient = fileitem.size / REMOTE_IO_CHUNK_SIZE;
             uint64_t remainder = fileitem.size % REMOTE_IO_CHUNK_SIZE;
 
-            PRINTUNIFIED("Chunk info: quotient is %lu, remainder is %lu\n",quotient,remainder);
+            PRINTUNIFIED("Chunk info: quotient is %" PRIu64 ", remainder is %" PRIu64 "\n",quotient,remainder);
 
             for(uint64_t i=0;i<quotient;i++) {
                 rcl.readAllOrExit(&buffer[0],REMOTE_IO_CHUNK_SIZE);
@@ -1031,7 +1031,7 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
 
                 currentProgress += REMOTE_IO_CHUNK_SIZE;
                 if(cl) cl->writeAllOrExit(&currentProgress,sizeof(uint64_t));
-                PRINTUNIFIED("Progress: %llu\n",currentProgress);
+                PRINTUNIFIED("Progress: %" PRIu64 "\n",currentProgress);
             }
 
             if (remainder != 0) {
@@ -1040,7 +1040,7 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
 
                 currentProgress += remainder;
                 if(cl) cl->writeAllOrExit(&currentProgress,sizeof(uint64_t));
-                PRINTUNIFIED("Progress: %llu\n",currentProgress);
+                PRINTUNIFIED("Progress: %" PRIu64 "\n",currentProgress);
             }
             /********* end quotient + remainder IO loop *********/
 
@@ -1329,7 +1329,7 @@ int createRandomFile(const STR& path, uint64_t size) {
     uint64_t quotient = size / blockSize;
     uint64_t remainder = size % blockSize;
 
-    PRINTUNIFIED("[Create random file] Chunk info: quotient is %lu, remainder is %lu\n",quotient,remainder);
+    PRINTUNIFIED("[Create random file] Chunk info: quotient is %" PRIu64 ", remainder is %" PRIu64 "\n",quotient,remainder);
 
     for(uint64_t i=0;i<quotient;i++) {
         botan_cipher_set_key(enc, p1, keySize);
@@ -1374,7 +1374,7 @@ int createEmptyFile(const STR& path, uint64_t size) {
     uint64_t quotient = size / COPY_CHUNK_SIZE;
     uint64_t remainder = size % COPY_CHUNK_SIZE;
 
-    PRINTUNIFIED("[Create empty file] Chunk info: quotient is %lu, remainder is %lu\n",quotient,remainder);
+    PRINTUNIFIED("[Create empty file] Chunk info: quotient is %" PRIu64 ", remainder is %" PRIu64 "\n",quotient,remainder);
 
     for(uint64_t i=0;i<quotient;i++)
         fd->writeAllOrExit(&emptyChunk[0],COPY_CHUNK_SIZE);
