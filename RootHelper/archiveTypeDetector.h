@@ -21,17 +21,15 @@ typedef enum {
 	UNKNOWN
 } ArchiveType;
 
-std::vector<std::string> archiveTypeLabels = {
-		"7z",
-		"xz",
-		"rar",
-		"rar5",
-		"zip",
-		"cab",
-		"gz",
-		"bz2",
-		"tar",
-		"unknown"
+std::unordered_map<std::string,ArchiveType> archiveExtsToTypes = {
+        {"7z",_7Z},
+        {"xz",XZ},
+        {"rar",RAR5},
+        {"zip",ZIP},
+        {"cab",CAB},
+        {"gz",GZ},
+        {"bz2",BZ2},
+        {"tar",TAR}
 };
 
 std::vector<std::vector<uint8_t>> headers = {
@@ -59,6 +57,15 @@ std::vector<uint8_t> headers_lengths = {
 std::vector<uint8_t> tar_header = {0x75, 0x73, 0x74, 0x61, 0x72}; // tar
 uint16_t tar_header_offset = 0x101;
 uint8_t tar_header_length = 5;
+
+ArchiveType archiveTypeFromExtension(const std::string& ext) {
+    try {
+        return archiveExtsToTypes.at(ext);
+    }
+    catch(const std::out_of_range& e) {
+        return UNKNOWN;
+    }
+}
 
 // read a few bytes, tries to detect between most formats (except tar)
 ArchiveType detectArchiveType(const std::string& archivePath) {

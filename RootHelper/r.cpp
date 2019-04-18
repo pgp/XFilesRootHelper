@@ -222,14 +222,24 @@ HRESULT common_compress_logic(Func_CreateObject& createObjectFunc,
     int extRet = getFileExtension(destArchive,outExt);
     if (extRet < 0) goto unknownOutType;
 
-    if (outExt == "7z") {
-        archiveType = _7Z;
-    }
-    else if (outExt == "zip") {
-        archiveType = ZIP;
-    }
-    else if (outExt == "tar") {
-        archiveType = TAR;
+    archiveType = archiveTypeFromExtension(outExt);
+    switch(archiveType) {
+        // allowed output types
+        case GZ:
+        case BZ2:
+        case XZ:
+            if(filesNum != 1) { // won't filter the case of one single directory, which will gice update error later
+                PrintError("Only one input file allowed for creating stream archives");
+                errno = 23457;
+                sendErrorResponse(inOutDesc);
+                return E_ABORT;
+            }
+        case _7Z:
+        case ZIP:
+        case TAR:
+            goto allowedOutType;
+        default:
+            goto unknownOutType;
     }
 
     unknownOutType:
@@ -240,6 +250,7 @@ HRESULT common_compress_logic(Func_CreateObject& createObjectFunc,
         return E_ABORT;
     }
 
+    allowedOutType:
     if (createObjectFunc(&(archiveGUIDs[archiveType]), &IID_IOutArchive, (void **)&outArchive) != S_OK)
     {
         PrintError("Can not get class object");
@@ -270,7 +281,7 @@ HRESULT common_compress_logic(Func_CreateObject& createObjectFunc,
                     L"he" // encrypt filenames
             };
 
-    const wchar_t *names_zip[] =
+    const wchar_t *names_other[] =
             {
                     L"x", // compression level
             };
@@ -283,7 +294,7 @@ HRESULT common_compress_logic(Func_CreateObject& createObjectFunc,
                     (compress_options.encryptHeader > 0)			// encrypt filenames
             };
 
-    NWindows::NCOM::CPropVariant values_zip[1] =
+    NWindows::NCOM::CPropVariant values_other[1] =
             {
                     (UInt32)(compress_options.compressionLevel)	// compression level
             };
@@ -303,10 +314,13 @@ HRESULT common_compress_logic(Func_CreateObject& createObjectFunc,
             setPropertiesResult = setProperties->SetProperties(names_7z, values_7z, 3); // last param: kNumProps
             break;
         case ZIP:
-            setPropertiesResult = setProperties->SetProperties(names_zip, values_zip, 1);
+        case GZ:
+        case BZ2:
+        case XZ:
+            setPropertiesResult = setProperties->SetProperties(names_other, values_other, 1);
             break;
         default:
-            break; // do not set any option for TAR and other types
+            break; // do not set any option for TAR format
     }
 
     if(setPropertiesResult) {
