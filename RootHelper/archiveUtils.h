@@ -626,7 +626,7 @@ public:
 
   CArchiveUpdateCallback() : PasswordIsDefined(false), AskPassword(false), DirItems(nullptr){};
 
-  ~CArchiveUpdateCallback() { Finilize(); }
+  ~CArchiveUpdateCallback() override { Finilize(); }
   HRESULT Finilize();
 
   void Init(const CObjectVector<CDirItem> *dirItems)
@@ -648,12 +648,12 @@ STDMETHODIMP CArchiveUpdateCallback::SetTotal(UInt64 size)
 
 STDMETHODIMP CArchiveUpdateCallback::SetCompleted(const UInt64* completeValue)
 {
-  if (*completeValue == totalSize || *completeValue - lastProgress >= 1000000) { // do not waste too much cpu in publishing progress
-	PRINTUNIFIED("setCompleted called in update, current value is %llu\n",*completeValue);
-	writeAllOrExitProcess(*inOutDesc, completeValue, sizeof(uint64_t)); // publish progress information
-	lastProgress = *completeValue;
-  }
-  return S_OK;
+    if (*completeValue == totalSize || *completeValue - lastProgress >= 1000000) { // do not waste too much cpu in publishing progress
+        PRINTUNIFIED("setCompleted called in update, current value is %llu\n",*completeValue);
+        writeAllOrExitProcess(*inOutDesc, completeValue, sizeof(uint64_t)); // publish progress information
+        lastProgress = *completeValue;
+    }
+    return S_OK;
 }
 
 STDMETHODIMP CArchiveUpdateCallback::GetUpdateItemInfo(UInt32 /* index */,
@@ -713,12 +713,12 @@ STDMETHODIMP CArchiveUpdateCallback::GetProperty(UInt32 index, PROPID propID, PR
 
 HRESULT CArchiveUpdateCallback::Finilize()
 {
-  if (m_NeedBeClosed)
-  {
-    PrintNewLine();
-    m_NeedBeClosed = false;
-  }
-  return S_OK;
+    if (m_NeedBeClosed)
+    {
+        PrintNewLine();
+        m_NeedBeClosed = false;
+    }
+    return S_OK;
 }
 
 static void GetStream2(const wchar_t *name)
@@ -855,77 +855,31 @@ struct PosixCompatDirItem {
     explicit PosixCompatDirItem(std::string filename) : filename(std::move(filename)) {}
 };
 
-class ArchiveUpdateCallbackFromFd : public IArchiveUpdateCallback2,
-                                    public ICryptoGetTextPassword2,
-                                    public CMyUnknownImp
+class ArchiveUpdateCallbackFromFd : public CArchiveUpdateCallback
 {
 public:
-    MY_UNKNOWN_IMP2(IArchiveUpdateCallback2, ICryptoGetTextPassword2)
-
-    // IProgress
-    STDMETHOD(SetTotal)
-    (UInt64 size);
-    STDMETHOD(SetCompleted)
-    (const UInt64 *completeValue);
 
     // IUpdateCallback2
-    STDMETHOD(GetUpdateItemInfo)
-    (UInt32 index,
-     Int32 *newData, Int32 *newProperties, UInt32 *indexInArchive);
-    STDMETHOD(GetProperty)
-    (UInt32 index, PROPID propID, PROPVARIANT *value);
-    STDMETHOD(GetStream)
-    (UInt32 index, ISequentialInStream **inStream);
-    STDMETHOD(SetOperationResult)
-    (Int32 operationResult);
-    STDMETHOD(GetVolumeSize)
-    (UInt32 index, UInt64 *size);
-    STDMETHOD(GetVolumeStream)
-    (UInt32 index, ISequentialOutStream **volumeStream);
-
-    STDMETHOD(CryptoGetTextPassword2)
-    (Int32 *passwordIsDefined, BSTR *password);
+    STDMETHOD(GetProperty) (UInt32 index, PROPID propID, PROPVARIANT *value) override;
+    STDMETHOD(GetStream) (UInt32 index, ISequentialInStream **inStream) override;
+    STDMETHOD(GetVolumeSize) (UInt32 index, UInt64 *size) override;
+    STDMETHOD(GetVolumeStream) (UInt32 index, ISequentialOutStream **volumeStream) override;
 
 public:
-    /** BEGIN RootHelper - Progress fields */
-    // file descriptor for publishing progress
-    IDescriptor& inOutDesc;
     int udsNative;
-    uint64_t lastProgress,totalSize;
-    /** END RootHelper - Progress fields */
-
     std::vector<PosixCompatDirItem> fstatsList;
 
-
-    bool PasswordIsDefined;
-    UString Password;
-    bool AskPassword;
-
-    bool m_NeedBeClosed;
-
-    FStringVector FailedFiles; // store filenames only?
-    CRecordVector<HRESULT> FailedCodes;
-
-    ArchiveUpdateCallbackFromFd(IDescriptor& inOutDesc_) :
-                                    inOutDesc(inOutDesc_),
-                                    PasswordIsDefined(false),
-                                    AskPassword(false),
-                                    udsNative((dynamic_cast<PosixDescriptor&>(inOutDesc)).desc) {};
-
-    ~ArchiveUpdateCallbackFromFd() { Finilize(); }
-    HRESULT Finilize();
+    explicit ArchiveUpdateCallbackFromFd(IDescriptor* inOutDesc_) {
+        inOutDesc = inOutDesc_;
+        udsNative = (dynamic_cast<PosixDescriptor*>(inOutDesc))->desc;
+    };
 
     /* Will read one fd at a time (i.e. when needed) from inOutDesc */
-    void Init() {
-        m_NeedBeClosed = false;
-        FailedFiles.Clear();
-        FailedCodes.Clear();
-    }
 
     // receive filenames and stats to be available to getProperty callback (fds not received yet at this stage)
     void receiveStats() {
         for(;;) {
-            std::string filename = readStringWithLen(inOutDesc);
+            std::string filename = readStringWithLen(*inOutDesc);
             if(filename.empty()) break;
 //            struct stat st{};
 //            inOutDesc.readAllOrExit(&st,sizeof(struct stat));
@@ -933,45 +887,15 @@ public:
 
             // DEBUG: read necessary fields one at a time
             PosixCompatDirItem p(filename);
-            inOutDesc.readAllOrExit(&(p.st_mode), sizeof(uint32_t));
-            inOutDesc.readAllOrExit(&(p.st_size), sizeof(uint64_t));
-            inOutDesc.readAllOrExit(&(p.st_archivetime), sizeof(uint64_t));
-            inOutDesc.readAllOrExit(&(p.st_creationtime), sizeof(uint64_t));
-            inOutDesc.readAllOrExit(&(p.st_modificationtime), sizeof(uint64_t));
+            inOutDesc->readAllOrExit(&(p.st_mode), sizeof(uint32_t));
+            inOutDesc->readAllOrExit(&(p.st_size), sizeof(uint64_t));
+            inOutDesc->readAllOrExit(&(p.st_archivetime), sizeof(uint64_t));
+            inOutDesc->readAllOrExit(&(p.st_creationtime), sizeof(uint64_t));
+            inOutDesc->readAllOrExit(&(p.st_modificationtime), sizeof(uint64_t));
             fstatsList.emplace_back(p);
         }
     }
 };
-
-STDMETHODIMP ArchiveUpdateCallbackFromFd::SetTotal(UInt64 size)
-{
-    totalSize = size;
-    PRINTUNIFIED("setTotal called in update, size is %llu\n",size);
-    writeAllOrExitProcess(inOutDesc, &size, sizeof(uint64_t)); // publish total information
-    return S_OK;
-}
-
-STDMETHODIMP ArchiveUpdateCallbackFromFd::SetCompleted(const UInt64* completeValue)
-{
-    if (*completeValue == totalSize || *completeValue - lastProgress >= 1000000) { // do not waste too much cpu in publishing progress
-        PRINTUNIFIED("setCompleted called in update, current value is %llu\n",*completeValue);
-        writeAllOrExitProcess(inOutDesc, completeValue, sizeof(uint64_t)); // publish progress information
-        lastProgress = *completeValue;
-    }
-    return S_OK;
-}
-
-STDMETHODIMP ArchiveUpdateCallbackFromFd::GetUpdateItemInfo(UInt32 /* index */,
-                                                            Int32 *newData, Int32 *newProperties, UInt32 *indexInArchive)
-{
-    if (newData)
-        *newData = BoolToInt(true);
-    if (newProperties)
-        *newProperties = BoolToInt(true);
-    if (indexInArchive)
-        *indexInArchive = (UInt32)(Int32)-1;
-    return S_OK;
-}
 
 
 // PGP
@@ -1036,16 +960,6 @@ STDMETHODIMP ArchiveUpdateCallbackFromFd::GetProperty(UInt32 index, PROPID propI
     return S_OK;
 }
 
-HRESULT ArchiveUpdateCallbackFromFd::Finilize()
-{
-    if (m_NeedBeClosed)
-    {
-        PrintNewLine();
-        m_NeedBeClosed = false;
-    }
-    return S_OK;
-}
-
 STDMETHODIMP ArchiveUpdateCallbackFromFd::GetStream(UInt32 index, ISequentialInStream **inStream)
 {
     // By construction, here all the file stats item have already been received
@@ -1054,7 +968,7 @@ STDMETHODIMP ArchiveUpdateCallbackFromFd::GetStream(UInt32 index, ISequentialInS
 
     constexpr uint64_t maxuint = -1;
     
-    inOutDesc.writeAllOrExit(&maxuint,sizeof(uint64_t)); // send EOF for previous file, so that client knows it has to send next fd
+    inOutDesc->writeAllOrExit(&maxuint,sizeof(uint64_t)); // send EOF for previous file, so that client knows it has to send next fd
 
     auto& currentDirItem = fstatsList[index];
 
@@ -1068,19 +982,13 @@ STDMETHODIMP ArchiveUpdateCallbackFromFd::GetStream(UInt32 index, ISequentialInS
         // TODO TO BE CHECKED - Assumption: getStream called once for each file, and NOT concurrently from different threads
         // send fd request using index and receive fd
         // PRINTUNIFIEDERROR("Sending index after EOF: %u",index);
-        inOutDesc.writeAllOrExit(&index,sizeof(UInt32)); // inOutDesc and udsNative are actually the same descriptor
+        inOutDesc->writeAllOrExit(&index,sizeof(UInt32)); // inOutDesc and udsNative are actually the same descriptor
         // PRINTUNIFIEDERROR("Receiving fd for index: %u",index);
         int fdToBeReceived = recvfd(udsNative);
         auto inStreamSpec = new CInFdStream(fdToBeReceived);
         CMyComPtr<ISequentialInStream> inStreamLoc(inStreamSpec);
         *inStream = inStreamLoc.Detach();
     }
-    return S_OK;
-}
-
-STDMETHODIMP ArchiveUpdateCallbackFromFd::SetOperationResult(Int32 /* operationResult */)
-{
-    m_NeedBeClosed = true;
     return S_OK;
 }
 
@@ -1092,23 +1000,6 @@ STDMETHODIMP ArchiveUpdateCallbackFromFd::GetVolumeSize(UInt32 index, UInt64 *si
 STDMETHODIMP ArchiveUpdateCallbackFromFd::GetVolumeStream(UInt32 index, ISequentialOutStream **volumeStream)
 {
     return S_FALSE;
-}
-
-STDMETHODIMP ArchiveUpdateCallbackFromFd::CryptoGetTextPassword2(Int32 *passwordIsDefined, BSTR *password)
-{
-    if (!PasswordIsDefined)
-    {
-        if (AskPassword)
-        {
-            // You can ask real password here from user
-            // Password = GetPassword(OutStream);
-            // PasswordIsDefined = true;
-            PrintError("Password is not defined");
-            return E_ABORT;
-        }
-    }
-    *passwordIsDefined = BoolToInt(PasswordIsDefined);
-    return StringToBstr(Password, password);
 }
 
 /***************************************************/

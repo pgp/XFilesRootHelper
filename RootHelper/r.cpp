@@ -186,52 +186,22 @@ void deleteFile(IDescriptor& inOutDesc) {
   sendBaseResponse(ret, inOutDesc);
 }
 
-
-void compressToArchiveFromFds(IDescriptor& inOutDesc) {
-    auto createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
-    if (!createObjectFunc) {
-        PrintError("Can not get CreateObject");
-        exit(-1);
-    }
-
-    auto updateCallbackSpec = new ArchiveUpdateCallbackFromFd(inOutDesc); // inOutDesc for publishing progress and for receiving fds and stats
-
-    // BEGIN RECEIVE DATA: list of filenames and struct stats from content provider (via JNI)
-    PRINTUNIFIED("[fds]receiving stats...");
-    updateCallbackSpec->receiveStats();
-    PRINTUNIFIED("[fds]receiving stats completed");
-
-    // ...then destArchive
-    std::string destArchive = readStringWithLen(inOutDesc);
-    PRINTUNIFIED("[fds]received destination archive path is:\t%s\n", destArchive.c_str());
-
-    FString archiveName(UTF8_to_wchar(destArchive.c_str()).c_str());
-
-    // receive compress options
-    compress_rq_options_t compress_options = {};
-    readcompress_rq_options(inOutDesc,compress_options);
-    PRINTUNIFIED("received compress options:\tlevel %u, encryptHeader %s, solid %s\n",
-                 compress_options.compressionLevel,
-                 compress_options.encryptHeader?"true":"false",
-                 compress_options.solid?"true":"false");
-
-    // read password, if provided
-    std::string password = readStringWithByteLen(inOutDesc);
-    if (password.empty()) PRINTUNIFIED("No password provided, archive will not be encrypted\n");
-
-    PRINTUNIFIED("Number of items to compress is %zu\n",updateCallbackSpec->fstatsList.size());
-
-    // END RECEIVE DATA (except fds, which are received one at a time when needed during compression)
-
-    // create archive command
-
+HRESULT common_compress_logic(Func_CreateObject& createObjectFunc,
+                              IDescriptor& inOutDesc,
+                              std::string& destArchive,
+                              std::string& password,
+                              FString& archiveName,
+                              compress_rq_options_t& compress_options,
+                              CObjectVector<CDirItem>& dirItems,
+                              CArchiveUpdateCallback* updateCallbackSpec,
+                              size_t filesNum) {
     // check existence of destination archive's parent directory
     // if not existing, create it, if creation fails send error message
     std::string destParentDir = getParentDir(destArchive);
     if (mkpathCopyPermissionsFromNearestAncestor(destParentDir) != 0) {
         PRINTUNIFIEDERROR("Unable to create destination archive's parent directory\n");
         sendErrorResponse(inOutDesc);
-        return;
+        return E_ABORT;
     }
 
     auto outFileStreamSpec = new COutFileStream;
@@ -241,7 +211,7 @@ void compressToArchiveFromFds(IDescriptor& inOutDesc) {
         PrintError("can't create archive file");
         // errno = EACCES; // or EEXIST // errno should already be set
         sendErrorResponse(inOutDesc);
-        return;
+        return E_ABORT;
     }
 
     CMyComPtr<IOutArchive> outArchive;
@@ -267,7 +237,7 @@ void compressToArchiveFromFds(IDescriptor& inOutDesc) {
         PrintError("Unable to find any codec associated to the output archive extension for the pathname ", archiveName);
         errno = 23458;
         sendErrorResponse(inOutDesc);
-        return;
+        return E_ABORT;
     }
 
     if (createObjectFunc(&(archiveGUIDs[archiveType]), &IID_IOutArchive, (void **)&outArchive) != S_OK)
@@ -275,7 +245,7 @@ void compressToArchiveFromFds(IDescriptor& inOutDesc) {
         PrintError("Can not get class object");
         errno = 12344;
         sendErrorResponse(inOutDesc);
-        return;
+        return E_ABORT;
     }
 
     CMyComPtr<IArchiveUpdateCallback2> updateCallback(updateCallbackSpec);
@@ -286,7 +256,7 @@ void compressToArchiveFromFds(IDescriptor& inOutDesc) {
     updateCallbackSpec->PasswordIsDefined = (!password.empty());
     updateCallbackSpec->Password = FString(UTF8_to_wchar(password.c_str()).c_str());
 
-    updateCallbackSpec->Init();
+    updateCallbackSpec->Init(&dirItems);
 
     // ARCHIVE OPTIONS
     // independently from what options are passed to roothelper, the ones
@@ -325,7 +295,7 @@ void compressToArchiveFromFds(IDescriptor& inOutDesc) {
         PrintError("ISetProperties unsupported");
         errno = 12377;
         sendErrorResponse(inOutDesc);
-        return;
+        return E_ABORT;
     }
     int setPropertiesResult = 0;
     switch (archiveType) {
@@ -343,17 +313,70 @@ void compressToArchiveFromFds(IDescriptor& inOutDesc) {
         PrintError("Unable to setProperties for archive");
         errno = 12378;
         sendErrorResponse(inOutDesc);
-        return;
+        return E_ABORT;
     }
     // END ARCHIVE OPTIONS
 
     sendOkResponse(inOutDesc); // means: archive init OK, from now on start compressing and publishing progress
 
-    HRESULT result = outArchive->UpdateItems(outFileStream, updateCallbackSpec->fstatsList.size(), updateCallback);
-    inOutDesc.writeAllOrExit(&maxuint_2,sizeof(uint64_t));
-
+    HRESULT result = outArchive->UpdateItems(outFileStream, filesNum, updateCallback);
     updateCallbackSpec->Finilize();
 
+    return result; // S_FALSE or S_OK
+}
+
+
+void compressToArchiveFromFds(IDescriptor& inOutDesc) {
+    auto createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
+    if (!createObjectFunc) {
+        PrintError("Can not get CreateObject");
+        exit(-1);
+    }
+
+    auto updateCallbackSpec = new ArchiveUpdateCallbackFromFd(&inOutDesc); // inOutDesc for publishing progress and for receiving fds and stats
+
+    CObjectVector<CDirItem> dirItems; // unused, just for refactoring
+
+    // BEGIN RECEIVE DATA: list of filenames and struct stats from content provider (via JNI)
+    PRINTUNIFIED("[fds]receiving stats...");
+    updateCallbackSpec->receiveStats();
+    PRINTUNIFIED("[fds]receiving stats completed");
+
+    // ...then destArchive
+    std::string destArchive = readStringWithLen(inOutDesc);
+    PRINTUNIFIED("[fds]received destination archive path is:\t%s\n", destArchive.c_str());
+
+    FString archiveName(UTF8_to_wchar(destArchive.c_str()).c_str());
+
+    // receive compress options
+    compress_rq_options_t compress_options{};
+    readcompress_rq_options(inOutDesc,compress_options);
+    PRINTUNIFIED("received compress options:\tlevel %u, encryptHeader %s, solid %s\n",
+                 compress_options.compressionLevel,
+                 compress_options.encryptHeader?"true":"false",
+                 compress_options.solid?"true":"false");
+
+    // read password, if provided
+    std::string password = readStringWithByteLen(inOutDesc);
+    if (password.empty()) PRINTUNIFIED("No password provided, archive will not be encrypted\n");
+
+    PRINTUNIFIED("Number of items to compress is %zu\n",updateCallbackSpec->fstatsList.size());
+
+    // END RECEIVE DATA (except fds, which are received one at a time when needed during compression)
+
+    // create archive command
+    HRESULT result = common_compress_logic(createObjectFunc,
+                                           inOutDesc,
+                                           destArchive,
+                                           password,
+                                           archiveName,
+                                           compress_options,
+                                           dirItems,
+                                           updateCallbackSpec,
+                                           updateCallbackSpec->fstatsList.size());
+    inOutDesc.writeAllOrExit(&maxuint_2,sizeof(uint64_t));
+
+    if (result == E_ABORT) return;
     if (result != S_OK)
     {
         PrintError("Update Error");
@@ -381,341 +404,220 @@ void compressToArchiveFromFds(IDescriptor& inOutDesc) {
 // not really a problem, since compress task is forked into a new process
 // compress or update (TODO) if the destination archive already exists
 void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
-  if(flags) {
-      compressToArchiveFromFds(inOutDesc);
-      return;
-  }
-  auto createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
-  if (!createObjectFunc) {
-    PrintError("Can not get CreateObject");
-    exit(-1);
-  }
-
-  // BEGIN RECEIVE DATA: srcFolder, destArchive, filenames in srcFolder to compress
-  
-  std::vector<std::string> srcDestPaths = readPairOfStringsWithPairOfLens(inOutDesc);
-  std::string srcFolder = srcDestPaths[0];
-  std::string destArchive = srcDestPaths[1];
-  PRINTUNIFIED("received source folder path is:\t%s\n", srcFolder.c_str());
-  PRINTUNIFIED("received destination archive path is:\t%s\n", destArchive.c_str());
-  
-  FString archiveName(UTF8_to_wchar(destArchive.c_str()).c_str());
-
-  // receive compress options
-  compress_rq_options_t compress_options = {};
-  readcompress_rq_options(inOutDesc,compress_options);
-  PRINTUNIFIED("received compress options:\tlevel %u, encryptHeader %s, solid %s\n",
-				compress_options.compressionLevel,
-				compress_options.encryptHeader?"true":"false",
-				compress_options.solid?"true":"false");
-  
-  // read password, if provided
-  std::string password = readStringWithByteLen(inOutDesc);
-  if (password.empty()) PRINTUNIFIED("No password provided, archive will not be encrypted\n");
-
-  // receive number of filenames to be received, 0 means compress entire folder content
-  uint32_t nOfItemsToCompress, i;
-  inOutDesc.readAllOrExit( &(nOfItemsToCompress), sizeof(uint32_t));
-  
-  std::vector<std::string> currentEntries; // actually, this will contain only filenames, not full paths
-  
-  PRINTUNIFIED("Number of items to compress is %" PRIu32 "\n",nOfItemsToCompress);
-
-  if (nOfItemsToCompress != 0) {
-	currentEntries.reserve(nOfItemsToCompress);
-    for (i = 0; i < nOfItemsToCompress; i++)
-      currentEntries.push_back(readStringWithLen(inOutDesc));
-  }
-  // END RECEIVE DATA
-  
-  // change working directory to srcFolder
-  char currentDirectory[1024] = {};
-  getcwd(currentDirectory, 1024);
-
-  int ret = chdir(srcFolder.c_str()); // errno already set if chdir fails
-
-  if (ret != 0)
-  {
-    PRINTUNIFIEDERROR("Unable to chdir in compressToArchive, error is %d\n",errno);
-    errno = 12340;
-    sendErrorResponse(inOutDesc);
-    return;
-  }
-
-  // create archive command
-  ///////////////////////////////////////////////////////////////////////////
-  // for each item in currentEntries, if the item is a file, simply add it to dirItems,
-  // else create a stdfsIterator and add all content to dirItems
-
-  CObjectVector<CDirItem> dirItems;
-  {
-    int i;
-    std::unique_ptr<IDirIterator<std::string>> dirIt;
-
-    if (nOfItemsToCompress == 0) {
-      dirIt = itf.createIterator(srcFolder, RELATIVE_WITHOUT_BASE, false);
-      while (dirIt->next())
-      {
-		std::string curEntString = dirIt->getCurrent();
-
-		CDirItem di;
-		FString name = CmdStringToFString(curEntString.c_str());
-		std::wstring uws = UTF8_to_wchar(curEntString.c_str());
-		UString u(uws.c_str());
-
-        NFind::CFileInfo fi;
-        if (!fi.Find(name))
-        {
-          PrintError("Can't find file", name);
-          errno = 12341;
-          sendErrorResponse(inOutDesc);
-          return;
-        }
-
-        di.Attrib = fi.Attrib;
-        di.Size = fi.Size;
-        di.CTime = fi.CTime;
-        di.ATime = fi.ATime;
-        di.MTime = fi.MTime;
-        //~ di.Name = fs2us(name);
-        di.Name = u;
-        di.FullPath = u;
-        //~ di.FullPath = name;
-        dirItems.Add(di);
-      }
+    if(flags) {
+        compressToArchiveFromFds(inOutDesc);
+        return;
     }
-    else {
-      for (i = 0; i < nOfItemsToCompress; i++)
-      {
-        // stat current item, if it's a directory, open a stdfsIterator over it with parent prepend mode
-        struct stat st{};
-        stat(currentEntries[i].c_str(), &st); // filepath is relative path (filename only)
-        if (S_ISDIR(st.st_mode))
-        {
-          // STDFSITERATOR ONLY ALLOWS ABSOLUTE PATHS
-          std::stringstream ss;
-          ss<<srcFolder<<"/"<<currentEntries[i];
-          dirIt = itf.createIterator(ss.str(), RELATIVE_INCL_BASE, false);
-          while (dirIt->next())
-          {
-            std::string curEntString = dirIt->getCurrent();
-            PRINTUNIFIED("Current item: %s\n",curEntString.c_str());
+    auto createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
+    if (!createObjectFunc) {
+        PrintError("Can not get CreateObject");
+        exit(-1);
+    }
 
-            CDirItem di;
-            
-            FString name = CmdStringToFString(curEntString.c_str());
-			std::wstring uws = UTF8_to_wchar(curEntString.c_str());
-			UString u(uws.c_str());
+    auto updateCallbackSpec = new CArchiveUpdateCallback;
+    updateCallbackSpec->setDesc(&inOutDesc); // for publishing progress
 
-            NFind::CFileInfo fi;
-            if (!fi.Find(name)) // !fi.Find(name)
+    // BEGIN RECEIVE DATA: srcFolder, destArchive, filenames in srcFolder to compress
+
+    std::vector<std::string> srcDestPaths = readPairOfStringsWithPairOfLens(inOutDesc);
+    std::string srcFolder = srcDestPaths[0];
+    std::string destArchive = srcDestPaths[1];
+    PRINTUNIFIED("received source folder path is:\t%s\n", srcFolder.c_str());
+    PRINTUNIFIED("received destination archive path is:\t%s\n", destArchive.c_str());
+
+    FString archiveName(UTF8_to_wchar(destArchive.c_str()).c_str());
+
+    // receive compress options
+    compress_rq_options_t compress_options = {};
+    readcompress_rq_options(inOutDesc,compress_options);
+    PRINTUNIFIED("received compress options:\tlevel %u, encryptHeader %s, solid %s\n",
+                 compress_options.compressionLevel,
+                 compress_options.encryptHeader?"true":"false",
+                 compress_options.solid?"true":"false");
+
+    // read password, if provided
+    std::string password = readStringWithByteLen(inOutDesc);
+    if (password.empty()) PRINTUNIFIED("No password provided, archive will not be encrypted\n");
+
+    // receive number of filenames to be received, 0 means compress entire folder content
+    uint32_t nOfItemsToCompress, i;
+    inOutDesc.readAllOrExit( &(nOfItemsToCompress), sizeof(uint32_t));
+
+    std::vector<std::string> currentEntries; // actually, this will contain only filenames, not full paths
+
+    PRINTUNIFIED("Number of items to compress is %" PRIu32 "\n",nOfItemsToCompress);
+
+    if (nOfItemsToCompress != 0) {
+        currentEntries.reserve(nOfItemsToCompress);
+        for (i = 0; i < nOfItemsToCompress; i++)
+            currentEntries.push_back(readStringWithLen(inOutDesc));
+    }
+    // END RECEIVE DATA
+
+    // change working directory to srcFolder
+    char currentDirectory[1024] = {};
+    getcwd(currentDirectory, 1024);
+
+    int ret = chdir(srcFolder.c_str()); // errno already set if chdir fails
+
+    if (ret != 0)
+    {
+        PRINTUNIFIEDERROR("Unable to chdir in compressToArchive, error is %d\n",errno);
+        errno = 12340;
+        sendErrorResponse(inOutDesc);
+        return;
+    }
+
+    // create archive command
+    ///////////////////////////////////////////////////////////////////////////
+    // for each item in currentEntries, if the item is a file, simply add it to dirItems,
+    // else create a stdfsIterator and add all content to dirItems
+
+    CObjectVector<CDirItem> dirItems;
+    {
+        int i;
+        std::unique_ptr<IDirIterator<std::string>> dirIt;
+
+        if (nOfItemsToCompress == 0) {
+            dirIt = itf.createIterator(srcFolder, RELATIVE_WITHOUT_BASE, false);
+            while (dirIt->next())
             {
-              PrintError("Can't find file", name);
-              errno = 12342;
-              sendErrorResponse(inOutDesc);
-              return;
+                std::string curEntString = dirIt->getCurrent();
+
+                CDirItem di;
+                FString name = CmdStringToFString(curEntString.c_str());
+                std::wstring uws = UTF8_to_wchar(curEntString.c_str());
+                UString u(uws.c_str());
+
+                NFind::CFileInfo fi;
+                if (!fi.Find(name))
+                {
+                    PrintError("Can't find file", name);
+                    errno = 12341;
+                    sendErrorResponse(inOutDesc);
+                    return;
+                }
+
+                di.Attrib = fi.Attrib;
+                di.Size = fi.Size;
+                di.CTime = fi.CTime;
+                di.ATime = fi.ATime;
+                di.MTime = fi.MTime;
+                //~ di.Name = fs2us(name);
+                di.Name = u;
+                di.FullPath = u;
+                //~ di.FullPath = name;
+                dirItems.Add(di);
             }
-
-            di.Attrib = fi.Attrib;
-            di.Size = fi.Size;
-            di.CTime = fi.CTime;
-            di.ATime = fi.ATime;
-            di.MTime = fi.MTime;
-            //~ di.Name = fs2us(name);
-            di.Name = u;
-            di.FullPath = u;
-			//~ di.FullPath = name;
-            dirItems.Add(di);
-          }
         }
-        else { // simply add to dirItems
-			CDirItem di;
-          
-			FString name = CmdStringToFString(currentEntries[i].c_str());
-			std::wstring uws = UTF8_to_wchar(currentEntries[i].c_str());
-			UString u(uws.c_str());
-			
-			NFind::CFileInfo fi;
-			if (!fi.Find(name))
-			{
-				PrintError("Can't find file", name);
-				errno = 12343;
-				sendErrorResponse(inOutDesc);
-				return;
-			}
-			
-			di.Attrib = fi.Attrib;
-			di.Size = fi.Size;
-			di.CTime = fi.CTime;
-			di.ATime = fi.ATime;
-			di.MTime = fi.MTime;
-			//~ di.Name = fs2us(name);
-            di.Name = u;
-            di.FullPath = u;
-			//~ di.FullPath = name;
-			dirItems.Add(di);
-		}
-      }
+        else {
+            for (i = 0; i < nOfItemsToCompress; i++)
+            {
+                // stat current item, if it's a directory, open a stdfsIterator over it with parent prepend mode
+                struct stat st{};
+                stat(currentEntries[i].c_str(), &st); // filepath is relative path (filename only)
+                if (S_ISDIR(st.st_mode))
+                {
+                    // STDFSITERATOR ONLY ALLOWS ABSOLUTE PATHS
+                    std::stringstream ss;
+                    ss<<srcFolder<<"/"<<currentEntries[i];
+                    dirIt = itf.createIterator(ss.str(), RELATIVE_INCL_BASE, false);
+                    while (dirIt->next())
+                    {
+                        std::string curEntString = dirIt->getCurrent();
+                        PRINTUNIFIED("Current item: %s\n",curEntString.c_str());
+
+                        CDirItem di;
+
+                        FString name = CmdStringToFString(curEntString.c_str());
+                        std::wstring uws = UTF8_to_wchar(curEntString.c_str());
+                        UString u(uws.c_str());
+
+                        NFind::CFileInfo fi;
+                        if (!fi.Find(name)) // !fi.Find(name)
+                        {
+                            PrintError("Can't find file", name);
+                            errno = 12342;
+                            sendErrorResponse(inOutDesc);
+                            return;
+                        }
+
+                        di.Attrib = fi.Attrib;
+                        di.Size = fi.Size;
+                        di.CTime = fi.CTime;
+                        di.ATime = fi.ATime;
+                        di.MTime = fi.MTime;
+                        //~ di.Name = fs2us(name);
+                        di.Name = u;
+                        di.FullPath = u;
+                        //~ di.FullPath = name;
+                        dirItems.Add(di);
+                    }
+                }
+                else { // simply add to dirItems
+                    CDirItem di;
+
+                    FString name = CmdStringToFString(currentEntries[i].c_str());
+                    std::wstring uws = UTF8_to_wchar(currentEntries[i].c_str());
+                    UString u(uws.c_str());
+
+                    NFind::CFileInfo fi;
+                    if (!fi.Find(name))
+                    {
+                        PrintError("Can't find file", name);
+                        errno = 12343;
+                        sendErrorResponse(inOutDesc);
+                        return;
+                    }
+
+                    di.Attrib = fi.Attrib;
+                    di.Size = fi.Size;
+                    di.CTime = fi.CTime;
+                    di.ATime = fi.ATime;
+                    di.MTime = fi.MTime;
+                    //~ di.Name = fs2us(name);
+                    di.Name = u;
+                    di.FullPath = u;
+                    //~ di.FullPath = name;
+                    dirItems.Add(di);
+                }
+            }
+        }
     }
-  }
 
-  ///////////////////////////////////////////////////////////////////////////
-  
-  // check existence of destination archive's parent directory
-  // if not existing, create it, if creation fails send error message
-  std::string destParentDir = getParentDir(destArchive);
-  if (mkpathCopyPermissionsFromNearestAncestor(destParentDir) != 0) {
-	  PRINTUNIFIEDERROR("Unable to create destination archive's parent directory\n");
-	  sendErrorResponse(inOutDesc);
-	  return;
-  }
+    HRESULT result = common_compress_logic(createObjectFunc,
+                                           inOutDesc,
+                                           destArchive,
+                                           password,
+                                           archiveName,
+                                           compress_options,
+                                           dirItems,
+                                           updateCallbackSpec,
+                                           dirItems.Size());
+    if (result == E_ABORT) return;
+    if (result != S_OK)
+    {
+        PrintError("Update Error");
+        if (errno == 0) errno = 12345;
+        sendEndProgressAndErrorResponse(inOutDesc);
+        return;
+    }
 
-  auto outFileStreamSpec = new COutFileStream;
-  CMyComPtr<IOutStream> outFileStream = outFileStreamSpec;
-  if (!outFileStreamSpec->Create(archiveName, false))
-  {
-    PrintError("can't create archive file");
-    // errno = EACCES; // or EEXIST // errno should already be set
-    sendErrorResponse(inOutDesc);
-    return;
-  }
+    // unreachable in case or error
+    FOR_VECTOR(i, updateCallbackSpec->FailedFiles)
+    {
+        PrintNewLine();
+        PrintError("Error for file", updateCallbackSpec->FailedFiles[i]);
+    }
 
-  CMyComPtr<IOutArchive> outArchive;
-  // get extension of dest file in order to choose archive encoder, return error on not supported extension
-  // only 7Z,ZIP and TAR for now
-  std::string outExt;
-  ArchiveType archiveType = UNKNOWN;
-  int extRet = getFileExtension(destArchive,outExt);
-  if (extRet < 0) goto unknownOutType;
-  
-  if (outExt == "7z") {
-	  archiveType = _7Z;
-  }
-  else if (outExt == "zip") {
-	  archiveType = ZIP;
-  }
-  else if (outExt == "tar") {
-	  archiveType = TAR;
-  }
-  
-  unknownOutType:
-  if (archiveType == UNKNOWN) {
-	  PrintError("Unable to find any codec associated to the output archive extension for the pathname ", archiveName);
-      errno = 23458;
-      sendErrorResponse(inOutDesc);
-      return;
-  }
-  
-  if (createObjectFunc(&(archiveGUIDs[archiveType]), &IID_IOutArchive, (void **)&outArchive) != S_OK)
-  {
-    PrintError("Can not get class object");
-    errno = 12344;
-    sendErrorResponse(inOutDesc);
-    return;
-  }
+    // if (updateCallbackSpec->FailedFiles.Size() != 0) exit(-1);
 
-  auto updateCallbackSpec = new CArchiveUpdateCallback;
-  
-  updateCallbackSpec->setDesc(&inOutDesc); // for publishing progress
-  
-  CMyComPtr<IArchiveUpdateCallback2> updateCallback(updateCallbackSpec);
-  
-  // TAR does not support password-protected archives, however setting password
-  // doesn't result in error (archive is simply not encrypted anyway), so no need
-  // to add explicit input parameter check
-  updateCallbackSpec->PasswordIsDefined = (!password.empty());
-  updateCallbackSpec->Password = FString(UTF8_to_wchar(password.c_str()).c_str());
+    sendEndProgressAndOkResponse(inOutDesc);
 
-  updateCallbackSpec->Init(&dirItems);
-  
-  // ARCHIVE OPTIONS
-  // independently from what options are passed to roothelper, the ones
-  // which are not-compatible with the target archive format are ignored
-  
-  // names
-  const wchar_t *names_7z[] =
-  {
-        L"x", // compression level
-        L"s", // solid mode
-        L"he" // encrypt filenames
-  };
-  
-  const wchar_t *names_zip[] =
-  {
-        L"x", // compression level
-  };
-  
-  // values
-  NWindows::NCOM::CPropVariant values_7z[3] =
-  {
-        (UInt32)(compress_options.compressionLevel),	// compression level
-        (compress_options.solid > 0),					// solid mode
-        (compress_options.encryptHeader > 0)			// encrypt filenames
-  };
-  
-  NWindows::NCOM::CPropVariant values_zip[1] =
-  {
-        (UInt32)(compress_options.compressionLevel)	// compression level
-  };
-    
-      CMyComPtr<ISetProperties> setProperties;
-      outArchive->QueryInterface(IID_ISetProperties, (void **)&setProperties);
-      if (!setProperties)
-      {
-        PrintError("ISetProperties unsupported");
-        errno = 12377;
-		sendErrorResponse(inOutDesc);
-		return;
-      }
-      int setPropertiesResult = 0;
-      switch (archiveType) {
-		  case _7Z:
-			setPropertiesResult = setProperties->SetProperties(names_7z, values_7z, 3); // last param: kNumProps
-			break;
-		  case ZIP:
-			setPropertiesResult = setProperties->SetProperties(names_zip, values_zip, 1);
-			break;
-		  default:
-			break; // do not set any option for TAR and other types
-	  }
-      
-      if(setPropertiesResult) {
-		PrintError("Unable to setProperties for archive");
-        errno = 12378;
-		sendErrorResponse(inOutDesc);
-		return;
-	  }
-  // END ARCHIVE OPTIONS
-  
-  sendOkResponse(inOutDesc); // means: archive init OK, from now on start compressing and publishing progress
-
-  HRESULT result = outArchive->UpdateItems(outFileStream, dirItems.Size(), updateCallback);
-
-  updateCallbackSpec->Finilize();
-  
-  if (result != S_OK)
-  {
-    PrintError("Update Error");
-    errno = 12345;
-    sendEndProgressAndErrorResponse(inOutDesc);
-    return;
-  }
-
-  // unreachable in case or error
-  FOR_VECTOR(i, updateCallbackSpec->FailedFiles)
-  {
-    PrintNewLine();
-    PrintError("Error for file", updateCallbackSpec->FailedFiles[i]);
-  }
-
-  // if (updateCallbackSpec->FailedFiles.Size() != 0) exit(-1);
-  
-  sendEndProgressAndOkResponse(inOutDesc);
-
-  // restore old working directory
-  ret = chdir(currentDirectory);
-  PRINTUNIFIED("compress completed\n");
-  // delete updateCallbackSpec; // commented, causes segfault
+    // restore old working directory
+    ret = chdir(currentDirectory);
+    PRINTUNIFIED("compress completed\n");
+    // delete updateCallbackSpec; // commented, causes segfault
 }
 
 inline void toUppercaseString(std::string& strToConvert) {
