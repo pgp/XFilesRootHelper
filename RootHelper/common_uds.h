@@ -59,6 +59,7 @@ constexpr uint8_t ACTION_UPLOAD = 0x11; // flags: 000 - receive list of path pai
 
 #define ACTION_LINK 0x17
 
+#define ACTION_HTTPS_URL_DOWNLOAD 0x18
 
 // use 1-string of 5 bits (0x1F = 31 = 11111b)
 // action: exit or cancel (flags: 000 exit, 111: cancel)

@@ -31,11 +31,21 @@ public:
     }
 };
 
-typedef void (*TlsClientEventLoopFn) (RingBuffer& inRb, Botan::TLS::Client& client, IDescriptor& local_sock_fd);
+
+class TLS_Client;
+
+//typedef void (*TlsClientEventLoopFn) (RingBuffer& inRb, Botan::TLS::Client& client, IDescriptor& local_sock_fd);
+typedef void (*TlsClientEventLoopFn) (TLS_Client& client_wrapper);
 
 class TLS_Client final : public Botan::TLS::Callbacks {
-private:
-    static constexpr int defaultServerPort = 11111;
+public:
+
+    const int serverPort; // 443 for URL download, 11111 for connecting to XRE server
+
+    const bool verifyCertificates; // true for URL download, false for connection to XRE server
+    const std::string sniHost; // only for URL download
+    const std::string getString; // only for URL download
+    const std::string downloadPath; // only for URL download
 
     RingBuffer inRb;
     TlsClientEventLoopFn eventLoopFn;
@@ -43,21 +53,23 @@ private:
     IDescriptor& local_sock_fd; // for communicating shared session hash to RH client once session establishment is complete
     Botan::TLS::Client* client;
 
+    // returns socket or -1
+    int connect_tcp_socket(std::string& domain, int port=443) {
+        // TODO add socket factory in desc folder (client network sockets for Posix and Windows)
+        return -1;
+    }
+
 	// local_socket passed for closing it by here when this thread terminates before the other, in so avoiding deadlock
-    static void incomingRbMemberFn(IDescriptor& networkSocket, Botan::TLS::Client& client, IDescriptor& local_socket) {
+    static void incomingRbMemberFn(IDescriptor& networkSocket, Botan::TLS::Client& client, IDescriptor& local_socket, IDescriptor& ringBuffer) {
         for(;;) {
             std::vector<uint8_t> buf(16384,0);
             ssize_t readBytes = networkSocket.read(&buf[0],16384);
-            if (readBytes < 0) {
-				PRINTUNIFIEDERROR("networkSocket read error\n");
-                local_socket.close();
+            if (readBytes <= 0) {
+                PRINTUNIFIEDERROR(readBytes==0?"networkSocket EOF\n":"networkSocket read error\n");
+                networkSocket.close();
+                ringBuffer.close();
                 return;
-			}
-            else if (readBytes == 0) {
-				PRINTUNIFIEDERROR("networkSocket EOF\n");
-				local_socket.close();
-				return;
-			}
+            }
             buf.resize(readBytes);
             client.received_data(buf); // -> tls_record_received writes into ringbuffer
         }
@@ -69,7 +81,40 @@ private:
             const std::vector<Botan::Certificate_Store*>& trusted_roots,
             Botan::Usage_Type usage,
             const std::string& hostname,
-            const Botan::TLS::Policy& policy) override {}
+            const Botan::TLS::Policy& policy) override {
+        if(verifyCertificates) {
+            if(cert_chain.empty())
+                throw std::invalid_argument("Certificate chain was empty");
+
+            Botan::Path_Validation_Restrictions restrictions(policy.require_cert_revocation_info(),
+                                                             policy.minimum_signature_strength());
+
+            auto ocsp_timeout = std::chrono::milliseconds(1000);
+
+            Botan::Path_Validation_Result result =
+                    Botan::x509_path_validate(cert_chain,
+                                              restrictions,
+                                              trusted_roots,
+                                              hostname,
+                                              usage,
+                                              std::chrono::system_clock::now(),
+                                              ocsp_timeout,
+                                              ocsp);
+
+            std::cout << "Certificate validation status: " << result.result_string() << "\n";
+            if(result.successful_validation()) {
+                auto status = result.all_statuses();
+                std::cout << "Cert chain validation OK" << std::endl;
+
+                if(status.size() > 0 && status[0].count(Botan::Certificate_Status_Code::OCSP_RESPONSE_GOOD))
+                    std::cout << "Valid OCSP response for this server\n";
+            }
+            else {
+                PRINTUNIFIEDERROR("Certificate verification failed\n");
+                threadExit();
+            }
+        }
+    }
 
     bool tls_session_established(const Botan::TLS::Session& session) override {
         PRINTUNIFIED("Handshake complete, %s using %s\n",session.version().to_string().c_str(),
@@ -98,8 +143,9 @@ private:
     void tls_alert(Botan::TLS::Alert alert) override {
         PRINTUNIFIED("Alert: %s\n",alert.type_string().c_str());
         if (alert.type() == Botan::TLS::Alert::Type::CLOSE_NOTIFY) {
-            PRINTUNIFIED("TLS endpoint closed connection");
-            threadExit();
+            PRINTUNIFIED("TLS endpoint closed connection\n");
+            Gsock.close();
+            inRb.close();
         }
     }
 
@@ -114,10 +160,21 @@ public:
     // constructor using an already connected socket
     TLS_Client(TlsClientEventLoopFn eventLoopFn_,
                IDescriptor& local_sock_fd_,
-               IDescriptor& Gsock_) :
+               IDescriptor& Gsock_,
+               bool verifyCertificates_ = false,
+               std::string sniHost_ = "",
+               std::string getString_ = "",
+               int serverPort_=11111,
+               std::string downloadPath_ = ""
+    ) :
             eventLoopFn(eventLoopFn_),
             local_sock_fd(local_sock_fd_),
             Gsock(Gsock_),
+            verifyCertificates(verifyCertificates_),
+            sniHost(std::move(sniHost_)),
+            getString(std::move(getString_)),
+            serverPort(serverPort_),
+            downloadPath(std::move(downloadPath_)),
             client(nullptr) {}
 
     void go() {
@@ -138,7 +195,7 @@ public:
                                   creds,
                                   policy,
                                   rng_,
-                                  Botan::TLS::Server_Information("", defaultServerPort),
+                                  Botan::TLS::Server_Information(sniHost, serverPort),
                                   version,
                                   protocols_to_offer);
 
@@ -146,7 +203,9 @@ public:
         std::thread incomingRbThread(incomingRbMemberFn,
                                      std::ref(Gsock),
                                      std::ref(*client),
-                                     std::ref(local_sock_fd));
+                                     std::ref(local_sock_fd),
+                                     std::ref(inRb)
+        );
 
         PRINTUNIFIED("Waiting for TLS channel to be ready");
         while(!client->is_active()) {
@@ -156,7 +215,8 @@ public:
         PRINTUNIFIED("\nTLS channel ready\n");
 
         try {
-            eventLoopFn(inRb,std::ref(*client),local_sock_fd); // TLS client interacts with local socket
+//            eventLoopFn(inRb,std::ref(*client),local_sock_fd); // TLS client interacts with local socket
+            eventLoopFn(std::ref(*this)); // TLS client interacts with local socket
         }
         catch (threadExitThrowable& i) {
             PRINTUNIFIEDERROR("T1 Unconditional housekeeping and return");

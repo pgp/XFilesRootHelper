@@ -132,7 +132,7 @@ void safefprintf(int descriptor, const char* fmt, ...) {
         if (n > -1) size = n + 1;
         else size *= 2;
     }
-    write(descriptor,&str[0],str.size()); // FIXME should replaced with writeAll
+    write(descriptor,&str[0],strlen(str.c_str())); // FIXME should replaced with writeAll
 }
 
 #define  PRINTUNIFIED(...) safefprintf(STDOUT_FILENO, __VA_ARGS__)

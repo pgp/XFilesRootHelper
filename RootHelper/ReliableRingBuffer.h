@@ -3,6 +3,7 @@
 
 #include <thread>
 #include <mutex>
+#include <atomic>
 #include <condition_variable>
 #include <cstdio>
 #include <cstdint>
@@ -19,7 +20,7 @@ constexpr unsigned DEFAULT_CAPACITY = 1048576;
 
 class RingBuffer : public IDescriptor {
 private:
-    bool closed = false;
+    std::atomic_bool closed;
     const int capacity;
     uint8_t* ringbuffer;
     int readIdx = 0;
@@ -57,7 +58,7 @@ private:
 
 public:
     explicit RingBuffer(int capacity_ = DEFAULT_CAPACITY) :
-            capacity(capacity_) {
+            capacity(capacity_), closed(false) {
         ringbuffer = new uint8_t[capacity];
     }
 
@@ -66,11 +67,9 @@ public:
     }
 
     void close() {
-        if (!closed) {
-            closed = true;
-            // no more writes allowed from now on, just allow emptying read buffer
-            ringbuffer_written_cond.notify_one();
-        }
+        closed = true;
+        // no more writes allowed from now on, just allow emptying read buffer
+        ringbuffer_written_cond.notify_one();
     }
 
     bool isEmpty() {
@@ -85,7 +84,7 @@ public:
         // while construct should not be needed here, since we have only one reader thread
         if (readIdx == writeIdx) {
             if (closed) return 0; // EOF-like
-            // cout<<"Underflow, waiting for data to be available..."<<endl;
+//            PRINTUNIFIEDERROR("Underflow, waiting for data to be available...");
             ringbuffer_written_cond.wait(lock);
         }
         // here, we have successfully taken ownership of mutex again
