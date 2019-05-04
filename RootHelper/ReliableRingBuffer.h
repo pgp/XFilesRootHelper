@@ -72,6 +72,13 @@ public:
         ringbuffer_written_cond.notify_one();
     }
 
+    void reset() {
+        std::unique_lock<std::mutex> lock(ringbuffer_mutex);
+        readIdx = writeIdx = 0;
+        PRINTUNIFIEDERROR("RESETTING RINGBUFFER, CURRENT STATUS IS %s",closed?"closed":"open");
+        closed = false;
+    }
+
     bool isEmpty() {
         std::unique_lock<std::mutex> lock(ringbuffer_mutex);
         return readIdx == writeIdx;

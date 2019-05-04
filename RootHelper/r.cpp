@@ -2128,7 +2128,8 @@ void tlsClientSession(IDescriptor& cl) { // cl is local socket
 	sendOkResponse(cl); // OK, from now on java client can communicate with remote server using this local socket
 	
 	PosixDescriptor pd_remoteCl(remoteCl);
-	TLS_Client tlsClient(tlsClientSessionEventLoop,cl,pd_remoteCl);
+	RingBuffer inRb;
+	TLS_Client tlsClient(tlsClientSessionEventLoop,inRb,cl,pd_remoteCl);
 	tlsClient.go();
 	
 	// at the end, close the sockets
@@ -2137,7 +2138,7 @@ void tlsClientSession(IDescriptor& cl) { // cl is local socket
 }
 
 // return value: HTTP response code or -1 for unsolvable error
-int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, const std::string& downloadPath) {
+int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, const std::string& downloadPath, std::string& hdrs) {
     uint64_t currentProgress = 0, last_progress = 0;
     std::stringstream headers;
     std::ofstream body(downloadPath);
@@ -2225,7 +2226,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, cons
     // body
     body_tag:
 
-    auto hdrs = headers.str();
+    hdrs = headers.str();
     std::cout<<hdrs;
 
     PRINTUNIFIED("Retrieving HTTP response code...");
@@ -2242,16 +2243,13 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, cons
     firstLine = firstLine.substr(0,tmpIdx); // "301"
     PRINTUNIFIED("[2]%s\n",firstLine.c_str());
     int httpRet = ::strtol(firstLine.c_str(),nullptr,10);
-    if (httpRet < 100) throw std::runtime_error("Error parsing HTTP response code, firstLine now is\n"+firstLine);
-    if (httpRet != 200) {
-        // TODO HTTP error response on local socket
-        if (httpRet == 301 || httpRet == 302) {
-            // TODO resolve redirect
-            return httpRet;
-        }
-        return httpRet;
+    if (httpRet < 100) {
+        PRINTUNIFIEDERROR("Error parsing HTTP response code, firstLine now is %s\n",firstLine.c_str());
     }
+    if (httpRet != 200) return httpRet;
 
+    constexpr uint8_t endOfRedirects = 0x11;
+    local_fd.writeAllOrExit(&endOfRedirects,sizeof(uint8_t));
     PRINTUNIFIED("Finding content length... (part of body may have been already received)\n");
 
     std::string contentLengthPattern = "Content-Length: ";
@@ -2288,7 +2286,9 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, cons
     }
     body.flush();
     body.close();
+    PRINTUNIFIEDERROR("End of download: %" PRIu64 " bytes downloaded\n",currentProgress);
     local_fd.writeAllOrExit(&maxuint,sizeof(uint64_t)); // send end-of-progress
+
     return httpRet;
 }
 
@@ -2311,15 +2311,20 @@ void tlsClientUrlDownloadEventLoop(TLS_Client& client_wrapper) {
                                       "Connection: close\r\n\r\n";
         rcl.writeAllOrExit(request.c_str(),request.length());
         // read both header and body into file
-        auto httpRet = parseHttpResponseHeadersAndBody(rcl,client_wrapper.local_sock_fd,client_wrapper.downloadPath);
-        if (httpRet < 0) {
-            // TODO send error response on local socket, or send it in called method
+        std::string hdrs;
+        client_wrapper.httpRet = parseHttpResponseHeadersAndBody(rcl,client_wrapper.local_sock_fd,client_wrapper.downloadPath,hdrs);
+        if (client_wrapper.httpRet == 301 || client_wrapper.httpRet == 302) {
+            // get redirect domain
+            const std::string locLabel = "Location: ";
+            auto redirectLocIdx = hdrs.find(locLabel);
+            if(redirectLocIdx == std::string::npos) throw std::runtime_error("Malformed redirect response");
+            auto locationtag = hdrs.substr(redirectLocIdx+locLabel.size());
+            redirectLocIdx = locationtag.find("\r\n");
+            if(redirectLocIdx == std::string::npos) throw std::runtime_error("Malformed redirect response after location tag");
+            locationtag = locationtag.substr(0,redirectLocIdx);
+            PRINTUNIFIED("Redirect location is %s\n",locationtag.c_str());
+            client_wrapper.locationToRedirect = locationtag;
         }
-        else if (httpRet == 301 || httpRet == 302) {
-            // TODO redirect
-        }
-
-        threadExit();
     }
     catch (threadExitThrowable& i) {
         PRINTUNIFIEDERROR("T2 ...\n");
@@ -2330,9 +2335,7 @@ void tlsClientUrlDownloadEventLoop(TLS_Client& client_wrapper) {
     PRINTUNIFIEDERROR("[tlsClientUrlDownloadEventLoop] No housekeeping and return\n");
 }
 
-void httpsUrlDownload(IDescriptor& cl) { // cl is local socket
-    // receive server address
-    std::string target = readStringWithLen(cl);
+int httpsUrlDownload_internal(IDescriptor& cl, std::string& target, uint16_t port, std::string& downloadPath, RingBuffer& inRb, std::string& redirectUrl) {
     if(target.substr(0,7)=="http://") {
         throw std::runtime_error("Plain HTTP not allowed");
     }
@@ -2343,15 +2346,6 @@ void httpsUrlDownload(IDescriptor& cl) { // cl is local socket
     auto slashIdx = target.find('/');
     auto domainOnly = slashIdx==std::string::npos?target:target.substr(0,slashIdx);
     std::string getString = slashIdx==std::string::npos?"":target.substr(slashIdx);
-
-    // receive port
-    uint16_t port;
-    cl.readAllOrExit(&port,sizeof(uint16_t));
-
-    // receive destination file
-    std::string downloadPath = readStringWithLen(cl);
-
-    PRINTUNIFIED("Received URL, port and destination path over local socket: %s %d %s\n",target.c_str(),port,downloadPath.c_str());
 
     int remoteCl = -1;
     struct addrinfo hints, *servinfo, *p;
@@ -2368,7 +2362,7 @@ void httpsUrlDownload(IDescriptor& cl) { // cl is local socket
     PRINTUNIFIED("Invoking getaddrinfo for %s\n",domainOnly.c_str());
     if ((rv = getaddrinfo(domainOnly.c_str(), port_s.c_str(), &hints, &servinfo)) != 0) {
         PRINTUNIFIEDERROR("getaddrinfo error: %s\n", gai_strerror(rv));
-        return;
+        return -1;
     }
 
     PRINTUNIFIED("Looping through getaddrinfo results...\n");
@@ -2391,7 +2385,7 @@ void httpsUrlDownload(IDescriptor& cl) { // cl is local socket
         PRINTUNIFIED("Could not create socket or connect\n");
         errno = 0x323232;
         sendErrorResponse(cl);
-        return;
+        return -1;
     }
     PRINTUNIFIED("freeaddrinfo...\n");
     freeaddrinfo(servinfo);
@@ -2399,11 +2393,45 @@ void httpsUrlDownload(IDescriptor& cl) { // cl is local socket
     sendOkResponse(cl); // OK, from now on java client can communicate with remote server using this local socket
 
     PosixDescriptor pd_remoteCl(remoteCl);
-    TLS_Client tlsClient(tlsClientUrlDownloadEventLoop,cl,pd_remoteCl, true, domainOnly, getString, port, downloadPath);
+    TLS_Client tlsClient(tlsClientUrlDownloadEventLoop,inRb,cl,pd_remoteCl, true, domainOnly, getString, port, downloadPath);
     tlsClient.go();
+    redirectUrl = tlsClient.locationToRedirect;
+
+    pd_remoteCl.close();
+    return tlsClient.httpRet;
+}
+
+void httpsUrlDownload(IDescriptor& cl) { // cl is local socket
+    // receive server address
+    std::string target = readStringWithLen(cl);
+
+    // receive port
+    uint16_t port;
+    cl.readAllOrExit(&port,sizeof(uint16_t));
+
+    // receive destination file
+    std::string downloadPath = readStringWithLen(cl);
+
+    PRINTUNIFIED("Received URL, port and destination path over local socket: %s %d %s\n",target.c_str(),port,downloadPath.c_str());
+
+    RingBuffer inRb;
+    std::string redirectUrl;
+    auto httpRet = httpsUrlDownload_internal(cl,target,port,downloadPath,inRb,redirectUrl);
+    
+    // HTTP redirect limit
+    for(int i=0;i<5;i++) {
+        if(httpRet == 200) break;
+        if(httpRet != 301 && httpRet != 302) {
+            errno = httpRet;
+            sendErrorResponse(cl);
+            break;
+        }
+        inRb.reset();
+        target = redirectUrl;
+        httpRet = httpsUrlDownload_internal(cl,target,port,downloadPath,inRb,redirectUrl);
+    }
 
     // at the end, close the sockets
-    pd_remoteCl.close();
     cl.close();
 }
 

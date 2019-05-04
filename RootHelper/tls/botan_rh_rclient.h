@@ -46,8 +46,10 @@ public:
     const std::string sniHost; // only for URL download
     const std::string getString; // only for URL download
     const std::string downloadPath; // only for URL download
+    int httpRet; // onyl for URL download, to be read from caller in order to decide whether follow redirect or not
+    std::string locationToRedirect; // onyl for URL download, to be read from caller
 
-    RingBuffer inRb;
+    RingBuffer& inRb;
     TlsClientEventLoopFn eventLoopFn;
     IDescriptor& Gsock;
     IDescriptor& local_sock_fd; // for communicating shared session hash to RH client once session establishment is complete
@@ -159,6 +161,7 @@ public:
             
     // constructor using an already connected socket
     TLS_Client(TlsClientEventLoopFn eventLoopFn_,
+               RingBuffer& inRb_,
                IDescriptor& local_sock_fd_,
                IDescriptor& Gsock_,
                bool verifyCertificates_ = false,
@@ -168,6 +171,7 @@ public:
                std::string downloadPath_ = ""
     ) :
             eventLoopFn(eventLoopFn_),
+            inRb(inRb_),
             local_sock_fd(local_sock_fd_),
             Gsock(Gsock_),
             verifyCertificates(verifyCertificates_),
@@ -175,6 +179,7 @@ public:
             getString(std::move(getString_)),
             serverPort(serverPort_),
             downloadPath(std::move(downloadPath_)),
+            httpRet(-1),
             client(nullptr) {}
 
     void go() {
