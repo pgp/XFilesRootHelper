@@ -6,6 +6,56 @@
 #include "../desc/PosixDescriptor.h"
 #include "botan_rh_rclient.h"
 
+
+// Web source for url encode/decode: https://stackoverflow.com/questions/154536/encode-decode-urls-in-c
+
+std::string urlEncode(const std::string& str){
+    std::string new_str;
+    char c;
+    int ic;
+    const char* chars = str.c_str();
+    char bufHex[10];
+    int len = strlen(chars);
+
+    for(int i=0;i<len;i++){
+        c = chars[i];
+        ic = c;
+        // uncomment this if you want to encode spaces with +
+        /*if (c==' ') new_str += '+';
+        else */if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') new_str += c;
+        else {
+            sprintf(bufHex,"%X",c);
+            if(ic < 16)
+                new_str += "%0";
+            else
+                new_str += "%";
+            new_str += bufHex;
+        }
+    }
+    return new_str;
+}
+
+std::string urlDecode(const std::string& str){
+    std::string ret;
+    char ch;
+    int i, ii, len = str.length();
+
+    for (i=0; i < len; i++){
+        if(str[i] != '%'){
+            if(str[i] == '+')
+                ret += ' ';
+            else
+                ret += str[i];
+        }else{
+            sscanf(str.substr(i + 1, 2).c_str(), "%x", &ii);
+            ch = static_cast<char>(ii);
+            ret += ch;
+            i = i + 2;
+        }
+    }
+    return ret;
+}
+
 std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
     std::istringstream ss(hdrs);
     std::string line;
@@ -18,11 +68,19 @@ std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
         }
     }
 
-    auto lastIdx = url.find_last_of('/');
-    if(lastIdx != std::string::npos){
-        auto x = url.substr(lastIdx+1);
-        if(!x.empty()) return x;
+    auto idx = url.find_last_of('/');
+    if(idx != std::string::npos){
+        auto x = url.substr(idx+1);
+        if(!x.empty()) return urlDecode(x);
     }
+
+    // assign filename as domain name + .html
+    idx = url.find_first_of('/');
+    if(idx != std::string::npos){
+        auto x = url.substr(0,idx);
+        if(!x.empty()) return x+".html";
+    }
+
     return "file.bin";
 }
 
@@ -114,7 +172,7 @@ int connect_with_timeout(int& sock_fd, struct addrinfo* p, unsigned timeout_seco
 int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, const std::string& downloadPath, const std::string& targetFilename, std::string& hdrs, const std::string& url) {
     uint64_t currentProgress = 0, last_progress = 0;
     std::stringstream headers;
-    std::ofstream body(downloadPath);
+    std::stringstream tmpbody;
 
     // headers
 
@@ -188,7 +246,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, cons
                     headers<<buffer.substr(0,i+4);
                     auto bodystart = buffer.substr(i+4);
                     currentProgress += bodystart.length();
-                    body<<bodystart;
+                    tmpbody<<bodystart;
                     goto body_tag;
                 }
             }
@@ -227,6 +285,10 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, cons
     PRINTUNIFIED("Finding a valid filename to download to, if not explicitly provided...\n");
     auto httpFilename = targetFilename.empty()?getHttpFilename(hdrs,url):targetFilename;
     PRINTUNIFIED("Assigned download filename is %s\n",httpFilename.c_str());
+    auto destFullPath = downloadPath.empty() ? httpFilename : downloadPath + "/" + httpFilename;
+    PRINTUNIFIED("Assigned download path is %s\n",destFullPath.c_str());
+    std::ofstream body(destFullPath);
+    body<<tmpbody.str();
 
     PRINTUNIFIED("Finding content length... (part of body may have been already received)\n");
 
@@ -293,7 +355,7 @@ void tlsClientUrlDownloadEventLoop(TLS_Client& client_wrapper) {
         client_wrapper.httpRet = parseHttpResponseHeadersAndBody(rcl,
                                                                  client_wrapper.local_sock_fd,
                                                                  client_wrapper.downloadPath,
-                                                                 "", // TODO receive targetFilename
+                                                                 client_wrapper.targetFilename,
                                                                  hdrs,
                                                                  client_wrapper.sniHost+"/"+client_wrapper.getString // ~ url
                                                                  );
@@ -319,17 +381,15 @@ void tlsClientUrlDownloadEventLoop(TLS_Client& client_wrapper) {
     PRINTUNIFIEDERROR("[tlsClientUrlDownloadEventLoop] No housekeeping and return\n");
 }
 
-int httpsUrlDownload_internal(IDescriptor& cl, std::string& target, uint16_t port, std::string& downloadPath, RingBuffer& inRb, std::string& redirectUrl) {
-    if(target.find("http://")==0) {
+int httpsUrlDownload_internal(IDescriptor& cl, std::string& targetUrl, uint16_t port, std::string& downloadPath, std::string& targetFilename, RingBuffer& inRb, std::string& redirectUrl) {
+    if(targetUrl.find("http://")==0)
         throw std::runtime_error("Plain HTTP not allowed");
-    }
-    else if(target.find("https://")==0) {
-        target = target.substr(8);
-    }
+    else if(targetUrl.find("https://")==0)
+        targetUrl = targetUrl.substr(8);
 
-    auto slashIdx = target.find('/');
-    auto domainOnly = slashIdx==std::string::npos?target:target.substr(0,slashIdx);
-    std::string getString = slashIdx==std::string::npos?"":target.substr(slashIdx);
+    auto slashIdx = targetUrl.find('/');
+    auto domainOnly = slashIdx==std::string::npos?targetUrl:targetUrl.substr(0,slashIdx);
+    std::string getString = slashIdx==std::string::npos?"":targetUrl.substr(slashIdx);
 
     int remoteCl = -1;
     struct addrinfo hints, *servinfo, *p;
@@ -377,7 +437,7 @@ int httpsUrlDownload_internal(IDescriptor& cl, std::string& target, uint16_t por
     sendOkResponse(cl); // OK, from now on java client can communicate with remote server using this local socket
 
     PosixDescriptor pd_remoteCl(remoteCl);
-    TLS_Client tlsClient(tlsClientUrlDownloadEventLoop,inRb,cl,pd_remoteCl, true, domainOnly, getString, port, downloadPath);
+    TLS_Client tlsClient(tlsClientUrlDownloadEventLoop,inRb,cl,pd_remoteCl, true, domainOnly, getString, port, downloadPath, targetFilename);
     tlsClient.go();
     redirectUrl = tlsClient.locationToRedirect;
 

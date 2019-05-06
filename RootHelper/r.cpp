@@ -2062,14 +2062,22 @@ void httpsUrlDownload(IDescriptor& cl) { // cl is local socket
     uint16_t port;
     cl.readAllOrExit(&port,sizeof(uint16_t));
 
-    // receive destination file
+    // receive destination directory
     std::string downloadPath = readStringWithLen(cl);
 
-    PRINTUNIFIED("Received URL, port and destination path over local socket: %s %d %s\n",target.c_str(),port,downloadPath.c_str());
+    // receive target filename, optional, ignore if empty string received
+    std::string targetFilename = readStringWithLen(cl);
+
+    PRINTUNIFIED("Received URL, port destination path and target filename over local socket:\n%s\n%d\n%s\n",
+            target.c_str(),
+            port,
+            downloadPath.c_str(),
+            targetFilename.empty()?"[No explicit filename provided]":targetFilename.c_str()
+            );
 
     RingBuffer inRb;
     std::string redirectUrl;
-    auto httpRet = httpsUrlDownload_internal(cl,target,port,downloadPath,inRb,redirectUrl);
+    auto httpRet = httpsUrlDownload_internal(cl,target,port,downloadPath,targetFilename,inRb,redirectUrl);
     
     // HTTP redirect limit
     for(int i=0;i<5;i++) {
@@ -2081,7 +2089,7 @@ void httpsUrlDownload(IDescriptor& cl) { // cl is local socket
         }
         inRb.reset();
         target = redirectUrl;
-        httpRet = httpsUrlDownload_internal(cl,target,port,downloadPath,inRb,redirectUrl);
+        httpRet = httpsUrlDownload_internal(cl,target,port,downloadPath,targetFilename,inRb,redirectUrl);
     }
 
     // at the end, close the sockets

@@ -46,6 +46,7 @@ public:
     const std::string sniHost; // only for URL download
     const std::string getString; // only for URL download
     const std::string downloadPath; // only for URL download
+    const std::string targetFilename; // only for URL download
     int httpRet; // onyl for URL download, to be read from caller in order to decide whether follow redirect or not
     std::string locationToRedirect; // onyl for URL download, to be read from caller
 
@@ -54,6 +55,8 @@ public:
     IDescriptor& Gsock;
     IDescriptor& local_sock_fd; // for communicating shared session hash to RH client once session establishment is complete
     Botan::TLS::Client* client;
+
+    bool setupAborted = false;
 
     // returns socket or -1
     int connect_tcp_socket(std::string& domain, int port=443) {
@@ -73,7 +76,15 @@ public:
                 return;
             }
             buf.resize(readBytes);
-            client.received_data(buf); // -> tls_record_received writes into ringbuffer
+            try {
+                client.received_data(buf); // -> tls_record_received writes into ringbuffer
+            }
+            catch (Botan::Exception& e) {
+                PRINTUNIFIEDERROR("Botan exception: %s",e.what());
+                networkSocket.close();
+                ringBuffer.close();
+                return;
+            }
         }
     }
 
@@ -113,7 +124,9 @@ public:
             }
             else {
                 PRINTUNIFIEDERROR("Certificate verification failed\n");
-                threadExit();
+                Gsock.close();
+                inRb.close();
+                setupAborted = true;
             }
         }
     }
@@ -168,7 +181,8 @@ public:
                std::string sniHost_ = "",
                std::string getString_ = "",
                int serverPort_=11111,
-               std::string downloadPath_ = ""
+               std::string downloadPath_ = "",
+               std::string targetFilename_ = ""
     ) :
             eventLoopFn(eventLoopFn_),
             inRb(inRb_),
@@ -179,6 +193,7 @@ public:
             getString(std::move(getString_)),
             serverPort(serverPort_),
             downloadPath(std::move(downloadPath_)),
+            targetFilename(std::move(targetFilename_)),
             httpRet(-1),
             client(nullptr) {}
 
@@ -216,6 +231,11 @@ public:
         while(!client->is_active()) {
             PRINTUNIFIED(".");
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            if(setupAborted) {
+                PRINTUNIFIEDERROR("Client closed during connection setup\n");
+                cleanup();
+                goto joinThread;
+            }
         }
         PRINTUNIFIED("\nTLS channel ready\n");
 
@@ -228,6 +248,7 @@ public:
             cleanup();
         }
 
+        joinThread:
         incomingRbThread.join();
     }
 
