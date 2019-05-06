@@ -2068,7 +2068,7 @@ void httpsUrlDownload(IDescriptor& cl) { // cl is local socket
     // receive target filename, optional, ignore if empty string received
     std::string targetFilename = readStringWithLen(cl);
 
-    PRINTUNIFIED("Received URL, port destination path and target filename over local socket:\n%s\n%d\n%s\n",
+    PRINTUNIFIED("Received URL, port destination path and target filename over local socket:\n%s\n%d\n%s\n%s\n",
             target.c_str(),
             port,
             downloadPath.c_str(),
