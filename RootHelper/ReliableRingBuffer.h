@@ -62,11 +62,11 @@ public:
         ringbuffer = new uint8_t[capacity];
     }
 
-    ~RingBuffer() {
+    ~RingBuffer() override {
         delete[] ringbuffer;
     }
 
-    void close() {
+    void close() override {
         closed = true;
         // no more writes allowed from now on, just allow emptying read buffer
         ringbuffer_written_cond.notify_one();
@@ -84,7 +84,7 @@ public:
         return readIdx == writeIdx;
     }
 
-    ssize_t read(void* buf, size_t count) {
+    ssize_t read(void* buf, size_t count) override {
         std::unique_lock<std::mutex> lock(ringbuffer_mutex);
 
         // empty buffer, nothing to read, block till some data is available
@@ -134,7 +134,7 @@ public:
         return bytesToBeCopied;
     }
 
-    ssize_t write(const void* buf, size_t count) {
+    ssize_t write(const void* buf, size_t count) override {
         std::unique_lock<std::mutex> lock(ringbuffer_mutex);
 
         if (closed) return -1;
@@ -188,53 +188,6 @@ public:
         // cout<<"Write: readIdx -> "<<readIdx<<" writeIdx -> "<<writeIdx<<endl;
         return bytesToBeCopied;
     }
-
-    // returns 0 (write not completed)
-    ssize_t writeAll(const void* buf_, size_t count) {
-        uint8_t* buf = (uint8_t*)buf_;
-        size_t alreadyWritten = 0;
-        size_t remaining = count;
-        for(;;) {
-            ssize_t curr = write(buf+alreadyWritten,remaining);
-            if (curr <= 0) return curr; // EOF
-
-            remaining -= curr;
-            alreadyWritten += curr;
-
-            if (remaining == 0) return count; // all expected bytes written
-        }
-    }
-
-    ssize_t readAll(void* buf_, size_t count) {
-        uint8_t* buf = (uint8_t*)buf_;
-        size_t alreadyRead = 0;
-        size_t remaining = count;
-        for(;;) {
-            ssize_t curr = read(buf+alreadyRead,remaining);
-            if (curr <= 0) return curr; // EOF
-
-            remaining -= curr;
-            alreadyRead += curr;
-
-            if (remaining == 0) return count; // all expected bytes read
-        }
-    }
-    
-    void readAllOrExit(void* buf, size_t count) {
-		ssize_t count_ = count;
-		if (readAll(buf,count) < count_) {
-			PRINTUNIFIEDERROR("Exiting thread %ld on ringbuffer read error\n",std::this_thread::get_id());
-			threadExit();
-		}
-	}
-
-	void writeAllOrExit(const void* buf, size_t count) {
-		ssize_t count_ = count;
-		if (writeAll(buf,count) < count_) {
-			PRINTUNIFIEDERROR("Exiting thread %ld on ringbuffer write error\n",std::this_thread::get_id());
-			threadExit();
-		}
-	}
 };
 
 #endif /* RELIABLERINGBUFFER_H */
