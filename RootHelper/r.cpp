@@ -1401,11 +1401,10 @@ void setOwnership(const char* filepath, IDescriptor& inOutDesc,uint8_t flags) {
 /* no flag bits used, only param to receive: mode_t with permissions */
 void setPermissions(const char* filepath, IDescriptor& inOutDesc) {
 	PRINTUNIFIED("Setting file permissions\n");
-	uint32_t perms_;
-	auto perms = (mode_t*)(&perms_);
-	inOutDesc.readAllOrExit(&perms_,sizeof(uint32_t)); // mode_t should be 4 byte, avoiding hanging if not so
+	int32_t perms;
+	inOutDesc.readAllOrExit(&perms,sizeof(int32_t)); // mode_t is not always 4 bytes (see comment in createFileOrDirectory function)
 	
-	int ret = chmod(filepath, *perms);
+	int ret = chmod(filepath, perms);
 	sendBaseResponse(ret,inOutDesc);
 }
 

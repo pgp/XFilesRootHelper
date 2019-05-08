@@ -32,7 +32,7 @@ ARCH_OPT_FLAGS_x86_64 := -msse2 -msse3 -mssse3 -msse4 -msse4.1 -msse4.2
 
 # -D_FILE_OFFSET_BITS=64
 
-LOCAL_CFLAGS := -O2 -DANDROID_NDK -fexceptions -fstack-protector \
+LOCAL_CFLAGS := -O2 -DANDROID_NDK -fexceptions \
 	${ARCH_OPT_FLAGS_${TARGET_ARCH}} \
 	-DNDEBUG -D_REENTRANT -DENV_UNIX \
 	-DEXTERNAL_CODECS \
@@ -49,7 +49,7 @@ LOCAL_CFLAGS := -O2 -DANDROID_NDK -fexceptions -fstack-protector \
 	-I../../../CPP \
 	-I../../../CPP/include_windows
 
-LOCAL_CPPFLAGS := -O2 -std=c++11 -frtti -fstack-protector
+LOCAL_CPPFLAGS := -O2 -std=c++11 -frtti
 
 LOCAL_C_INCLUDES += ${BOTAN_AM_INCL}
 

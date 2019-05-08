@@ -1387,9 +1387,12 @@ int createEmptyFile(const STR& path, uint64_t size) {
     return 0;
 }
 
-// SOME WEIRD (STACK PROTECTOR RELATED?) ISSUE HAPPENS ON RETURN OF THIS FUNCTION ON X86 PLATFORMS (Android only)
 void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
-	mode_t mode;
+
+	// sizeof(mode_t) is 2 bytes on Android's 32 bit ABIs (x86, armv7), not 4 bytes
+	// mode_t mode;
+	int32_t mode; // read 4 bytes anyway, just let the other methods perform the narrowing conversion
+
 	int ret;
 	// advanced options for file creation
 	uint8_t creationStrategy;
@@ -1398,7 +1401,7 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
 	auto filepath = FROMUNIXPATH(readStringWithLen(inOutDesc));
 
 	// read mode (mode_t) - 4 bytes
-	inOutDesc.readAllOrExit(&mode, 4);
+	inOutDesc.readAllOrExit(&mode, sizeof(int32_t));
 	PRINTUNIFIED("Received mode %d\n",mode);
 	
 	// check access unconditionally (on local, always succeeds because rhss_currentlyServedDirectory is empty)
