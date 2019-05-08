@@ -11,6 +11,7 @@
 #include <thread>
 
 #include "tls/botan_rh_tls_descriptor.h"
+#include "desc/AutoFlushBufferedWriteDescriptor.h"
 
 #include "tls/botan_rh_rserver.h"
 #include "tls/basic_https_client.h"
@@ -1451,18 +1452,19 @@ void client_createFileOrDirectory(IDescriptor& cl, IDescriptor& rcl, request_typ
 	uint64_t filesize;
 	std::string dirpath = readStringWithLen(cl);
 	cl.readAllOrExit(&mode,4);
-	
-	rcl.writeAllOrExit(&rqByteWithFlags, sizeof(uint8_t));
-	writeStringWithLen(rcl,dirpath);
-	rcl.writeAllOrExit(&mode,4);
+
+    BufferedWriteDescriptor brcl(rcl);
+	brcl.writeAllOrExit(&rqByteWithFlags, sizeof(uint8_t));
+	writeStringWithLen(brcl,dirpath);
+	brcl.writeAllOrExit(&mode,4);
 	
 	// switch additional content to propagate depending on flags
 	if(B0(rqByteWithFlags.flags)) {
 		if(B1(rqByteWithFlags.flags)) {
 			cl.readAllOrExit(&creationStrategy,sizeof(uint8_t));
 			cl.readAllOrExit(&filesize,sizeof(uint64_t));
-			rcl.writeAllOrExit(&creationStrategy,sizeof(uint8_t));
-			rcl.writeAllOrExit(&filesize,sizeof(uint64_t));
+			brcl.writeAllOrExit(&creationStrategy,sizeof(uint8_t));
+			brcl.writeAllOrExit(&filesize,sizeof(uint64_t));
 		}
 		else {
 			// nothing to propagate here
@@ -1471,7 +1473,8 @@ void client_createFileOrDirectory(IDescriptor& cl, IDescriptor& rcl, request_typ
 	else {
 		// nothing to propagate here
 	}
-	
+    brcl.flush();
+
 	// read and pass-through response (OK or error)
 	uint8_t resp;
 	int receivedErrno;
@@ -1488,8 +1491,10 @@ void client_createFileOrDirectory(IDescriptor& cl, IDescriptor& rcl, request_typ
 
 void client_createHardOrSoftLink(IDescriptor& cl, IDescriptor& rcl, request_type rqByteWithFlags) {
 	std::vector<std::string> srcDestPaths = readPairOfStringsWithPairOfLens(cl);
-	rcl.writeAllOrExit(&rqByteWithFlags, sizeof(uint8_t));
-	writePairOfStringsWithPairOfLens(rcl,srcDestPaths);
+	BufferedWriteDescriptor brcl(rcl);
+    brcl.writeAllOrExit(&rqByteWithFlags, sizeof(uint8_t));
+	writePairOfStringsWithPairOfLens(brcl,srcDestPaths);
+    brcl.flush();
 	
 	// read and pass-through response (OK or error)
 	uint8_t resp;
@@ -1512,10 +1517,11 @@ void client_stats(IDescriptor& cl, IDescriptor& rcl, request_type rqByteWithFlag
 	// in order to discriminate receiving a single path (file/folder) or a list of paths (multi stats)
 	
 	std::string dirpath = readStringWithLen(cl);
-	
-	rcl.writeAllOrExit(&rqByteWithFlags, sizeof(uint8_t));
-	
-	writeStringWithLen(rcl,dirpath);
+
+    BufferedWriteDescriptor brcl(rcl);
+	brcl.writeAllOrExit(&rqByteWithFlags, sizeof(uint8_t));
+	writeStringWithLen(brcl,dirpath);
+    brcl.flush();
 	
 	// read and pass-through response (OK + stats or error)
 	uint8_t resp;
@@ -1558,12 +1564,14 @@ void client_hash(IDescriptor& cl, IDescriptor& rcl, request_type rqByteWithFlags
 		sendErrorResponse(cl);
 		return;
 	}
-	rcl.writeAllOrExit(&rqByteWithFlags, sizeof(uint8_t));
-	rcl.writeAllOrExit(&algorithm, sizeof(uint8_t));
+    BufferedWriteDescriptor brcl(rcl);
+	brcl.writeAllOrExit(&rqByteWithFlags, sizeof(uint8_t));
+	brcl.writeAllOrExit(&algorithm, sizeof(uint8_t));
 	
 	std::string filepath = readStringWithLen(cl);
 	PRINTUNIFIED("received filepath to hash is:\t%s\n", filepath.c_str());
-	writeStringWithLen(rcl, filepath);
+	writeStringWithLen(brcl, filepath);
+    brcl.flush();
 	
 	int errnum = receiveBaseResponse(rcl);
 	if (errnum != 0) {
@@ -1702,7 +1710,8 @@ void client_upload(IDescriptor& cl, IDescriptor& rcl) {
 	cl.writeAllOrExit(&(counts.tFiles),sizeof(uint64_t));
     // send total size as well
     cl.writeAllOrExit(&(counts.tSize),sizeof(uint64_t));
-	
+
+    // No need for auto-flushing buffered descriptor here, genericUploadBasicRecursiveImplWithProgress and internal callees are already manually optimized
 	// send "client upload" request to server
 	rcl.writeAllOrExit(&ACTION_UPLOAD, sizeof(uint8_t));
 	
@@ -1724,11 +1733,13 @@ void client_download(IDescriptor& cl, IDescriptor& rcl) {
 	std::vector<std::pair<std::string,std::string>> v = receivePathPairsList(cl);
 	
 	// send "client download" request to server
-	rcl.writeAllOrExit(&down_rq, sizeof(uint8_t));
+    AutoFlushBufferedWriteDescriptor afrcl(rcl);
+    afrcl.writeAllOrExit(&down_rq, sizeof(uint8_t));
 	
 	// send list of path pairs (files and maybe-not-empty folders)
 	// receive back items with type flag, file full path, size and content, till list end
-	sendPathPairsList(v,rcl);
+	sendPathPairsList(v,afrcl);
+    afrcl.flush();
 	
 	// receive total number of files to be received
 	uint64_t totalFiles,totalSize;
