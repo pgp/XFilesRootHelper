@@ -49,7 +49,7 @@ Java_it_pgp_Native_sendDetachedFD(JNIEnv *env, jclass type, jint udsToSendFdOver
 JNIEXPORT jlong JNICALL
 Java_it_pgp_Native_sendfstat(JNIEnv *env, jclass type, jint udsToSendStatOver, jint fd, jstring filename_) {
 	struct stat st{};
-	auto pfd = PosixDescriptor(udsToSendStatOver);
+	PosixDescriptor pfd(udsToSendStatOver);
 	if (fstat(fd,&st) == 0) { // send filename and struct stat
 		const char* filename = (const char*)(env->GetStringUTFChars(filename_,nullptr));
 		std::string s(filename);
