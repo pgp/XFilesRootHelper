@@ -202,9 +202,9 @@ inline int rhss_checkAccess(const std::string& targetPath) {
 
 #ifdef _WIN32
 int isDirectoryEmpty(const std::wstring& dirname) {
-    auto it = itf.createIterator(dirname,FULL,false,PLAIN);
+    auto&& it = itf.createIterator(dirname,FULL,false,PLAIN);
     if(!it) return -1;
-    return it->next()?0:1;
+    return it.next()?0:1;
 }
 #else
 int isDirectoryEmpty(const std::string& dirname) {
@@ -686,10 +686,10 @@ sts countTotalFilesAndFoldersIntoMap(const STR& name, std::unordered_map<STR,sts
 
     num.tFolders++;
     
-    auto it = itf.createIterator(name,FULL,true,PLAIN);
-    if(!!it)
-    while (it->next()) {
-        sts subNum = countTotalFilesAndFoldersIntoMap(it->getCurrent(),m);
+    auto&& it = itf.createIterator(name,FULL,true,PLAIN);
+    if(it)
+    while (it.next()) {
+        sts subNum = countTotalFilesAndFoldersIntoMap(it.getCurrent(),m);
         num.tFiles += subNum.tFiles;
         num.tFolders += subNum.tFolders;
     }
@@ -721,10 +721,10 @@ sts_sz countTotalStatsIntoMap(const STR& name, std::unordered_map<STR,sts_sz>& m
 
     num.tFolders++;
     
-    auto it = itf.createIterator(name,FULL,true,PLAIN);
-    if(!!it)
-    while (it->next()) {
-        sts_sz subNum = countTotalStatsIntoMap(it->getCurrent(),m);
+    auto&& it = itf.createIterator(name,FULL,true,PLAIN);
+    if(it)
+    while (it.next()) {
+        sts_sz subNum = countTotalStatsIntoMap(it.getCurrent(),m);
         num.tFiles += subNum.tFiles;
         num.tFolders += subNum.tFolders;
         num.tSize += subNum.tSize;
@@ -818,16 +818,16 @@ void listDir(IDescriptor& inOutDesc) {
         //~ else sendOkResponse(inOutDesc);
 
         // std::unique_ptr<IDirIterator<std::string>> or std::unique_ptr<IDirIterator<std::wstring>>
-        auto it = itf.createIterator(dirpath,FULL,true,PLAIN);
+        auto&& it = itf.createIterator(dirpath,FULL,true,PLAIN);
         if(!it) {
 			sendErrorResponse(inOutDesc);
             return;
 		}
 		sendOkResponse(inOutDesc);
 
-        while (it->next()) {
-            auto filepathname = it->getCurrent();
-            auto nameonly = it->getCurrentFilename();
+        while (it.next()) {
+            auto&& filepathname = it.getCurrent();
+            auto&& nameonly = it.getCurrentFilename();
 
             // assemble and send response
             ls_resp_t responseEntry{};
@@ -866,16 +866,16 @@ void listDir(IDescriptor& inOutDesc) {
 		return;
 	}
 
-    auto it = itf.createIterator(dirpath,FULL,true,PLAIN);
+    auto&& it = itf.createIterator(dirpath,FULL,true,PLAIN);
 	if (!it) {
 		sendErrorResponse(inOutDesc);
         return;
 	}
 	sendOkResponse(inOutDesc);
 	
-    while (it->next()) {
-        auto filepathname = it->getCurrent();
-        auto nameonly = it->getCurrentFilename();
+    while (it.next()) {
+        auto&& filepathname = it.getCurrent();
+        auto&& nameonly = it.getCurrentFilename();
 
         // assemble and send response
         ls_resp_t responseEntry{};
@@ -1140,12 +1140,12 @@ int genericUploadBasicRecursiveImplWithProgress(const STR& src_path, // local pa
         case 2: // dir
         {
             bool empty = true;
-            auto it = itf.createIterator(src_path,FULL,true,PLAIN);
-            if(!!it)
-            while (it->next()) {
+            auto&& it = itf.createIterator(src_path,FULL,true,PLAIN);
+            if(it)
+            while (it.next()) {
                 empty = false;
-                STR srcSubDir = pathConcat(src_path,it->getCurrentFilename());
-                STR destSubDir = pathConcat(dest_path,it->getCurrentFilename());
+                STR&& srcSubDir = pathConcat(src_path,it.getCurrentFilename());
+                STR&& destSubDir = pathConcat(dest_path,it.getCurrentFilename());
 
                 // recursive upload non-empty directory
                 ret_ = genericUploadBasicRecursiveImplWithProgress(srcSubDir,destSubDir,networkDesc,outDesc);
@@ -1490,10 +1490,10 @@ void createHardOrSoftLink(IDescriptor& inOutDesc, uint8_t flags) {
 template<typename STR>
 int accumulateChildrenFilesAndFoldersCount(const STR& path, folderStats_resp_t& resp) {
     int ret = 0;
-    auto dirIt = itf.createIterator(path, FULL, false, PLAIN);
-	if(!!dirIt)
-    while (dirIt->next()) {
-        int efd = existsIsFileIsDir_(dirIt->getCurrent());
+    auto&& dirIt = itf.createIterator(path, FULL, false, PLAIN);
+	if(dirIt)
+    while (dirIt.next()) {
+        int efd = existsIsFileIsDir_(dirIt.getCurrent());
 
         if (efd == 0) {
             ret = -1;
@@ -1510,11 +1510,11 @@ int accumulateChildrenFilesAndFoldersCount(const STR& path, folderStats_resp_t& 
 template<typename STR>
 int accumulateTotalFilesAndFoldersCount(const STR& path, folderStats_resp_t& resp) {
     int ret = 0;
-    auto dirIt = itf.createIterator(path, FULL, false);
-	if(!!dirIt)
-    while (dirIt->next()) {
+    auto&& dirIt = itf.createIterator(path, FULL, false);
+	if(dirIt)
+    while (dirIt.next()) {
         singleStats_resp_t st{};
-        int efd = existsIsFileIsDir_(dirIt->getCurrent(),&st);
+        int efd = existsIsFileIsDir_(dirIt.getCurrent(),&st);
 
         if (efd == 0) {
             ret = -1;
@@ -1532,7 +1532,7 @@ int accumulateTotalFilesAndFoldersCount(const STR& path, folderStats_resp_t& res
 }
 
 void stats_file(IDescriptor& inOutDesc) {
-    auto filepath = FROMUNIXPATH(readStringWithLen(inOutDesc));
+    auto&& filepath = FROMUNIXPATH(readStringWithLen(inOutDesc));
     
     // check access unconditionally (on local, always succeeds because rhss_currentlyServedDirectory is empty)
 	if (rhss_checkAccess(filepath)) {
@@ -1580,7 +1580,7 @@ void stats_multiple(IDescriptor& inOutDesc) {
 	
 	// receive list of paths
 	for(;;) {
-		auto dirpath = FROMUNIXPATH(readStringWithLen(inOutDesc));
+		auto&& dirpath = FROMUNIXPATH(readStringWithLen(inOutDesc));
 		if (dirpath.empty()) break;
 		int efd = existsIsFileIsDir_(dirpath);
 		if (efd == 1) { // file

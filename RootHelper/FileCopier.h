@@ -80,11 +80,11 @@ private:
 
     std::vector<std::pair<STR,STR>> listChildrenPairs(const STR& srcI, const STR& destI) {
         std::vector<std::pair<STR,STR>> v;
-        auto it = itf.createIterator(srcI,FULL,true,PLAIN);
-        if(!!it)
-        while (it->next()) {
-            v.push_back(std::make_pair(pathConcat(srcI,it->getCurrentFilename()),
-                                       pathConcat(destI,it->getCurrentFilename())));
+        auto&& it = itf.createIterator(srcI,FULL,true,PLAIN);
+        if(it)
+        while (it.next()) {
+            v.push_back(std::make_pair(pathConcat(srcI,it.getCurrentFilename()),
+                                       pathConcat(destI,it.getCurrentFilename())));
         }
         else std::cerr<<"Unable to open directory for listing: "<<srcI<<std::endl;
         return v;

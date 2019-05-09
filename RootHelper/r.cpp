@@ -491,13 +491,12 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
     CObjectVector<CDirItem> dirItems;
     {
         int i;
-        std::unique_ptr<IDirIterator<std::string>> dirIt;
 
         if (nOfItemsToCompress == 0) {
-            dirIt = itf.createIterator(srcFolder, RELATIVE_WITHOUT_BASE, false);
-            while (dirIt->next())
+            auto&& dirIt = itf.createIterator(srcFolder, RELATIVE_WITHOUT_BASE, false);
+            while (dirIt.next())
             {
-                std::string curEntString = dirIt->getCurrent();
+                std::string curEntString = dirIt.getCurrent();
 
                 CDirItem di;
                 FString name = CmdStringToFString(curEntString.c_str());
@@ -536,10 +535,10 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
                     // STDFSITERATOR ONLY ALLOWS ABSOLUTE PATHS
                     std::stringstream ss;
                     ss<<srcFolder<<"/"<<currentEntries[i];
-                    dirIt = itf.createIterator(ss.str(), RELATIVE_INCL_BASE, false);
-                    while (dirIt->next())
+                    auto&& dirIt = itf.createIterator(ss.str(), RELATIVE_INCL_BASE, false);
+                    while (dirIt.next())
                     {
-                        std::string curEntString = dirIt->getCurrent();
+                        std::string curEntString = dirIt.getCurrent();
                         PRINTUNIFIED("Current item: %s\n",curEntString.c_str());
 
                         CDirItem di;
@@ -1166,11 +1165,10 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 	}
 	else { // search in subfolders
 		PRINTUNIFIED("Entering recursive listing...\n");
-		// std::unique_ptr<IDirIterator<std::string>> dirIt = itf.createIterator(basepath.c_str(), FULL, true, RECURSIVE);
-		std::unique_ptr<IDirIterator<std::string>> dirIt = itf.createIterator(basepath, FULL, true, SMART_SYMLINK_RESOLUTION);
-		while (dirIt->next()) {
-			std::string curEntString = dirIt->getCurrent();
-			std::string curEntName = dirIt->getCurrentFilename();
+		auto&& dirIt = itf.createIterator(basepath, FULL, true, SMART_SYMLINK_RESOLUTION);
+		while (dirIt.next()) {
+			std::string curEntString = dirIt.getCurrent();
+			std::string curEntName = dirIt.getCurrentFilename();
 			
 			if (searchInterrupted) {
 				PRINTUNIFIEDERROR("Search interrupted,exiting...\n");

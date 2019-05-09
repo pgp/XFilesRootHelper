@@ -42,7 +42,9 @@ public:
                 rootLen = 0;
                 break;
             default:
-                throw std::runtime_error("invalid enum value for dir iteration mode");
+                std::cerr<<"invalid enum value for dir iteration mode\n";
+                error = errno = EINVAL;
+                return;
         }
 
 		// TODO discriminate between RECURSIVE and RECURSIVE_FOLLOW_SYMLINKS
@@ -79,19 +81,13 @@ public:
     }
 };
 
-class cppstdfsIteratorFactory : public IDirIteratorFactory {
+class cppstdfsIteratorFactory {
 public:
-    std::unique_ptr<IDirIterator> createIterator(std::string dir_,
-                                                 IterationMode mode_,
-                                                 bool provideFilenames_ = true,
-                                                 ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS) {
-
-        IDirIterator* it = new cppstdfsIterator(dir_,mode_,provideFilenames_,recursiveListing_);
-        return std::unique_ptr<IDirIterator>(it);
-
-        // // causes SEGFAULT, destructor called immediately?
-//        cppstdfsIterator it(dir_,mode_,provideFilenames_,recursiveListing_);
-//        return std::make_unique<cppstdfsIterator>(it);
+    cppstdfsIterator createIterator(std::string dir_,
+                                    IterationMode mode_,
+                                    bool provideFilenames_ = true,
+                                    ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS) {
+        return {dir_,mode_,provideFilenames_,recursiveListing_};
     }
 };
 

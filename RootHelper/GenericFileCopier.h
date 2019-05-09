@@ -99,11 +99,11 @@ private:
 
     std::vector<std::pair<STR,STR>> listChildrenPairs(const BaseTransferTask& task) {
         std::vector<std::pair<STR,STR>> v;
-        auto it = itf.createIterator(task.src,FULL,true,PLAIN);
-        if(!!it)
-        while (it->next()) {
-            v.push_back(std::make_pair(pathConcat(task.src,it->getCurrentFilename()),
-                                       pathConcat(task.dest,it->getCurrentFilename())));
+        auto&& it = itf.createIterator(task.src,FULL,true,PLAIN);
+        if(it)
+        while (it.next()) {
+            v.push_back(std::make_pair(pathConcat(task.src,it.getCurrentFilename()),
+                                       pathConcat(task.dest,it.getCurrentFilename())));
         }
         else std::cerr<<"Unable to open directory for listing: "<<task.src<<std::endl;
         return v;

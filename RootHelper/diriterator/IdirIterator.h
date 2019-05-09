@@ -37,7 +37,15 @@ protected:
     //~ const bool recursiveListing;
     const ListingMode recursiveListing;
 public:
-    bool openError; // set to true in case of directory opening error
+    int error = 0; // set to errno in case of directory opening error
+
+    virtual operator bool() {
+        return error == 0;
+    }
+
+    IDirIterator(const IDirIterator& other) = delete;
+    IDirIterator(IDirIterator&& other) = delete;
+
     // it may be better to add a default base constructor
     IDirIterator(STR dir_,
                  IterationMode mode_,
@@ -46,8 +54,7 @@ public:
             dir(dir_),
             mode(mode_),
             provideFilenames(provideFilenames_),
-            recursiveListing(recursiveListing_),
-            openError(false) {} // BEWARE!!! https://stackoverflow.com/questions/4622225/boolean-variables-arent-always-false-by-default
+            recursiveListing(recursiveListing_) {}
 
     virtual ~IDirIterator() = default; // necessary, otherwise subclasses destructor won't be called (type resolution is on assigned pointer, which is of type IDirIterator)
 
@@ -61,14 +68,14 @@ public:
     }
 };
 
-template<typename STR>
-class IDirIteratorFactory {
-public:
-    virtual std::unique_ptr<IDirIterator<STR>> createIterator(
-            STR dir_,
-            IterationMode mode_,
-            bool provideFilenames_ = true,
-            ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS) = 0;
-};
+//template<typename STR>
+//class IDirIteratorFactory {
+//public:
+//    virtual std::unique_ptr<IDirIterator<STR>> createIterator(
+//            STR dir_,
+//            IterationMode mode_,
+//            bool provideFilenames_ = true,
+//            ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS) = 0;
+//};
 
 #endif /* IDIRITERATOR_H */

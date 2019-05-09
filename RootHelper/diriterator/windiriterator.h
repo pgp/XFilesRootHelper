@@ -72,13 +72,13 @@ public:
                    IterationMode mode_,
                    bool provideFilenames_ = true,
                    ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS) :
-            IDirIterator(dir_,mode_,provideFilenames_,recursiveListing_) { // TODO discriminiate between RECURSIVE and RECURSIVE_FOLLOW_SYMLINKS
+            IDirIterator(dir_,mode_,provideFilenames_,recursiveListing_) { // TODO discriminate between RECURSIVE and RECURSIVE_FOLLOW_SYMLINKS
 
         if(provideFilenames) NamesOnly = new std::stack<std::wstring>();
 
         if (dir.empty()) { // list logical drives
             std::cerr<<"Logical drives to be listed by caller for now"<<std::endl;
-            openError = true;
+            error = errno = EINVAL;
             return;
         }
 
@@ -97,10 +97,12 @@ public:
                 rootLen = 0;
                 break;
             default:
-                throw std::runtime_error("invalid enum value for dir iteration mode");
+                std::cerr<<"invalid enum value for dir iteration mode\n";
+                error = errno = EINVAL;
+                return;
         }
 
-        if (!listOnStack(dir_)) openError = true;
+        if (!listOnStack(dir_)) error = GetLastError();
     }
 
     ~windirIterator() {
@@ -145,22 +147,12 @@ public:
     }
 };
 
-class windirIteratorFactory : public IDirIteratorFactory<std::wstring> {
+class windirIteratorFactory {
 public:
-    std::unique_ptr<IDirIterator<std::wstring>> createIterator(std::wstring dir_,IterationMode mode_,
-                                                               bool provideFilenames_ = true,
-                                                               ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS) {
-        IDirIterator<std::wstring>* it = new windirIterator(dir_,mode_,provideFilenames_,recursiveListing_);
-        if (it->openError) {
-			delete it;
-			// web source: https://stackoverflow.com/questions/32204554/trying-to-return-a-stdunique-ptr-constructed-with-null
-			return std::unique_ptr<IDirIterator<std::wstring>>(nullptr);
-		}
-        return std::unique_ptr<IDirIterator<std::wstring>>(it);
-
-        // causes SEGFAULT, destructor called immediately?
-//        windirIterator it(dir_,mode_,provideFilenames_,recursiveListing_);
-//        return std::make_unique<windirIterator>(it);
+    windirIterator createIterator(std::wstring dir_,IterationMode mode_,
+                                  bool provideFilenames_ = true,
+                                  ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS) {
+        return {dir_,mode_,provideFilenames_,recursiveListing_};
     }
 };
 

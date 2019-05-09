@@ -100,8 +100,11 @@ public:
 
         if(provideFilenames) NamesOnly = new std::stack<std::string>();
 
-        if (!(dir.length()>0 && dir.at(0) == '/'))
-            throw std::runtime_error("invalid dir path, only absolute paths allowed");
+        if (!(dir.length()>0 && dir.at(0) == '/')) {
+            PRINTUNIFIEDERROR("invalid dir path, only absolute paths allowed");
+            error = errno = EINVAL;
+            return;
+        }
 
         std::string parentDir;
         switch (mode) {
@@ -118,7 +121,9 @@ public:
                 rootLen = 0;
                 break;
             default:
-                throw std::runtime_error("invalid enum value for dir iteration mode");
+                PRINTUNIFIEDERROR("invalid enum value for dir iteration mode");
+                error = errno = EINVAL;
+                return;
         }
 
         struct dirent *d;
@@ -127,7 +132,7 @@ public:
         DIR *Cdir_ = opendir(dx);
         if (Cdir_ == nullptr) {
 			PRINTUNIFIEDERROR("Error opening dir %s for listing\n",dx);
-			openError = true;
+			error = errno;
 			return;
 		}
         
@@ -201,24 +206,13 @@ public:
     }
 };
 
-class readdirIteratorFactory : public IDirIteratorFactory<std::string> {
+class readdirIteratorFactory {
 public:
-    std::unique_ptr<IDirIterator<std::string>> createIterator(std::string dir_,
-                                                 IterationMode mode_,
-                                                 bool provideFilenames_ = true,
-                                                 ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS) {
-        IDirIterator<std::string>* it = new readdirIterator(dir_,mode_,provideFilenames_,recursiveListing_);
-        if (it->openError) {
-			delete it;
-			// web source: https://stackoverflow.com/questions/32204554/trying-to-return-a-stdunique-ptr-constructed-with-null
-			return std::unique_ptr<IDirIterator<std::string>>(nullptr); // caller will check errno
-		}
-        return std::unique_ptr<IDirIterator<std::string>>(it);
-
-        // causes SEGFAULT, destructor called immediately?
-//        readdirIterator it(dir_,mode_,provideFilenames_,recursiveListing_);
-//        return std::make_unique<readdirIterator>(it);
-
+    readdirIterator createIterator(std::string dir_,
+                                   IterationMode mode_,
+                                   bool provideFilenames_ = true,
+                                   ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS) {
+        return {dir_,mode_,provideFilenames_,recursiveListing_};
     }
 };
 
