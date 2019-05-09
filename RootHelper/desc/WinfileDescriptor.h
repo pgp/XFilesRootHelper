@@ -30,6 +30,15 @@ public:
         }
     }
 
+    WinfileDescriptor(const IDescriptor& other) = delete;
+    WinfileDescriptor(const WinfileDescriptor& other) = delete;
+
+    WinfileDescriptor(IDescriptor&& other) = delete;
+    WinfileDescriptor(WinfileDescriptor&& other) noexcept {
+        hFile = other.hFile;
+        other.hFile = INVALID_HANDLE_VALUE;
+    }
+
     virtual ssize_t read(void* buf, size_t count) override {
         DWORD readBytes = -1;
         if (!ReadFile(hFile,buf,count,&readBytes,nullptr)) {

@@ -11,10 +11,10 @@
 class FileDescriptorFactory {
 public:
     template<typename STR>
-    std::unique_ptr<IDescriptor> create(const STR& filename, const std::string& openMode, int& errCode) {
-        WinfileDescriptor* wfd = new WinfileDescriptor(filename,openMode);
+    WinfileDescriptor create(const STR& filename, const std::string& openMode, int& errCode) {
+        WinfileDescriptor wfd(filename,openMode);
         if (wfd->hFile == INVALID_HANDLE_VALUE) errCode = errno;
-        return std::unique_ptr<IDescriptor>(wfd);
+        return wfd;
     }
 };
 
@@ -22,10 +22,10 @@ public:
 #include "PosixDescriptor.h"
 class FileDescriptorFactory {
 public:
-    std::unique_ptr<IDescriptor> create(const std::string& filename, const std::string& openMode, int& errCode) {
-        auto pd = new PosixDescriptor(filename,openMode);
-        if (pd->desc <= 0) errCode = errno;
-        return std::unique_ptr<IDescriptor>(pd);
+    PosixDescriptor create(const std::string& filename, const std::string& openMode, int& errCode) {
+        PosixDescriptor pd(filename,openMode);
+        if (pd.desc <= 0) errCode = errno;
+        return pd;
     }
 };
 #endif

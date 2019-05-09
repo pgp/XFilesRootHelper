@@ -29,6 +29,15 @@ public:
 
     explicit PosixDescriptor(int desc_) : desc(desc_) {}
 
+    PosixDescriptor(const IDescriptor& other) = delete;
+    PosixDescriptor(const PosixDescriptor& other) = delete;
+
+    PosixDescriptor(IDescriptor&& other) = delete;
+    PosixDescriptor(PosixDescriptor&& other) noexcept {
+        desc = other.desc;
+        other.desc = -1;
+    }
+
     virtual inline ssize_t read(void* buf, size_t count) override {return ::read(desc,buf,count);}
 
     virtual inline ssize_t write(const void* buf, size_t count) override {return ::write(desc,buf,count);}

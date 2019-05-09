@@ -528,7 +528,7 @@ int mkpathCopyPermissionsFromNearestAncestor(const std::string& dirPath) {
 template<typename STR>
 ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destination, singleStats_resp_t& fileinfo, IDescriptor* outDesc, IDescriptor& networkDesc) {
     int err = 0;
-    auto input = fdfactory.create(source,"rb",err);
+    auto&& input = fdfactory.create(source,"rb",err);
     if (err != 0) return -1;
 
     static constexpr uint8_t fileFlag = 0x00;
@@ -568,7 +568,7 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
     PRINTUNIFIED("Chunk info: quotient is %" PRIu64 ", remainder is %" PRIu64 "\n",quotient,remainder);
 
     for(uint64_t i=0;i<quotient;i++) {
-        input->readAllOrExit(v,REMOTE_IO_CHUNK_SIZE);
+        input.readAllOrExit(v,REMOTE_IO_CHUNK_SIZE);
         networkDesc.writeAllOrExit(v,REMOTE_IO_CHUNK_SIZE);
 
         // send progress information back to local socket
@@ -579,7 +579,7 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
     }
 
     if (remainder != 0) {
-        input->readAllOrExit(v,remainder);
+        input.readAllOrExit(v,remainder);
         networkDesc.writeAllOrExit(v,remainder);
 
         // send progress information back to local socket
@@ -592,7 +592,7 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
 
     // end-of-progress indicator removed from here, performed in caller unconditionally
 
-    input->close();
+    input.close();
     return 0;
 }
 
@@ -999,14 +999,14 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
         if (fileitem.flag == 0x00) {
             auto parent = getParentDir(filepath);
             if (mkpathCopyPermissionsFromNearestAncestor(parent) < 0) {
-                auto parent1 = TOUNIXPATH(parent);
+                auto&& parent1 = TOUNIXPATH(parent);
                 PRINTUNIFIEDERROR("Cannot create parent directory %s for file %s, exiting thread...\n",parent1.c_str(),fileitem.file.c_str());
                 rcl.close();
                 threadExit();
             }
 
             int err = 0;
-            auto fd = fdfactory.create(filepath,"wb",err);
+            auto&& fd = fdfactory.create(filepath,"wb",err);
             if (err != 0) {
                 PRINTUNIFIEDERROR("Cannot open output file %s for writing, errno is %d, exiting thread...\n",fileitem.file.c_str(),err);
                 rcl.close();
@@ -1027,7 +1027,7 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
 
             for(uint64_t i=0;i<quotient;i++) {
                 rcl.readAllOrExit(&buffer[0],REMOTE_IO_CHUNK_SIZE);
-                fd->writeAllOrExit(&buffer[0],REMOTE_IO_CHUNK_SIZE);
+                fd.writeAllOrExit(&buffer[0],REMOTE_IO_CHUNK_SIZE);
 
                 currentProgress += REMOTE_IO_CHUNK_SIZE;
                 if(cl) cl->writeAllOrExit(&currentProgress,sizeof(uint64_t));
@@ -1036,7 +1036,7 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
 
             if (remainder != 0) {
                 rcl.readAllOrExit(&buffer[0],remainder);
-                fd->writeAllOrExit(&buffer[0],remainder);
+                fd.writeAllOrExit(&buffer[0],remainder);
 
                 currentProgress += remainder;
                 if(cl) cl->writeAllOrExit(&currentProgress,sizeof(uint64_t));
@@ -1048,7 +1048,7 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
 			if (cl) cl->writeAllOrExit(&maxuint,sizeof(uint64_t));
             PRINTUNIFIED("End of file\n");
 
-            fd->close();
+            fd.close();
         }
         else if (fileitem.flag == 0x01) {
             mkpathCopyPermissionsFromNearestAncestor(filepath); // TODO propagate return value
@@ -1273,7 +1273,7 @@ int createRandomFile(const STR& path, uint64_t size) {
 
     // generate random data by hashing and write to file
     int errnum = 0;
-    auto fd = fdfactory.create(path,"wb",errnum);
+    auto&& fd = fdfactory.create(path,"wb",errnum);
     if(errnum != 0) return errnum;
     
     // quotient
@@ -1282,7 +1282,7 @@ int createRandomFile(const STR& path, uint64_t size) {
             botan_hash_update(hash1,p1+i,digestSize);
             botan_hash_final(hash1,p1+i+digestSize);
         }
-        fd->writeAllOrExit(p1,blockSize);
+        fd.writeAllOrExit(p1,blockSize);
         memcpy(p1,p1+blockSize,digestSize);
     }
     // remainder
@@ -1290,9 +1290,9 @@ int createRandomFile(const STR& path, uint64_t size) {
             botan_hash_update(hash1,p1+i,digestSize);
             botan_hash_final(hash1,p1+i+digestSize);
     }
-    fd->writeAllOrExit(p1,lastBlockSize);
+    fd.writeAllOrExit(p1,lastBlockSize);
 
-    fd->close();
+    fd.close();
     botan_hash_destroy(hash1);
     return 0;
 }
@@ -1322,7 +1322,7 @@ int createRandomFile(const STR& path, uint64_t size) {
     //~ botan_cipher_init(&enc, "SHACAL2/CTR", Botan::ENCRYPTION);
 
     int errnum = 0;
-    auto fd = fdfactory.create(path,"wb",errnum);
+    auto&& fd = fdfactory.create(path,"wb",errnum);
     if(errnum != 0) return errnum;
 
     /********* quotient + remainder IO loop *********/
@@ -1340,7 +1340,7 @@ int createRandomFile(const STR& path, uint64_t size) {
         botan_cipher_start(enc, nullptr, 0);
         botan_cipher_update(enc, BOTAN_CIPHER_UPDATE_FLAG_FINAL, p1, halfblockSize, &written, p2, halfblockSize, &consumed);
 
-        fd->writeAllOrExit(p1,blockSize);
+        fd.writeAllOrExit(p1,blockSize);
     }
 
     if (remainder != 0) { // there can be at most one block encrypted with same key
@@ -1352,11 +1352,11 @@ int createRandomFile(const STR& path, uint64_t size) {
         botan_cipher_start(enc, nullptr, 0);
         botan_cipher_update(enc, BOTAN_CIPHER_UPDATE_FLAG_FINAL, p1, halfblockSize, &written, p2, halfblockSize, &consumed);
 
-        fd->writeAllOrExit(p1,remainder);
+        fd.writeAllOrExit(p1,remainder);
     }
     /********* end quotient + remainder IO loop *********/
     botan_cipher_destroy(enc);
-    fd->close();
+    fd.close();
     return 0;
 }
 
@@ -1365,7 +1365,7 @@ int createRandomFile(const STR& path, uint64_t size) {
 template<typename STR>
 int createEmptyFile(const STR& path, uint64_t size) {
     int ret = 0;
-    auto fd = fdfactory.create(path,"wb",ret);
+    auto&& fd = fdfactory.create(path,"wb",ret);
     if (ret != 0) return -1;
 
     std::vector<uint8_t> emptyChunk(COPY_CHUNK_SIZE,0);
@@ -1377,13 +1377,13 @@ int createEmptyFile(const STR& path, uint64_t size) {
     PRINTUNIFIED("[Create empty file] Chunk info: quotient is %" PRIu64 ", remainder is %" PRIu64 "\n",quotient,remainder);
 
     for(uint64_t i=0;i<quotient;i++)
-        fd->writeAllOrExit(&emptyChunk[0],COPY_CHUNK_SIZE);
+        fd.writeAllOrExit(&emptyChunk[0],COPY_CHUNK_SIZE);
 
     if (remainder != 0)
-        fd->writeAllOrExit(&emptyChunk[0],remainder);
+        fd.writeAllOrExit(&emptyChunk[0],remainder);
     /********* end quotient + remainder IO loop *********/
 
-    fd->close();
+    fd.close();
     return 0;
 }
 
@@ -1449,11 +1449,11 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
 
 			// create file
 			PRINTUNIFIEDERROR("creating %s after parent dir\n",filepath.c_str());
-			auto fd = fdfactory.create(filepath,"wb",ret);
+            auto&& fd = fdfactory.create(filepath,"wb",ret);
 			if (ret != 0) {
 				sendErrorResponse(inOutDesc); return;
 			}
-			fd->close();
+			fd.close();
 			ret = 0;
 		}
 	}

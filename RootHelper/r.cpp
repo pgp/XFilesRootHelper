@@ -1016,7 +1016,7 @@ void listDirOrArchive(IDescriptor& inOutDesc, uint8_t flags) {
 		listDir(inOutDesc);
 	}
 	else {
-		PosixDescriptor pd = static_cast<PosixDescriptor&>(inOutDesc);
+		auto& pd = static_cast<PosixDescriptor&>(inOutDesc);
 		listArchive(pd);
 	}
 }
@@ -1112,7 +1112,7 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 	// would send no updates till the end-of-list indication)
 	
 	// on_thread_exit_generic(on_find_thread_exit_function);
-	auto fpd = dynamic_cast<PosixDescriptor&>(inOutDesc);
+	auto& fpd = dynamic_cast<PosixDescriptor&>(inOutDesc);
 
 	//~ currentSearchInOutDesc.store(inOutDesc); // here atomic compare and set would be needed, or at least volatile variable
 	
@@ -1286,7 +1286,7 @@ void readOrWriteFile(IDescriptor& inOutDesc, uint8_t flags) {
 		}
 		
 		
-		std::unique_ptr<IDescriptor> fd = fdfactory.create(filepath,"rb",err);
+		auto&& fd = fdfactory.create(filepath,"rb",err);
 		if (err != 0) {
 			sendErrorResponse(inOutDesc);
 			return;
@@ -1294,7 +1294,7 @@ void readOrWriteFile(IDescriptor& inOutDesc, uint8_t flags) {
 		
 		sendOkResponse(inOutDesc);
 		for(;;) {
-			readBytes = fd->read(&iobuffer[0],COPY_CHUNK_SIZE);
+			readBytes = fd.read(&iobuffer[0],COPY_CHUNK_SIZE);
 			if (readBytes <= 0) {
 				PRINTUNIFIEDERROR("break, read byte count is %d, errno is %d\n",readBytes,errno);
 				break;
@@ -1306,13 +1306,13 @@ void readOrWriteFile(IDescriptor& inOutDesc, uint8_t flags) {
 			}
 		}
 		
-		fd->close();
+		fd.close();
 	}
 	else { // receive from client, write to file
 		// UNATTENDED READ: on remote connection close, close the file
 		PRINTUNIFIED("Receive from client, write to file\n");
 		
-		std::unique_ptr<IDescriptor> fd = fdfactory.create(filepath,"wb",err);
+		auto&& fd = fdfactory.create(filepath,"wb",err);
 		if (err != 0) {
 			sendErrorResponse(inOutDesc);
 			return;
@@ -1328,14 +1328,14 @@ void readOrWriteFile(IDescriptor& inOutDesc, uint8_t flags) {
 				PRINTUNIFIEDERROR("break, read byte count is %d\n",readBytes);
 				break;
 			}
-			writtenBytes = fd->writeAll(&iobuffer[0],readBytes);
+			writtenBytes = fd.writeAll(&iobuffer[0],readBytes);
 			if (writtenBytes < readBytes) {
 				PRINTUNIFIEDERROR("break, written byte count is %d\n",writtenBytes);
 				break;
 			}
 		}
 		
-		fd->close();
+		fd.close();
 	}
 	inOutDesc.close();
 	threadExit(); // FIXME almost certainly not needed

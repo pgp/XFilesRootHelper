@@ -13,7 +13,7 @@ std::vector<uint8_t> rh_computeHash(const STR& filePath, const std::string& algo
 
 	int errnum = 0;
 	std::unique_ptr<Botan::HashFunction> hash1(Botan::HashFunction::create(algo));
-	std::unique_ptr<IDescriptor> fd = fdfactory.create(filePath,"rb",errnum);
+	auto&& fd = fdfactory.create(filePath,"rb",errnum);
 
 //	PRINTUNIFIEDERROR("@@@filepath is:\t%s\n", filePath.c_str());
 //	PRINTUNIFIEDERROR("@@@algorithm is:\t%s\n", algo.c_str());
@@ -28,7 +28,7 @@ std::vector<uint8_t> rh_computeHash(const STR& filePath, const std::string& algo
 	ssize_t readBytes;
 
 	for(;;) {
-		readBytes = fd->read(&buffer[0],HASH_BLOCK_SIZE);
+		readBytes = fd.read(&buffer[0],HASH_BLOCK_SIZE);
 		if (readBytes < 0) {
 			//~ printf("@@@Read error\n");
 			return rh_emptyHash;
@@ -40,7 +40,7 @@ std::vector<uint8_t> rh_computeHash(const STR& filePath, const std::string& algo
 		hash1->update(&buffer[0],readBytes);
 	}
 	auto result = hash1->final(); // botan secure vector
-	fd->close();
+	fd.close();
 	return std::vector<uint8_t>(result.data(),result.data()+result.size());
 }
     
