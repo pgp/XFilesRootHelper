@@ -146,12 +146,12 @@ public:
   MY_UNKNOWN_IMP1(ICryptoGetTextPassword)
 
   STDMETHOD(SetTotal)
-  (const UInt64 *files, const UInt64 *bytes);
+  (const UInt64 *files, const UInt64 *bytes) override;
   STDMETHOD(SetCompleted)
-  (const UInt64 *files, const UInt64 *bytes);
+  (const UInt64 *files, const UInt64 *bytes) override;
 
   STDMETHOD(CryptoGetTextPassword)
-  (BSTR *password);
+  (BSTR *password) override;
 
   bool PasswordIsDefined;
   UString Password;
@@ -207,21 +207,21 @@ public:
 
   // IProgress
   STDMETHOD(SetTotal)
-  (UInt64 size);
+  (UInt64 size) override;
   STDMETHOD(SetCompleted)
-  (const UInt64 *completeValue);
+  (const UInt64 *completeValue) override;
 
   // IArchiveExtractCallback
   STDMETHOD(GetStream)
-  (UInt32 index, ISequentialOutStream **outStream, Int32 askExtractMode);
+  (UInt32 index, ISequentialOutStream **outStream, Int32 askExtractMode) override;
   STDMETHOD(PrepareOperation)
-  (Int32 askExtractMode);
+  (Int32 askExtractMode) override;
   STDMETHOD(SetOperationResult)
-  (Int32 resultEOperationResult);
+  (Int32 resultEOperationResult) override;
 
   // ICryptoGetTextPassword
   STDMETHOD(CryptoGetTextPassword)
-  (BSTR *aPassword);
+  (BSTR *aPassword) override;
 
 private:
   CMyComPtr<IInArchive> _archiveHandler;
@@ -576,27 +576,27 @@ public:
 
   // IProgress
   STDMETHOD(SetTotal)
-  (UInt64 size);
+  (UInt64 size) override;
   STDMETHOD(SetCompleted)
-  (const UInt64 *completeValue);
+  (const UInt64 *completeValue) override;
 
   // IUpdateCallback2
   STDMETHOD(GetUpdateItemInfo)
   (UInt32 index,
-   Int32 *newData, Int32 *newProperties, UInt32 *indexInArchive);
+   Int32 *newData, Int32 *newProperties, UInt32 *indexInArchive) override;
   STDMETHOD(GetProperty)
-  (UInt32 index, PROPID propID, PROPVARIANT *value);
+  (UInt32 index, PROPID propID, PROPVARIANT *value) override;
   STDMETHOD(GetStream)
-  (UInt32 index, ISequentialInStream **inStream);
+  (UInt32 index, ISequentialInStream **inStream) override;
   STDMETHOD(SetOperationResult)
-  (Int32 operationResult);
+  (Int32 operationResult) override;
   STDMETHOD(GetVolumeSize)
-  (UInt32 index, UInt64 *size);
+  (UInt32 index, UInt64 *size) override;
   STDMETHOD(GetVolumeStream)
-  (UInt32 index, ISequentialOutStream **volumeStream);
+  (UInt32 index, ISequentialOutStream **volumeStream) override;
 
   STDMETHOD(CryptoGetTextPassword2)
-  (Int32 *passwordIsDefined, BSTR *password);
+  (Int32 *passwordIsDefined, BSTR *password) override ;
 
 public:
   /** BEGIN RootHelper - Progress fields */

@@ -170,7 +170,7 @@ public:
 };
 
 #define MY_QUERYINTERFACE_BEGIN STDMETHOD(QueryInterface) \
-(REFGUID iid, void **outObject) throw() { *outObject = NULL;
+(REFGUID iid, void **outObject) throw() override { *outObject = NULL;
 
 #define MY_QUERYINTERFACE_ENTRY(i) else if (iid == IID_ ## i) \
     { *outObject = (void *)(i *)this; }
@@ -185,8 +185,8 @@ public:
 #define MY_QUERYINTERFACE_END else return E_NOINTERFACE; ++__m_RefCount; /* AddRef(); */ return S_OK; }
 
 #define MY_ADDREF_RELEASE \
-STDMETHOD_(ULONG, AddRef)() throw() { return ++__m_RefCount; } \
-STDMETHOD_(ULONG, Release)() { if (--__m_RefCount != 0)  \
+STDMETHOD_(ULONG, AddRef)() throw() override { return ++__m_RefCount; } \
+STDMETHOD_(ULONG, Release)() override { if (--__m_RefCount != 0)  \
   return __m_RefCount; delete this; return 0; }
 
 #define MY_UNKNOWN_IMP_SPEC(i) \

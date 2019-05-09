@@ -528,7 +528,7 @@ int mkpathCopyPermissionsFromNearestAncestor(const std::string& dirPath) {
 template<typename STR>
 ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destination, singleStats_resp_t& fileinfo, IDescriptor* outDesc, IDescriptor& networkDesc) {
     int err = 0;
-    std::unique_ptr<IDescriptor> input = fdfactory.create(source,"rb",err);
+    auto input = fdfactory.create(source,"rb",err);
     if (err != 0) return -1;
 
     static constexpr uint8_t fileFlag = 0x00;
@@ -1006,7 +1006,7 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
             }
 
             int err = 0;
-            std::unique_ptr<IDescriptor> fd = fdfactory.create(filepath,"wb",err);
+            auto fd = fdfactory.create(filepath,"wb",err);
             if (err != 0) {
                 PRINTUNIFIEDERROR("Cannot open output file %s for writing, errno is %d, exiting thread...\n",fileitem.file.c_str(),err);
                 rcl.close();
@@ -1273,7 +1273,7 @@ int createRandomFile(const STR& path, uint64_t size) {
 
     // generate random data by hashing and write to file
     int errnum = 0;
-    std::unique_ptr<IDescriptor> fd = fdfactory.create(path,"wb",errnum);
+    auto fd = fdfactory.create(path,"wb",errnum);
     if(errnum != 0) return errnum;
     
     // quotient
@@ -1322,7 +1322,7 @@ int createRandomFile(const STR& path, uint64_t size) {
     //~ botan_cipher_init(&enc, "SHACAL2/CTR", Botan::ENCRYPTION);
 
     int errnum = 0;
-    std::unique_ptr<IDescriptor> fd = fdfactory.create(path,"wb",errnum);
+    auto fd = fdfactory.create(path,"wb",errnum);
     if(errnum != 0) return errnum;
 
     /********* quotient + remainder IO loop *********/
@@ -1365,7 +1365,7 @@ int createRandomFile(const STR& path, uint64_t size) {
 template<typename STR>
 int createEmptyFile(const STR& path, uint64_t size) {
     int ret = 0;
-    std::unique_ptr<IDescriptor> fd = fdfactory.create(path,"wb",ret);
+    auto fd = fdfactory.create(path,"wb",ret);
     if (ret != 0) return -1;
 
     std::vector<uint8_t> emptyChunk(COPY_CHUNK_SIZE,0);
@@ -1449,7 +1449,7 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
 
 			// create file
 			PRINTUNIFIEDERROR("creating %s after parent dir\n",filepath.c_str());
-			std::unique_ptr<IDescriptor> fd = fdfactory.create(filepath,"wb",ret);
+			auto fd = fdfactory.create(filepath,"wb",ret);
 			if (ret != 0) {
 				sendErrorResponse(inOutDesc); return;
 			}
