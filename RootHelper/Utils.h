@@ -527,9 +527,8 @@ int mkpathCopyPermissionsFromNearestAncestor(const std::string& dirPath) {
 // outDesc == nullptr means server to client upload and no local socket for communicating progress
 template<typename STR>
 ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destination, singleStats_resp_t& fileinfo, IDescriptor* outDesc, IDescriptor& networkDesc) {
-    int err = 0;
-    auto&& input = fdfactory.create(source,"rb",err);
-    if (err != 0) return -1;
+    auto&& input = fdfactory.create(source,"rb");
+    if (!input) return -1;
 
     static constexpr uint8_t fileFlag = 0x00;
 
@@ -1005,10 +1004,9 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
                 threadExit();
             }
 
-            int err = 0;
-            auto&& fd = fdfactory.create(filepath,"wb",err);
-            if (err != 0) {
-                PRINTUNIFIEDERROR("Cannot open output file %s for writing, errno is %d, exiting thread...\n",fileitem.file.c_str(),err);
+            auto&& fd = fdfactory.create(filepath,"wb");
+            if (!fd) {
+                PRINTUNIFIEDERROR("Cannot open output file %s for writing, errno is %d, exiting thread...\n",fileitem.file.c_str(),fd.error);
                 rcl.close();
                 threadExit();
             }
@@ -1272,9 +1270,8 @@ int createRandomFile(const STR& path, uint64_t size) {
     int i,j;
 
     // generate random data by hashing and write to file
-    int errnum = 0;
-    auto&& fd = fdfactory.create(path,"wb",errnum);
-    if(errnum != 0) return errnum;
+    auto&& fd = fdfactory.create(path,"wb");
+    if(!fd) return fd.error;
     
     // quotient
     for(j=0;j<blocks;j++) {
@@ -1321,9 +1318,8 @@ int createRandomFile(const STR& path, uint64_t size) {
     botan_cipher_init(&enc, "ChaCha", Botan::ENCRYPTION);
     //~ botan_cipher_init(&enc, "SHACAL2/CTR", Botan::ENCRYPTION);
 
-    int errnum = 0;
-    auto&& fd = fdfactory.create(path,"wb",errnum);
-    if(errnum != 0) return errnum;
+    auto&& fd = fdfactory.create(path,"wb");
+    if(!fd) return fd.error;
 
     /********* quotient + remainder IO loop *********/
     uint64_t quotient = size / blockSize;
@@ -1364,9 +1360,8 @@ int createRandomFile(const STR& path, uint64_t size) {
 
 template<typename STR>
 int createEmptyFile(const STR& path, uint64_t size) {
-    int ret = 0;
-    auto&& fd = fdfactory.create(path,"wb",ret);
-    if (ret != 0) return -1;
+    auto&& fd = fdfactory.create(path,"wb");
+    if (!fd) return -1;
 
     std::vector<uint8_t> emptyChunk(COPY_CHUNK_SIZE,0);
 
@@ -1449,8 +1444,8 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
 
 			// create file
 			PRINTUNIFIEDERROR("creating %s after parent dir\n",filepath.c_str());
-            auto&& fd = fdfactory.create(filepath,"wb",ret);
-			if (ret != 0) {
+            auto&& fd = fdfactory.create(filepath,"wb");
+			if (!fd) {
 				sendErrorResponse(inOutDesc); return;
 			}
 			fd.close();

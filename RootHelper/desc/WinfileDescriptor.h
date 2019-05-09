@@ -28,16 +28,18 @@ public:
             hFile = CreateFileW(path.c_str(),GENERIC_WRITE,EXCLUSIVE_RW_ACCESS,
                                    nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL,nullptr);
         }
+
+        if (hFile == INVALID_HANDLE_VALUE) error = GetLastError();
     }
 
     WinfileDescriptor(const IDescriptor& other) = delete;
     WinfileDescriptor(const WinfileDescriptor& other) = delete;
 
     WinfileDescriptor(IDescriptor&& other) = delete;
-    WinfileDescriptor(WinfileDescriptor&& other) noexcept {
+    WinfileDescriptor(WinfileDescriptor&& other) = delete; /*noexcept {
         hFile = other.hFile;
         other.hFile = INVALID_HANDLE_VALUE;
-    }
+    }*/
 
     virtual ssize_t read(void* buf, size_t count) override {
         DWORD readBytes = -1;

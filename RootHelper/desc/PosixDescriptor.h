@@ -24,7 +24,10 @@ public:
             //~ desc = ::open(path.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0644);
             desc = ::open(path.c_str(), O_WRONLY|O_CREAT|O_EXCL, 0644);
         }
-        else desc = -1;
+        else {
+            desc = -1;
+            error = errno = EINVAL;
+        }
     }
 
     explicit PosixDescriptor(int desc_) : desc(desc_) {}
@@ -33,10 +36,10 @@ public:
     PosixDescriptor(const PosixDescriptor& other) = delete;
 
     PosixDescriptor(IDescriptor&& other) = delete;
-    PosixDescriptor(PosixDescriptor&& other) noexcept {
+    PosixDescriptor(PosixDescriptor&& other) = delete; /*noexcept {
         desc = other.desc;
         other.desc = -1;
-    }
+    }*/
 
     virtual inline ssize_t read(void* buf, size_t count) override {return ::read(desc,buf,count);}
 

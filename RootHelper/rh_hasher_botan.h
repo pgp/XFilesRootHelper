@@ -11,15 +11,14 @@ const std::vector<uint8_t> rh_emptyHash;
 template<typename STR>
 std::vector<uint8_t> rh_computeHash(const STR& filePath, const std::string& algo) {
 
-	int errnum = 0;
 	std::unique_ptr<Botan::HashFunction> hash1(Botan::HashFunction::create(algo));
-	auto&& fd = fdfactory.create(filePath,"rb",errnum);
+	auto&& fd = fdfactory.create(filePath,"rb");
 
 //	PRINTUNIFIEDERROR("@@@filepath is:\t%s\n", filePath.c_str());
 //	PRINTUNIFIEDERROR("@@@algorithm is:\t%s\n", algo.c_str());
 
 	// return value and errno
-	if (errnum < 0) {
+	if (!fd) {
 		//~ printf("@@@Error opening file, errno is %d\n",errnum);
 		return rh_emptyHash;
 	}
