@@ -108,7 +108,7 @@ void writeAllOrExitProcess(IDescriptor& fd, const void* buf, size_t count) {
     ssize_t writtenBytes = fd.writeAll(buf,count);
     ssize_t count_ = count; // BEWARE UNSIGNED TO SIGNED COMPARISONS!!!
     if (writtenBytes < count_) {
-        PRINTUNIFIED("Thread %ld terminating process %d on write error\n",std::this_thread::get_id(),getpid());
+        PRINTUNIFIED("Thread %s terminating process %d on write error\n",getThreadIdAsString().c_str(),getpid());
         fd.close();
         _Exit(-1);
     }

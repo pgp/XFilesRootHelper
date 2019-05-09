@@ -13,7 +13,7 @@ public:
     template<typename STR>
     WinfileDescriptor create(const STR& filename, const std::string& openMode, int& errCode) {
         WinfileDescriptor wfd(filename,openMode);
-        if (wfd->hFile == INVALID_HANDLE_VALUE) errCode = errno;
+        if (wfd.hFile == INVALID_HANDLE_VALUE) errCode = errno;
         return wfd;
     }
 };

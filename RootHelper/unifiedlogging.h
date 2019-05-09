@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <string>
+#include <sstream>
 #include <cstdarg>
 #include <cstdlib>
 #include <thread>
@@ -24,6 +25,12 @@ constexpr threadExitThrowable tEx{};
 // exception instead of thread exit routine (ensure stack unwind and cleanup)
 inline void threadExit() {
     throw tEx;
+}
+
+std::string getThreadIdAsString() {
+    std::stringstream ss;
+    ss<<std::this_thread::get_id();
+    return ss.str();
 }
 
 #ifdef _WIN32

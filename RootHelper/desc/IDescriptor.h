@@ -56,7 +56,7 @@ public:
         ssize_t readBytes = readAll(buf,count);
         ssize_t count_ = count;
         if (readBytes < count_) {
-            PRINTUNIFIEDERROR("Exiting thread %ld on read error\n",std::this_thread::get_id());
+            PRINTUNIFIEDERROR("Exiting thread %s on read error\n",getThreadIdAsString().c_str());
             close();
             threadExit();
         }
@@ -81,7 +81,7 @@ public:
         ssize_t writtenBytes = writeAll(buf,count);
         ssize_t count_ = count;
         if (writtenBytes < count_) {
-            PRINTUNIFIEDERROR("Exiting thread %ld on write error\n",std::this_thread::get_id());
+            PRINTUNIFIEDERROR("Exiting thread %s on write error\n",getThreadIdAsString().c_str());
             close();
             threadExit();
         }
