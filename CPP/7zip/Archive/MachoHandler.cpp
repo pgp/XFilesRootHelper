@@ -216,7 +216,7 @@ class CHandler:
   HRESULT Open2(ISequentialInStream *stream);
 public:
   MY_UNKNOWN_IMP2(IInArchive, IArchiveAllowTail)
-  INTERFACE_IInArchive(;)
+  INTERFACE_IInArchive(override ;)
   STDMETHOD(AllowTail)(Int32 allowTail);
   CHandler(): _allowTail(false) {}
 };

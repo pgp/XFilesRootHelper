@@ -183,7 +183,7 @@ public:
     IInArchive,
     IInArchiveGetStream)
 
-  INTERFACE_IInArchive(;)
+  INTERFACE_IInArchive(override ;)
   STDMETHOD(GetStream)(UInt32 index, ISequentialInStream **stream);
 
   UInt64 GetLastEnd() const

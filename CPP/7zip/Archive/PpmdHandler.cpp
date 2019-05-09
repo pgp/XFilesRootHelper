@@ -106,7 +106,7 @@ class CHandler:
 
 public:
   MY_UNKNOWN_IMP2(IInArchive, IArchiveOpenSeq)
-  INTERFACE_IInArchive(;)
+  INTERFACE_IInArchive(override ;)
   STDMETHOD(OpenSeq)(ISequentialInStream *stream);
 };
 

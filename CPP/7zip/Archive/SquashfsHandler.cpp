@@ -902,7 +902,7 @@ public:
   }
 
   MY_UNKNOWN_IMP2(IInArchive, IInArchiveGetStream)
-  INTERFACE_IInArchive(;)
+  INTERFACE_IInArchive(override ;)
   STDMETHOD(GetStream)(UInt32 index, ISequentialInStream **stream);
 
   HRESULT ReadBlock(UInt64 blockIndex, Byte *dest, size_t blockSize);

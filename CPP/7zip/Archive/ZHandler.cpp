@@ -27,7 +27,7 @@ class CHandler:
   // bool _unpackSize_Defined;
 public:
   MY_UNKNOWN_IMP1(IInArchive)
-  INTERFACE_IInArchive(;)
+  INTERFACE_IInArchive(override ;)
 };
 
 static const Byte kProps[] =

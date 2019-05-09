@@ -53,7 +53,7 @@ public:
       IArchiveOpenSeq,
       IOutArchive,
       ISetProperties)
-  INTERFACE_IInArchive(;)
+  INTERFACE_IInArchive(override ;)
   INTERFACE_IOutArchive(;)
   STDMETHOD(OpenSeq)(ISequentialInStream *stream);
   STDMETHOD(SetProperties)(const wchar_t * const *names, const PROPVARIANT *values, UInt32 numProps);

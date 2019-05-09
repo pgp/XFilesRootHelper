@@ -891,7 +891,7 @@ public:
 
   MY_UNKNOWN_IMP3(IInArchive, IArchiveGetRawProps, IInArchiveGetStream)
   
-  INTERFACE_IInArchive(;)
+  INTERFACE_IInArchive(override ;)
   INTERFACE_IArchiveGetRawProps(;)
   STDMETHOD(GetStream)(UInt32 index, ISequentialInStream **stream);
 };
