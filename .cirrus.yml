@@ -1,0 +1,57 @@
+freebsd_12_task:
+  freebsd_instance:
+    image: freebsd-12-0-release-amd64
+    cpu: 2
+    memory: 3G
+  env:
+    CIRRUS_CLONE_DEPTH: 1
+  install_script: pkg install -y curl gcc git glib gmake cmake gnutls perl5 pkgconf 
+  script:
+    - export CC=gcc
+    - export CXX=g++
+    - cd CMAKE
+    - cmake -H. -Bbuild
+    - cmake --build build -- -j2
+
+osx_task:
+  osx_instance:
+    image: high-sierra-base
+  env:
+    CIRRUS_CLONE_DEPTH: 1
+  install_script: brew install gcc cmake
+  script:
+    - export CC=gcc-8
+    - export CXX=g++-8
+    - cd CMAKE
+    - cmake -H. -Bbuild
+    - cmake --build build -- -j1
+
+windows_task:
+  windows_container:
+    image: cirrusci/windowsservercore:2019
+    os_version: 2019
+  env:
+    CIRRUS_CLONE_DEPTH: 1
+  install_script:
+    - choco install -y --no-progress mingw
+    - choco install -y --no-progress --installargs 'ADD_CMAKE_TO_PATH=System' cmake
+  script:
+    - set PATH=%PATH%;C:\Program Files\cmake\bin;C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin
+    - cd CMAKE
+    - cmake -G "MinGW Makefiles" -H. -Bbuild
+    - cmake --build build -- -j1
+
+linux_task:
+  container:
+    image: openjdk:8-jdk
+  env:
+    CIRRUS_CLONE_DEPTH: 1
+  install_script:
+    - apt update
+    - apt install -y gcc g++ cmake
+  script:
+    - export CC=gcc
+    - export CXX=g++
+    - cd CMAKE
+    - cmake -H. -Bbuild
+    - cmake --build build -- -j1
