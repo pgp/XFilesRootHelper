@@ -8,6 +8,10 @@ include_directories(
 
 add_definitions( -DEXTERNAL_CODECS -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_REENTRANT -DENV_UNIX -DBREAK_HANDLER -DUNICODE -D_UNICODE -DUNIX_USE_WIN_FILE)
 
+IF (CMAKE_CXX_COMPILER_ID MATCHES "Clang") # Clang or AppleClang
+    add_compile_options( -Wno-inconsistent-missing-override)
+ENDIF()
+
 IF(APPLE)
   add_definitions(-DENV_MACOSX)
   FIND_LIBRARY(COREFOUNDATION_LIBRARY CoreFoundation )

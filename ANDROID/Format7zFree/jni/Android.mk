@@ -3,7 +3,7 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 LOCAL_MODULE := 7z
 
-LOCAL_CFLAGS := -O2 -DANDROID_NDK  -fexceptions \
+LOCAL_CFLAGS := -O2 -DANDROID_NDK -Wno-inconsistent-missing-override -fexceptions \
 	-DNDEBUG -D_REENTRANT -DENV_UNIX \
 	-DEXTERNAL_CODECS \
 	-DUNICODE -D_UNICODE -DUNIX_USE_WIN_FILE \
