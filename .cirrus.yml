@@ -5,7 +5,7 @@ freebsd_12_task:
     memory: 3G
   env:
     CIRRUS_CLONE_DEPTH: 1
-  install_script: pkg install -y curl gcc git glib gmake cmake gnutls perl5 pkgconf 
+  install_script: pkg install -y curl gcc git glib gmake cmake gnutls perl5 pkgconf libX11
   script:
     - export CC=gcc
     - export CXX=g++
@@ -48,7 +48,7 @@ linux_task:
     CIRRUS_CLONE_DEPTH: 1
   install_script:
     - apt update
-    - apt install -y gcc g++ cmake
+    - apt install -y gcc g++ cmake libx11-dev
   script:
     - export CC=gcc
     - export CXX=g++
