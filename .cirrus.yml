@@ -18,7 +18,12 @@ osx_task:
     image: high-sierra-base
   env:
     CIRRUS_CLONE_DEPTH: 1
-  install_script: brew install gcc cmake
+  install_script:
+    - brew install gcc cmake
+    - curl -L -O https://dl.bintray.com/xquartz/downloads/XQuartz-2.7.11.dmg
+    - hdiutil mount XQuartz-2.7.11.dmg
+    - sudo installer -store -pkg /Volumes/XQuartz-2.7.11/XQuartz.pkg -target /
+    - hdiutil unmount /Volumes/XQuartz-2.7.11
   script:
     - export CC=gcc-8
     - export CXX=g++-8
