@@ -1830,11 +1830,17 @@ void on_server_acceptor_exit_func() {
 
 constexpr struct linger lo = {1, 0};
 
-void forkServerAcceptor(int cl) {
+void forkServerAcceptor(int cl, uint8_t rq_flags) {
 	// receive byte indicating whether to serve entire filesystem (0x00) or only custom directory (non-zero byte)
 	uint8_t x;
 	PosixDescriptor pd_cl(cl);
 	pd_cl.readAllOrExit(&x,sizeof(uint8_t));
+
+	if(rq_flags == 5) {
+	    // start IGMP announce loop (for now with default parameters)
+	    std::thread igmpThread(xre_announce);
+	    igmpThread.detach();
+	}
 	
 	if(x) {
 		std::string filepath = readStringWithLen(pd_cl);
@@ -2202,9 +2208,10 @@ void serveRequest(int intcl, request_type rq) {
 					killServerAcceptor(cl);
 					break;
 				case 7: // 111 start
-					forkServerAcceptor(intcl);
-					threadExit(); // in order to avoid receiving further requests by this thread after fork
-					break;
+				case 5: // 101 NEW, start with IGMP announce loop
+				    forkServerAcceptor(intcl,rq.flags);
+                    threadExit(); // in order to avoid receiving further requests by this thread after fork
+                    break;
 				case 2: // 010 get status
 					getServerAcceptorStatus(cl);
 					break;

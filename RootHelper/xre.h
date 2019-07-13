@@ -24,6 +24,9 @@ SOCKET rhss = INVALID_SOCKET; // acceptor socket
 int rhss = -1; // acceptor socket (assigned only in forked process or in xre mode)
 #endif
 
+// logic for announcing XRE server via UDP broadcast 
+#include "xreannounce/announcer.h"
+
 // with standard #define directives, on 32 bit archs the string went out of scope, so dirty memory instead of actual filenames was read in TLS server ctor -> cert key access error
 #ifdef ANDROID_NDK
 	const std::string RH_TLS_CERT_STRING = "libdummycrt.so";
