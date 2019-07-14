@@ -1,7 +1,13 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+
+#ifdef ANDROID_NDK
+#include "ifaddrs-android.h"
+#else
 #include <ifaddrs.h>
+#endif
+
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>

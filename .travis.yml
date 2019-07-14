@@ -31,7 +31,7 @@ matrix:
       addons:
         homebrew:
           packages:
-            - gcc
+            - gcc@8
             - cmake
       env:
         - TARGETTING_ANDROID=false
