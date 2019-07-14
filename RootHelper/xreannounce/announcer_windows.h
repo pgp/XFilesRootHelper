@@ -62,7 +62,7 @@ int xre_announce() {
     
     for(;;) {
 		for(auto& addr : ipAddresses)
-			if(sendto(sock,announce_message.c_str(),announce_message.size(),0,(sockaddr *)&Recv_addr,sizeof(Recv_addr))==SOCKET_ERROR) // WARNING: was strlen+1
+			if(sendto(sock,addr.c_str(),addr.size(),0,(sockaddr *)&Recv_addr,sizeof(Recv_addr))==SOCKET_ERROR) // WARNING: was strlen+1
 				return -3;
 		std::cout<<"Broadcast messages sent..."<<std::endl;
 		std::this_thread::sleep_for(std::chrono::seconds(1)); // TODO parameterize sleep period
