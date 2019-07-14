@@ -27,7 +27,7 @@ matrix:
          - MATRIX_EVAL="" 
 
     - os: osx
-      osx_image: xcode11
+      osx_image: xcode10.1
       addons:
         homebrew:
           packages:
