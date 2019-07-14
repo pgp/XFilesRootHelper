@@ -4,6 +4,24 @@
 * Web source: http://www.cs.ubbcluj.ro/~dadi/compnet/labs/lab3/udp-broadcast.html
 * linker flags for MinGW: -lwsock32
 */
+
+std::vector<std::string> getIPAddresses() {
+	std::vector<std::string> addresses;
+	char name[255];
+	PHOSTENT hostinfo;
+	if(gethostname(name, sizeof(name)) == 0) {
+		if((hostinfo = gethostbyname(name)) != nullptr) {
+			int nCount = 0;
+			while(hostinfo->h_addr_list[nCount]) {
+				std::string addr = inet_ntoa(*(struct in_addr *)hostinfo->h_addr_list[nCount]);
+				if (addr != "127.0.0.1" && addr != "::1" && addr != "0.0.0.0")
+					addresses.emplace_back(addr);
+				nCount++;
+			}
+		}
+	}
+	return addresses;
+}
  
 int xre_announce() {
     WSADATA wsaData;
@@ -35,16 +53,21 @@ int xre_announce() {
 //	Recv_addr.sin_addr.s_addr  = INADDR_BROADCAST; // this isq equiv to 255.255.255.255
 // better use subnet broadcast
     Recv_addr.sin_addr.s_addr = inet_addr("192.168.43.255");
- 
- 
+    
+    std::vector<std::string> ipAddresses = getIPAddresses();
+	if(ipAddresses.empty()) {
+		std::cerr<<"No available IPs"<<std::endl;
+		return -4;
+	}
+    
     for(;;) {
-		if(sendto(sock,announce_message.c_str(),announce_message.size(),0,(sockaddr *)&Recv_addr,sizeof(Recv_addr))==SOCKET_ERROR) // WARNING: was strlen+1
-			return -3;
-		std::cout<<"Broadcast message sent..."<<std::endl;
+		for(auto& addr : ipAddresses)
+			if(sendto(sock,announce_message.c_str(),announce_message.size(),0,(sockaddr *)&Recv_addr,sizeof(Recv_addr))==SOCKET_ERROR) // WARNING: was strlen+1
+				return -3;
+		std::cout<<"Broadcast messages sent..."<<std::endl;
 		std::this_thread::sleep_for(std::chrono::seconds(1)); // TODO parameterize sleep period
 	}
  
     closesocket(sock);
-    WSACleanup();
     return 0;
 }

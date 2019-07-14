@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <string>
+#include <vector>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -10,8 +11,6 @@
 #include <chrono>
 
 #define XRE_ANNOUNCE_SERVERPORT 11111
-
-const std::string announce_message = "This is the broadcast message"; // TODO to be populated on start with XRE server IP and port
 
 #ifdef _WIN32
 #include "announcer_windows.h"
