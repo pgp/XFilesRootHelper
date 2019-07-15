@@ -50,9 +50,9 @@ int xre_announce() {
  
     Recv_addr.sin_family       = AF_INET;        
     Recv_addr.sin_port         = htons(XRE_ANNOUNCE_SERVERPORT);   
-//	Recv_addr.sin_addr.s_addr  = INADDR_BROADCAST; // this isq equiv to 255.255.255.255
+	Recv_addr.sin_addr.s_addr  = INADDR_BROADCAST; // equivalent to 255.255.255.255, on Windows a datagram for each interface should be sent
 // better use subnet broadcast
-    Recv_addr.sin_addr.s_addr = inet_addr("192.168.43.255");
+//    Recv_addr.sin_addr.s_addr = inet_addr("192.168.43.255");
     
     std::vector<std::string> ipAddresses = getIPAddresses();
 	if(ipAddresses.empty()) {
@@ -63,7 +63,7 @@ int xre_announce() {
     for(;;) {
 		for(auto& addr : ipAddresses) {
 			auto&& announce = getPreparedAnnounce(XRE_ANNOUNCE_SERVERPORT,addr,defaultAnnouncedPath);
-			if(sendto(sock,&announce[0],announce.size(),0,(sockaddr *)&Recv_addr,sizeof(Recv_addr))==SOCKET_ERROR) { // WARNING: was strlen+1
+			if(sendto(sock,(const char*)(&announce[0]),announce.size(),0,(sockaddr *)&Recv_addr,sizeof(Recv_addr))==SOCKET_ERROR) { // WARNING: was strlen+1
 				PRINTUNIFIEDERROR("sendto error\n");
 				return -3;
 			}

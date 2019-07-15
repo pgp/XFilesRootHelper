@@ -30,11 +30,10 @@ matrix:
       osx_image: xcode10.1
       addons:
         homebrew:
+          update: true
           packages:
             - gcc@8
             - cmake
-      before_install:
-        - brew update
       env:
         - TARGETTING_ANDROID=false
         - MATRIX_EVAL="export CC=gcc-8 && export CXX=g++-8 && cd CMAKE && cmake -H. -Bbuild"

@@ -55,7 +55,7 @@ int xre_announce() { // TODO add sleep priod and total time
     send_addr.sin_family = AF_INET;
     send_addr.sin_port = (in_port_t) htons(XRE_ANNOUNCE_SERVERPORT);
     // broadcasting address for unix (?)
-    inet_aton("192.168.43.255", &send_addr.sin_addr);
+    inet_aton("192.168.43.255", &send_addr.sin_addr); // FIXME retrieve broadcast addresses with ioctl (have to solve macro conflict B0)
     // send_addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
 
 	std::vector<std::string> ipAddresses = getIPAddresses();
