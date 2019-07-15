@@ -1,5 +1,7 @@
 #include <winsock2.h>
 
+const std::string defaultAnnouncedPath = "/C:/Windows/Temp";
+
 /**
 * Web source: http://www.cs.ubbcluj.ro/~dadi/compnet/labs/lab3/udp-broadcast.html
 * linker flags for MinGW: -lwsock32
@@ -38,12 +40,10 @@ int xre_announce() {
         return -2;
     }
  
-    struct sockaddr_in Recv_addr{};  
+    struct sockaddr_in Recv_addr{};
     struct sockaddr_in Sender_addr{};
  
     int len = sizeof(struct sockaddr_in);
- 
-    char sendMSG[] ="Broadcast message from SLAVE TAG";
  
     char recvbuff[50] = "";
     int recvbufflen = 50;
@@ -56,15 +56,19 @@ int xre_announce() {
     
     std::vector<std::string> ipAddresses = getIPAddresses();
 	if(ipAddresses.empty()) {
-		std::cerr<<"No available IPs"<<std::endl;
+		PRINTUNIFIEDERROR("No available IPs\n");
 		return -4;
 	}
     
     for(;;) {
-		for(auto& addr : ipAddresses)
-			if(sendto(sock,addr.c_str(),addr.size(),0,(sockaddr *)&Recv_addr,sizeof(Recv_addr))==SOCKET_ERROR) // WARNING: was strlen+1
+		for(auto& addr : ipAddresses) {
+			auto&& announce = getPreparedAnnounce(XRE_ANNOUNCE_SERVERPORT,addr,defaultAnnouncedPath);
+			if(sendto(sock,&announce[0],announce.size(),0,(sockaddr *)&Recv_addr,sizeof(Recv_addr))==SOCKET_ERROR) { // WARNING: was strlen+1
+				PRINTUNIFIEDERROR("sendto error\n");
 				return -3;
-		std::cout<<"Broadcast messages sent..."<<std::endl;
+			}
+		}
+		PRINTUNIFIED("Broadcast messages sent...\n");
 		std::this_thread::sleep_for(std::chrono::seconds(1)); // TODO parameterize sleep period
 	}
  

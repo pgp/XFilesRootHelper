@@ -4,8 +4,14 @@
 
 #ifdef ANDROID_NDK
 #include "ifaddrs-android.h"
+
+const std::string defaultAnnouncedPath = "/sdcard";
+
 #else
 #include <ifaddrs.h>
+
+const std::string defaultAnnouncedPath = "/tmp";
+
 #endif
 
 #include <netinet/in.h>
@@ -54,14 +60,18 @@ int xre_announce() { // TODO add sleep priod and total time
 
 	std::vector<std::string> ipAddresses = getIPAddresses();
 	if(ipAddresses.empty()) {
-		std::cerr<<"No available IPs"<<std::endl;
+		PRINTUNIFIEDERROR("No available IPs\n");
 		return -4;
 	}
     for(;;) { // TODO parameterize total time
-		for(auto& addr : ipAddresses)
-			if (sendto(fd, addr.c_str(), addr.size(), 0, (struct sockaddr*) &send_addr, sizeof send_addr) < 0) // WARNING: was strlen+1
+		for(auto& addr : ipAddresses) {
+			auto&& announce = getPreparedAnnounce(XRE_ANNOUNCE_SERVERPORT,addr,defaultAnnouncedPath);
+			if (sendto(fd, &announce[0], announce.size(), 0, (struct sockaddr*) &send_addr, sizeof send_addr) < 0) { // WARNING: was strlen+1
+				PRINTUNIFIEDERROR("sendto error\n");
 				return -3;
-        std::cout<<"Broadcast messages sent..."<<std::endl;
+			}
+		}
+        PRINTUNIFIED("Broadcast messages sent...\n");
 		std::this_thread::sleep_for(std::chrono::seconds(1)); // TODO parameterize sleep period
     }
     close(fd);
