@@ -60,18 +60,18 @@ int xre_announce() {
 		return -4;
 	}
     
-    for(;;) {
+    for(int i=0;i<15;i++) { // TODO parameterize total time
 		for(auto& addr : ipAddresses) {
 			auto&& announce = getPreparedAnnounce(XRE_ANNOUNCE_SERVERPORT,addr,defaultAnnouncedPath);
-			if(sendto(sock,(const char*)(&announce[0]),announce.size(),0,(sockaddr *)&Recv_addr,sizeof(Recv_addr))==SOCKET_ERROR) { // WARNING: was strlen+1
+			if(sendto(sock,(const char*)(&announce[0]),announce.size(),0,(sockaddr *)&Recv_addr,sizeof(Recv_addr))==SOCKET_ERROR) {
 				PRINTUNIFIEDERROR("sendto error\n");
 				return -3;
 			}
 		}
 		PRINTUNIFIED("Broadcast messages sent...\n");
-		std::this_thread::sleep_for(std::chrono::seconds(1)); // TODO parameterize sleep period
+		std::this_thread::sleep_for(std::chrono::seconds(2)); // TODO parameterize sleep period
 	}
- 
+    PRINTUNIFIED("XRE server announce ended\n");
     closesocket(sock);
     return 0;
 }

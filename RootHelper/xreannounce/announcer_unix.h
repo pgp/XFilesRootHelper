@@ -65,18 +65,19 @@ int xre_announce() { // TODO add sleep priod and total time
 		PRINTUNIFIEDERROR("No available IPs\n");
 		return -4;
 	}
-    for(;;) { // TODO parameterize total time
+    for(int i=0;i<15;i++) { // TODO parameterize total time
 		for(auto& addr : ipAddresses) {
 			auto&& announce = getPreparedAnnounce(XRE_ANNOUNCE_SERVERPORT,addr,defaultAnnouncedPath);
 			auto retval = sendto(fd, &announce[0], announce.size(), 0, (struct sockaddr*) &send_addr, sizeof send_addr);
-			if (retval < announce.size()) { // WARNING: was strlen+1
-				PRINTUNIFIEDERROR("sendto error, bytes or return value %d\n",retval);
+			if (retval < announce.size()) {
+				PRINTUNIFIEDERROR("sendto error, bytes or return value %zd\n",retval);
 				return -3;
 			}
 		}
         PRINTUNIFIED("Broadcast messages sent...\n");
 		std::this_thread::sleep_for(std::chrono::seconds(2)); // TODO parameterize sleep period
     }
+    PRINTUNIFIED("XRE server announce ended\n");
     close(fd);
     return 0;
 }
