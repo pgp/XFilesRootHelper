@@ -29,7 +29,13 @@ std::vector<uint8_t> getPreparedAnnounce(uint16_t port, const std::string& ip, c
 	std::unique_ptr<Botan::HashFunction> crc32(Botan::HashFunction::create("CRC32"));
 	crc32->update(a+4,totalPayloadSize);
 	auto&& crcOut = crc32->final();
-	memcpy(a,&crcOut[0],4);
+	auto* crcOut_ = &crcOut[0];
+	// CRC is big-endian, convert to little
+	a[0] = crcOut_[3];
+	a[1] = crcOut_[2];
+	a[2] = crcOut_[1];
+	a[3] = crcOut_[0];
+
 	return announce;
 }
 

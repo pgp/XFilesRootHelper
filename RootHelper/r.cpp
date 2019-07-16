@@ -1835,12 +1835,6 @@ void forkServerAcceptor(int cl, uint8_t rq_flags) {
 	uint8_t x;
 	PosixDescriptor pd_cl(cl);
 	pd_cl.readAllOrExit(&x,sizeof(uint8_t));
-
-	if(rq_flags == 5) {
-	    // start IGMP announce loop (for now with default parameters)
-	    std::thread igmpThread(xre_announce);
-	    igmpThread.detach();
-	}
 	
 	if(x) {
 		std::string filepath = readStringWithLen(pd_cl);
@@ -1897,6 +1891,12 @@ void forkServerAcceptor(int cl, uint8_t rq_flags) {
 		// from now on, server session threads communicate with local client over rhss_local
 		rhss_local = cl;
 		cl = -1;
+
+		if(rq_flags == 5) {
+			// start announce loop (for now with default parameters)
+			std::thread announceThread(xre_announce);
+            announceThread.detach();
+		}
 		
 		for(;;) {
 			struct sockaddr_in st{};
@@ -2332,6 +2332,9 @@ void rhMain(int uid=rh_default_uid, std::string name=rh_uds_default_name) {
 void xreMain() {
     rhss = getServerSocket();
     printNetworkInfo();
+    // start announce loop (for now with default parameters)
+    std::thread announceThread(xre_announce);
+    announceThread.detach();
     acceptLoop(rhss);
 }
 

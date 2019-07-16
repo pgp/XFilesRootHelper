@@ -10,6 +10,9 @@ int main(int argc, char* argv[]) {
 	print_roothelper_version();
 	rhss = getServerSocket();
 	printNetworkInfo();
+    // start announce loop (for now with default parameters)
+    std::thread announceThread(xre_announce);
+    announceThread.detach();
 	acceptLoop(rhss);
 	return 0;
 }

@@ -48,8 +48,10 @@ int xre_announce() { // TODO add sleep priod and total time
     if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
         return -1;
 
-    if (setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &trueflag, sizeof trueflag) < 0)
+    if (setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &trueflag, sizeof trueflag) < 0) {
+        PRINTUNIFIEDERROR("setsockopt error, errno is %d\n",errno);
         return -2;
+    }
 
     memset(&send_addr, 0, sizeof send_addr);
     send_addr.sin_family = AF_INET;
@@ -66,13 +68,14 @@ int xre_announce() { // TODO add sleep priod and total time
     for(;;) { // TODO parameterize total time
 		for(auto& addr : ipAddresses) {
 			auto&& announce = getPreparedAnnounce(XRE_ANNOUNCE_SERVERPORT,addr,defaultAnnouncedPath);
-			if (sendto(fd, &announce[0], announce.size(), 0, (struct sockaddr*) &send_addr, sizeof send_addr) < 0) { // WARNING: was strlen+1
-				PRINTUNIFIEDERROR("sendto error\n");
+			auto retval = sendto(fd, &announce[0], announce.size(), 0, (struct sockaddr*) &send_addr, sizeof send_addr);
+			if (retval < announce.size()) { // WARNING: was strlen+1
+				PRINTUNIFIEDERROR("sendto error, bytes or return value %d\n",retval);
 				return -3;
 			}
 		}
         PRINTUNIFIED("Broadcast messages sent...\n");
-		std::this_thread::sleep_for(std::chrono::seconds(1)); // TODO parameterize sleep period
+		std::this_thread::sleep_for(std::chrono::seconds(2)); // TODO parameterize sleep period
     }
     close(fd);
     return 0;
