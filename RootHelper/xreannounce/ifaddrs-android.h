@@ -40,10 +40,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/utsname.h>
-
-// Avoid conflicts with B0 macro defined in r.cpp
-// https://github.com/android-ndk/ndk/issues/630
-// #include <sys/ioctl.h>
+#include <sys/ioctl.h>
 
 #include <netinet/in.h>
 #include <net/if.h>

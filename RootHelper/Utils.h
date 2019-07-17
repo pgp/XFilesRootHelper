@@ -1407,10 +1407,10 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
 		return;
 	}
 
-	// flags: B0 (true: create file, false: create directory)
-	if (B0(flags))
+	// flags: b0 (true: create file, false: create directory)
+	if (b0(flags))
 	{
-		if(B1(flags)) { // advanced options for create file
+		if(b1(flags)) { // advanced options for create file
 			PRINTUNIFIED("Creating file with advanced options...");
 			// receive one byte with creation strategy: 0: FALLOCATE (fastest), 1: ZEROS, 2: RANDOM (slowest)
 			inOutDesc.readAllOrExit(&creationStrategy,sizeof(uint8_t));
@@ -1466,9 +1466,9 @@ void createHardOrSoftLink(IDescriptor& inOutDesc, uint8_t flags) {
     std::vector<std::string> srcDestPaths = readPairOfStringsWithPairOfLens(inOutDesc);
     auto origin_ = FROMUNIXPATH(srcDestPaths[0]);
     auto link_ = FROMUNIXPATH(srcDestPaths[1]);
-    PRINTUNIFIED("Creating %s, target: %s destination: %s\n",B1(flags)?"link":"symlink",origin_.c_str(),link_.c_str());
+    PRINTUNIFIED("Creating %s, target: %s destination: %s\n",b1(flags)?"link":"symlink",origin_.c_str(),link_.c_str());
 #ifdef _WIN32
-    if (B1(flags)) {
+    if (b1(flags)) {
         ret = CreateHardLinkW(link_.c_str(),origin_.c_str(),nullptr) != 0;
     }
     else {
@@ -1480,7 +1480,7 @@ void createHardOrSoftLink(IDescriptor& inOutDesc, uint8_t flags) {
     if(ret) errno = GetLastError();
 #else
     // flags: 010: hard link, 000: soft link
-    auto linkfn = B1(flags)?link:symlink;
+    auto linkfn = b1(flags)?link:symlink;
     ret = linkfn(origin_.c_str(),link_.c_str());
 #endif
 
@@ -1603,15 +1603,15 @@ void stats_multiple(IDescriptor& inOutDesc) {
 
 void stats(IDescriptor& inOutDesc, uint8_t flags) {
 
-    if (B0(flags)) { // file stats
+    if (b0(flags)) { // file stats
         stats_file(inOutDesc);
         return;
     }
-    if (B1(flags)) { // dir stats
+    if (b1(flags)) { // dir stats
         stats_dir(inOutDesc);
         return;
     }
-    if (B2(flags)) { // multi stats
+    if (b2(flags)) { // multi stats
         // read one file/dir at once, accumulate stats
         stats_multiple(inOutDesc);
         return;

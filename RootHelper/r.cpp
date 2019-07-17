@@ -80,31 +80,31 @@ void existsIsFileIsDir(IDescriptor& inOutDesc, uint8_t flags) {
 
   uint8_t respFlags = 0;
   struct stat st;
-  if (B0(flags))
-  { // B0: check for existence
+  if (b0(flags))
+  { // b0: check for existence
     PRINTUNIFIED("Checking existence...\n");
     if (access(filepath.c_str(), F_OK) == 0)
-      SETB0(respFlags, 1); // set bit 0 if file exists
+      SETb0(respFlags, 1); // set bit 0 if file exists
     else goto response; // all to zero if path not exists
   }
   stat(filepath.c_str(), &st);
-  if (B1(flags))
-  { // B0: check if is file (false even if not exists)
+  if (b1(flags))
+  { // b0: check if is file (false even if not exists)
     PRINTUNIFIED("Checking \"is file\"...\n");
     if (S_ISREG(st.st_mode))
-      SETB1(respFlags, 1);
+      SETb1(respFlags, 1);
   }
-  if (B2(flags))
-  { // B0: check if it is folder (false even if not exists)
+  if (b2(flags))
+  { // b0: check if it is folder (false even if not exists)
     PRINTUNIFIED("Checking \"is dir\"...\n");
     if (S_ISDIR(st.st_mode))
-      SETB2(respFlags, 1);
+      SETb2(respFlags, 1);
   }
 
 // response byte unconditionally 0x00 (OK), plus one byte containing the three bit flags set accordingly:
-// B0: true if file or dir exists
-// B1: true if is file
-// B2: true if is dir
+// b0: true if file or dir exists
+// b1: true if is file
+// b2: true if is dir
 response:
   sendOkResponse(inOutDesc);
   inOutDesc.writeAllOrExit( &respFlags, 1);
@@ -1025,18 +1025,18 @@ const char* find_legend = R"V0G0N(
  * FIND request:
  *  - Input: source path (dir or archive), filename pattern (can be empty), content pattern (can be empty)
  *  - Flag bits:
- * 				B0 - (Overrides other bits) Cancel current search, if any
- * 				B1 - Search in subfolders only (if false, search recursively)
- * 				B2 - Search in archives (search within archives if true) - CURRENTLY IGNORED
+ * 				b0 - (Overrides other bits) Cancel current search, if any
+ * 				b1 - Search in subfolders only (if false, search recursively)
+ * 				b2 - Search in archives (search within archives if true) - CURRENTLY IGNORED
  *  - Two additional bytes for pattern options:
  * 				- For filename pattern:
- * 				B0 - Use regex (includes escaped characters, case-sensitivity options and whole word options) - CURRENTLY IGNORED
- * 				B1 - Use escaped characters (if B0 true, B1 is ignored) - CURRENTLY IGNORED
- * 				B2 - Case-insensitive search if true (if B0 true, B2 is ignored)
- * 				B3 - Whole-word search (if B0 true, B3 is ignored) - CURRENTLY IGNORED
+ * 				b0 - Use regex (includes escaped characters, case-sensitivity options and whole word options) - CURRENTLY IGNORED
+ * 				b1 - Use escaped characters (if b0 true, b1 is ignored) - CURRENTLY IGNORED
+ * 				b2 - Case-insensitive search if true (if b0 true, b2 is ignored)
+ * 				b3 - Whole-word search (if b0 true, b3 is ignored) - CURRENTLY IGNORED
  * 				- For content pattern:
- * 				B4,B5,B6,B7 same as B0,B1,B2,B3
- * 				B8 (B0 of second byte): find all occurrences in content
+ * 				b4,b5,b6,b7 same as b0,b1,b2,b3
+ * 				b8 (b0 of second byte): find all occurrences in content
  */
 )V0G0N";
 
@@ -1058,13 +1058,13 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 	// BEGIN DEBUG
 	// print rq flags
 	PRINTUNIFIED("Find rq flags:\n");
-	PRINTUNIFIED("B0 %d\n",B0(flags));
-	PRINTUNIFIED("B1 %d\n",B1(flags));
-	PRINTUNIFIED("B2 %d\n",B2(flags));
+	PRINTUNIFIED("b0 %d\n",b0(flags));
+	PRINTUNIFIED("b1 %d\n",b1(flags));
+	PRINTUNIFIED("b2 %d\n",b2(flags));
 	// END DEBUG
 	
 	std::unique_lock<std::mutex> lock(currentSearchInOutDesc_mx);
-	if (B0(flags)) { // cancel current search, if any
+	if (b0(flags)) { // cancel current search, if any
 		searchInterrupted = true;
 		currentSearchInOutDesc->close(); // will cause search thread, if any, to exit on socket write error, in so freeing the allocated global IDescriptor
 		lock.unlock();
@@ -1122,7 +1122,7 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 	searchInterrupted = false;
 	
 	// check flags
-	if (B1(flags)) { // search in base folder only
+	if (b1(flags)) { // search in base folder only
 		PRINTUNIFIED("Entering plain listing...\n");
 		DIR *d;
 		struct dirent *dir;
@@ -1141,7 +1141,7 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 				
 				std::string haystack = std::string(dir->d_name);
 				std::string needle = namepattern;
-				if (B2(searchFlags)) {
+				if (b2(searchFlags)) {
 					toUppercaseString(haystack);
 					toUppercaseString(needle);
 				}
@@ -1177,7 +1177,7 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 			
 			std::string haystack = curEntName;
 			std::string needle = namepattern;
-			if (B2(searchFlags)) {
+			if (b2(searchFlags)) {
 				toUppercaseString(haystack);
 				toUppercaseString(needle);
 			}
@@ -1350,11 +1350,11 @@ void setDates(const char* filepath, IDescriptor& inOutDesc,uint8_t flags) {
 	struct timeval times[2] = {};
 	
 	uint32_t x;
-	if (B0(flags)) { // access (least significant bit)
+	if (b0(flags)) { // access (least significant bit)
 		inOutDesc.readAllOrExit(&x,sizeof(uint32_t));
 		times[0].tv_sec = x;
 	}
-	if (B1(flags)) { // modification (second least significant bit)
+	if (b1(flags)) { // modification (second least significant bit)
 		inOutDesc.readAllOrExit(&x,sizeof(uint32_t));
 		times[1].tv_sec = x;
 	}
@@ -1367,8 +1367,8 @@ void setDates(const char* filepath, IDescriptor& inOutDesc,uint8_t flags) {
 	}
 	
 	// complete time structs if the user has chosen not to set both timestamps
-	if (!B0(flags)) times[0].tv_sec = st.st_atime;
-	if (!B1(flags)) times[1].tv_sec = st.st_mtime;
+	if (!b0(flags)) times[0].tv_sec = st.st_atime;
+	if (!b1(flags)) times[1].tv_sec = st.st_mtime;
 	
 	ret = utimes(filepath,times);
 	sendBaseResponse(ret,inOutDesc);
@@ -1379,8 +1379,8 @@ void setOwnership(const char* filepath, IDescriptor& inOutDesc,uint8_t flags) {
 	PRINTUNIFIED("Setting file ownership\n");
 	PRINTUNIFIED("Flags: %u\n",flags);
 	int32_t owner = -1,group = -1;
-	if (B0(flags)) inOutDesc.readAllOrExit(&owner,sizeof(int32_t));
-	if (B1(flags)) inOutDesc.readAllOrExit(&group,sizeof(int32_t));
+	if (b0(flags)) inOutDesc.readAllOrExit(&owner,sizeof(int32_t));
+	if (b1(flags)) inOutDesc.readAllOrExit(&group,sizeof(int32_t));
 	
 	struct stat st = {}; // in case of expected modification of only one between owner and group, take the other from here
 	int ret = getFileType_(filepath,&st);
@@ -1389,8 +1389,8 @@ void setOwnership(const char* filepath, IDescriptor& inOutDesc,uint8_t flags) {
 		return;
 	}
 	
-	if (!B0(flags)) owner = st.st_uid;
-	if (!B1(flags)) group = st.st_gid;
+	if (!b0(flags)) owner = st.st_uid;
+	if (!b1(flags)) group = st.st_gid;
 	
 	ret = chown(filepath,owner,group);
 	sendBaseResponse(ret,inOutDesc);
@@ -1456,8 +1456,8 @@ void client_createFileOrDirectory(IDescriptor& cl, IDescriptor& rcl, request_typ
 	brcl.writeAllOrExit(&mode,4);
 	
 	// switch additional content to propagate depending on flags
-	if(B0(rqByteWithFlags.flags)) {
-		if(B1(rqByteWithFlags.flags)) {
+	if(b0(rqByteWithFlags.flags)) {
+		if(b1(rqByteWithFlags.flags)) {
 			cl.readAllOrExit(&creationStrategy,sizeof(uint8_t));
 			cl.readAllOrExit(&filesize,sizeof(uint64_t));
 			brcl.writeAllOrExit(&creationStrategy,sizeof(uint8_t));
@@ -1530,21 +1530,21 @@ void client_stats(IDescriptor& cl, IDescriptor& rcl, request_type rqByteWithFlag
 		cl.writeAllOrExit(&receivedErrno,sizeof(int));
 	}
 	else { // OK
-		if (B0(rqByteWithFlags.flags)) {
+		if (b0(rqByteWithFlags.flags)) {
 			singleStats_resp_t sfstats = {};
 			readsingleStats_resp(rcl,sfstats);
 			cl.writeAllOrExit(&resp,sizeof(uint8_t));
 			writesingleStats_resp(cl,sfstats);
 			return;
 		}
-		if (B1(rqByteWithFlags.flags)) {
+		if (b1(rqByteWithFlags.flags)) {
 			folderStats_resp_t fldstats = {};
 			readfolderStats_resp(rcl,fldstats);
 			cl.writeAllOrExit(&resp,sizeof(uint8_t));
 			writefolderStats_resp(cl,fldstats);
 			return;
 		}
-		if (B2(rqByteWithFlags.flags)) {
+		if (b2(rqByteWithFlags.flags)) {
 			errno = 0x1234; // not yet implemented
 			sendErrorResponse(cl);
 			return;

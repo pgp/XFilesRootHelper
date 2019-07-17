@@ -91,14 +91,14 @@ typedef struct {
     uint8_t flags:3; // MSBits in native order
 } request_type;
 
-// getters and setters for 3 flag bits B0...B2 (LSB to MSB)
+// getters and setters for 3 flag bits b0...b2 (LSB to MSB)
 // general formula: n-th bit of x (right to left, starting bit position from 0) = ( x & (1 << n)
-#define B0(x) (x & 1)
-#define B1(x) ((x & 2) >> 1)
-#define B2(x) ((x & 4) >> 2)
-#define SETB0(x,v) (x = (x & (~(1))) | 1)
-#define SETB1(x,v) (x = (x & (~(2))) | 2)
-#define SETB2(x,v) (x = (x & (~(4))) | 4)
+#define b0(x) (x & 1)
+#define b1(x) ((x & 2) >> 1)
+#define b2(x) ((x & 4) >> 2)
+#define SETb0(x,v) (x = (x & (~(1))) | 1)
+#define SETb1(x,v) (x = (x & (~(2))) | 2)
+#define SETb2(x,v) (x = (x & (~(4))) | 4)
 
 // get nth bit of x
 // #define BIT(x,n) (x & (1<<n)) // not correct for array indexing, should return 1 or 0
