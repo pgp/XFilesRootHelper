@@ -18,22 +18,41 @@ const std::string defaultAnnouncedPath = "/tmp";
 #include <arpa/inet.h>
 #include <netdb.h>
 
-std::vector<std::string> getIPAddresses(){
-	std::vector<std::string> addresses;
-    struct ifaddrs *interfaces = nullptr;
-    struct ifaddrs *temp_addr = nullptr;
+std::vector<std::pair<std::string,std::string>> getIPAddressesWithBroadcasts() {
+	std::vector<std::pair<std::string,std::string>> addresses;
+    struct ifaddrs *interfaces;
+    struct ifaddrs *temp_addr;
+    struct sockaddr_in *sa;
+    char* addr;
     // retrieve the current interfaces - returns 0 on success
     int success = getifaddrs(&interfaces);
     if (success == 0) {
+		struct in_addr ips;
+		// struct in_addr bas; // direct broadcast address not available in android ifaddrs-android.h, will be computed from ip and netmask
+		struct in_addr nms;
+		struct in_addr computed_bas;
+		
         // Loop through linked list of interfaces
-        temp_addr = interfaces;
-        while(temp_addr != nullptr) {
-            if(temp_addr->ifa_addr->sa_family == AF_INET || temp_addr->ifa_addr->sa_family == AF_INET6) {
-				std::string addr = inet_ntoa(((struct sockaddr_in*)temp_addr->ifa_addr)->sin_addr);
-                if (addr != "127.0.0.1" && addr != "::1" && addr != "0.0.0.0")
-					addresses.emplace_back(addr);
+        for (temp_addr = interfaces; temp_addr != nullptr; temp_addr = temp_addr->ifa_next) {
+			if(temp_addr->ifa_addr->sa_family == AF_INET) {
+				
+				sa = (struct sockaddr_in *) temp_addr->ifa_addr;
+				memcpy(&ips,&(sa->sin_addr),sizeof(struct in_addr));
+				addr = inet_ntoa(sa->sin_addr);
+				std::string ipAddr(addr);
+				
+				if(ipAddr == "127.0.0.1" || ipAddr == "0.0.0.0") continue;
+				memcpy(&computed_bas,&(sa->sin_addr),sizeof(struct in_addr)); // copy ip to bcast_ip, will be updated later
+				
+				sa = (struct sockaddr_in *) temp_addr->ifa_netmask;
+				memcpy(&nms,&(sa->sin_addr),sizeof(struct in_addr));
+				
+				computed_bas.s_addr = ips.s_addr | (~(nms.s_addr));
+				addr = inet_ntoa(computed_bas);
+				std::string computedBroadcastAddr(addr);
+					
+				addresses.emplace_back(ipAddr,computedBroadcastAddr);
             }
-            temp_addr = temp_addr->ifa_next;
         }
     }
     // Free memory
@@ -56,22 +75,21 @@ int xre_announce() { // TODO add sleep priod and total time
     memset(&send_addr, 0, sizeof send_addr);
     send_addr.sin_family = AF_INET;
     send_addr.sin_port = (in_port_t) htons(XRE_ANNOUNCE_SERVERPORT);
-    // broadcasting address for unix (?)
-    inet_aton("192.168.43.255", &send_addr.sin_addr); // FIXME retrieve broadcast addresses with ioctl (have to solve macro conflict B0)
-    // send_addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
 
-	std::vector<std::string> ipAddresses = getIPAddresses();
+	auto&& ipAddresses = getIPAddressesWithBroadcasts();
 	if(ipAddresses.empty()) {
 		PRINTUNIFIEDERROR("No available IPs\n");
 		return -4;
 	}
+	
     for(int i=0;i<15;i++) { // TODO parameterize total time
-		for(auto& addr : ipAddresses) {
-			auto&& announce = getPreparedAnnounce(XRE_ANNOUNCE_SERVERPORT,addr,defaultAnnouncedPath);
+		for(auto& pair : ipAddresses) {
+			inet_aton(pair.second.c_str(), &send_addr.sin_addr);
+			auto&& announce = getPreparedAnnounce(XRE_ANNOUNCE_SERVERPORT,pair.first,defaultAnnouncedPath);
 			auto retval = sendto(fd, &announce[0], announce.size(), 0, (struct sockaddr*) &send_addr, sizeof send_addr);
 			if (retval < announce.size()) {
 				PRINTUNIFIEDERROR("sendto error, bytes or return value %zd\n",retval);
-				return -3;
+				continue;
 			}
 		}
         PRINTUNIFIED("Broadcast messages sent...\n");

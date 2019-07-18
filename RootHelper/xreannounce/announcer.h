@@ -10,9 +10,22 @@
 #include <cstring>
 #include <thread>
 #include <chrono>
+#include <utility>
 #include "../unifiedlogging.h"
 
 #define XRE_ANNOUNCE_SERVERPORT 11111
+
+//~ void broadcast_address_from_ip_and_netmask(uint32_t* addr, uint32_t* netmask, uint32_t* bAddr, bool ipv4) {
+	//~ if(ipv4) {
+		//~ bAddr[0] = addr[0] | (~netmask[0]);
+	//~ }
+	//~ else { // ipv6 (128 bit address)
+		//~ bAddr[0] = addr[0] | (~netmask[0]);
+		//~ bAddr[1] = addr[1] | (~netmask[1]);
+		//~ bAddr[2] = addr[2] | (~netmask[2]);
+		//~ bAddr[3] = addr[3] | (~netmask[3]);
+	//~ }
+//~ }
 
 std::vector<uint8_t> getPreparedAnnounce(uint16_t port, const std::string& ip, const std::string& path) {
 	const uint16_t ipLength = ip.size();
