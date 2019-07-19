@@ -1,5 +1,5 @@
 /*
-* Botan 2.9.0 Amalgamation
+* Botan 2.11.0 Amalgamation
 * (C) 1999-2018 The Botan Authors
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -16,12 +16,15 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <future>
 #include <iterator>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -49,7 +52,7 @@ class Barrier final
    private:
       int m_value;
       size_t m_syncs;
-      mutex_type m_mutex;
+      std::mutex m_mutex;
       std::condition_variable m_cond;
    };
 
@@ -418,12 +421,12 @@ inline gf2m lex_to_gray(gf2m lex)
    return (lex >> 1) ^ lex;
    }
 
-inline uint32_t bit_size_to_byte_size(uint32_t bit_size)
+inline size_t bit_size_to_byte_size(uint32_t bit_size)
    {
    return (bit_size - 1) / 8 + 1;
    }
 
-inline uint32_t bit_size_to_32bit_size(uint32_t bit_size)
+inline size_t bit_size_to_32bit_size(uint32_t bit_size)
    {
    return (bit_size - 1) / 32 + 1;
    }
@@ -1590,7 +1593,11 @@ int apply_fn(botan_struct<T, M>* o, const char* func_name, F func)
    if(o->magic_ok() == false)
       return BOTAN_FFI_ERROR_INVALID_OBJECT;
 
-   return ffi_guard_thunk(func_name, [&]() { return func(*o->unsafe_get()); });
+   T* p = o->unsafe_get();
+   if(p == nullptr)
+      return BOTAN_FFI_ERROR_INVALID_OBJECT;
+
+   return ffi_guard_thunk(func_name, [&]() { return func(*p); });
    }
 
 #define BOTAN_FFI_DO(T, obj, param, block)                              \
@@ -1713,6 +1720,21 @@ BOTAN_TEST_API std::vector<std::string> get_files_recursive(const std::string& d
 
 namespace Botan {
 
+/**
+* Entropy source using the getentropy(2) system call first introduced in
+* OpenBSD 5.6 and added to Solaris 11.3.
+*/
+class Getentropy final : public Entropy_Source
+   {
+   public:
+      std::string name() const override { return "getentropy"; }
+      size_t poll(RandomNumberGenerator& rng) override;
+   };
+
+}
+
+namespace Botan {
+
 void mceliece_decrypt(secure_vector<uint8_t>& plaintext_out,
                       secure_vector<uint8_t>& error_mask_out,
                       const uint8_t ciphertext[],
@@ -1736,13 +1758,15 @@ void mceliece_encrypt(secure_vector<uint8_t>& ciphertext_out,
                       RandomNumberGenerator& rng);
 
 McEliece_PrivateKey generate_mceliece_key(RandomNumberGenerator &rng,
-                                          uint32_t ext_deg,
-                                          uint32_t code_length,
-                                          uint32_t t);
+                                          size_t ext_deg,
+                                          size_t code_length,
+                                          size_t t);
 
 }
 
 namespace Botan {
+
+class Bucket;
 
 class BOTAN_TEST_API Memory_Pool final
    {
@@ -1750,40 +1774,34 @@ class BOTAN_TEST_API Memory_Pool final
       /**
       * Initialize a memory pool. The memory is not owned by *this,
       * it must be freed by the caller.
-      * @param pool the pool
-      * @param pool_size size of pool
-      * @param page_size some nominal page size (does not need to match
-      *        the system page size)
-      * @param min_allocation return null for allocs for smaller amounts
-      * @param max_allocation return null for allocs of larger amounts
-      * @param align_bit align all returned memory to (1<<align_bit) bytes
+      * @param pages a list of pages to allocate from
+      * @param page_size the system page size, each page should
+      *        point to exactly this much memory.
       */
-      Memory_Pool(uint8_t* pool,
-                  size_t pool_size,
-                  size_t page_size,
-                  size_t min_allocation,
-                  size_t max_allocation,
-                  uint8_t align_bit);
+      Memory_Pool(const std::vector<void*>& pages,
+                  size_t page_size);
+
+      ~Memory_Pool();
 
       void* allocate(size_t size);
 
       bool deallocate(void* p, size_t size) noexcept;
 
       Memory_Pool(const Memory_Pool&) = delete;
+      Memory_Pool(Memory_Pool&&) = delete;
 
       Memory_Pool& operator=(const Memory_Pool&) = delete;
+      Memory_Pool& operator=(Memory_Pool&&) = delete;
 
    private:
       const size_t m_page_size = 0;
-      const size_t m_min_alloc = 0;
-      const size_t m_max_alloc = 0;
-      const uint8_t m_align_bit = 0;
 
       mutex_type m_mutex;
 
-      std::vector<std::pair<size_t, size_t>> m_freelist;
-      uint8_t* m_pool = nullptr;
-      size_t m_pool_size = 0;
+      std::deque<uint8_t*> m_free_pages;
+      std::map<size_t, std::deque<Bucket>> m_buckets_for;
+      uintptr_t m_min_page_ptr;
+      uintptr_t m_max_page_ptr;
    };
 
 }
@@ -1860,32 +1878,28 @@ namespace Botan {
   #define BOTAN_MP_USE_X86_64_ASM
 #endif
 
-#if defined(BOTAN_MP_USE_X86_32_ASM) || defined(BOTAN_MP_USE_X86_64_ASM)
-  #define ASM(x) x "\n\t"
-#endif
-
 /*
 * Word Multiply/Add
 */
 inline word word_madd2(word a, word b, word* c)
    {
 #if defined(BOTAN_MP_USE_X86_32_ASM)
-   asm(
-      ASM("mull %[b]")
-      ASM("addl %[c],%[a]")
-      ASM("adcl $0,%[carry]")
-
+   asm(R"(
+      mull %[b]
+      addl %[c],%[a]
+      adcl $0,%[carry]
+      )"
       : [a]"=a"(a), [b]"=rm"(b), [carry]"=&d"(*c)
       : "0"(a), "1"(b), [c]"g"(*c) : "cc");
 
    return a;
 
 #elif defined(BOTAN_MP_USE_X86_64_ASM)
-      asm(
-      ASM("mulq %[b]")
-      ASM("addq %[c],%[a]")
-      ASM("adcq $0,%[carry]")
-
+      asm(R"(
+         mulq %[b]
+         addq %[c],%[a]
+         adcq $0,%[carry]
+      )"
       : [a]"=a"(a), [b]"=rm"(b), [carry]"=&d"(*c)
       : "0"(a), "1"(b), [c]"g"(*c) : "cc");
 
@@ -1916,30 +1930,28 @@ inline word word_madd2(word a, word b, word* c)
 inline word word_madd3(word a, word b, word c, word* d)
    {
 #if defined(BOTAN_MP_USE_X86_32_ASM)
-   asm(
-      ASM("mull %[b]")
+   asm(R"(
+      mull %[b]
 
-      ASM("addl %[c],%[a]")
-      ASM("adcl $0,%[carry]")
+      addl %[c],%[a]
+      adcl $0,%[carry]
 
-      ASM("addl %[d],%[a]")
-      ASM("adcl $0,%[carry]")
-
+      addl %[d],%[a]
+      adcl $0,%[carry]
+      )"
       : [a]"=a"(a), [b]"=rm"(b), [carry]"=&d"(*d)
       : "0"(a), "1"(b), [c]"g"(c), [d]"g"(*d) : "cc");
 
    return a;
 
 #elif defined(BOTAN_MP_USE_X86_64_ASM)
-   asm(
-      ASM("mulq %[b]")
-
-      ASM("addq %[c],%[a]")
-      ASM("adcq $0,%[carry]")
-
-      ASM("addq %[d],%[a]")
-      ASM("adcq $0,%[carry]")
-
+   asm(R"(
+      mulq %[b]
+      addq %[c],%[a]
+      adcq $0,%[carry]
+      addq %[d],%[a]
+      adcq $0,%[carry]
+      )"
       : [a]"=a"(a), [b]"=rm"(b), [carry]"=&d"(*d)
       : "0"(a), "1"(b), [c]"g"(c), [d]"g"(*d) : "cc");
 
@@ -1966,10 +1978,6 @@ inline word word_madd3(word a, word b, word c, word* d)
    return lo;
 #endif
    }
-
-#if defined(ASM)
-  #undef ASM
-#endif
 
 }
 
@@ -2681,15 +2689,16 @@ inline void word3_muladd(word* w2, word* w1, word* w0, word x, word y)
 #if defined(BOTAN_MP_USE_X86_32_ASM)
    word z0 = 0, z1 = 0;
 
-   asm ("mull %[y]"
+   asm("mull %[y]"
         : "=a"(z0),"=d"(z1)
         : "a"(x), [y]"rm"(y)
         : "cc");
 
-   asm(ASM("addl %[z0],%[w0]")
-       ASM("adcl %[z1],%[w1]")
-       ASM("adcl $0,%[w2]")
-
+   asm(R"(
+       addl %[z0],%[w0]
+       adcl %[z1],%[w1]
+       adcl $0,%[w2]
+       )"
        : [w0]"=r"(*w0), [w1]"=r"(*w1), [w2]"=r"(*w2)
        : [z0]"r"(z0), [z1]"r"(z1), "0"(*w0), "1"(*w1), "2"(*w2)
        : "cc");
@@ -2698,15 +2707,16 @@ inline void word3_muladd(word* w2, word* w1, word* w0, word x, word y)
 
    word z0 = 0, z1 = 0;
 
-   asm ("mulq %[y]"
+   asm("mulq %[y]"
         : "=a"(z0),"=d"(z1)
         : "a"(x), [y]"rm"(y)
         : "cc");
 
-   asm(ASM("addq %[z0],%[w0]")
-       ASM("adcq %[z1],%[w1]")
-       ASM("adcq $0,%[w2]")
-
+   asm(R"(
+       addq %[z0],%[w0]
+       adcq %[z1],%[w1]
+       adcq $0,%[w2]
+       )"
        : [w0]"=r"(*w0), [w1]"=r"(*w1), [w2]"=r"(*w2)
        : [z0]"r"(z0), [z1]"r"(z1), "0"(*w0), "1"(*w1), "2"(*w2)
        : "cc");
@@ -2726,22 +2736,22 @@ inline void word3_muladd(word* w2, word* w1, word* w0, word x, word y)
 inline void word3_add(word* w2, word* w1, word* w0, word x)
    {
 #if defined(BOTAN_MP_USE_X86_32_ASM)
-   asm(
-      ASM("addl %[x],%[w0]")
-      ASM("adcl $0,%[w1]")
-      ASM("adcl $0,%[w2]")
-
+   asm(R"(
+      addl %[x],%[w0]
+      adcl $0,%[w1]
+      adcl $0,%[w2]
+      )"
       : [w0]"=r"(*w0), [w1]"=r"(*w1), [w2]"=r"(*w2)
       : [x]"r"(x), "0"(*w0), "1"(*w1), "2"(*w2)
       : "cc");
 
 #elif defined(BOTAN_MP_USE_X86_64_ASM)
 
-   asm(
-      ASM("addq %[x],%[w0]")
-      ASM("adcq $0,%[w1]")
-      ASM("adcq $0,%[w2]")
-
+   asm(R"(
+      addq %[x],%[w0]
+      adcq $0,%[w1]
+      adcq $0,%[w2]
+      )"
       : [w0]"=r"(*w0), [w1]"=r"(*w1), [w2]"=r"(*w2)
       : [x]"r"(x), "0"(*w0), "1"(*w1), "2"(*w2)
       : "cc");
@@ -2765,20 +2775,20 @@ inline void word3_muladd_2(word* w2, word* w1, word* w0, word x, word y)
 
    word z0 = 0, z1 = 0;
 
-   asm ("mull %[y]"
+   asm("mull %[y]"
         : "=a"(z0),"=d"(z1)
         : "a"(x), [y]"rm"(y)
         : "cc");
 
-   asm(
-      ASM("addl %[z0],%[w0]")
-      ASM("adcl %[z1],%[w1]")
-      ASM("adcl $0,%[w2]")
+   asm(R"(
+      addl %[z0],%[w0]
+      adcl %[z1],%[w1]
+      adcl $0,%[w2]
 
-      ASM("addl %[z0],%[w0]")
-      ASM("adcl %[z1],%[w1]")
-      ASM("adcl $0,%[w2]")
-
+      addl %[z0],%[w0]
+      adcl %[z1],%[w1]
+      adcl $0,%[w2]
+      )"
       : [w0]"=r"(*w0), [w1]"=r"(*w1), [w2]"=r"(*w2)
       : [z0]"r"(z0), [z1]"r"(z1), "0"(*w0), "1"(*w1), "2"(*w2)
       : "cc");
@@ -2787,20 +2797,20 @@ inline void word3_muladd_2(word* w2, word* w1, word* w0, word x, word y)
 
    word z0 = 0, z1 = 0;
 
-   asm ("mulq %[y]"
+   asm("mulq %[y]"
         : "=a"(z0),"=d"(z1)
         : "a"(x), [y]"rm"(y)
         : "cc");
 
-   asm(
-      ASM("addq %[z0],%[w0]")
-      ASM("adcq %[z1],%[w1]")
-      ASM("adcq $0,%[w2]")
+   asm(R"(
+      addq %[z0],%[w0]
+      adcq %[z1],%[w1]
+      adcq $0,%[w2]
 
-      ASM("addq %[z0],%[w0]")
-      ASM("adcq %[z1],%[w1]")
-      ASM("adcq $0,%[w2]")
-
+      addq %[z0],%[w0]
+      adcq %[z1],%[w1]
+      adcq $0,%[w2]
+      )"
       : [w0]"=r"(*w0), [w1]"=r"(*w1), [w2]"=r"(*w2)
       : [z0]"r"(z0), [z1]"r"(z1), "0"(*w0), "1"(*w1), "2"(*w2)
       : "cc");
@@ -3688,6 +3698,19 @@ bool running_in_privileged_state();
 */
 uint64_t BOTAN_TEST_API get_cpu_cycle_counter();
 
+size_t BOTAN_TEST_API get_cpu_total();
+size_t BOTAN_TEST_API get_cpu_available();
+
+/**
+* Return the ELF auxiliary vector cooresponding to the given ID.
+* This only makes sense on Unix-like systems and is currently
+* only supported on Linux, Android, and FreeBSD.
+*
+* Returns zero if not supported on the current system or if
+* the id provided is not known.
+*/
+unsigned long get_auxval(unsigned long id);
+
 /*
 * @return best resolution timestamp available
 *
@@ -3728,19 +3751,47 @@ size_t system_page_size();
 const char* read_env_variable(const std::string& var_name);
 
 /**
-* Request so many bytes of page-aligned RAM locked into memory using
-* mlock, VirtualLock, or similar. Returns null on failure. The memory
-* returned is zeroed. Free it with free_locked_pages.
-* @param length requested allocation in bytes
+* Read the value of an environment variable and convert it to an
+* integer. If not set or conversion fails, returns the default value.
+*
+* If the process seems to be running in a privileged state (such as setuid)
+* then always returns nullptr, similiar to glibc's secure_getenv.
 */
-void* allocate_locked_pages(size_t length);
+size_t read_env_variable_sz(const std::string& var_name, size_t def_value = 0);
+
+/**
+* Request count pages of RAM which are locked into memory using mlock,
+* VirtualLock, or some similar OS specific API. Free it with free_locked_pages.
+*
+* Returns an empty list on failure. This function is allowed to return fewer
+* than count pages.
+*
+* The contents of the allocated pages are undefined.
+*
+* Each page is preceded by and followed by a page which is marked
+* as noaccess, such that accessing it will cause a crash. This turns
+* out of bound reads/writes into crash events.
+*
+* @param count requested number of locked pages
+*/
+std::vector<void*> allocate_locked_pages(size_t count);
 
 /**
 * Free memory allocated by allocate_locked_pages
-* @param ptr a pointer returned by allocate_locked_pages
-* @param length length passed to allocate_locked_pages
+* @param pages a list of pages returned by allocate_locked_pages
 */
-void free_locked_pages(void* ptr, size_t length);
+void free_locked_pages(const std::vector<void*>& pages);
+
+/**
+* Set the MMU to prohibit access to this page
+*/
+void page_prohibit_access(void* page);
+
+/**
+* Set the MMU to allow R/W access to this page
+*/
+void page_allow_access(void* page);
+
 
 /**
 * Run a probe instruction to test for support for a CPU instruction.
@@ -4388,7 +4439,7 @@ class Semaphore final
    private:
       int m_value;
       int m_wakeups;
-      mutex_type m_mutex;
+      std::mutex m_mutex;
       std::condition_variable m_cond;
    };
 
@@ -5078,13 +5129,13 @@ class SIMD_4x32 final
 
          #else
 
-         if(ROT == 8)
+         BOTAN_IF_CONSTEXPR(ROT == 8)
             {
             const uint8_t maskb[16] = { 3,0,1,2, 7,4,5,6, 11,8,9,10, 15,12,13,14 };
             const uint8x16_t mask = vld1q_u8(maskb);
             return SIMD_4x32(vreinterpretq_u32_u8(vqtbl1q_u8(vreinterpretq_u8_u32(m_neon), mask)));
             }
-         else if(ROT == 16)
+         else BOTAN_IF_CONSTEXPR(ROT == 16)
             {
             return SIMD_4x32(vreinterpretq_u32_u16(vrev32q_u16(vreinterpretq_u16_u32(m_neon))));
             }
@@ -5510,14 +5561,14 @@ class SIMD_8x32 final
          {
          static_assert(ROT > 0 && ROT < 32, "Invalid rotation constant");
 
-         if(ROT == 8)
+         BOTAN_IF_CONSTEXPR(ROT == 8)
             {
             const __m256i shuf_rotl_8 = _mm256_set_epi8(14, 13, 12, 15, 10, 9, 8, 11, 6, 5, 4, 7, 2, 1, 0, 3,
                                                         14, 13, 12, 15, 10, 9, 8, 11, 6, 5, 4, 7, 2, 1, 0, 3);
 
             return SIMD_8x32(_mm256_shuffle_epi8(m_avx2, shuf_rotl_8));
             }
-         else if(ROT == 16)
+         else BOTAN_IF_CONSTEXPR(ROT == 16)
             {
             const __m256i shuf_rotl_16 = _mm256_set_epi8(13, 12, 15, 14, 9, 8, 11, 10, 5, 4, 7, 6, 1, 0, 3, 2,
                                                          13, 12, 15, 14, 9, 8, 11, 10, 5, 4, 7, 6, 1, 0, 3, 2);
@@ -5672,7 +5723,7 @@ class SIMD_8x32 final
          _mm256_zeroall();
          }
 
-      __m256i handle() const { return m_avx2; }
+      __m256i BOTAN_FUNC_ISA("avx2") handle() const { return m_avx2; }
 
    private:
 
@@ -5827,6 +5878,66 @@ void map_remove_if(Pred pred, T& assoc)
 
 namespace Botan {
 
+class BOTAN_TEST_API Thread_Pool
+   {
+   public:
+      /**
+      * Return an instance to a shared thread pool
+      */
+      static Thread_Pool& global_instance();
+
+      /**
+      * Initialize a thread pool with some number of threads
+      * @param pool_size number of threads in the pool, if 0
+      *        then some default value is chosen
+      */
+      Thread_Pool(size_t pool_size = 0);
+
+      ~Thread_Pool() { shutdown(); }
+
+      void shutdown();
+
+      size_t worker_count() const { return m_workers.size(); }
+
+      Thread_Pool(const Thread_Pool&) = delete;
+      Thread_Pool& operator=(const Thread_Pool&) = delete;
+
+      Thread_Pool(Thread_Pool&&) = delete;
+      Thread_Pool& operator=(Thread_Pool&&) = delete;
+
+      /*
+      * Enqueue some work
+      */
+      void queue_thunk(std::function<void ()>);
+
+      template<class F, class... Args>
+      auto run(F&& f, Args&&... args) -> std::future<typename std::result_of<F(Args...)>::type>
+         {
+         typedef typename std::result_of<F(Args...)>::type return_type;
+
+         auto future_work = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
+         auto task = std::make_shared<std::packaged_task<return_type ()>>(future_work);
+         auto future_result = task->get_future();
+         queue_thunk([task]() { (*task)(); });
+         return future_result;
+         }
+
+   private:
+      void worker_thread();
+
+      // Only touched in constructor and destructor
+      std::vector<std::thread> m_workers;
+
+      std::mutex m_mutex;
+      std::condition_variable m_more_tasks;
+      std::deque<std::function<void ()>> m_tasks;
+      bool m_shutdown;
+   };
+
+}
+
+namespace Botan {
+
 class BOTAN_TEST_API Timer final
    {
    public:
@@ -5854,6 +5965,7 @@ class BOTAN_TEST_API Timer final
          {}
 
       Timer(const Timer& other) = default;
+      Timer& operator=(const Timer& other) = default;
 
       void start();
 
@@ -6032,7 +6144,7 @@ class BOTAN_TEST_API TLS_CBC_HMAC_AEAD_Mode : public AEAD_Mode
                              std::unique_ptr<MessageAuthenticationCode> mac,
                              size_t cipher_keylen,
                              size_t mac_keylen,
-                             bool use_explicit_iv,
+                             Protocol_Version version,
                              bool use_encrypt_then_mac);
 
       size_t cipher_keylen() const { return m_cipher_keylen; }
@@ -6041,6 +6153,8 @@ class BOTAN_TEST_API TLS_CBC_HMAC_AEAD_Mode : public AEAD_Mode
       size_t block_size() const { return m_block_size; }
 
       bool use_encrypt_then_mac() const { return m_use_encrypt_then_mac; }
+
+      bool is_datagram_protocol() const { return m_is_datagram; }
 
       Cipher_Mode& cbc() const { return *m_cbc; }
 
@@ -6069,6 +6183,7 @@ class BOTAN_TEST_API TLS_CBC_HMAC_AEAD_Mode : public AEAD_Mode
       size_t m_tag_size;
       size_t m_block_size;
       bool m_use_encrypt_then_mac;
+      bool m_is_datagram;
 
       std::unique_ptr<Cipher_Mode> m_cbc;
       std::unique_ptr<MessageAuthenticationCode> m_mac;
@@ -6091,14 +6206,14 @@ class BOTAN_TEST_API TLS_CBC_HMAC_AEAD_Encryption final : public TLS_CBC_HMAC_AE
                              std::unique_ptr<MessageAuthenticationCode> mac,
                              const size_t cipher_keylen,
                              const size_t mac_keylen,
-                             bool use_explicit_iv,
+                             const Protocol_Version version,
                              bool use_encrypt_then_mac) :
          TLS_CBC_HMAC_AEAD_Mode(ENCRYPTION,
                                 std::move(cipher),
                                 std::move(mac),
                                 cipher_keylen,
                                 mac_keylen,
-                                use_explicit_iv,
+                                version,
                                 use_encrypt_then_mac)
          {}
 
@@ -6125,14 +6240,14 @@ class BOTAN_TEST_API TLS_CBC_HMAC_AEAD_Decryption final : public TLS_CBC_HMAC_AE
                                    std::unique_ptr<MessageAuthenticationCode> mac,
                                    const size_t cipher_keylen,
                                    const size_t mac_keylen,
-                                   bool use_explicit_iv,
+                                   const Protocol_Version version,
                                    bool use_encrypt_then_mac) :
          TLS_CBC_HMAC_AEAD_Mode(DECRYPTION,
                                 std::move(cipher),
                                 std::move(mac),
                                 cipher_keylen,
                                 mac_keylen,
-                                use_explicit_iv,
+                                version,
                                 use_encrypt_then_mac)
          {}
 
@@ -6212,7 +6327,8 @@ class Handshake_IO
          const std::vector<uint8_t>& handshake_msg,
          Handshake_Type handshake_type) const = 0;
 
-      virtual void add_record(const std::vector<uint8_t>& record,
+      virtual void add_record(const uint8_t record[],
+                              size_t record_len,
                               Record_Type type,
                               uint64_t sequence_number) = 0;
 
@@ -6251,7 +6367,8 @@ class Stream_Handshake_IO final : public Handshake_IO
          const std::vector<uint8_t>& handshake_msg,
          Handshake_Type handshake_type) const override;
 
-      void add_record(const std::vector<uint8_t>& record,
+      void add_record(const uint8_t record[],
+                      size_t record_len,
                       Record_Type type,
                       uint64_t sequence_number) override;
 
@@ -6291,7 +6408,8 @@ class Datagram_Handshake_IO final : public Handshake_IO
          const std::vector<uint8_t>& handshake_msg,
          Handshake_Type handshake_type) const override;
 
-      void add_record(const std::vector<uint8_t>& record,
+      void add_record(const uint8_t record[],
+                      size_t record_len,
                       Record_Type type,
                       uint64_t sequence_number) override;
 
@@ -6392,39 +6510,39 @@ class Session_Keys final
    {
    public:
       /**
-      * @return client encipherment key
+      * @return client AEAD key
       */
-      const SymmetricKey& client_cipher_key() const { return m_c_cipher; }
+      const secure_vector<uint8_t>& client_aead_key() const { return m_c_aead; }
 
       /**
-      * @return client encipherment key
+      * @return server AEAD key
       */
-      const SymmetricKey& server_cipher_key() const { return m_s_cipher; }
+      const secure_vector<uint8_t>& server_aead_key() const { return m_s_aead; }
 
       /**
-      * @return client MAC key
+      * @return client nonce
       */
-      const SymmetricKey& client_mac_key() const { return m_c_mac; }
+      const std::vector<uint8_t>& client_nonce() const { return m_c_nonce; }
 
       /**
-      * @return server MAC key
+      * @return server nonce
       */
-      const SymmetricKey& server_mac_key() const { return m_s_mac; }
-
-      /**
-      * @return client IV
-      */
-      const InitializationVector& client_iv() const { return m_c_iv; }
-
-      /**
-      * @return server IV
-      */
-      const InitializationVector& server_iv() const { return m_s_iv; }
+      const std::vector<uint8_t>& server_nonce() const { return m_s_nonce; }
 
       /**
       * @return TLS master secret
       */
       const secure_vector<uint8_t>& master_secret() const { return m_master_sec; }
+
+      const secure_vector<uint8_t>& aead_key(Connection_Side side) const
+         {
+         return (side == Connection_Side::CLIENT) ? client_aead_key() : server_aead_key();
+         }
+
+      const std::vector<uint8_t>& nonce(Connection_Side side) const
+         {
+         return (side == Connection_Side::CLIENT) ? client_nonce() : server_nonce();
+         }
 
       Session_Keys() = default;
 
@@ -6439,8 +6557,8 @@ class Session_Keys final
 
    private:
       secure_vector<uint8_t> m_master_sec;
-      SymmetricKey m_c_cipher, m_s_cipher, m_c_mac, m_s_mac;
-      InitializationVector m_c_iv, m_s_iv;
+      secure_vector<uint8_t> m_c_aead, m_s_aead;
+      std::vector<uint8_t> m_c_nonce, m_s_nonce;
    };
 
 }
@@ -6714,7 +6832,7 @@ class TLS_Data_Reader final
          const size_t num_elems =
             get_num_elems(len_bytes, sizeof(T), min_elems, max_elems);
 
-         return get_elem<T, std::vector<T> >(num_elems);
+         return get_elem<T, std::vector<T>>(num_elems);
          }
 
       template<typename T>
@@ -6725,7 +6843,7 @@ class TLS_Data_Reader final
          const size_t num_elems =
             get_num_elems(len_bytes, sizeof(T), min_elems, max_elems);
 
-         return get_elem<T, std::vector<T> >(num_elems);
+         return get_elem<T, std::vector<T>>(num_elems);
          }
 
       std::string get_string(size_t len_bytes,
@@ -6741,7 +6859,7 @@ class TLS_Data_Reader final
       template<typename T>
       std::vector<T> get_fixed(size_t size)
          {
-         return get_elem<T, std::vector<T> >(size);
+         return get_elem<T, std::vector<T>>(size);
          }
 
    private:
@@ -6869,7 +6987,11 @@ class Connection_Cipher_State final
                               const Session_Keys& keys,
                               bool uses_encrypt_then_mac);
 
-      AEAD_Mode* aead() { return m_aead.get(); }
+      AEAD_Mode& aead()
+         {
+         BOTAN_ASSERT_NONNULL(m_aead.get());
+         return *m_aead.get();
+         }
 
       std::vector<uint8_t> aead_nonce(uint64_t seq, RandomNumberGenerator& rng);
 
@@ -6895,9 +7017,9 @@ class Connection_Cipher_State final
       std::unique_ptr<AEAD_Mode> m_aead;
 
       std::vector<uint8_t> m_nonce;
-      Nonce_Format m_nonce_format = Nonce_Format::CBC_MODE;
-      size_t m_nonce_bytes_from_handshake = 0;
-      size_t m_nonce_bytes_from_record = 0;
+      Nonce_Format m_nonce_format;
+      size_t m_nonce_bytes_from_handshake;
+      size_t m_nonce_bytes_from_record;
    };
 
 class Record final
@@ -7083,12 +7205,16 @@ class Datagram_Sequence_Numbers final : public Connection_Sequence_Numbers
          const size_t window_size = sizeof(m_window_bits) * 8;
 
          if(sequence > m_window_highest)
+            {
             return false;
+            }
 
          const uint64_t offset = m_window_highest - sequence;
 
          if(offset >= window_size)
+            {
             return true; // really old?
+            }
 
          return (((m_window_bits >> offset) & 1) == 1);
          }
@@ -7230,7 +7356,7 @@ class XMSS_Signature final
       secure_vector<uint8_t> bytes() const;
 
    private:
-      uint64_t m_leaf_idx;
+      size_t m_leaf_idx;
       secure_vector<uint8_t> m_randomness;
       XMSS_WOTS_PublicKey::TreeSignature m_tree_sig;
    };
@@ -7244,10 +7370,9 @@ namespace Botan {
  * defined in:
  *
  * [1] XMSS: Extended Hash-Based Signatures,
- *     draft-itrf-cfrg-xmss-hash-based-signatures-06
- *     Release: July 2016.
- *     https://datatracker.ietf.org/doc/
- *     draft-irtf-cfrg-xmss-hash-based-signatures/?include_text=1
+ *     Request for Comments: 8391
+ *     Release: May 2018.
+ *     https://datatracker.ietf.org/doc/rfc8391/
  **/
 class XMSS_Signature_Operation final : public virtual PK_Ops::Signature,
                                        public XMSS_Common_Ops

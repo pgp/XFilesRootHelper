@@ -1,5 +1,5 @@
 /*
-* Botan 2.9.0 Amalgamation
+* Botan 2.11.0 Amalgamation
 * (C) 1999-2018 The Botan Authors
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -1769,6 +1769,685 @@ void aont_unpackage(BlockCipher* cipher,
    }
 
 }
+/**
+* (C) 2018,2019 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
+
+namespace {
+
+static const size_t SYNC_POINTS = 4;
+
+secure_vector<uint8_t> argon2_H0(HashFunction& blake2b,
+                                 size_t output_len,
+                                 const char* password, size_t password_len,
+                                 const uint8_t salt[], size_t salt_len,
+                                 const uint8_t key[], size_t key_len,
+                                 const uint8_t ad[], size_t ad_len,
+                                 size_t y, size_t p, size_t M, size_t t)
+   {
+   const uint8_t v = 19; // Argon2 version code
+
+   blake2b.update_le<uint32_t>(static_cast<uint32_t>(p));
+   blake2b.update_le<uint32_t>(static_cast<uint32_t>(output_len));
+   blake2b.update_le<uint32_t>(static_cast<uint32_t>(M));
+   blake2b.update_le<uint32_t>(static_cast<uint32_t>(t));
+   blake2b.update_le<uint32_t>(static_cast<uint32_t>(v));
+   blake2b.update_le<uint32_t>(static_cast<uint32_t>(y));
+
+   blake2b.update_le<uint32_t>(static_cast<uint32_t>(password_len));
+   blake2b.update(cast_char_ptr_to_uint8(password), password_len);
+
+   blake2b.update_le<uint32_t>(static_cast<uint32_t>(salt_len));
+   blake2b.update(salt, salt_len);
+
+   blake2b.update_le<uint32_t>(static_cast<uint32_t>(key_len));
+   blake2b.update(key, key_len);
+
+   blake2b.update_le<uint32_t>(static_cast<uint32_t>(ad_len));
+   blake2b.update(ad, ad_len);
+
+   return blake2b.final();
+   }
+
+void Htick(secure_vector<uint8_t>& T,
+           uint8_t output[],
+           size_t output_len,
+           HashFunction& blake2b,
+           const secure_vector<uint8_t>& H0,
+           size_t p0, size_t p1)
+   {
+   BOTAN_ASSERT_NOMSG(output_len % 64 == 0);
+
+   blake2b.update_le<uint32_t>(static_cast<uint32_t>(output_len));
+   blake2b.update(H0);
+   blake2b.update_le<uint32_t>(static_cast<uint32_t>(p0));
+   blake2b.update_le<uint32_t>(static_cast<uint32_t>(p1));
+
+   blake2b.final(&T[0]);
+
+   while(output_len > 64)
+      {
+      copy_mem(output, &T[0], 32);
+      output_len -= 32;
+      output += 32;
+
+      blake2b.update(T);
+      blake2b.final(&T[0]);
+      }
+
+   if(output_len > 0)
+      copy_mem(output, &T[0], output_len);
+   }
+
+void extract_key(uint8_t output[], size_t output_len,
+                 const secure_vector<uint64_t>& B,
+                 size_t memory, size_t threads)
+   {
+   const size_t lanes = memory / threads;
+
+   secure_vector<uint64_t> sum(128);
+
+   for(size_t lane = 0; lane != threads; ++lane)
+      {
+      size_t start = 128*(lane * lanes + lanes - 1);
+      size_t end = 128*(lane * lanes + lanes);
+
+      for(size_t j = start; j != end; ++j)
+         {
+         sum[j % 128] ^= B[j];
+         }
+      }
+
+   secure_vector<uint8_t> sum8(1024);
+   copy_out_le(sum8.data(), 1024, sum.data());
+
+   if(output_len <= 64)
+      {
+      std::unique_ptr<HashFunction> blake2b = HashFunction::create_or_throw("BLAKE2b(" + std::to_string(output_len*8) + ")");
+
+      blake2b->update_le(static_cast<uint32_t>(output_len));
+      blake2b->update(sum8.data(), sum8.size());
+
+      blake2b->final(output);
+      }
+   else
+      {
+      throw Not_Implemented("todo");
+      }
+   }
+
+void init_blocks(secure_vector<uint64_t>& B,
+                 HashFunction& blake2b,
+                 const secure_vector<uint8_t>& H0,
+                 size_t memory,
+                 size_t threads)
+   {
+   BOTAN_ASSERT_NOMSG(B.size() >= threads*256);
+
+   secure_vector<uint8_t> H(1024);
+   secure_vector<uint8_t> T(blake2b.output_length());
+
+   for(size_t i = 0; i != threads; ++i)
+      {
+      const size_t B_off = i * (memory / threads);
+
+      BOTAN_ASSERT_NOMSG(B.size() >= 128*(B_off+2));
+
+      Htick(T, &H[0], H.size(), blake2b, H0, 0, i);
+
+      for(size_t j = 0; j != 128; ++j)
+         {
+         B[128*B_off+j] = load_le<uint64_t>(H.data(), j);
+         }
+
+      Htick(T, &H[0], H.size(), blake2b, H0, 1, i);
+
+      for(size_t j = 0; j != 128; ++j)
+         {
+         B[128*(B_off+1)+j] = load_le<uint64_t>(H.data(), j);
+         }
+      }
+   }
+
+inline void blamka_G(uint64_t& A, uint64_t& B, uint64_t& C, uint64_t& D)
+   {
+   A += B + (static_cast<uint64_t>(2) * static_cast<uint32_t>(A)) * static_cast<uint32_t>(B);
+   D = rotr<32>(A ^ D);
+
+   C += D + (static_cast<uint64_t>(2) * static_cast<uint32_t>(C)) * static_cast<uint32_t>(D);
+   B = rotr<24>(B ^ C);
+
+   A += B + (static_cast<uint64_t>(2) * static_cast<uint32_t>(A)) * static_cast<uint32_t>(B);
+   D = rotr<16>(A ^ D);
+
+   C += D + (static_cast<uint64_t>(2) * static_cast<uint32_t>(C)) * static_cast<uint32_t>(D);
+   B = rotr<63>(B ^ C);
+   }
+
+inline void blamka(uint64_t& V0, uint64_t& V1, uint64_t& V2, uint64_t& V3,
+                   uint64_t& V4, uint64_t& V5, uint64_t& V6, uint64_t& V7,
+                   uint64_t& V8, uint64_t& V9, uint64_t& VA, uint64_t& VB,
+                   uint64_t& VC, uint64_t& VD, uint64_t& VE, uint64_t& VF)
+   {
+   blamka_G(V0, V4, V8, VC);
+   blamka_G(V1, V5, V9, VD);
+   blamka_G(V2, V6, VA, VE);
+   blamka_G(V3, V7, VB, VF);
+
+   blamka_G(V0, V5, VA, VF);
+   blamka_G(V1, V6, VB, VC);
+   blamka_G(V2, V7, V8, VD);
+   blamka_G(V3, V4, V9, VE);
+   }
+
+void process_block_xor(secure_vector<uint64_t>& T,
+                       secure_vector<uint64_t>& B,
+                       size_t offset,
+                       size_t prev,
+                       size_t new_offset)
+   {
+   for(size_t i = 0; i != 128; ++i)
+      T[i] = B[128*prev+i] ^ B[128*new_offset+i];
+
+   for(size_t i = 0; i != 128; i += 16)
+      {
+      blamka(T[i+ 0], T[i+ 1], T[i+ 2], T[i+ 3],
+             T[i+ 4], T[i+ 5], T[i+ 6], T[i+ 7],
+             T[i+ 8], T[i+ 9], T[i+10], T[i+11],
+             T[i+12], T[i+13], T[i+14], T[i+15]);
+      }
+
+   for(size_t i = 0; i != 128 / 8; i += 2)
+      {
+      blamka(T[    i], T[    i+1], T[ 16+i], T[ 16+i+1],
+             T[ 32+i], T[ 32+i+1], T[ 48+i], T[ 48+i+1],
+             T[ 64+i], T[ 64+i+1], T[ 80+i], T[ 80+i+1],
+             T[ 96+i], T[ 96+i+1], T[112+i], T[112+i+1]);
+      }
+
+   for(size_t i = 0; i != 128; ++i)
+      B[128*offset + i] ^= T[i] ^ B[128*prev+i] ^ B[128*new_offset+i];
+   }
+
+void gen_2i_addresses(secure_vector<uint64_t>& T, secure_vector<uint64_t>& B,
+                      size_t n, size_t lane, size_t slice, size_t memory,
+                      size_t time, size_t mode, size_t cnt)
+   {
+   BOTAN_ASSERT_NOMSG(B.size() == 128);
+   BOTAN_ASSERT_NOMSG(T.size() == 128);
+
+   clear_mem(B.data(), B.size());
+   B[0] = n;
+   B[1] = lane;
+   B[2] = slice;
+   B[3] = memory;
+   B[4] = time;
+   B[5] = mode;
+   B[6] = cnt;
+
+   for(size_t r = 0; r != 2; ++r)
+      {
+      copy_mem(T.data(), B.data(), B.size());
+
+      for(size_t i = 0; i != 128; i += 16)
+         {
+         blamka(T[i+ 0], T[i+ 1], T[i+ 2], T[i+ 3],
+                T[i+ 4], T[i+ 5], T[i+ 6], T[i+ 7],
+                T[i+ 8], T[i+ 9], T[i+10], T[i+11],
+                T[i+12], T[i+13], T[i+14], T[i+15]);
+         }
+      for(size_t i = 0; i != 128 / 8; i += 2)
+         {
+         blamka(T[    i], T[    i+1], T[ 16+i], T[ 16+i+1],
+                T[ 32+i], T[ 32+i+1], T[ 48+i], T[ 48+i+1],
+                T[ 64+i], T[ 64+i+1], T[ 80+i], T[ 80+i+1],
+                T[ 96+i], T[ 96+i+1], T[112+i], T[112+i+1]);
+         }
+
+      for(size_t i = 0; i != 128; ++i)
+         B[i] ^= T[i];
+      }
+   }
+
+uint32_t index_alpha(uint64_t random,
+                     size_t lanes,
+                     size_t segments,
+                     size_t threads,
+                     size_t n,
+                     size_t slice,
+                     size_t lane,
+                     size_t index)
+   {
+   size_t ref_lane = static_cast<uint32_t>(random >> 32) % threads;
+
+   if(n == 0 && slice == 0)
+      ref_lane = lane;
+
+   size_t m = 3*segments;
+   size_t s = ((slice+1) % 4)*segments;
+
+   if(lane == ref_lane)
+      m += index;
+
+   if(n == 0) {
+         m = slice*segments;
+         s = 0;
+         if(slice == 0 || lane == ref_lane)
+            m += index;
+   }
+
+   if(index == 0 || lane == ref_lane)
+      m -= 1;
+
+   uint64_t p = static_cast<uint32_t>(random);
+   p = (p * p) >> 32;
+   p = (p * m) >> 32;
+
+   return static_cast<uint32_t>(ref_lane*lanes + (s + m - (p+1)) % lanes);
+   }
+
+void process_block_argon2d(secure_vector<uint64_t>& T,
+                           secure_vector<uint64_t>& B,
+                           size_t n, size_t slice, size_t lane,
+                           size_t lanes, size_t segments, size_t threads)
+   {
+   size_t index = 0;
+   if(n == 0 && slice == 0)
+      index = 2;
+
+   while(index < segments)
+      {
+      const size_t offset = lane*lanes + slice*segments + index;
+
+      size_t prev = offset - 1;
+      if(index == 0 && slice == 0)
+         prev += lanes;
+
+      const uint64_t random = B.at(128*prev);
+      const size_t new_offset = index_alpha(random, lanes, segments, threads, n, slice, lane, index);
+
+      process_block_xor(T, B, offset, prev, new_offset);
+
+      index += 1;
+      }
+   }
+
+void process_block_argon2i(secure_vector<uint64_t>& T,
+                           secure_vector<uint64_t>& B,
+                           size_t n, size_t slice, size_t lane,
+                           size_t lanes, size_t segments, size_t threads, uint8_t mode,
+                           size_t memory, size_t time)
+   {
+   size_t index = 0;
+   if(n == 0 && slice == 0)
+      index = 2;
+
+   secure_vector<uint64_t> addresses(128);
+   size_t address_counter = 1;
+
+   gen_2i_addresses(T, addresses, n, lane, slice, memory, time, mode, address_counter);
+
+   while(index < segments)
+      {
+      const size_t offset = lane*lanes + slice*segments + index;
+
+      size_t prev = offset - 1;
+      if(index == 0 && slice == 0)
+         prev += lanes;
+
+      if(index > 0 && index % 128 == 0)
+         {
+         address_counter += 1;
+         gen_2i_addresses(T, addresses, n, lane, slice, memory, time, mode, address_counter);
+         }
+
+      const uint64_t random = addresses[index % 128];
+      const size_t new_offset = index_alpha(random, lanes, segments, threads, n, slice, lane, index);
+
+      process_block_xor(T, B, offset, prev, new_offset);
+
+      index += 1;
+      }
+   }
+
+void process_blocks(secure_vector<uint64_t>& B,
+                    size_t t,
+                    size_t memory,
+                    size_t threads,
+                    uint8_t mode)
+   {
+   const size_t lanes = memory / threads;
+   const size_t segments = lanes / SYNC_POINTS;
+
+   secure_vector<uint64_t> T(128);
+   for(size_t n = 0; n != t; ++n)
+      {
+      for(size_t slice = 0; slice != SYNC_POINTS; ++slice)
+         {
+         // TODO can run this in Thread_Pool
+         for(size_t lane = 0; lane != threads; ++lane)
+            {
+            if(mode == 1 || (mode == 2 && n == 0 && slice < SYNC_POINTS/2))
+               process_block_argon2i(T, B, n, slice, lane, lanes, segments, threads, mode, memory, t);
+            else
+               process_block_argon2d(T, B, n, slice, lane, lanes, segments, threads);
+            }
+         }
+      }
+
+   }
+
+}
+
+void argon2(uint8_t output[], size_t output_len,
+            const char* password, size_t password_len,
+            const uint8_t salt[], size_t salt_len,
+            const uint8_t key[], size_t key_len,
+            const uint8_t ad[], size_t ad_len,
+            uint8_t mode, size_t threads, size_t M, size_t t)
+   {
+   BOTAN_ARG_CHECK(mode == 0 || mode == 1 || mode == 2, "Unknown Argon2 mode parameter");
+   BOTAN_ARG_CHECK(output_len >= 4, "Invalid Argon2 output length");
+   BOTAN_ARG_CHECK(threads >= 1 && threads <= 128, "Invalid Argon2 threads parameter");
+   BOTAN_ARG_CHECK(M >= 8*threads && M <= 8192*1024, "Invalid Argon2 M parameter");
+   BOTAN_ARG_CHECK(t >= 1, "Invalid Argon2 t parameter");
+
+   std::unique_ptr<HashFunction> blake2 = HashFunction::create_or_throw("BLAKE2b");
+
+   const auto H0 = argon2_H0(*blake2, output_len,
+                             password, password_len,
+                             salt, salt_len,
+                             key, key_len,
+                             ad, ad_len,
+                             mode, threads, M, t);
+
+   const size_t memory = (M / (SYNC_POINTS*threads)) * (SYNC_POINTS*threads);
+
+   secure_vector<uint64_t> B(memory * 1024/8);
+
+   init_blocks(B, *blake2, H0, memory, threads);
+   process_blocks(B, t, memory, threads, mode);
+
+   clear_mem(output, output_len);
+   extract_key(output, output_len, B, memory, threads);
+   }
+
+}
+/**
+* (C) 2019 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
+
+namespace {
+
+std::string strip_padding(std::string s)
+   {
+   while(s.size() > 0 && s[s.size()-1] == '=')
+      s.resize(s.size() - 1);
+   return s;
+   }
+
+}
+
+std::string argon2_generate_pwhash(const char* password, size_t password_len,
+                                   RandomNumberGenerator& rng,
+                                   size_t p, size_t M, size_t t,
+                                   uint8_t y, size_t salt_len, size_t output_len)
+   {
+   std::vector<uint8_t> salt(salt_len);
+   rng.randomize(salt.data(), salt.size());
+
+   std::vector<uint8_t> output(output_len);
+   argon2(output.data(), output.size(),
+          password, password_len,
+          salt.data(), salt.size(),
+          nullptr, 0,
+          nullptr, 0,
+          y, p, M, t);
+
+   std::ostringstream oss;
+
+   if(y == 0)
+      oss << "$argon2d$";
+   else if(y == 1)
+      oss << "$argon2i$";
+   else
+      oss << "$argon2id$";
+
+   oss << "v=19$m=" << M << ",t=" << t << ",p=" << p << "$";
+   oss << strip_padding(base64_encode(salt)) << "$" << strip_padding(base64_encode(output));
+
+   return oss.str();
+   }
+
+bool argon2_check_pwhash(const char* password, size_t password_len,
+                         const std::string& input_hash)
+   {
+   const std::vector<std::string> parts = split_on(input_hash, '$');
+
+   if(parts.size() != 5)
+      return false;
+
+   uint8_t family = 0;
+
+   if(parts[0] == "argon2d")
+      family = 0;
+   else if(parts[0] == "argon2i")
+      family = 1;
+   else if(parts[0] == "argon2id")
+      family = 2;
+   else
+      return false;
+
+   if(parts[1] != "v=19")
+      return false;
+
+   const std::vector<std::string> params = split_on(parts[2], ',');
+
+   if(params.size() != 3)
+      return false;
+
+   size_t M = 0, t = 0, p = 0;
+
+   for(auto param_str : params)
+      {
+      const std::vector<std::string> param = split_on(param_str, '=');
+
+      if(param.size() != 2)
+         return false;
+
+      const std::string key = param[0];
+      const size_t val = to_u32bit(param[1]);
+      if(key == "m")
+         M = val;
+      else if(key == "t")
+         t = val;
+      else if(key == "p")
+         p = val;
+      else
+         return false;
+      }
+
+   std::vector<uint8_t> salt(base64_decode_max_output(parts[3].size()));
+   salt.resize(base64_decode(salt.data(), parts[3], false));
+
+   std::vector<uint8_t> hash(base64_decode_max_output(parts[4].size()));
+   hash.resize(base64_decode(hash.data(), parts[4], false));
+
+   if(hash.size() < 4)
+      return false;
+
+   std::vector<uint8_t> generated(hash.size());
+   argon2(generated.data(), generated.size(),
+          password, password_len,
+          salt.data(), salt.size(),
+          nullptr, 0,
+          nullptr, 0,
+          family, p, M, t);
+
+   return constant_time_compare(generated.data(), hash.data(), generated.size());
+   }
+
+}
+/**
+* (C) 2019 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
+
+Argon2::Argon2(uint8_t family, size_t M, size_t t, size_t p) :
+   m_family(family),
+   m_M(M),
+   m_t(t),
+   m_p(p)
+   {}
+
+void Argon2::derive_key(uint8_t output[], size_t output_len,
+                        const char* password, size_t password_len,
+                        const uint8_t salt[], size_t salt_len) const
+   {
+   argon2(output, output_len,
+          password, password_len,
+          salt, salt_len,
+          nullptr, 0,
+          nullptr, 0,
+          m_family, m_p, m_M, m_t);
+   }
+
+namespace {
+
+std::string argon2_family_name(uint8_t f)
+   {
+   switch(f)
+      {
+      case 0:
+         return "Argon2d";
+      case 1:
+         return "Argon2i";
+      case 2:
+         return "Argon2id";
+      default:
+         throw Invalid_Argument("Unknown Argon2 parameter");
+      }
+   }
+
+}
+
+std::string Argon2::to_string() const
+   {
+   return argon2_family_name(m_family) + "(" +
+      std::to_string(m_M) + "," +
+      std::to_string(m_t) + "," +
+      std::to_string(m_p) + ")";
+  }
+
+Argon2_Family::Argon2_Family(uint8_t family) : m_family(family)
+   {
+   if(m_family != 0 && m_family != 1 && m_family != 2)
+      throw Invalid_Argument("Unknown Argon2 family identifier");
+   }
+
+std::string Argon2_Family::name() const
+   {
+   return argon2_family_name(m_family);
+   }
+
+std::unique_ptr<PasswordHash> Argon2_Family::tune(size_t /*output_length*/,
+                                                  std::chrono::milliseconds msec,
+                                                  size_t max_memory) const
+   {
+   const size_t max_kib = (max_memory == 0) ? 256*1024 : max_memory*1024;
+
+   // Tune with a large memory otherwise we measure cache vs RAM speeds and underestimate
+   // costs for larger params
+   const size_t tune_M = 256*1024; // in KiB
+   const size_t p = 1;
+   size_t t = 1;
+
+   Timer timer("Argon2");
+   const auto tune_time = BOTAN_PBKDF_TUNING_TIME;
+
+   timer.run_until_elapsed(tune_time, [&]() {
+      uint8_t output[32] = { 0 };
+      argon2(output, sizeof(output), "test", 4, nullptr, 0, nullptr, 0, nullptr, 0, m_family, p, tune_M, t);
+      });
+
+   if(timer.events() == 0 || timer.value() == 0)
+      return default_params();
+
+   size_t M = 4*1024;
+
+   const uint64_t measured_time = timer.value() / (timer.events() * (tune_M / M));
+
+   const uint64_t target_nsec = msec.count() * static_cast<uint64_t>(1000000);
+
+   /*
+   * Argon2 scaling rules:
+   * k*M, k*t, k*p all increase cost by about k
+   *
+   * Since we don't even take advantage of p > 1, we prefer increasing
+   * t or M instead.
+   *
+   * If possible to increase M, prefer that.
+   */
+
+   uint64_t est_nsec = measured_time;
+
+   if(est_nsec < target_nsec && M < max_kib)
+      {
+      const uint64_t desired_cost_increase = (target_nsec + est_nsec - 1) / est_nsec;
+      const uint64_t mem_headroom = max_kib / M;
+
+      const uint64_t M_mult = std::min(desired_cost_increase, mem_headroom);
+      M *= static_cast<size_t>(M_mult);
+      est_nsec *= M_mult;
+      }
+
+   if(est_nsec < target_nsec)
+      {
+      const uint64_t desired_cost_increase = (target_nsec + est_nsec - 1) / est_nsec;
+      t *= static_cast<size_t>(desired_cost_increase);
+      }
+
+   return this->from_params(M, t, p);
+   }
+
+std::unique_ptr<PasswordHash> Argon2_Family::default_params() const
+   {
+   return this->from_params(128*1024, 1, 1);
+   }
+
+std::unique_ptr<PasswordHash> Argon2_Family::from_iterations(size_t iter) const
+   {
+   /*
+   These choices are arbitrary, but should not change in future
+   releases since they will break applications expecting deterministic
+   mapping from iteration count to params
+   */
+   const size_t M = iter;
+   const size_t t = 1;
+   const size_t p = 1;
+   return this->from_params(M, t, p);
+   }
+
+std::unique_ptr<PasswordHash> Argon2_Family::from_params(size_t M, size_t t, size_t p) const
+   {
+   return std::unique_ptr<PasswordHash>(new Argon2(m_family, M, t, p));
+   }
+
+}
 /*
 * ARIA
 * Adapted for Botan by Jeffrey Walton, public domain
@@ -1988,17 +2667,18 @@ inline void ARIA_FE(uint32_t& T0, uint32_t& T1, uint32_t& T2, uint32_t& T3)
 void transform(const uint8_t in[], uint8_t out[], size_t blocks,
                const secure_vector<uint32_t>& KS)
    {
-   // Hit every cache line of S1 and S2
+   /*
+   * Hit every cache line of S1, S2, X1, X2
+   *
+   * The initializer of Z ensures Z == 0xFFFFFFFF for any cache line
+   * size that is a power of 2 and <= 512
+   */
    const size_t cache_line_size = CPUID::cache_line_size();
 
-   /*
-   * This initializer ensures Z == 0xFFFFFFFF for any cache line size
-   * in {32,64,128,256,512}
-   */
    volatile uint32_t Z = 0x11101010;
    for(size_t i = 0; i < 256; i += cache_line_size / sizeof(uint32_t))
       {
-      Z |= S1[i] | S2[i];
+      Z |= S1[i] | S2[i] | X1[i] | X2[i];
       }
 
    const size_t ROUNDS = (KS.size() / 4) - 1;
@@ -2047,12 +2727,13 @@ void transform(const uint8_t in[], uint8_t out[], size_t blocks,
    }
 
 // n-bit right shift of Y XORed to X
-template <unsigned int N>
+template<size_t N>
 inline void ARIA_ROL128(const uint32_t X[4], const uint32_t Y[4], uint32_t KS[4])
    {
    // MSVC is not generating a "rotate immediate". Constify to help it along.
-   static const unsigned int Q = 4 - (N / 32);
-   static const unsigned int R = N % 32;
+   static const size_t Q = 4 - (N / 32);
+   static const size_t R = N % 32;
+   static_assert(R > 0 && R < 32, "Rotation in range for type");
    KS[0] = (X[0]) ^ ((Y[(Q  )%4])>>R) ^ ((Y[(Q+3)%4])<<(32-R));
    KS[1] = (X[1]) ^ ((Y[(Q+1)%4])>>R) ^ ((Y[(Q  )%4])<<(32-R));
    KS[2] = (X[2]) ^ ((Y[(Q+2)%4])>>R) ^ ((Y[(Q+1)%4])<<(32-R));
@@ -2569,6 +3250,9 @@ std::string asn1_tag_to_string(ASN1_Tag type)
       case Botan::BMP_STRING:
          return "BMP STRING";
 
+      case Botan::UNIVERSAL_STRING:
+         return "UNIVERSAL STRING";
+
       case Botan::UTC_TIME:
          return "UTC TIME";
 
@@ -3005,11 +3689,11 @@ void ASN1_Formatter::decode(std::ostream& output,
          std::string out = OIDS::lookup(oid);
          if(out.empty())
             {
-            out = oid.as_string();
+            out = oid.to_string();
             }
          else
             {
-            out += " [" + oid.as_string() + "]";
+            out += " [" + oid.to_string() + "]";
             }
 
          output << format(type_tag, class_tag, level, length, out);
@@ -3376,7 +4060,7 @@ void X509_Time::decode_from(BER_Decoder& source)
 std::string X509_Time::to_string() const
    {
    if(time_is_set() == false)
-      throw Invalid_State("X509_Time::as_string: No time set");
+      throw Invalid_State("X509_Time::to_string: No time set");
 
    uint32_t full_year = m_year;
 
@@ -3540,7 +4224,8 @@ void X509_Time::set_to(const std::string& t_spec, ASN1_Tag spec_tag)
 */
 bool X509_Time::passes_sanity_check() const
    {
-   if(m_year < 1950 || m_year > 2200)
+   // AppVeyor's trust store includes a cert with expiration date in 3016 ...
+   if(m_year < 1950 || m_year > 3100)
       return false;
    if(m_month == 0 || m_month > 12)
       return false;
@@ -3571,7 +4256,7 @@ bool X509_Time::passes_sanity_check() const
 
       http://www.itu.int/ITU-T/studygroups/com17/languages/
       */
-      if (m_hour > 23 || m_minute > 59 || m_second > 59)
+      if(m_second > 59)
          {
          return false;
          }
@@ -4493,7 +5178,7 @@ DER_Encoder& DER_Encoder::encode(const BigInt& n,
 
    const size_t extra_zero = (n.bits() % 8 == 0) ? 1 : 0;
    secure_vector<uint8_t> contents(extra_zero + n.bytes());
-   BigInt::encode(&contents[extra_zero], n);
+   n.binary_encode(&contents[extra_zero]);
    if(n < 0)
       {
       for(size_t i = 0; i != contents.size(); ++i)
@@ -4557,7 +5242,7 @@ DER_Encoder& DER_Encoder::add_object(ASN1_Tag type_tag,
 /*
 * OID maps
 *
-* This file was automatically generated by ./src/scripts/oids.py on 2018-08-23
+* This file was automatically generated by ./src/scripts/oids.py on 2019-06-23
 *
 * All manual edits to this file will be lost. Edit the script
 * then regenerate this source file.
@@ -4681,8 +5366,9 @@ std::unordered_map<std::string, std::string> OIDS::load_oid2str_map()
       { "1.3.6.1.4.1.11591.15.1", "OpenPGP.Ed25519" },
       { "1.3.6.1.4.1.11591.4.11", "Scrypt" },
       { "1.3.6.1.4.1.25258.1.3", "McEliece" },
-      { "1.3.6.1.4.1.25258.1.5", "XMSS" },
+      { "1.3.6.1.4.1.25258.1.5", "XMSS-draft6" },
       { "1.3.6.1.4.1.25258.1.6.1", "GOST-34.10/EMSA1(SHA-256)" },
+      { "1.3.6.1.4.1.25258.1.8", "XMSS" },
       { "1.3.6.1.4.1.25258.3.1", "Serpent/CBC" },
       { "1.3.6.1.4.1.25258.3.101", "Serpent/GCM" },
       { "1.3.6.1.4.1.25258.3.102", "Twofish/GCM" },
@@ -4999,7 +5685,8 @@ std::unordered_map<std::string, OID> OIDS::load_str2oid_map()
       { "X520.State", OID({2,5,4,8}) },
       { "X520.Surname", OID({2,5,4,4}) },
       { "X520.Title", OID({2,5,4,12}) },
-      { "XMSS", OID({1,3,6,1,4,1,25258,1,5}) },
+      { "XMSS", OID({1,3,6,1,4,1,25258,1,8}) },
+      { "XMSS-draft6", OID({1,3,6,1,4,1,25258,1,5}) },
       { "brainpool160r1", OID({1,3,36,3,3,2,8,1,1,1}) },
       { "brainpool192r1", OID({1,3,36,3,3,2,8,1,1,3}) },
       { "brainpool224r1", OID({1,3,36,3,3,2,8,1,1,5}) },
@@ -5059,12 +5746,12 @@ class OID_Map final
          lock_guard_type<mutex_type> lock(m_mutex);
          auto i = m_str2oid.find(str);
          if(i == m_str2oid.end())
-            m_str2oid.insert(std::make_pair(str, oid.as_string()));
+            m_str2oid.insert(std::make_pair(str, oid));
          }
 
       void add_oid2str(const OID& oid, const std::string& str)
          {
-         const std::string oid_str = oid.as_string();
+         const std::string oid_str = oid.to_string();
          lock_guard_type<mutex_type> lock(m_mutex);
          auto i = m_oid2str.find(oid_str);
          if(i == m_oid2str.end())
@@ -5073,7 +5760,7 @@ class OID_Map final
 
       std::string lookup(const OID& oid)
          {
-         const std::string oid_str = oid.as_string();
+         const std::string oid_str = oid.to_string();
 
          lock_guard_type<mutex_type> lock(m_mutex);
 
@@ -5284,8 +5971,7 @@ namespace Botan {
 
 namespace {
 
-std::string make_arg(
-   const std::vector<std::pair<size_t, std::string> >& name, size_t start)
+std::string make_arg(const std::vector<std::pair<size_t, std::string>>& name, size_t start)
    {
    std::string output = name[start].second;
    size_t level = name[start].first;
@@ -5331,7 +6017,10 @@ SCAN_Name::SCAN_Name(const char* algo_spec) : SCAN_Name(std::string(algo_spec))
 
 SCAN_Name::SCAN_Name(std::string algo_spec) : m_orig_algo_spec(algo_spec), m_alg_name(), m_args(), m_mode_info()
    {
-   std::vector<std::pair<size_t, std::string> > name;
+   if(algo_spec.size() == 0)
+      throw Invalid_Argument("Expected algorithm name, got empty string");
+
+   std::vector<std::pair<size_t, std::string>> name;
    size_t level = 0;
    std::pair<size_t, std::string> accum = std::make_pair(level, "");
 
@@ -5394,7 +6083,7 @@ std::string SCAN_Name::arg(size_t i) const
    {
    if(i >= arg_count())
       throw Invalid_Argument("SCAN_Name::arg " + std::to_string(i) +
-                             " out of range for '" + as_string() + "'");
+                             " out of range for '" + to_string() + "'");
    return m_args[i];
    }
 
@@ -5507,7 +6196,7 @@ void OctetString::set_odd_parity()
 /*
 * Hex encode an OctetString
 */
-std::string OctetString::as_string() const
+std::string OctetString::to_string() const
    {
    return hex_encode(m_data.data(), m_data.size());
    }
@@ -5806,9 +6495,7 @@ uint32_t sha256_d_checksum(const uint8_t input[], size_t input_length)
    sha256->update(checksum);
    sha256->final(checksum);
 
-   checksum.resize(4);
-   uint32_t c = load_be<uint32_t>(checksum.data(), 0);
-   return c;
+   return load_be<uint32_t>(checksum.data(), 0);
    }
 
 class Character_Table
@@ -5919,7 +6606,12 @@ std::vector<uint8_t> base58_decode(const char input[], size_t input_length)
 
    for(size_t i = leading_zeros; i != input_length; ++i)
       {
-      size_t idx = base58.code_for(input[i]);
+      const char c = input[i];
+
+      if(c == ' ' || c == '\n')
+         continue;
+
+      const size_t idx = base58.code_for(c);
 
       if(idx == 0x80)
          throw Decoding_Error("Invalid base58");
@@ -6351,8 +7043,186 @@ bool check_bcrypt(const std::string& pass, const std::string& hash)
 
 }
 /*
+* (C) 2018,2019 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
+
+void Bcrypt_PBKDF::derive_key(uint8_t output[], size_t output_len,
+                              const char* password, size_t password_len,
+                              const uint8_t salt[], size_t salt_len) const
+   {
+   bcrypt_pbkdf(output, output_len,
+                password, password_len,
+                salt, salt_len,
+                m_iterations);
+   }
+
+std::string Bcrypt_PBKDF::to_string() const
+   {
+   return "Bcrypt-PBKDF(" + std::to_string(m_iterations) + ")";
+   }
+
+std::string Bcrypt_PBKDF_Family::name() const
+   {
+   return "Bcrypt-PBKDF";
+   }
+
+std::unique_ptr<PasswordHash> Bcrypt_PBKDF_Family::tune(size_t output_length,
+                                                        std::chrono::milliseconds msec,
+                                                        size_t /*max_memory*/) const
+   {
+   Timer timer("Bcrypt_PBKDF");
+   const auto tune_time = BOTAN_PBKDF_TUNING_TIME;
+
+   const size_t blocks = (output_length + 32 - 1) / 32;
+
+   if(blocks == 0)
+      return default_params();
+
+   const size_t starting_iter = 2;
+
+   timer.run_until_elapsed(tune_time, [&]() {
+      uint8_t output[32] = { 0 };
+      bcrypt_pbkdf(output, sizeof(output), "test", 4, nullptr, 0, starting_iter);
+      });
+
+   if(timer.events() < blocks || timer.value() == 0)
+      return default_params();
+
+   const uint64_t measured_time = timer.value() / (timer.events() / blocks);
+
+   const uint64_t target_nsec = msec.count() * static_cast<uint64_t>(1000000);
+
+   const uint64_t desired_increase = target_nsec / measured_time;
+
+   if(desired_increase == 0)
+      return this->from_iterations(starting_iter);
+
+   return this->from_iterations(static_cast<size_t>(desired_increase * starting_iter));
+   }
+
+std::unique_ptr<PasswordHash> Bcrypt_PBKDF_Family::default_params() const
+   {
+   return this->from_iterations(32); // About 100 ms on fast machine
+   }
+
+std::unique_ptr<PasswordHash> Bcrypt_PBKDF_Family::from_iterations(size_t iter) const
+   {
+   return std::unique_ptr<PasswordHash>(new Bcrypt_PBKDF(iter));
+   }
+
+std::unique_ptr<PasswordHash> Bcrypt_PBKDF_Family::from_params(size_t iter, size_t /*t*/, size_t /*p*/) const
+   {
+   return this->from_iterations(iter);
+   }
+
+namespace {
+
+void bcrypt_round(Blowfish& blowfish,
+                  const secure_vector<uint8_t>& pass_hash,
+                  const secure_vector<uint8_t>& salt_hash,
+                  secure_vector<uint8_t>& out,
+                  secure_vector<uint8_t>& tmp)
+   {
+   const size_t BCRYPT_PBKDF_OUTPUT = 32;
+
+   // "OxychromaticBlowfishSwatDynamite"
+   static const uint8_t BCRYPT_PBKDF_MAGIC[BCRYPT_PBKDF_OUTPUT] = {
+      0x4F, 0x78, 0x79, 0x63, 0x68, 0x72, 0x6F, 0x6D,
+      0x61, 0x74, 0x69, 0x63, 0x42, 0x6C, 0x6F, 0x77,
+      0x66, 0x69, 0x73, 0x68, 0x53, 0x77, 0x61, 0x74,
+      0x44, 0x79, 0x6E, 0x61, 0x6D, 0x69, 0x74, 0x65
+   };
+
+   const size_t BCRYPT_PBKDF_WORKFACTOR = 6;
+   const size_t BCRYPT_PBKDF_ROUNDS = 64;
+
+   blowfish.salted_set_key(pass_hash.data(), pass_hash.size(),
+                           salt_hash.data(), salt_hash.size(),
+                           BCRYPT_PBKDF_WORKFACTOR, true);
+
+   copy_mem(tmp.data(), BCRYPT_PBKDF_MAGIC, BCRYPT_PBKDF_OUTPUT);
+   for(size_t i = 0; i != BCRYPT_PBKDF_ROUNDS; ++i)
+      blowfish.encrypt(tmp);
+
+   /*
+   Bcrypt PBKDF loads the Blowfish output as big endian for no reason
+   in particular. We can't just swap everything once at the end
+   because the (big-endian) values are fed into SHA-512 to generate
+   the salt for the next round
+   */
+   for(size_t i = 0; i != 32/4; ++i)
+      {
+      const uint32_t w = load_le<uint32_t>(tmp.data(), i);
+      store_be(w, &tmp[sizeof(uint32_t)*i]);
+      }
+
+   xor_buf(out.data(), tmp.data(), BCRYPT_PBKDF_OUTPUT);
+   }
+
+}
+
+void bcrypt_pbkdf(uint8_t output[], size_t output_len,
+                  const char* pass, size_t pass_len,
+                  const uint8_t salt[], size_t salt_len,
+                  size_t rounds)
+   {
+   BOTAN_ARG_CHECK(rounds >= 1, "Invalid rounds for Bcrypt PBKDF");
+
+   // No output desired, so we are all done already...
+   if(output_len == 0)
+      return;
+
+   BOTAN_ARG_CHECK(output_len <= 10*1024*1024, "Too much output for Bcrypt PBKDF");
+
+   const size_t BCRYPT_BLOCK_SIZE = 32;
+   const size_t blocks = (output_len + BCRYPT_BLOCK_SIZE - 1) / BCRYPT_BLOCK_SIZE;
+
+   std::unique_ptr<HashFunction> sha512 = HashFunction::create_or_throw("SHA-512");
+   const secure_vector<uint8_t> pass_hash = sha512->process(reinterpret_cast<const uint8_t*>(pass), pass_len);
+
+   secure_vector<uint8_t> salt_hash(sha512->output_length());
+
+   Blowfish blowfish;
+   secure_vector<uint8_t> out(BCRYPT_BLOCK_SIZE);
+   secure_vector<uint8_t> tmp(BCRYPT_BLOCK_SIZE);
+
+   for(size_t block = 0; block != blocks; ++block)
+      {
+      clear_mem(out.data(), out.size());
+
+      sha512->update(salt, salt_len);
+      sha512->update_be(static_cast<uint32_t>(block + 1));
+      sha512->final(salt_hash.data());
+
+      bcrypt_round(blowfish, pass_hash, salt_hash, out, tmp);
+
+      for(size_t r = 1; r != rounds; ++r)
+         {
+         // Next salt is H(prev_output)
+         sha512->update(tmp);
+         sha512->final(salt_hash.data());
+
+         bcrypt_round(blowfish, pass_hash, salt_hash, out, tmp);
+         }
+
+      for(size_t i = 0; i != BCRYPT_BLOCK_SIZE; ++i)
+         {
+         const size_t dest = i * blocks + block;
+         if(dest < output_len)
+            output[dest] = out[i];
+         }
+      }
+   }
+
+}
+/*
 * BigInt Encoding/Decoding
-* (C) 1999-2010,2012 Jack Lloyd
+* (C) 1999-2010,2012,2019 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -6401,35 +7271,27 @@ std::string BigInt::to_hex_string() const
 */
 void BigInt::encode(uint8_t output[], const BigInt& n, Base base)
    {
-   if(base == Binary)
-      {
-      n.binary_encode(output);
-      }
-   else if(base == Hexadecimal)
-      {
-      secure_vector<uint8_t> binary(n.encoded_size(Binary));
-      n.binary_encode(binary.data());
-
-      hex_encode(cast_uint8_ptr_to_char(output),
-                 binary.data(), binary.size());
-      }
-   else if(base == Decimal)
-      {
-      BigInt copy = n;
-      uint8_t remainder;
-      copy.set_sign(Positive);
-      const size_t output_size = n.encoded_size(Decimal);
-      for(size_t j = 0; j != output_size; ++j)
-         {
-         ct_divide_u8(copy, 10, copy, remainder);
-         output[output_size - 1 - j] = Charset::digit2char(remainder);
-         if(copy.is_zero())
-            break;
-         }
-      }
-   else
-      throw Invalid_Argument("Unknown BigInt encoding method");
+   secure_vector<uint8_t> enc = n.encode_locked(base);
+   copy_mem(output, enc.data(), enc.size());
    }
+
+namespace {
+
+std::vector<uint8_t> str_to_vector(const std::string& s)
+   {
+   std::vector<uint8_t> v(s.size());
+   std::memcpy(v.data(), s.data(), s.size());
+   return v;
+   }
+
+secure_vector<uint8_t> str_to_lvector(const std::string& s)
+   {
+   secure_vector<uint8_t> v(s.size());
+   std::memcpy(v.data(), s.data(), s.size());
+   return v;
+   }
+
+}
 
 /*
 * Encode a BigInt
@@ -6438,14 +7300,12 @@ std::vector<uint8_t> BigInt::encode(const BigInt& n, Base base)
    {
    if(base == Binary)
       return BigInt::encode(n);
-
-   std::vector<uint8_t> output(n.encoded_size(base));
-   encode(output.data(), n, base);
-   for(size_t j = 0; j != output.size(); ++j)
-      if(output[j] == 0)
-         output[j] = '0';
-
-   return output;
+   else if(base == Hexadecimal)
+      return str_to_vector(n.to_hex_string());
+   else if(base == Decimal)
+      return str_to_vector(n.to_dec_string());
+   else
+      throw Invalid_Argument("Unknown BigInt encoding base");
    }
 
 /*
@@ -6455,14 +7315,12 @@ secure_vector<uint8_t> BigInt::encode_locked(const BigInt& n, Base base)
    {
    if(base == Binary)
       return BigInt::encode_locked(n);
-
-   secure_vector<uint8_t> output(n.encoded_size(base));
-   encode(output.data(), n, base);
-   for(size_t j = 0; j != output.size(); ++j)
-      if(output[j] == 0)
-         output[j] = '0';
-
-   return output;
+   else if(base == Hexadecimal)
+      return str_to_lvector(n.to_hex_string());
+   else if(base == Decimal)
+      return str_to_lvector(n.to_dec_string());
+   else
+      throw Invalid_Argument("Unknown BigInt encoding base");
    }
 
 /*
@@ -6470,20 +7328,21 @@ secure_vector<uint8_t> BigInt::encode_locked(const BigInt& n, Base base)
 */
 secure_vector<uint8_t> BigInt::encode_1363(const BigInt& n, size_t bytes)
    {
+   if(n.bytes() > bytes)
+      throw Encoding_Error("encode_1363: n is too large to encode properly");
+
    secure_vector<uint8_t> output(bytes);
-   BigInt::encode_1363(output.data(), output.size(), n);
+   n.binary_encode(output.data(), output.size());
    return output;
    }
 
 //static
 void BigInt::encode_1363(uint8_t output[], size_t bytes, const BigInt& n)
    {
-   const size_t n_bytes = n.bytes();
-   if(n_bytes > bytes)
+   if(n.bytes() > bytes)
       throw Encoding_Error("encode_1363: n is too large to encode properly");
 
-   const size_t leading_0s = bytes - n_bytes;
-   encode(&output[leading_0s], n, Binary);
+   n.binary_encode(output, bytes);
    }
 
 /*
@@ -6491,9 +7350,11 @@ void BigInt::encode_1363(uint8_t output[], size_t bytes, const BigInt& n)
 */
 secure_vector<uint8_t> BigInt::encode_fixed_length_int_pair(const BigInt& n1, const BigInt& n2, size_t bytes)
    {
+   if(n1.bytes() > bytes || n2.bytes() > bytes)
+      throw Encoding_Error("encode_fixed_length_int_pair: values too large to encode properly");
    secure_vector<uint8_t> output(2 * bytes);
-   BigInt::encode_1363(output.data(), bytes, n1);
-   BigInt::encode_1363(output.data() + bytes, bytes, n2);
+   n1.binary_encode(output.data()        , bytes);
+   n2.binary_encode(output.data() + bytes, bytes);
    return output;
    }
 
@@ -6504,7 +7365,9 @@ BigInt BigInt::decode(const uint8_t buf[], size_t length, Base base)
    {
    BigInt r;
    if(base == Binary)
+      {
       r.binary_decode(buf, length);
+      }
    else if(base == Hexadecimal)
       {
       secure_vector<uint8_t> binary;
@@ -6568,10 +7431,10 @@ namespace Botan {
 */
 std::ostream& operator<<(std::ostream& stream, const BigInt& n)
    {
-   BigInt::Base base = BigInt::Decimal;
+   size_t base = 10;
    if(stream.flags() & std::ios::hex)
-      base = BigInt::Hexadecimal;
-   else if(stream.flags() & std::ios::oct)
+      base = 16;
+   if(stream.flags() & std::ios::oct)
       throw Invalid_Argument("Octal output of BigInt not supported");
 
    if(n == 0)
@@ -6580,12 +7443,18 @@ std::ostream& operator<<(std::ostream& stream, const BigInt& n)
       {
       if(n < 0)
          stream.write("-", 1);
-      const std::vector<uint8_t> buffer = BigInt::encode(n, base);
+
+      std::string enc;
+
+      if(base == 10)
+         enc = n.to_dec_string();
+      else
+         enc = n.to_hex_string();
+
       size_t skip = 0;
-      while(skip < buffer.size() && buffer[skip] == '0')
+      while(skip < enc.size() && enc[skip] == '0')
          ++skip;
-      stream.write(cast_uint8_ptr_to_char(buffer.data()) + skip,
-                   buffer.size() - skip);
+      stream.write(&enc[skip], enc.size() - skip);
       }
    if(!stream.good())
       throw Stream_IO_Error("BigInt output operator has failed");
@@ -7194,7 +8063,7 @@ BigInt BigInt::random_integer(RandomNumberGenerator& rng,
 }
 /*
 * BigInt Base
-* (C) 1999-2011,2012,2014 Jack Lloyd
+* (C) 1999-2011,2012,2014,2019 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -7570,14 +8439,34 @@ BigInt BigInt::abs() const
    return x;
    }
 
+void BigInt::binary_encode(uint8_t buf[]) const
+   {
+   this->binary_encode(buf, bytes());
+   }
+
 /*
 * Encode this number into bytes
 */
-void BigInt::binary_encode(uint8_t output[]) const
+void BigInt::binary_encode(uint8_t output[], size_t len) const
    {
-   const size_t sig_bytes = bytes();
-   for(size_t i = 0; i != sig_bytes; ++i)
-      output[sig_bytes-i-1] = byte_at(i);
+   const size_t full_words = len / sizeof(word);
+   const size_t extra_bytes = len % sizeof(word);
+
+   for(size_t i = 0; i != full_words; ++i)
+      {
+      const word w = word_at(i);
+      store_be(w, output + (len - (i+1)*sizeof(word)));
+      }
+
+   if(extra_bytes > 0)
+      {
+      const word w = word_at(full_words);
+
+      for(size_t i = 0; i != extra_bytes; ++i)
+         {
+         output[extra_bytes - i - 1] = get_byte(sizeof(word) - i - 1, w);
+         }
+      }
    }
 
 /*
@@ -7585,21 +8474,23 @@ void BigInt::binary_encode(uint8_t output[]) const
 */
 void BigInt::binary_decode(const uint8_t buf[], size_t length)
    {
-   const size_t WORD_BYTES = sizeof(word);
-
    clear();
-   secure_vector<word> reg((round_up((length / WORD_BYTES) + 1, 8)));
 
-   // TODO can load a word at a time here
-   for(size_t i = 0; i != length / WORD_BYTES; ++i)
+   const size_t full_words = length / sizeof(word);
+   const size_t extra_bytes = length % sizeof(word);
+
+   secure_vector<word> reg((round_up(full_words + (extra_bytes > 0 ? 1 : 0), 8)));
+
+   for(size_t i = 0; i != full_words; ++i)
       {
-      const size_t top = length - WORD_BYTES*i;
-      for(size_t j = WORD_BYTES; j > 0; --j)
-         reg[i] = (reg[i] << 8) | buf[top - j];
+      reg[i] = load_be<word>(buf + length - sizeof(word)*(i+1), 0);
       }
 
-   for(size_t i = 0; i != length % WORD_BYTES; ++i)
-      reg[length / WORD_BYTES] = (reg[length / WORD_BYTES] << 8) | buf[i];
+   if(extra_bytes > 0)
+      {
+      for(size_t i = 0; i != extra_bytes; ++i)
+         reg[full_words] = (reg[full_words] << 8) | buf[i];
+      }
 
    m_data.swap(reg);
    }
@@ -7924,7 +8815,7 @@ void divide(const BigInt& x, const BigInt& y_arg, BigInt& q_out, BigInt& r_out)
 
 }
 /*
-* Blake2b
+* BLAKE2b
 * (C) 2016 cynecx
 * (C) 2017 Jack Lloyd
 *
@@ -7950,7 +8841,7 @@ const uint64_t blake2b_IV[BLAKE2B_IVU64COUNT] = {
 
 }
 
-Blake2b::Blake2b(size_t output_bits) :
+BLAKE2b::BLAKE2b(size_t output_bits) :
    m_output_bits(output_bits),
    m_buffer(BLAKE2B_BLOCKBYTES),
    m_bufpos(0),
@@ -7958,13 +8849,13 @@ Blake2b::Blake2b(size_t output_bits) :
    {
    if(output_bits == 0 || output_bits > 512 || output_bits % 8 != 0)
       {
-      throw Invalid_Argument("Bad output bits size for Blake2b");
+      throw Invalid_Argument("Bad output bits size for BLAKE2b");
       }
 
    state_init();
    }
 
-void Blake2b::state_init()
+void BLAKE2b::state_init()
    {
    copy_mem(m_H.data(), blake2b_IV, BLAKE2B_IVU64COUNT);
    m_H[0] ^= 0x01010000 ^ static_cast<uint8_t>(output_length());
@@ -8004,7 +8895,7 @@ inline void ROUND(uint64_t* v, const uint64_t* M)
 
 }
 
-void Blake2b::compress(const uint8_t* input, size_t blocks, uint64_t increment)
+void BLAKE2b::compress(const uint8_t* input, size_t blocks, uint64_t increment)
    {
    for(size_t b = 0; b != blocks; ++b)
       {
@@ -8050,7 +8941,7 @@ void Blake2b::compress(const uint8_t* input, size_t blocks, uint64_t increment)
       }
    }
 
-void Blake2b::add_data(const uint8_t input[], size_t length)
+void BLAKE2b::add_data(const uint8_t input[], size_t length)
    {
    if(length == 0)
       return;
@@ -8089,7 +8980,7 @@ void Blake2b::add_data(const uint8_t input[], size_t length)
       }
    }
 
-void Blake2b::final_result(uint8_t output[])
+void BLAKE2b::final_result(uint8_t output[])
    {
    if(m_bufpos != BLAKE2B_BLOCKBYTES)
       clear_mem(&m_buffer[m_bufpos], BLAKE2B_BLOCKBYTES - m_bufpos);
@@ -8099,22 +8990,22 @@ void Blake2b::final_result(uint8_t output[])
    clear();
    }
 
-std::string Blake2b::name() const
+std::string BLAKE2b::name() const
    {
-   return "Blake2b(" + std::to_string(m_output_bits) + ")";
+   return "BLAKE2b(" + std::to_string(m_output_bits) + ")";
    }
 
-HashFunction* Blake2b::clone() const
+HashFunction* BLAKE2b::clone() const
    {
-   return new Blake2b(m_output_bits);
+   return new BLAKE2b(m_output_bits);
    }
 
-std::unique_ptr<HashFunction> Blake2b::copy_state() const
+std::unique_ptr<HashFunction> BLAKE2b::copy_state() const
    {
-   return std::unique_ptr<HashFunction>(new Blake2b(*this));
+   return std::unique_ptr<HashFunction>(new BLAKE2b(*this));
    }
 
-void Blake2b::clear()
+void BLAKE2b::clear()
    {
    zeroise(m_H);
    zeroise(m_buffer);
@@ -8833,7 +9724,7 @@ void Blowfish::key_expansion(const uint8_t key[],
 */
 void Blowfish::salted_set_key(const uint8_t key[], size_t length,
                               const uint8_t salt[], size_t salt_length,
-                              size_t workfactor)
+                              size_t workfactor, bool salt_first)
    {
    BOTAN_ARG_CHECK(salt_length > 0 && salt_length % 4 == 0,
                    "Invalid salt length for Blowfish salted key schedule");
@@ -8857,8 +9748,16 @@ void Blowfish::salted_set_key(const uint8_t key[], size_t length,
 
       for(size_t r = 0; r != rounds; ++r)
          {
-         key_expansion(key, length, nullptr, 0);
-         key_expansion(salt, salt_length, nullptr, 0);
+         if(salt_first)
+            {
+            key_expansion(salt, salt_length, nullptr, 0);
+            key_expansion(key, length, nullptr, 0);
+            }
+         else
+            {
+            key_expansion(key, length, nullptr, 0);
+            key_expansion(salt, salt_length, nullptr, 0);
+            }
          }
       }
    }
@@ -11292,7 +12191,7 @@ void CCM_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
    T ^= S0;
 
    if(!constant_time_compare(T.data(), buf_end, tag_size()))
-      throw Integrity_Failure("CCM tag check failed");
+      throw Invalid_Authentication_Tag("CCM tag check failed");
 
    buffer.resize(buffer.size() - tag_size());
    }
@@ -11344,6 +12243,159 @@ void CECPQ1_finish(uint8_t shared_key[CECPQ1_SHARED_KEY_BYTES],
                    Newhope_Mode::BoringSSL);
    }
 
+}
+/*
+* Certificate Store
+* (C) 1999-2019 Jack Lloyd
+* (C) 2019      Patrick Schmidt
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+
+namespace Botan {
+namespace {
+std::vector<std::vector<uint8_t>> decode_all_certificates(DataSource& source)
+   {
+   std::vector<std::vector<uint8_t>> pems;
+
+   while(!source.end_of_data())
+      {
+      std::string label;
+      std::vector<uint8_t> cert;
+      try
+         {
+         cert = unlock(PEM_Code::decode(source, label));
+
+         if(label == "CERTIFICATE" || label == "X509 CERTIFICATE" || label == "TRUSTED CERTIFICATE")
+            {
+            pems.push_back(cert);
+            }
+         }
+      catch(const Decoding_Error&) {}
+      }
+
+   return pems;
+   }
+}
+
+Flatfile_Certificate_Store::Flatfile_Certificate_Store(const std::string& file, bool ignore_non_ca)
+   {
+   if(file.empty())
+      {
+      throw Invalid_Argument("Flatfile_Certificate_Store::Flatfile_Certificate_Store invalid file path");
+      }
+
+   DataSource_Stream file_stream(file);
+
+   for(const std::vector<uint8_t> der : decode_all_certificates(file_stream))
+      {
+      std::shared_ptr<const X509_Certificate> cert = std::make_shared<const X509_Certificate>(der.data(), der.size());
+
+      /*
+      * Various weird or misconfigured system roots include intermediate certificates,
+      * or even stranger certificates which are not valid for cert issuance at all.
+      * Previously this code would error on such cases as an obvious misconfiguration,
+      * but we cannot fix the trust store. So instead just ignore any such certificate.
+      */
+      if(cert->is_self_signed() && cert->is_CA_cert())
+         {
+         m_all_subjects.push_back(cert->subject_dn());
+         m_dn_to_cert[cert->subject_dn()].push_back(cert);
+         m_pubkey_sha1_to_cert.emplace(cert->subject_public_key_bitstring_sha1(), cert);
+         m_subject_dn_sha256_to_cert.emplace(cert->raw_subject_dn_sha256(), cert);
+         }
+      else if(!ignore_non_ca)
+         {
+         throw Invalid_Argument("Flatfile_Certificate_Store received non CA cert " + cert->subject_dn().to_string());
+         }
+      }
+
+   if(m_all_subjects.empty())
+      {
+      throw Invalid_Argument("Flatfile_Certificate_Store::Flatfile_Certificate_Store cert file is empty");
+      }
+   }
+
+std::vector<X509_DN> Flatfile_Certificate_Store::all_subjects() const
+   {
+   return m_all_subjects;
+   }
+
+std::shared_ptr<const X509_Certificate>
+Flatfile_Certificate_Store::find_cert(const X509_DN& subject_dn,
+                                      const std::vector<uint8_t>& key_id) const
+   {
+   std::vector<std::shared_ptr<const X509_Certificate>> found_certs = find_all_certs(subject_dn, key_id);
+
+   return !found_certs.empty() ? found_certs.front() : nullptr;
+   }
+
+std::vector<std::shared_ptr<const X509_Certificate>> Flatfile_Certificate_Store::find_all_certs(
+         const X509_DN& subject_dn,
+         const std::vector<uint8_t>& key_id) const
+   {
+   std::vector<std::shared_ptr<const X509_Certificate>> found_certs;
+   try
+      {
+      const auto certs = m_dn_to_cert.at(subject_dn);
+
+      for(auto cert : certs)
+         {
+         if(key_id.empty() || key_id == cert->subject_key_id())
+            {
+            found_certs.push_back(cert);
+            }
+         }
+      }
+   catch(const std::out_of_range&)
+      {
+      return {};
+      }
+
+   return found_certs;
+   }
+
+std::shared_ptr<const X509_Certificate>
+Flatfile_Certificate_Store::find_cert_by_pubkey_sha1(const std::vector<uint8_t>& key_hash) const
+   {
+   if(key_hash.size() != 20)
+      {
+      throw Invalid_Argument("Flatfile_Certificate_Store::find_cert_by_pubkey_sha1 invalid hash");
+      }
+
+   auto found_cert = m_pubkey_sha1_to_cert.find(key_hash);
+
+   if(found_cert != m_pubkey_sha1_to_cert.end())
+      {
+      return found_cert->second;
+      }
+
+   return nullptr;
+   }
+
+std::shared_ptr<const X509_Certificate>
+Flatfile_Certificate_Store::find_cert_by_raw_subject_dn_sha256(const std::vector<uint8_t>& subject_hash) const
+   {
+   if(subject_hash.size() != 32)
+      { throw Invalid_Argument("Flatfile_Certificate_Store::find_cert_by_raw_subject_dn_sha256 invalid hash"); }
+
+   auto found_cert = m_subject_dn_sha256_to_cert.find(subject_hash);
+
+   if(found_cert != m_subject_dn_sha256_to_cert.end())
+      {
+      return found_cert->second;
+      }
+
+   return nullptr;
+   }
+
+std::shared_ptr<const X509_CRL> Flatfile_Certificate_Store::find_crl_for(const X509_Certificate& subject) const
+   {
+   BOTAN_UNUSED(subject);
+   return {};
+   }
 }
 /*
 * Certificate Store in SQL
@@ -11674,6 +12726,70 @@ std::vector<X509_CRL> Certificate_Store_In_SQL::generate_crls() const
       }
 
    return ret;
+   }
+
+}
+/*
+* (C) 2019 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+#if defined(BOTAN_HAS_CERTSTOR_MACOS)
+#elif defined(BOTAN_HAS_CERTSTOR_WINDOWS)
+#elif defined(BOTAN_HAS_CERTSTOR_FLATFILE) && defined(BOTAN_SYSTEM_CERT_BUNDLE)
+#endif
+
+namespace Botan {
+
+System_Certificate_Store::System_Certificate_Store()
+   {
+#if defined(BOTAN_HAS_CERTSTOR_MACOS)
+   m_system_store = std::make_shared<Certificate_Store_MacOS>();
+#elif defined(BOTAN_HAS_CERTSTOR_WINDOWS)
+   m_system_store = std::make_shared<Certificate_Store_Windows>();
+#elif defined(BOTAN_HAS_CERTSTOR_FLATFILE) && defined(BOTAN_SYSTEM_CERT_BUNDLE)
+   m_system_store = std::make_shared<Flatfile_Certificate_Store>(BOTAN_SYSTEM_CERT_BUNDLE, true);
+#else
+   throw Not_Implemented("No system certificate store available in this build");
+#endif
+   }
+
+std::shared_ptr<const X509_Certificate>
+System_Certificate_Store::find_cert(const X509_DN& subject_dn, const std::vector<uint8_t>& key_id) const
+   {
+   return m_system_store->find_cert(subject_dn, key_id);
+   }
+
+std::vector<std::shared_ptr<const X509_Certificate>>
+System_Certificate_Store::find_all_certs(const X509_DN& subject_dn,
+                                         const std::vector<uint8_t>& key_id) const
+   {
+   return m_system_store->find_all_certs(subject_dn, key_id);
+   }
+
+std::shared_ptr<const X509_Certificate>
+System_Certificate_Store::find_cert_by_pubkey_sha1(const std::vector<uint8_t>& key_hash) const
+   {
+   return m_system_store->find_cert_by_pubkey_sha1(key_hash);
+   }
+
+std::shared_ptr<const X509_Certificate>
+System_Certificate_Store::find_cert_by_raw_subject_dn_sha256(const std::vector<uint8_t>& subject_hash) const
+   {
+   return m_system_store->find_cert_by_raw_subject_dn_sha256(subject_hash);
+   }
+
+std::shared_ptr<const X509_CRL>
+System_Certificate_Store::find_crl_for(const X509_Certificate& subject) const
+   {
+   return m_system_store->find_crl_for(subject);
+   }
+
+std::vector<X509_DN> System_Certificate_Store::all_subjects() const
+   {
+   return m_system_store->all_subjects();
    }
 
 }
@@ -12445,7 +13561,7 @@ void ChaCha20Poly1305_Decryption::finish(secure_vector<uint8_t>& buffer, size_t 
    m_nonce_len = 0;
 
    if(!constant_time_compare(mac.data(), included_tag, tag_size()))
-      throw Integrity_Failure("ChaCha20Poly1305 tag check failed");
+      throw Invalid_Authentication_Tag("ChaCha20Poly1305 tag check failed");
    buffer.resize(offset + remaining);
    }
 
@@ -12954,350 +14070,6 @@ CMAC::CMAC(BlockCipher* cipher) :
 
 }
 /*
-* Base64 Encoder/Decoder
-* (C) 1999-2010 Jack Lloyd
-*
-* Botan is released under the Simplified BSD License (see license.txt)
-*/
-
-
-namespace Botan {
-
-/*
-* Base64_Encoder Constructor
-*/
-Base64_Encoder::Base64_Encoder(bool breaks, size_t length, bool t_n) :
-   m_line_length(breaks ? length : 0),
-   m_trailing_newline(t_n && breaks),
-   m_in(48),
-   m_out(64),
-   m_position(0),
-   m_out_position(0)
-   {
-   }
-
-/*
-* Encode and send a block
-*/
-void Base64_Encoder::encode_and_send(const uint8_t input[], size_t length,
-                                     bool final_inputs)
-   {
-   while(length)
-      {
-      const size_t proc = std::min(length, m_in.size());
-
-      size_t consumed = 0;
-      size_t produced = base64_encode(cast_uint8_ptr_to_char(m_out.data()),
-                                      input, proc, consumed, final_inputs);
-
-      do_output(m_out.data(), produced);
-
-      // FIXME: s/proc/consumed/?
-      input += proc;
-      length -= proc;
-      }
-   }
-
-/*
-* Handle the output
-*/
-void Base64_Encoder::do_output(const uint8_t input[], size_t length)
-   {
-   if(m_line_length == 0)
-      send(input, length);
-   else
-      {
-      size_t remaining = length, offset = 0;
-      while(remaining)
-         {
-         size_t sent = std::min(m_line_length - m_out_position, remaining);
-         send(input + offset, sent);
-         m_out_position += sent;
-         remaining -= sent;
-         offset += sent;
-         if(m_out_position == m_line_length)
-            {
-            send('\n');
-            m_out_position = 0;
-            }
-         }
-      }
-   }
-
-/*
-* Convert some data into Base64
-*/
-void Base64_Encoder::write(const uint8_t input[], size_t length)
-   {
-   buffer_insert(m_in, m_position, input, length);
-   if(m_position + length >= m_in.size())
-      {
-      encode_and_send(m_in.data(), m_in.size());
-      input += (m_in.size() - m_position);
-      length -= (m_in.size() - m_position);
-      while(length >= m_in.size())
-         {
-         encode_and_send(input, m_in.size());
-         input += m_in.size();
-         length -= m_in.size();
-         }
-      copy_mem(m_in.data(), input, length);
-      m_position = 0;
-      }
-   m_position += length;
-   }
-
-/*
-* Flush buffers
-*/
-void Base64_Encoder::end_msg()
-   {
-   encode_and_send(m_in.data(), m_position, true);
-
-   if(m_trailing_newline || (m_out_position && m_line_length))
-      send('\n');
-
-   m_out_position = m_position = 0;
-   }
-
-/*
-* Base64_Decoder Constructor
-*/
-Base64_Decoder::Base64_Decoder(Decoder_Checking c) :
-   m_checking(c), m_in(64), m_out(48), m_position(0)
-   {
-   }
-
-/*
-* Convert some data from Base64
-*/
-void Base64_Decoder::write(const uint8_t input[], size_t length)
-   {
-   while(length)
-      {
-      size_t to_copy = std::min<size_t>(length, m_in.size() - m_position);
-      if(to_copy == 0)
-         {
-         m_in.resize(m_in.size()*2);
-         m_out.resize(m_out.size()*2);
-         }
-      copy_mem(&m_in[m_position], input, to_copy);
-      m_position += to_copy;
-
-      size_t consumed = 0;
-      size_t written = base64_decode(m_out.data(),
-                                     cast_uint8_ptr_to_char(m_in.data()),
-                                     m_position,
-                                     consumed,
-                                     false,
-                                     m_checking != FULL_CHECK);
-
-      send(m_out, written);
-
-      if(consumed != m_position)
-         {
-         copy_mem(m_in.data(), m_in.data() + consumed, m_position - consumed);
-         m_position = m_position - consumed;
-         }
-      else
-         m_position = 0;
-
-      length -= to_copy;
-      input += to_copy;
-      }
-   }
-
-/*
-* Flush buffers
-*/
-void Base64_Decoder::end_msg()
-   {
-   size_t consumed = 0;
-   size_t written = base64_decode(m_out.data(),
-                                  cast_uint8_ptr_to_char(m_in.data()),
-                                  m_position,
-                                  consumed,
-                                  true,
-                                  m_checking != FULL_CHECK);
-
-   send(m_out, written);
-
-   const bool not_full_bytes = consumed != m_position;
-
-   m_position = 0;
-
-   if(not_full_bytes)
-      throw Invalid_Argument("Base64_Decoder: Input not full bytes");
-   }
-
-}
-/*
-* Hex Encoder/Decoder
-* (C) 1999-2007 Jack Lloyd
-*
-* Botan is released under the Simplified BSD License (see license.txt)
-*/
-
-
-namespace Botan {
-
-/**
-* Size used for internal buffer in hex encoder/decoder
-*/
-const size_t HEX_CODEC_BUFFER_SIZE = 256;
-
-/*
-* Hex_Encoder Constructor
-*/
-Hex_Encoder::Hex_Encoder(bool breaks, size_t length, Case c) :
-   m_casing(c), m_line_length(breaks ? length : 0)
-   {
-   m_in.resize(HEX_CODEC_BUFFER_SIZE);
-   m_out.resize(2*m_in.size());
-   m_counter = m_position = 0;
-   }
-
-/*
-* Hex_Encoder Constructor
-*/
-Hex_Encoder::Hex_Encoder(Case c) : m_casing(c), m_line_length(0)
-   {
-   m_in.resize(HEX_CODEC_BUFFER_SIZE);
-   m_out.resize(2*m_in.size());
-   m_counter = m_position = 0;
-   }
-
-/*
-* Encode and send a block
-*/
-void Hex_Encoder::encode_and_send(const uint8_t block[], size_t length)
-   {
-   hex_encode(cast_uint8_ptr_to_char(m_out.data()),
-              block, length,
-              m_casing == Uppercase);
-
-   if(m_line_length == 0)
-      send(m_out, 2*length);
-   else
-      {
-      size_t remaining = 2*length, offset = 0;
-      while(remaining)
-         {
-         size_t sent = std::min(m_line_length - m_counter, remaining);
-         send(&m_out[offset], sent);
-         m_counter += sent;
-         remaining -= sent;
-         offset += sent;
-         if(m_counter == m_line_length)
-            {
-            send('\n');
-            m_counter = 0;
-            }
-         }
-      }
-   }
-
-/*
-* Convert some data into hex format
-*/
-void Hex_Encoder::write(const uint8_t input[], size_t length)
-   {
-   buffer_insert(m_in, m_position, input, length);
-   if(m_position + length >= m_in.size())
-      {
-      encode_and_send(m_in.data(), m_in.size());
-      input += (m_in.size() - m_position);
-      length -= (m_in.size() - m_position);
-      while(length >= m_in.size())
-         {
-         encode_and_send(input, m_in.size());
-         input += m_in.size();
-         length -= m_in.size();
-         }
-      copy_mem(m_in.data(), input, length);
-      m_position = 0;
-      }
-   m_position += length;
-   }
-
-/*
-* Flush buffers
-*/
-void Hex_Encoder::end_msg()
-   {
-   encode_and_send(m_in.data(), m_position);
-   if(m_counter && m_line_length)
-      send('\n');
-   m_counter = m_position = 0;
-   }
-
-/*
-* Hex_Decoder Constructor
-*/
-Hex_Decoder::Hex_Decoder(Decoder_Checking c) : m_checking(c)
-   {
-   m_in.resize(HEX_CODEC_BUFFER_SIZE);
-   m_out.resize(m_in.size() / 2);
-   m_position = 0;
-   }
-
-/*
-* Convert some data from hex format
-*/
-void Hex_Decoder::write(const uint8_t input[], size_t length)
-   {
-   while(length)
-      {
-      size_t to_copy = std::min<size_t>(length, m_in.size() - m_position);
-      copy_mem(&m_in[m_position], input, to_copy);
-      m_position += to_copy;
-
-      size_t consumed = 0;
-      size_t written = hex_decode(m_out.data(),
-                                  cast_uint8_ptr_to_char(m_in.data()),
-                                  m_position,
-                                  consumed,
-                                  m_checking != FULL_CHECK);
-
-      send(m_out, written);
-
-      if(consumed != m_position)
-         {
-         copy_mem(m_in.data(), m_in.data() + consumed, m_position - consumed);
-         m_position = m_position - consumed;
-         }
-      else
-         m_position = 0;
-
-      length -= to_copy;
-      input += to_copy;
-      }
-   }
-
-/*
-* Flush buffers
-*/
-void Hex_Decoder::end_msg()
-   {
-   size_t consumed = 0;
-   size_t written = hex_decode(m_out.data(),
-                               cast_uint8_ptr_to_char(m_in.data()),
-                               m_position,
-                               consumed,
-                               m_checking != FULL_CHECK);
-
-   send(m_out, written);
-
-   const bool not_full_bytes = consumed != m_position;
-
-   m_position = 0;
-
-   if(not_full_bytes)
-      throw Invalid_Argument("Hex_Decoder: Input not full bytes");
-   }
-
-}
-/*
 * Comb4P hash combiner
 * (C) 2010 Jack Lloyd
 *
@@ -13371,7 +14143,8 @@ std::unique_ptr<HashFunction> Comb4P::copy_state() const
    std::unique_ptr<Comb4P> copy(new Comb4P);
    copy->m_hash1 = m_hash1->copy_state();
    copy->m_hash2 = m_hash2->copy_state();
-   return std::move(copy);
+   // work around GCC 4.8 bug
+   return std::unique_ptr<HashFunction>(copy.release());
    }
 
 void Comb4P::add_data(const uint8_t input[], size_t length)
@@ -13414,9 +14187,12 @@ void Comb4P::final_result(uint8_t out[])
 
 namespace Botan {
 
-uint64_t CPUID::g_processor_features = 0;
-size_t CPUID::g_cache_line_size = BOTAN_TARGET_CPU_DEFAULT_CACHE_LINE_SIZE;
-CPUID::Endian_status CPUID::g_endian_status = ENDIAN_UNKNOWN;
+//static
+CPUID::CPUID_Data& CPUID::state()
+   {
+   static BOTAN_THREAD_LOCAL CPUID::CPUID_Data g_cpuid;
+   return g_cpuid;
+   }
 
 bool CPUID::has_simd_32()
    {
@@ -13491,36 +14267,44 @@ void CPUID::print(std::ostream& o)
 //static
 void CPUID::initialize()
    {
-   g_processor_features = 0;
+   state() = CPUID_Data();
+   }
 
+CPUID::CPUID_Data::CPUID_Data()
+   {
 #if defined(BOTAN_TARGET_CPU_IS_PPC_FAMILY) || \
     defined(BOTAN_TARGET_CPU_IS_ARM_FAMILY) || \
     defined(BOTAN_TARGET_CPU_IS_X86_FAMILY)
 
-   g_processor_features = CPUID::detect_cpu_features(&g_cache_line_size);
+   m_cache_line_size = 0;
+   m_processor_features = detect_cpu_features(&m_cache_line_size);
 
 #endif
 
-   g_endian_status = runtime_check_endian();
-   g_processor_features |= CPUID::CPUID_INITIALIZED_BIT;
+   m_processor_features |= CPUID::CPUID_INITIALIZED_BIT;
+
+   if(m_cache_line_size == 0)
+      m_cache_line_size = BOTAN_TARGET_CPU_DEFAULT_CACHE_LINE_SIZE;
+
+   m_endian_status = runtime_check_endian();
    }
 
 //static
-CPUID::Endian_status CPUID::runtime_check_endian()
+CPUID::Endian_Status CPUID::CPUID_Data::runtime_check_endian()
    {
    // Check runtime endian
    const uint32_t endian32 = 0x01234567;
    const uint8_t* e8 = reinterpret_cast<const uint8_t*>(&endian32);
 
-   Endian_status endian = ENDIAN_UNKNOWN;
+   CPUID::Endian_Status endian = CPUID::Endian_Status::Unknown;
 
    if(e8[0] == 0x01 && e8[1] == 0x23 && e8[2] == 0x45 && e8[3] == 0x67)
       {
-      endian = ENDIAN_BIG;
+      endian = CPUID::Endian_Status::Big;
       }
    else if(e8[0] == 0x67 && e8[1] == 0x45 && e8[2] == 0x23 && e8[3] == 0x01)
       {
-      endian = ENDIAN_LITTLE;
+      endian = CPUID::Endian_Status::Little;
       }
    else
       {
@@ -13529,9 +14313,9 @@ CPUID::Endian_status CPUID::runtime_check_endian()
 
    // If we were compiled with a known endian, verify it matches at runtime
 #if defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
-   BOTAN_ASSERT(endian == ENDIAN_LITTLE, "Build and runtime endian match");
+   BOTAN_ASSERT(endian == CPUID::Endian_Status::Little, "Build and runtime endian match");
 #elif defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
-   BOTAN_ASSERT(endian == ENDIAN_BIG, "Build and runtime endian match");
+   BOTAN_ASSERT(endian == CPUID::Endian_Status::Big, "Build and runtime endian match");
 #endif
 
    return endian;
@@ -13604,10 +14388,7 @@ CPUID::bit_from_string(const std::string& tok)
 
 #if defined(BOTAN_TARGET_CPU_IS_ARM_FAMILY)
 
-#if defined(BOTAN_TARGET_OS_HAS_GETAUXVAL)
-  #include <sys/auxv.h>
-
-#elif defined(BOTAN_TARGET_OS_IS_IOS)
+#if defined(BOTAN_TARGET_OS_IS_IOS)
   #include <sys/types.h>
   #include <sys/sysctl.h>
 
@@ -13696,11 +14477,11 @@ uint64_t flags_by_ios_machine_type(const std::string& machine)
 
 #endif
 
-uint64_t CPUID::detect_cpu_features(size_t* cache_line_size)
+uint64_t CPUID::CPUID_Data::detect_cpu_features(size_t* cache_line_size)
    {
    uint64_t detected_features = 0;
 
-#if defined(BOTAN_TARGET_OS_HAS_GETAUXVAL)
+#if defined(BOTAN_TARGET_OS_HAS_GETAUXVAL) || defined(BOTAN_TARGET_OS_HAS_ELF_AUX_INFO)
    /*
    * On systems with getauxval these bits should normally be defined
    * in bits/auxv.h but some buggy? glibc installs seem to miss them.
@@ -13736,6 +14517,7 @@ uint64_t CPUID::detect_cpu_features(size_t* cache_line_size)
    };
 
 #if defined(AT_DCACHEBSIZE)
+   // Exists only on Linux
    const unsigned long dcache_line = ::getauxval(AT_DCACHEBSIZE);
 
    // plausibility check
@@ -13743,7 +14525,7 @@ uint64_t CPUID::detect_cpu_features(size_t* cache_line_size)
       *cache_line_size = static_cast<size_t>(dcache_line);
 #endif
 
-   const unsigned long hwcap_neon = ::getauxval(ARM_hwcap_bit::ARCH_hwcap_neon);
+   const unsigned long hwcap_neon = OS::get_auxval(ARM_hwcap_bit::ARCH_hwcap_neon);
    if(hwcap_neon & ARM_hwcap_bit::NEON_bit)
       detected_features |= CPUID::CPUID_ARM_NEON_BIT;
 
@@ -13752,7 +14534,7 @@ uint64_t CPUID::detect_cpu_features(size_t* cache_line_size)
    It doesn't seem worth optimizing this out, since getauxval is
    just reading a field in the ELF header.
    */
-   const unsigned long hwcap_crypto = ::getauxval(ARM_hwcap_bit::ARCH_hwcap_crypto);
+   const unsigned long hwcap_crypto = OS::get_auxval(ARM_hwcap_bit::ARCH_hwcap_crypto);
    if(hwcap_crypto & ARM_hwcap_bit::AES_bit)
       detected_features |= CPUID::CPUID_ARM_AES_BIT;
    if(hwcap_crypto & ARM_hwcap_bit::PMULL_bit)
@@ -13835,16 +14617,14 @@ uint64_t CPUID::detect_cpu_features(size_t* cache_line_size)
 #if defined(BOTAN_TARGET_CPU_IS_PPC_FAMILY)
 
 /*
-* On Darwin and OpenBSD ppc, use sysctl to detect AltiVec
+* On macOS and OpenBSD ppc, use sysctl to detect AltiVec
 */
-#if defined(BOTAN_TARGET_OS_IS_DARWIN)
+#if defined(BOTAN_TARGET_OS_IS_MACOS)
   #include <sys/sysctl.h>
 #elif defined(BOTAN_TARGET_OS_IS_OPENBSD)
   #include <sys/param.h>
   #include <sys/sysctl.h>
   #include <machine/cpu.h>
-#elif defined(BOTAN_TARGET_OS_HAS_GETAUXVAL)
-  #include <sys/auxv.h>
 #endif
 
 #endif
@@ -13857,12 +14637,12 @@ namespace Botan {
 * PowerPC specific block: check for AltiVec using either
 * sysctl or by reading processor version number register.
 */
-uint64_t CPUID::detect_cpu_features(size_t* cache_line_size)
+uint64_t CPUID::CPUID_Data::detect_cpu_features(size_t* cache_line_size)
    {
    BOTAN_UNUSED(cache_line_size);
 
-#if defined(BOTAN_TARGET_OS_IS_DARWIN) || defined(BOTAN_TARGET_OS_IS_OPENBSD)
-   // On Darwin/OS X and OpenBSD, use sysctl
+#if defined(BOTAN_TARGET_OS_IS_MACOS) || defined(BOTAN_TARGET_OS_IS_OPENBSD)
+   // On macOS and OpenBSD, use sysctl
 
    int sels[2] = {
 #if defined(BOTAN_TARGET_OS_IS_OPENBSD)
@@ -13879,7 +14659,7 @@ uint64_t CPUID::detect_cpu_features(size_t* cache_line_size)
    if(error == 0 && vector_type > 0)
       return CPUID::CPUID_ALTIVEC_BIT;
 
-#elif defined(BOTAN_TARGET_OS_HAS_GETAUXVAL) && defined(BOTAN_TARGET_ARCH_IS_PPC64)
+#elif (defined(BOTAN_TARGET_OS_HAS_GETAUXVAL) || defined(BOTAN_TARGET_HAS_ELF_AUX_INFO)) && defined(BOTAN_TARGET_ARCH_IS_PPC64)
 
    enum PPC_hwcap_bit {
       ALTIVEC_bit  = (1 << 28),
@@ -13891,11 +14671,11 @@ uint64_t CPUID::detect_cpu_features(size_t* cache_line_size)
 
    uint64_t detected_features = 0;
 
-   const unsigned long hwcap_altivec = ::getauxval(PPC_hwcap_bit::ARCH_hwcap_altivec);
+   const unsigned long hwcap_altivec = OS::get_auxval(PPC_hwcap_bit::ARCH_hwcap_altivec);
    if(hwcap_altivec & PPC_hwcap_bit::ALTIVEC_bit)
       detected_features |= CPUID::CPUID_ALTIVEC_BIT;
 
-   const unsigned long hwcap_crypto = ::getauxval(PPC_hwcap_bit::ARCH_hwcap_crypto);
+   const unsigned long hwcap_crypto = OS::get_auxval(PPC_hwcap_bit::ARCH_hwcap_crypto);
    if(hwcap_crypto & PPC_hwcap_bit::CRYPTO_bit)
      detected_features |= CPUID::CPUID_PPC_CRYPTO_BIT;
 
@@ -13977,7 +14757,7 @@ namespace Botan {
 
 #if defined(BOTAN_TARGET_CPU_IS_X86_FAMILY)
 
-uint64_t CPUID::detect_cpu_features(size_t* cache_line_size)
+uint64_t CPUID::CPUID_Data::detect_cpu_features(size_t* cache_line_size)
    {
 #if defined(BOTAN_BUILD_COMPILER_IS_MSVC)
   #define X86_CPUID(type, out) do { __cpuid((int*)out, type); } while(0)
@@ -15663,24 +16443,52 @@ inline void des_decrypt_x2(uint32_t& L0r, uint32_t& R0r,
 
 inline void des_IP(uint32_t& L, uint32_t& R, const uint8_t block[])
    {
-   uint64_t T = (DES_IPTAB1[block[0]]     ) | (DES_IPTAB1[block[1]] << 1) |
-                (DES_IPTAB1[block[2]] << 2) | (DES_IPTAB1[block[3]] << 3) |
-                (DES_IPTAB1[block[4]] << 4) | (DES_IPTAB1[block[5]] << 5) |
-                (DES_IPTAB1[block[6]] << 6) | (DES_IPTAB2[block[7]]     );
+   // IP sequence by Wei Dai, taken from public domain Crypto++
+   L = load_be<uint32_t>(block, 0);
+   R = load_be<uint32_t>(block, 1);
 
-   L = static_cast<uint32_t>(T >> 32);
-   R = static_cast<uint32_t>(T);
+   uint32_t T;
+   R = rotl<4>(R);
+   T = (L ^ R) & 0xF0F0F0F0;
+   L ^= T;
+   R = rotr<20>(R ^ T);
+   T = (L ^ R) & 0xFFFF0000;
+   L ^= T;
+   R = rotr<18>(R ^ T);
+   T = (L ^ R) & 0x33333333;
+   L ^= T;
+   R = rotr<6>(R ^ T);
+   T = (L ^ R) & 0x00FF00FF;
+   L ^= T;
+   R = rotl<9>(R ^ T);
+   T = (L ^ R) & 0xAAAAAAAA;
+   L = rotl<1>(L ^ T);
+   R ^= T;
    }
 
 inline void des_FP(uint32_t L, uint32_t R, uint8_t out[])
    {
-   uint64_t T = (DES_FPTAB1[get_byte(0, L)] << 5) | (DES_FPTAB1[get_byte(1, L)] << 3) |
-                (DES_FPTAB1[get_byte(2, L)] << 1) | (DES_FPTAB2[get_byte(3, L)] << 1) |
-                (DES_FPTAB1[get_byte(0, R)] << 4) | (DES_FPTAB1[get_byte(1, R)] << 2) |
-                (DES_FPTAB1[get_byte(2, R)]     ) | (DES_FPTAB2[get_byte(3, R)]     );
-   T = rotl<32>(T);
+   // FP sequence by Wei Dai, taken from public domain Crypto++
+   uint32_t T;
 
-   store_be(T, out);
+   R = rotr<1>(R);
+   T = (L ^ R) & 0xAAAAAAAA;
+   R ^= T;
+   L = rotr<9>(L ^ T);
+   T = (L ^ R) & 0x00FF00FF;
+   R ^= T;
+   L = rotl<6>(L ^ T);
+   T = (L ^ R) & 0x33333333;
+   R ^= T;
+   L = rotl<18>(L ^ T);
+   T = (L ^ R) & 0xFFFF0000;
+   R ^= T;
+   L = rotl<20>(L ^ T);
+   T = (L ^ R) & 0xF0F0F0F0;
+   R ^= T;
+   L = rotr<4>(L ^ T);
+
+   store_be(out, R, L);
    }
 
 }
@@ -16237,270 +17045,6 @@ const uint32_t DES_SPBOX8[256] = {
    0x00000000, 0x10041040, 0x00040040, 0x10000040, 0x10040000, 0x10001000,
    0x10001040, 0x00000000, 0x10041040, 0x00041000, 0x00041000, 0x00001040,
    0x00001040, 0x00040040, 0x10000000, 0x10041000 };
-
-const uint64_t DES_IPTAB1[256] = {
-0x0000000000000000, 0x0000000200000000, 0x0000000000000002, 0x0000000200000002,
-0x0000020000000000, 0x0000020200000000, 0x0000020000000002, 0x0000020200000002,
-0x0000000000000200, 0x0000000200000200, 0x0000000000000202, 0x0000000200000202,
-0x0000020000000200, 0x0000020200000200, 0x0000020000000202, 0x0000020200000202,
-0x0002000000000000, 0x0002000200000000, 0x0002000000000002, 0x0002000200000002,
-0x0002020000000000, 0x0002020200000000, 0x0002020000000002, 0x0002020200000002,
-0x0002000000000200, 0x0002000200000200, 0x0002000000000202, 0x0002000200000202,
-0x0002020000000200, 0x0002020200000200, 0x0002020000000202, 0x0002020200000202,
-0x0000000000020000, 0x0000000200020000, 0x0000000000020002, 0x0000000200020002,
-0x0000020000020000, 0x0000020200020000, 0x0000020000020002, 0x0000020200020002,
-0x0000000000020200, 0x0000000200020200, 0x0000000000020202, 0x0000000200020202,
-0x0000020000020200, 0x0000020200020200, 0x0000020000020202, 0x0000020200020202,
-0x0002000000020000, 0x0002000200020000, 0x0002000000020002, 0x0002000200020002,
-0x0002020000020000, 0x0002020200020000, 0x0002020000020002, 0x0002020200020002,
-0x0002000000020200, 0x0002000200020200, 0x0002000000020202, 0x0002000200020202,
-0x0002020000020200, 0x0002020200020200, 0x0002020000020202, 0x0002020200020202,
-0x0200000000000000, 0x0200000200000000, 0x0200000000000002, 0x0200000200000002,
-0x0200020000000000, 0x0200020200000000, 0x0200020000000002, 0x0200020200000002,
-0x0200000000000200, 0x0200000200000200, 0x0200000000000202, 0x0200000200000202,
-0x0200020000000200, 0x0200020200000200, 0x0200020000000202, 0x0200020200000202,
-0x0202000000000000, 0x0202000200000000, 0x0202000000000002, 0x0202000200000002,
-0x0202020000000000, 0x0202020200000000, 0x0202020000000002, 0x0202020200000002,
-0x0202000000000200, 0x0202000200000200, 0x0202000000000202, 0x0202000200000202,
-0x0202020000000200, 0x0202020200000200, 0x0202020000000202, 0x0202020200000202,
-0x0200000000020000, 0x0200000200020000, 0x0200000000020002, 0x0200000200020002,
-0x0200020000020000, 0x0200020200020000, 0x0200020000020002, 0x0200020200020002,
-0x0200000000020200, 0x0200000200020200, 0x0200000000020202, 0x0200000200020202,
-0x0200020000020200, 0x0200020200020200, 0x0200020000020202, 0x0200020200020202,
-0x0202000000020000, 0x0202000200020000, 0x0202000000020002, 0x0202000200020002,
-0x0202020000020000, 0x0202020200020000, 0x0202020000020002, 0x0202020200020002,
-0x0202000000020200, 0x0202000200020200, 0x0202000000020202, 0x0202000200020202,
-0x0202020000020200, 0x0202020200020200, 0x0202020000020202, 0x0202020200020202,
-0x0000000002000000, 0x0000000202000000, 0x0000000002000002, 0x0000000202000002,
-0x0000020002000000, 0x0000020202000000, 0x0000020002000002, 0x0000020202000002,
-0x0000000002000200, 0x0000000202000200, 0x0000000002000202, 0x0000000202000202,
-0x0000020002000200, 0x0000020202000200, 0x0000020002000202, 0x0000020202000202,
-0x0002000002000000, 0x0002000202000000, 0x0002000002000002, 0x0002000202000002,
-0x0002020002000000, 0x0002020202000000, 0x0002020002000002, 0x0002020202000002,
-0x0002000002000200, 0x0002000202000200, 0x0002000002000202, 0x0002000202000202,
-0x0002020002000200, 0x0002020202000200, 0x0002020002000202, 0x0002020202000202,
-0x0000000002020000, 0x0000000202020000, 0x0000000002020002, 0x0000000202020002,
-0x0000020002020000, 0x0000020202020000, 0x0000020002020002, 0x0000020202020002,
-0x0000000002020200, 0x0000000202020200, 0x0000000002020202, 0x0000000202020202,
-0x0000020002020200, 0x0000020202020200, 0x0000020002020202, 0x0000020202020202,
-0x0002000002020000, 0x0002000202020000, 0x0002000002020002, 0x0002000202020002,
-0x0002020002020000, 0x0002020202020000, 0x0002020002020002, 0x0002020202020002,
-0x0002000002020200, 0x0002000202020200, 0x0002000002020202, 0x0002000202020202,
-0x0002020002020200, 0x0002020202020200, 0x0002020002020202, 0x0002020202020202,
-0x0200000002000000, 0x0200000202000000, 0x0200000002000002, 0x0200000202000002,
-0x0200020002000000, 0x0200020202000000, 0x0200020002000002, 0x0200020202000002,
-0x0200000002000200, 0x0200000202000200, 0x0200000002000202, 0x0200000202000202,
-0x0200020002000200, 0x0200020202000200, 0x0200020002000202, 0x0200020202000202,
-0x0202000002000000, 0x0202000202000000, 0x0202000002000002, 0x0202000202000002,
-0x0202020002000000, 0x0202020202000000, 0x0202020002000002, 0x0202020202000002,
-0x0202000002000200, 0x0202000202000200, 0x0202000002000202, 0x0202000202000202,
-0x0202020002000200, 0x0202020202000200, 0x0202020002000202, 0x0202020202000202,
-0x0200000002020000, 0x0200000202020000, 0x0200000002020002, 0x0200000202020002,
-0x0200020002020000, 0x0200020202020000, 0x0200020002020002, 0x0200020202020002,
-0x0200000002020200, 0x0200000202020200, 0x0200000002020202, 0x0200000202020202,
-0x0200020002020200, 0x0200020202020200, 0x0200020002020202, 0x0200020202020202,
-0x0202000002020000, 0x0202000202020000, 0x0202000002020002, 0x0202000202020002,
-0x0202020002020000, 0x0202020202020000, 0x0202020002020002, 0x0202020202020002,
-0x0202000002020200, 0x0202000202020200, 0x0202000002020202, 0x0202000202020202,
-0x0202020002020200, 0x0202020202020200, 0x0202020002020202, 0x0202020202020202 };
-
-const uint64_t DES_IPTAB2[256] = {
-0x0000000000000000, 0x0000010000000000, 0x0000000000000100, 0x0000010000000100,
-0x0001000000000000, 0x0001010000000000, 0x0001000000000100, 0x0001010000000100,
-0x0000000000010000, 0x0000010000010000, 0x0000000000010100, 0x0000010000010100,
-0x0001000000010000, 0x0001010000010000, 0x0001000000010100, 0x0001010000010100,
-0x0100000000000000, 0x0100010000000000, 0x0100000000000100, 0x0100010000000100,
-0x0101000000000000, 0x0101010000000000, 0x0101000000000100, 0x0101010000000100,
-0x0100000000010000, 0x0100010000010000, 0x0100000000010100, 0x0100010000010100,
-0x0101000000010000, 0x0101010000010000, 0x0101000000010100, 0x0101010000010100,
-0x0000000001000000, 0x0000010001000000, 0x0000000001000100, 0x0000010001000100,
-0x0001000001000000, 0x0001010001000000, 0x0001000001000100, 0x0001010001000100,
-0x0000000001010000, 0x0000010001010000, 0x0000000001010100, 0x0000010001010100,
-0x0001000001010000, 0x0001010001010000, 0x0001000001010100, 0x0001010001010100,
-0x0100000001000000, 0x0100010001000000, 0x0100000001000100, 0x0100010001000100,
-0x0101000001000000, 0x0101010001000000, 0x0101000001000100, 0x0101010001000100,
-0x0100000001010000, 0x0100010001010000, 0x0100000001010100, 0x0100010001010100,
-0x0101000001010000, 0x0101010001010000, 0x0101000001010100, 0x0101010001010100,
-0x0000000100000000, 0x0000010100000000, 0x0000000100000100, 0x0000010100000100,
-0x0001000100000000, 0x0001010100000000, 0x0001000100000100, 0x0001010100000100,
-0x0000000100010000, 0x0000010100010000, 0x0000000100010100, 0x0000010100010100,
-0x0001000100010000, 0x0001010100010000, 0x0001000100010100, 0x0001010100010100,
-0x0100000100000000, 0x0100010100000000, 0x0100000100000100, 0x0100010100000100,
-0x0101000100000000, 0x0101010100000000, 0x0101000100000100, 0x0101010100000100,
-0x0100000100010000, 0x0100010100010000, 0x0100000100010100, 0x0100010100010100,
-0x0101000100010000, 0x0101010100010000, 0x0101000100010100, 0x0101010100010100,
-0x0000000101000000, 0x0000010101000000, 0x0000000101000100, 0x0000010101000100,
-0x0001000101000000, 0x0001010101000000, 0x0001000101000100, 0x0001010101000100,
-0x0000000101010000, 0x0000010101010000, 0x0000000101010100, 0x0000010101010100,
-0x0001000101010000, 0x0001010101010000, 0x0001000101010100, 0x0001010101010100,
-0x0100000101000000, 0x0100010101000000, 0x0100000101000100, 0x0100010101000100,
-0x0101000101000000, 0x0101010101000000, 0x0101000101000100, 0x0101010101000100,
-0x0100000101010000, 0x0100010101010000, 0x0100000101010100, 0x0100010101010100,
-0x0101000101010000, 0x0101010101010000, 0x0101000101010100, 0x0101010101010100,
-0x0000000000000001, 0x0000010000000001, 0x0000000000000101, 0x0000010000000101,
-0x0001000000000001, 0x0001010000000001, 0x0001000000000101, 0x0001010000000101,
-0x0000000000010001, 0x0000010000010001, 0x0000000000010101, 0x0000010000010101,
-0x0001000000010001, 0x0001010000010001, 0x0001000000010101, 0x0001010000010101,
-0x0100000000000001, 0x0100010000000001, 0x0100000000000101, 0x0100010000000101,
-0x0101000000000001, 0x0101010000000001, 0x0101000000000101, 0x0101010000000101,
-0x0100000000010001, 0x0100010000010001, 0x0100000000010101, 0x0100010000010101,
-0x0101000000010001, 0x0101010000010001, 0x0101000000010101, 0x0101010000010101,
-0x0000000001000001, 0x0000010001000001, 0x0000000001000101, 0x0000010001000101,
-0x0001000001000001, 0x0001010001000001, 0x0001000001000101, 0x0001010001000101,
-0x0000000001010001, 0x0000010001010001, 0x0000000001010101, 0x0000010001010101,
-0x0001000001010001, 0x0001010001010001, 0x0001000001010101, 0x0001010001010101,
-0x0100000001000001, 0x0100010001000001, 0x0100000001000101, 0x0100010001000101,
-0x0101000001000001, 0x0101010001000001, 0x0101000001000101, 0x0101010001000101,
-0x0100000001010001, 0x0100010001010001, 0x0100000001010101, 0x0100010001010101,
-0x0101000001010001, 0x0101010001010001, 0x0101000001010101, 0x0101010001010101,
-0x0000000100000001, 0x0000010100000001, 0x0000000100000101, 0x0000010100000101,
-0x0001000100000001, 0x0001010100000001, 0x0001000100000101, 0x0001010100000101,
-0x0000000100010001, 0x0000010100010001, 0x0000000100010101, 0x0000010100010101,
-0x0001000100010001, 0x0001010100010001, 0x0001000100010101, 0x0001010100010101,
-0x0100000100000001, 0x0100010100000001, 0x0100000100000101, 0x0100010100000101,
-0x0101000100000001, 0x0101010100000001, 0x0101000100000101, 0x0101010100000101,
-0x0100000100010001, 0x0100010100010001, 0x0100000100010101, 0x0100010100010101,
-0x0101000100010001, 0x0101010100010001, 0x0101000100010101, 0x0101010100010101,
-0x0000000101000001, 0x0000010101000001, 0x0000000101000101, 0x0000010101000101,
-0x0001000101000001, 0x0001010101000001, 0x0001000101000101, 0x0001010101000101,
-0x0000000101010001, 0x0000010101010001, 0x0000000101010101, 0x0000010101010101,
-0x0001000101010001, 0x0001010101010001, 0x0001000101010101, 0x0001010101010101,
-0x0100000101000001, 0x0100010101000001, 0x0100000101000101, 0x0100010101000101,
-0x0101000101000001, 0x0101010101000001, 0x0101000101000101, 0x0101010101000101,
-0x0100000101010001, 0x0100010101010001, 0x0100000101010101, 0x0100010101010101,
-0x0101000101010001, 0x0101010101010001, 0x0101000101010101, 0x0101010101010101 };
-
-const uint64_t DES_FPTAB1[256] = {
-0x0000000000000000, 0x0000000100000000, 0x0000000004000000, 0x0000000104000000,
-0x0000000000040000, 0x0000000100040000, 0x0000000004040000, 0x0000000104040000,
-0x0000000000000400, 0x0000000100000400, 0x0000000004000400, 0x0000000104000400,
-0x0000000000040400, 0x0000000100040400, 0x0000000004040400, 0x0000000104040400,
-0x0000000000000004, 0x0000000100000004, 0x0000000004000004, 0x0000000104000004,
-0x0000000000040004, 0x0000000100040004, 0x0000000004040004, 0x0000000104040004,
-0x0000000000000404, 0x0000000100000404, 0x0000000004000404, 0x0000000104000404,
-0x0000000000040404, 0x0000000100040404, 0x0000000004040404, 0x0000000104040404,
-0x0400000000000000, 0x0400000100000000, 0x0400000004000000, 0x0400000104000000,
-0x0400000000040000, 0x0400000100040000, 0x0400000004040000, 0x0400000104040000,
-0x0400000000000400, 0x0400000100000400, 0x0400000004000400, 0x0400000104000400,
-0x0400000000040400, 0x0400000100040400, 0x0400000004040400, 0x0400000104040400,
-0x0400000000000004, 0x0400000100000004, 0x0400000004000004, 0x0400000104000004,
-0x0400000000040004, 0x0400000100040004, 0x0400000004040004, 0x0400000104040004,
-0x0400000000000404, 0x0400000100000404, 0x0400000004000404, 0x0400000104000404,
-0x0400000000040404, 0x0400000100040404, 0x0400000004040404, 0x0400000104040404,
-0x0004000000000000, 0x0004000100000000, 0x0004000004000000, 0x0004000104000000,
-0x0004000000040000, 0x0004000100040000, 0x0004000004040000, 0x0004000104040000,
-0x0004000000000400, 0x0004000100000400, 0x0004000004000400, 0x0004000104000400,
-0x0004000000040400, 0x0004000100040400, 0x0004000004040400, 0x0004000104040400,
-0x0004000000000004, 0x0004000100000004, 0x0004000004000004, 0x0004000104000004,
-0x0004000000040004, 0x0004000100040004, 0x0004000004040004, 0x0004000104040004,
-0x0004000000000404, 0x0004000100000404, 0x0004000004000404, 0x0004000104000404,
-0x0004000000040404, 0x0004000100040404, 0x0004000004040404, 0x0004000104040404,
-0x0404000000000000, 0x0404000100000000, 0x0404000004000000, 0x0404000104000000,
-0x0404000000040000, 0x0404000100040000, 0x0404000004040000, 0x0404000104040000,
-0x0404000000000400, 0x0404000100000400, 0x0404000004000400, 0x0404000104000400,
-0x0404000000040400, 0x0404000100040400, 0x0404000004040400, 0x0404000104040400,
-0x0404000000000004, 0x0404000100000004, 0x0404000004000004, 0x0404000104000004,
-0x0404000000040004, 0x0404000100040004, 0x0404000004040004, 0x0404000104040004,
-0x0404000000000404, 0x0404000100000404, 0x0404000004000404, 0x0404000104000404,
-0x0404000000040404, 0x0404000100040404, 0x0404000004040404, 0x0404000104040404,
-0x0000040000000000, 0x0000040100000000, 0x0000040004000000, 0x0000040104000000,
-0x0000040000040000, 0x0000040100040000, 0x0000040004040000, 0x0000040104040000,
-0x0000040000000400, 0x0000040100000400, 0x0000040004000400, 0x0000040104000400,
-0x0000040000040400, 0x0000040100040400, 0x0000040004040400, 0x0000040104040400,
-0x0000040000000004, 0x0000040100000004, 0x0000040004000004, 0x0000040104000004,
-0x0000040000040004, 0x0000040100040004, 0x0000040004040004, 0x0000040104040004,
-0x0000040000000404, 0x0000040100000404, 0x0000040004000404, 0x0000040104000404,
-0x0000040000040404, 0x0000040100040404, 0x0000040004040404, 0x0000040104040404,
-0x0400040000000000, 0x0400040100000000, 0x0400040004000000, 0x0400040104000000,
-0x0400040000040000, 0x0400040100040000, 0x0400040004040000, 0x0400040104040000,
-0x0400040000000400, 0x0400040100000400, 0x0400040004000400, 0x0400040104000400,
-0x0400040000040400, 0x0400040100040400, 0x0400040004040400, 0x0400040104040400,
-0x0400040000000004, 0x0400040100000004, 0x0400040004000004, 0x0400040104000004,
-0x0400040000040004, 0x0400040100040004, 0x0400040004040004, 0x0400040104040004,
-0x0400040000000404, 0x0400040100000404, 0x0400040004000404, 0x0400040104000404,
-0x0400040000040404, 0x0400040100040404, 0x0400040004040404, 0x0400040104040404,
-0x0004040000000000, 0x0004040100000000, 0x0004040004000000, 0x0004040104000000,
-0x0004040000040000, 0x0004040100040000, 0x0004040004040000, 0x0004040104040000,
-0x0004040000000400, 0x0004040100000400, 0x0004040004000400, 0x0004040104000400,
-0x0004040000040400, 0x0004040100040400, 0x0004040004040400, 0x0004040104040400,
-0x0004040000000004, 0x0004040100000004, 0x0004040004000004, 0x0004040104000004,
-0x0004040000040004, 0x0004040100040004, 0x0004040004040004, 0x0004040104040004,
-0x0004040000000404, 0x0004040100000404, 0x0004040004000404, 0x0004040104000404,
-0x0004040000040404, 0x0004040100040404, 0x0004040004040404, 0x0004040104040404,
-0x0404040000000000, 0x0404040100000000, 0x0404040004000000, 0x0404040104000000,
-0x0404040000040000, 0x0404040100040000, 0x0404040004040000, 0x0404040104040000,
-0x0404040000000400, 0x0404040100000400, 0x0404040004000400, 0x0404040104000400,
-0x0404040000040400, 0x0404040100040400, 0x0404040004040400, 0x0404040104040400,
-0x0404040000000004, 0x0404040100000004, 0x0404040004000004, 0x0404040104000004,
-0x0404040000040004, 0x0404040100040004, 0x0404040004040004, 0x0404040104040004,
-0x0404040000000404, 0x0404040100000404, 0x0404040004000404, 0x0404040104000404,
-0x0404040000040404, 0x0404040100040404, 0x0404040004040404, 0x0404040104040404 };
-
-const uint64_t DES_FPTAB2[256] = {
-0x0000000000000000, 0x0000004000000000, 0x0000000001000000, 0x0000004001000000,
-0x0000000000010000, 0x0000004000010000, 0x0000000001010000, 0x0000004001010000,
-0x0000000000000100, 0x0000004000000100, 0x0000000001000100, 0x0000004001000100,
-0x0000000000010100, 0x0000004000010100, 0x0000000001010100, 0x0000004001010100,
-0x0000000000000001, 0x0000004000000001, 0x0000000001000001, 0x0000004001000001,
-0x0000000000010001, 0x0000004000010001, 0x0000000001010001, 0x0000004001010001,
-0x0000000000000101, 0x0000004000000101, 0x0000000001000101, 0x0000004001000101,
-0x0000000000010101, 0x0000004000010101, 0x0000000001010101, 0x0000004001010101,
-0x0100000000000000, 0x0100004000000000, 0x0100000001000000, 0x0100004001000000,
-0x0100000000010000, 0x0100004000010000, 0x0100000001010000, 0x0100004001010000,
-0x0100000000000100, 0x0100004000000100, 0x0100000001000100, 0x0100004001000100,
-0x0100000000010100, 0x0100004000010100, 0x0100000001010100, 0x0100004001010100,
-0x0100000000000001, 0x0100004000000001, 0x0100000001000001, 0x0100004001000001,
-0x0100000000010001, 0x0100004000010001, 0x0100000001010001, 0x0100004001010001,
-0x0100000000000101, 0x0100004000000101, 0x0100000001000101, 0x0100004001000101,
-0x0100000000010101, 0x0100004000010101, 0x0100000001010101, 0x0100004001010101,
-0x0001000000000000, 0x0001004000000000, 0x0001000001000000, 0x0001004001000000,
-0x0001000000010000, 0x0001004000010000, 0x0001000001010000, 0x0001004001010000,
-0x0001000000000100, 0x0001004000000100, 0x0001000001000100, 0x0001004001000100,
-0x0001000000010100, 0x0001004000010100, 0x0001000001010100, 0x0001004001010100,
-0x0001000000000001, 0x0001004000000001, 0x0001000001000001, 0x0001004001000001,
-0x0001000000010001, 0x0001004000010001, 0x0001000001010001, 0x0001004001010001,
-0x0001000000000101, 0x0001004000000101, 0x0001000001000101, 0x0001004001000101,
-0x0001000000010101, 0x0001004000010101, 0x0001000001010101, 0x0001004001010101,
-0x0101000000000000, 0x0101004000000000, 0x0101000001000000, 0x0101004001000000,
-0x0101000000010000, 0x0101004000010000, 0x0101000001010000, 0x0101004001010000,
-0x0101000000000100, 0x0101004000000100, 0x0101000001000100, 0x0101004001000100,
-0x0101000000010100, 0x0101004000010100, 0x0101000001010100, 0x0101004001010100,
-0x0101000000000001, 0x0101004000000001, 0x0101000001000001, 0x0101004001000001,
-0x0101000000010001, 0x0101004000010001, 0x0101000001010001, 0x0101004001010001,
-0x0101000000000101, 0x0101004000000101, 0x0101000001000101, 0x0101004001000101,
-0x0101000000010101, 0x0101004000010101, 0x0101000001010101, 0x0101004001010101,
-0x0000010000000000, 0x0000014000000000, 0x0000010001000000, 0x0000014001000000,
-0x0000010000010000, 0x0000014000010000, 0x0000010001010000, 0x0000014001010000,
-0x0000010000000100, 0x0000014000000100, 0x0000010001000100, 0x0000014001000100,
-0x0000010000010100, 0x0000014000010100, 0x0000010001010100, 0x0000014001010100,
-0x0000010000000001, 0x0000014000000001, 0x0000010001000001, 0x0000014001000001,
-0x0000010000010001, 0x0000014000010001, 0x0000010001010001, 0x0000014001010001,
-0x0000010000000101, 0x0000014000000101, 0x0000010001000101, 0x0000014001000101,
-0x0000010000010101, 0x0000014000010101, 0x0000010001010101, 0x0000014001010101,
-0x0100010000000000, 0x0100014000000000, 0x0100010001000000, 0x0100014001000000,
-0x0100010000010000, 0x0100014000010000, 0x0100010001010000, 0x0100014001010000,
-0x0100010000000100, 0x0100014000000100, 0x0100010001000100, 0x0100014001000100,
-0x0100010000010100, 0x0100014000010100, 0x0100010001010100, 0x0100014001010100,
-0x0100010000000001, 0x0100014000000001, 0x0100010001000001, 0x0100014001000001,
-0x0100010000010001, 0x0100014000010001, 0x0100010001010001, 0x0100014001010001,
-0x0100010000000101, 0x0100014000000101, 0x0100010001000101, 0x0100014001000101,
-0x0100010000010101, 0x0100014000010101, 0x0100010001010101, 0x0100014001010101,
-0x0001010000000000, 0x0001014000000000, 0x0001010001000000, 0x0001014001000000,
-0x0001010000010000, 0x0001014000010000, 0x0001010001010000, 0x0001014001010000,
-0x0001010000000100, 0x0001014000000100, 0x0001010001000100, 0x0001014001000100,
-0x0001010000010100, 0x0001014000010100, 0x0001010001010100, 0x0001014001010100,
-0x0001010000000001, 0x0001014000000001, 0x0001010001000001, 0x0001014001000001,
-0x0001010000010001, 0x0001014000010001, 0x0001010001010001, 0x0001014001010001,
-0x0001010000000101, 0x0001014000000101, 0x0001010001000101, 0x0001014001000101,
-0x0001010000010101, 0x0001014000010101, 0x0001010001010101, 0x0001014001010101,
-0x0101010000000000, 0x0101014000000000, 0x0101010001000000, 0x0101014001000000,
-0x0101010000010000, 0x0101014000010000, 0x0101010001010000, 0x0101014001010000,
-0x0101010000000100, 0x0101014000000100, 0x0101010001000100, 0x0101014001000100,
-0x0101010000010100, 0x0101014000010100, 0x0101010001010100, 0x0101014001010100,
-0x0101010000000001, 0x0101014000000001, 0x0101010001000001, 0x0101014001000001,
-0x0101010000010001, 0x0101014000010001, 0x0101010001010001, 0x0101014001010001,
-0x0101010000000101, 0x0101014000000101, 0x0101010001000101, 0x0101014001000101,
-0x0101010000010101, 0x0101014000010101, 0x0101010001010101, 0x0101014001010101 };
 
 }
 /*
@@ -17869,7 +18413,7 @@ secure_vector<uint8_t> DLIES_Decryptor::do_decrypt(uint8_t& valid_mask,
          try
             {
             // the decryption can fail:
-            // e.g. Integrity_Failure is thrown if GCM is used and the message does not have a valid tag
+            // e.g. Invalid_Authentication_Tag is thrown if GCM is used and the message does not have a valid tag
 
             if(m_iv.size())
                {
@@ -18303,7 +18847,7 @@ void EAX_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
    mac ^= m_ad_mac;
 
    if(!constant_time_compare(mac.data(), included_tag, tag_size()))
-      throw Integrity_Failure("EAX tag check failed");
+      throw Invalid_Authentication_Tag("EAX tag check failed");
 
    buffer.resize(offset + remaining);
 
@@ -18586,8 +19130,6 @@ void CurveGFp_NIST::curve_sqr_words(BigInt& z, const word x[], size_t x_size,
    this->redc_mod_p(z, ws);
    }
 
-#if defined(BOTAN_HAS_NIST_PRIME_REDUCERS_W32)
-
 /**
 * The NIST P-192 curve
 */
@@ -18640,7 +19182,7 @@ BigInt CurveGFp_P256::invert_element(const BigInt& x, secure_vector<word>& ws) c
    curve_sqr(r, p4, ws);
    for(size_t i = 0; i != 3; ++i)
       curve_sqr_tmp(r, tmp, ws);
-   curve_mul(p8, r, p4, ws);;
+   curve_mul(p8, r, p4, ws);
 
    curve_sqr(r, p8, ws);
    for(size_t i = 0; i != 7; ++i)
@@ -18702,6 +19244,8 @@ class CurveGFp_P384 final : public CurveGFp_NIST
 
 BigInt CurveGFp_P384::invert_element(const BigInt& x, secure_vector<word>& ws) const
    {
+   // From https://briansmith.org/ecc-inversion-addition-chains-01
+
    BigInt r, x2, x3, x15, x30, tmp, rl;
 
    r = x;
@@ -18771,8 +19315,6 @@ BigInt CurveGFp_P384::invert_element(const BigInt& x, secure_vector<word>& ws) c
    return r;
    }
 
-#endif
-
 /**
 * The NIST P-521 curve
 */
@@ -18788,6 +19330,8 @@ class CurveGFp_P521 final : public CurveGFp_NIST
 
 BigInt CurveGFp_P521::invert_element(const BigInt& x, secure_vector<word>& ws) const
    {
+   // Addition chain from https://eprint.iacr.org/2014/852.pdf section
+
    BigInt r;
    BigInt rl;
    BigInt a7;
@@ -18858,7 +19402,6 @@ BigInt CurveGFp_P521::invert_element(const BigInt& x, secure_vector<word>& ws) c
 std::shared_ptr<CurveGFp_Repr>
 CurveGFp::choose_repr(const BigInt& p, const BigInt& a, const BigInt& b)
    {
-#if defined(BOTAN_HAS_NIST_PRIME_REDUCERS_W32)
    if(p == prime_p192())
       return std::shared_ptr<CurveGFp_Repr>(new CurveGFp_P192(a, b));
    if(p == prime_p224())
@@ -18867,8 +19410,6 @@ CurveGFp::choose_repr(const BigInt& p, const BigInt& a, const BigInt& b)
       return std::shared_ptr<CurveGFp_Repr>(new CurveGFp_P256(a, b));
    if(p == prime_p384())
       return std::shared_ptr<CurveGFp_Repr>(new CurveGFp_P384(a, b));
-#endif
-
    if(p == prime_p521())
       return std::shared_ptr<CurveGFp_Repr>(new CurveGFp_P521(a, b));
 
@@ -19218,7 +19759,7 @@ EC_Group::EC_Group(const OID& domain_oid)
    {
    this->m_data = ec_group_data().lookup(domain_oid);
    if(!this->m_data)
-      throw Invalid_Argument("Unknown EC_Group " + domain_oid.as_string());
+      throw Invalid_Argument("Unknown EC_Group " + domain_oid.to_string());
    }
 
 EC_Group::EC_Group(const std::string& str)
@@ -21914,7 +22455,7 @@ PK_Key_Agreement create_key_agreement(const PK_Key_Agreement_Key& private_key,
       return PK_Key_Agreement(ECIES_PrivateKey(*ecdh_key), rng, "Raw");
       }
 
-   return PK_Key_Agreement(private_key, rng, "Raw");		// use default implementation
+   return PK_Key_Agreement(private_key, rng, "Raw");        // use default implementation
    }
 }
 
@@ -22022,14 +22563,14 @@ ECIES_Encryptor::ECIES_Encryptor(const PK_Key_Agreement_Key& private_key,
                                  RandomNumberGenerator& rng) :
    m_ka(private_key, ecies_params, true, rng),
    m_params(ecies_params),
-   m_eph_public_key_bin(private_key.public_value()),	// returns the uncompressed public key, see conversion below
+   m_eph_public_key_bin(private_key.public_value()),    // returns the uncompressed public key, see conversion below
    m_iv(),
    m_other_point(),
    m_label()
    {
    if(ecies_params.compression_type() != PointGFp::UNCOMPRESSED)
       {
-      // ISO 18033: step d 
+      // ISO 18033: step d
       // convert only if necessary; m_eph_public_key_bin has been initialized with the uncompressed format
       m_eph_public_key_bin = m_params.domain().OS2ECP(m_eph_public_key_bin).encode(ecies_params.compression_type());
       }
@@ -22148,7 +22689,7 @@ secure_vector<uint8_t> ECIES_Decryptor::do_decrypt(uint8_t& valid_mask, const ui
       }
 
    // extract data
-   const std::vector<uint8_t> other_public_key_bin(in, in + point_size);	// the received (ephemeral) public key
+   const std::vector<uint8_t> other_public_key_bin(in, in + point_size);    // the received (ephemeral) public key
    const std::vector<uint8_t> encrypted_data(in + point_size, in + in_len - m_mac->output_length());
    const std::vector<uint8_t> mac_data(in + in_len - m_mac->output_length(), in + in_len);
 
@@ -22161,7 +22702,7 @@ secure_vector<uint8_t> ECIES_Decryptor::do_decrypt(uint8_t& valid_mask, const ui
       throw Decoding_Error("ECIES decryption: received public key is not on the curve");
       }
 
-   // ISO 18033: step e (and step f because get_affine_x (called by ECDH_KA_Operation::raw_agree) 
+   // ISO 18033: step e (and step f because get_affine_x (called by ECDH_KA_Operation::raw_agree)
    // throws Illegal_Transformation if the point is zero)
    const SymmetricKey secret_key = m_ka.derive_secret(other_public_key_bin, other_public_key);
 
@@ -22184,11 +22725,11 @@ secure_vector<uint8_t> ECIES_Decryptor::do_decrypt(uint8_t& valid_mask, const ui
          {
          m_cipher->start(m_iv.bits_of());
          }
-      
+
       try
          {
          // the decryption can fail:
-         // e.g. Integrity_Failure is thrown if GCM is used and the message does not have a valid tag
+         // e.g. Invalid_Authentication_Tag is thrown if GCM is used and the message does not have a valid tag
          secure_vector<uint8_t> decrypted_data(encrypted_data.begin(), encrypted_data.end());
          m_cipher->finish(decrypted_data);
          return decrypted_data;
@@ -22434,8 +22975,9 @@ void ed25519_gen_keypair(uint8_t* pk, uint8_t* sk, const uint8_t seed[32])
    }
 
 void ed25519_sign(uint8_t sig[64],
-                  const uint8_t* m, size_t mlen,
-                  const uint8_t* sk)
+                  const uint8_t m[], size_t mlen,
+                  const uint8_t sk[64],
+                  const uint8_t domain_sep[], size_t domain_sep_len)
    {
    uint8_t az[64];
    uint8_t nonce[64];
@@ -22449,6 +22991,7 @@ void ed25519_sign(uint8_t sig[64],
    az[31] &= 63;
    az[31] |= 64;
 
+   sha.update(domain_sep, domain_sep_len);
    sha.update(az + 32, 32);
    sha.update(m, mlen);
    sha.final(nonce);
@@ -22456,6 +22999,7 @@ void ed25519_sign(uint8_t sig[64],
    sc_reduce(nonce);
    ge_scalarmult_base(sig, nonce);
 
+   sha.update(domain_sep, domain_sep_len);
    sha.update(sig, 32);
    sha.update(sk + 32, 32);
    sha.update(m, mlen);
@@ -22467,7 +23011,8 @@ void ed25519_sign(uint8_t sig[64],
 
 bool ed25519_verify(const uint8_t* m, size_t mlen,
                     const uint8_t sig[64],
-                    const uint8_t* pk)
+                    const uint8_t* pk,
+                    const uint8_t domain_sep[], size_t domain_sep_len)
    {
    uint8_t h[64];
    uint8_t rcheck[32];
@@ -22483,6 +23028,7 @@ bool ed25519_verify(const uint8_t* m, size_t mlen,
       return false;
       }
 
+   sha.update(domain_sep, domain_sep_len);
    sha.update(sig, 32);
    sha.update(pk, 32);
    sha.update(m, mlen);
@@ -23271,8 +23817,15 @@ bool Ed25519_PublicKey::check_key(RandomNumberGenerator&, bool) const
    // TODO could check cofactor
    }
 
+Ed25519_PublicKey::Ed25519_PublicKey(const uint8_t pub_key[], size_t pub_len)
+   {
+   if(pub_len != 32)
+      throw Decoding_Error("Invalid length for Ed25519 key");
+   m_public.assign(pub_key, pub_key + pub_len);
+   }
+
 Ed25519_PublicKey::Ed25519_PublicKey(const AlgorithmIdentifier&,
-                                           const std::vector<uint8_t>& key_bits)
+                                     const std::vector<uint8_t>& key_bits)
    {
    m_public = key_bits;
 
@@ -23290,7 +23843,7 @@ Ed25519_PrivateKey::Ed25519_PrivateKey(const secure_vector<uint8_t>& secret_key)
    if(secret_key.size() == 64)
       {
       m_private = secret_key;
-      m_public.assign(&m_private[32], &m_private[64]);
+      m_public.assign(m_private.begin() + 32, m_private.end());
       }
    else if(secret_key.size() == 32)
       {
@@ -23355,7 +23908,10 @@ class Ed25519_Pure_Verify_Operation final : public PK_Ops::Verification
          {
          if(sig_len != 64)
             return false;
-         const bool ok = ed25519_verify(m_msg.data(), m_msg.size(), sig, m_key.get_public_key().data());
+
+         const std::vector<uint8_t>& pub_key = m_key.get_public_key();
+         BOTAN_ASSERT_EQUAL(pub_key.size(), 32, "Expected size");
+         const bool ok = ed25519_verify(m_msg.data(), m_msg.size(), sig, pub_key.data(), nullptr, 0);
          m_msg.clear();
          return ok;
          }
@@ -23371,9 +23927,18 @@ class Ed25519_Pure_Verify_Operation final : public PK_Ops::Verification
 class Ed25519_Hashed_Verify_Operation final : public PK_Ops::Verification
    {
    public:
-      Ed25519_Hashed_Verify_Operation(const Ed25519_PublicKey& key, const std::string& hash) : m_key(key)
+      Ed25519_Hashed_Verify_Operation(const Ed25519_PublicKey& key, const std::string& hash, bool rfc8032) :
+         m_key(key)
          {
          m_hash = HashFunction::create_or_throw(hash);
+
+         if(rfc8032)
+            {
+            m_domain_sep = {
+               0x53, 0x69, 0x67, 0x45, 0x64, 0x32, 0x35, 0x35, 0x31, 0x39, 0x20, 0x6E, 0x6F, 0x20, 0x45, 0x64,
+               0x32, 0x35, 0x35, 0x31, 0x39, 0x20, 0x63, 0x6F, 0x6C, 0x6C, 0x69, 0x73, 0x69, 0x6F, 0x6E, 0x73,
+               0x01, 0x00 };
+            }
          }
 
       void update(const uint8_t msg[], size_t msg_len) override
@@ -23387,12 +23952,16 @@ class Ed25519_Hashed_Verify_Operation final : public PK_Ops::Verification
             return false;
          std::vector<uint8_t> msg_hash(m_hash->output_length());
          m_hash->final(msg_hash.data());
-         return ed25519_verify(msg_hash.data(), msg_hash.size(), sig, m_key.get_public_key().data());
+
+         const std::vector<uint8_t>& pub_key = m_key.get_public_key();
+         BOTAN_ASSERT_EQUAL(pub_key.size(), 32, "Expected size");
+         return ed25519_verify(msg_hash.data(), msg_hash.size(), sig, pub_key.data(), m_domain_sep.data(), m_domain_sep.size());
          }
 
    private:
       std::unique_ptr<HashFunction> m_hash;
       const Ed25519_PublicKey& m_key;
+      std::vector<uint8_t> m_domain_sep;
    };
 
 /**
@@ -23413,7 +23982,7 @@ class Ed25519_Pure_Sign_Operation final : public PK_Ops::Signature
       secure_vector<uint8_t> sign(RandomNumberGenerator&) override
          {
          secure_vector<uint8_t> sig(64);
-         ed25519_sign(sig.data(), m_msg.data(), m_msg.size(), m_key.get_private_key().data());
+         ed25519_sign(sig.data(), m_msg.data(), m_msg.size(), m_key.get_private_key().data(), nullptr, 0);
          m_msg.clear();
          return sig;
          }
@@ -23431,9 +24000,18 @@ class Ed25519_Pure_Sign_Operation final : public PK_Ops::Signature
 class Ed25519_Hashed_Sign_Operation final : public PK_Ops::Signature
    {
    public:
-      Ed25519_Hashed_Sign_Operation(const Ed25519_PrivateKey& key, const std::string& hash) : m_key(key)
+      Ed25519_Hashed_Sign_Operation(const Ed25519_PrivateKey& key, const std::string& hash, bool rfc8032) :
+         m_key(key)
          {
          m_hash = HashFunction::create_or_throw(hash);
+
+         if(rfc8032)
+            {
+            m_domain_sep = std::vector<uint8_t>{
+               0x53, 0x69, 0x67, 0x45, 0x64, 0x32, 0x35, 0x35, 0x31, 0x39, 0x20, 0x6E, 0x6F, 0x20, 0x45, 0x64,
+               0x32, 0x35, 0x35, 0x31, 0x39, 0x20, 0x63, 0x6F, 0x6C, 0x6C, 0x69, 0x73, 0x69, 0x6F, 0x6E, 0x73,
+               0x01, 0x00 };
+            }
          }
 
       size_t signature_length() const override { return 64; }
@@ -23448,13 +24026,17 @@ class Ed25519_Hashed_Sign_Operation final : public PK_Ops::Signature
          secure_vector<uint8_t> sig(64);
          std::vector<uint8_t> msg_hash(m_hash->output_length());
          m_hash->final(msg_hash.data());
-         ed25519_sign(sig.data(), msg_hash.data(), msg_hash.size(), m_key.get_private_key().data());
+         ed25519_sign(sig.data(),
+                      msg_hash.data(), msg_hash.size(),
+                      m_key.get_private_key().data(),
+                      m_domain_sep.data(), m_domain_sep.size());
          return sig;
          }
 
    private:
       std::unique_ptr<HashFunction> m_hash;
       const Ed25519_PrivateKey& m_key;
+      std::vector<uint8_t> m_domain_sep;
    };
 
 }
@@ -23467,8 +24049,10 @@ Ed25519_PublicKey::create_verification_op(const std::string& params,
       {
       if(params == "" || params == "Identity" || params == "Pure")
          return std::unique_ptr<PK_Ops::Verification>(new Ed25519_Pure_Verify_Operation(*this));
+      else if(params == "Ed25519ph")
+         return std::unique_ptr<PK_Ops::Verification>(new Ed25519_Hashed_Verify_Operation(*this, "SHA-512", true));
       else
-         return std::unique_ptr<PK_Ops::Verification>(new Ed25519_Hashed_Verify_Operation(*this, params));
+         return std::unique_ptr<PK_Ops::Verification>(new Ed25519_Hashed_Verify_Operation(*this, params, false));
       }
    throw Provider_Not_Found(algo_name(), provider);
    }
@@ -23482,8 +24066,10 @@ Ed25519_PrivateKey::create_signature_op(RandomNumberGenerator&,
       {
       if(params == "" || params == "Identity" || params == "Pure")
          return std::unique_ptr<PK_Ops::Signature>(new Ed25519_Pure_Sign_Operation(*this));
+      else if(params == "Ed25519ph")
+         return std::unique_ptr<PK_Ops::Signature>(new Ed25519_Hashed_Sign_Operation(*this, "SHA-512", true));
       else
-         return std::unique_ptr<PK_Ops::Signature>(new Ed25519_Hashed_Sign_Operation(*this, params));
+         return std::unique_ptr<PK_Ops::Signature>(new Ed25519_Hashed_Sign_Operation(*this, params, false));
       }
    throw Provider_Not_Found(algo_name(), provider);
    }
@@ -27546,6 +28132,7 @@ int ffi_map_error_type(Botan::ErrorType err)
       {
       case Botan::ErrorType::Unknown:
          return BOTAN_FFI_ERROR_UNKNOWN_ERROR;
+
       case Botan::ErrorType::SystemError:
       case Botan::ErrorType::IoError:
       case Botan::ErrorType::OpenSSLError:
@@ -27555,6 +28142,7 @@ int ffi_map_error_type(Botan::ErrorType err)
       case Botan::ErrorType::ZlibError:
       case Botan::ErrorType::Bzip2Error:
       case Botan::ErrorType::LzmaError:
+      case Botan::ErrorType::DatabaseError:
          return BOTAN_FFI_ERROR_SYSTEM_ERROR;
 
       case Botan::ErrorType::NotImplemented:
@@ -27574,6 +28162,9 @@ int ffi_map_error_type(Botan::ErrorType err)
       case Botan::ErrorType::EncodingFailure:
       case Botan::ErrorType::DecodingFailure:
          return BOTAN_FFI_ERROR_INVALID_INPUT;
+
+      case Botan::ErrorType::InvalidTag:
+         return BOTAN_FFI_ERROR_BAD_MAC;
 
       case Botan::ErrorType::InvalidKeyLength:
          return BOTAN_FFI_ERROR_INVALID_KEY_LENGTH;
@@ -28374,7 +28965,7 @@ int botan_cipher_update(botan_cipher_t cipher_obj,
             {
             cipher.finish(mbuf);
             }
-         catch(Integrity_Failure&)
+         catch(Invalid_Authentication_Tag&)
             {
             return BOTAN_FFI_ERROR_BAD_MAC;
             }
@@ -29740,14 +30331,14 @@ int botan_pubkey_check_key(botan_pubkey_t key, botan_rng_t rng, uint32_t flags)
    const bool strong = (flags & BOTAN_CHECK_KEY_EXPENSIVE_TESTS);
 
    return BOTAN_FFI_DO(Botan::Public_Key, key, k,
-                       { return (k.check_key(safe_get(rng), strong) == true) ? 0 : -1; });
+                       { return (k.check_key(safe_get(rng), strong) == true) ? 0 : BOTAN_FFI_ERROR_INVALID_INPUT; });
    }
 
 int botan_privkey_check_key(botan_privkey_t key, botan_rng_t rng, uint32_t flags)
    {
    const bool strong = (flags & BOTAN_CHECK_KEY_EXPENSIVE_TESTS);
    return BOTAN_FFI_DO(Botan::Private_Key, key, k,
-                       { return (k.check_key(safe_get(rng), strong) == true) ? 0 : -1; });
+                       { return (k.check_key(safe_get(rng), strong) == true) ? 0 : BOTAN_FFI_ERROR_INVALID_INPUT; });
    }
 
 int botan_pubkey_export(botan_pubkey_t key, uint8_t out[], size_t* out_len, uint32_t flags)
@@ -31108,8 +31699,8 @@ void MAC_Filter::end_msg()
 
 }
 /*
-* Basic Filters
-* (C) 1999-2007 Jack Lloyd
+* Base64 Encoder/Decoder
+* (C) 1999-2010 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -31117,11 +31708,182 @@ void MAC_Filter::end_msg()
 
 namespace Botan {
 
-void Keyed_Filter::set_iv(const InitializationVector& iv)
+/*
+* Base64_Encoder Constructor
+*/
+Base64_Encoder::Base64_Encoder(bool breaks, size_t length, bool t_n) :
+   m_line_length(breaks ? length : 0),
+   m_trailing_newline(t_n && breaks),
+   m_in(48),
+   m_out(64),
+   m_position(0),
+   m_out_position(0)
    {
-   if(iv.length() != 0)
-      throw Invalid_IV_Length(name(), iv.length());
    }
+
+/*
+* Encode and send a block
+*/
+void Base64_Encoder::encode_and_send(const uint8_t input[], size_t length,
+                                     bool final_inputs)
+   {
+   while(length)
+      {
+      const size_t proc = std::min(length, m_in.size());
+
+      size_t consumed = 0;
+      size_t produced = base64_encode(cast_uint8_ptr_to_char(m_out.data()),
+                                      input, proc, consumed, final_inputs);
+
+      do_output(m_out.data(), produced);
+
+      // FIXME: s/proc/consumed/?
+      input += proc;
+      length -= proc;
+      }
+   }
+
+/*
+* Handle the output
+*/
+void Base64_Encoder::do_output(const uint8_t input[], size_t length)
+   {
+   if(m_line_length == 0)
+      send(input, length);
+   else
+      {
+      size_t remaining = length, offset = 0;
+      while(remaining)
+         {
+         size_t sent = std::min(m_line_length - m_out_position, remaining);
+         send(input + offset, sent);
+         m_out_position += sent;
+         remaining -= sent;
+         offset += sent;
+         if(m_out_position == m_line_length)
+            {
+            send('\n');
+            m_out_position = 0;
+            }
+         }
+      }
+   }
+
+/*
+* Convert some data into Base64
+*/
+void Base64_Encoder::write(const uint8_t input[], size_t length)
+   {
+   buffer_insert(m_in, m_position, input, length);
+   if(m_position + length >= m_in.size())
+      {
+      encode_and_send(m_in.data(), m_in.size());
+      input += (m_in.size() - m_position);
+      length -= (m_in.size() - m_position);
+      while(length >= m_in.size())
+         {
+         encode_and_send(input, m_in.size());
+         input += m_in.size();
+         length -= m_in.size();
+         }
+      copy_mem(m_in.data(), input, length);
+      m_position = 0;
+      }
+   m_position += length;
+   }
+
+/*
+* Flush buffers
+*/
+void Base64_Encoder::end_msg()
+   {
+   encode_and_send(m_in.data(), m_position, true);
+
+   if(m_trailing_newline || (m_out_position && m_line_length))
+      send('\n');
+
+   m_out_position = m_position = 0;
+   }
+
+/*
+* Base64_Decoder Constructor
+*/
+Base64_Decoder::Base64_Decoder(Decoder_Checking c) :
+   m_checking(c), m_in(64), m_out(48), m_position(0)
+   {
+   }
+
+/*
+* Convert some data from Base64
+*/
+void Base64_Decoder::write(const uint8_t input[], size_t length)
+   {
+   while(length)
+      {
+      size_t to_copy = std::min<size_t>(length, m_in.size() - m_position);
+      if(to_copy == 0)
+         {
+         m_in.resize(m_in.size()*2);
+         m_out.resize(m_out.size()*2);
+         }
+      copy_mem(&m_in[m_position], input, to_copy);
+      m_position += to_copy;
+
+      size_t consumed = 0;
+      size_t written = base64_decode(m_out.data(),
+                                     cast_uint8_ptr_to_char(m_in.data()),
+                                     m_position,
+                                     consumed,
+                                     false,
+                                     m_checking != FULL_CHECK);
+
+      send(m_out, written);
+
+      if(consumed != m_position)
+         {
+         copy_mem(m_in.data(), m_in.data() + consumed, m_position - consumed);
+         m_position = m_position - consumed;
+         }
+      else
+         m_position = 0;
+
+      length -= to_copy;
+      input += to_copy;
+      }
+   }
+
+/*
+* Flush buffers
+*/
+void Base64_Decoder::end_msg()
+   {
+   size_t consumed = 0;
+   size_t written = base64_decode(m_out.data(),
+                                  cast_uint8_ptr_to_char(m_in.data()),
+                                  m_position,
+                                  consumed,
+                                  true,
+                                  m_checking != FULL_CHECK);
+
+   send(m_out, written);
+
+   const bool not_full_bytes = consumed != m_position;
+
+   m_position = 0;
+
+   if(not_full_bytes)
+      throw Invalid_Argument("Base64_Decoder: Input not full bytes");
+   }
+
+}
+/*
+* (C) 1999-2007 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
 
 /*
 * Chain Constructor
@@ -31147,11 +31909,6 @@ Chain::Chain(Filter* filters[], size_t count)
          }
    }
 
-std::string Chain::name() const
-   {
-   return "Chain";
-   }
-
 /*
 * Fork Constructor
 */
@@ -31167,11 +31924,6 @@ Fork::Fork(Filter* f1, Filter* f2, Filter* f3, Filter* f4)
 Fork::Fork(Filter* filters[], size_t count)
    {
    set_next(filters, count);
-   }
-
-std::string Fork::name() const
-   {
-   return "Fork";
    }
 
 }
@@ -31694,7 +32446,8 @@ size_t Filter::total_ports() const
 
 }
 /*
-* (C) 2015 Jack Lloyd
+* Hex Encoder/Decoder
+* (C) 1999-2007 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -31702,31 +32455,159 @@ size_t Filter::total_ports() const
 
 namespace Botan {
 
-Keyed_Filter* get_cipher(const std::string& algo_spec,
-                         Cipher_Dir direction)
+/**
+* Size used for internal buffer in hex encoder/decoder
+*/
+const size_t HEX_CODEC_BUFFER_SIZE = 256;
+
+/*
+* Hex_Encoder Constructor
+*/
+Hex_Encoder::Hex_Encoder(bool breaks, size_t length, Case c) :
+   m_casing(c), m_line_length(breaks ? length : 0)
    {
-   std::unique_ptr<Cipher_Mode> c(Cipher_Mode::create_or_throw(algo_spec, direction));
-   return new Cipher_Mode_Filter(c.release());
+   m_in.resize(HEX_CODEC_BUFFER_SIZE);
+   m_out.resize(2*m_in.size());
+   m_counter = m_position = 0;
    }
 
-Keyed_Filter* get_cipher(const std::string& algo_spec,
-                         const SymmetricKey& key,
-                         const InitializationVector& iv,
-                         Cipher_Dir direction)
+/*
+* Hex_Encoder Constructor
+*/
+Hex_Encoder::Hex_Encoder(Case c) : m_casing(c), m_line_length(0)
    {
-   Keyed_Filter* cipher = get_cipher(algo_spec, key, direction);
-   if(iv.length())
-      cipher->set_iv(iv);
-   return cipher;
+   m_in.resize(HEX_CODEC_BUFFER_SIZE);
+   m_out.resize(2*m_in.size());
+   m_counter = m_position = 0;
    }
 
-Keyed_Filter* get_cipher(const std::string& algo_spec,
-                         const SymmetricKey& key,
-                         Cipher_Dir direction)
+/*
+* Encode and send a block
+*/
+void Hex_Encoder::encode_and_send(const uint8_t block[], size_t length)
    {
-   Keyed_Filter* cipher = get_cipher(algo_spec, direction);
-   cipher->set_key(key);
-   return cipher;
+   hex_encode(cast_uint8_ptr_to_char(m_out.data()),
+              block, length,
+              m_casing == Uppercase);
+
+   if(m_line_length == 0)
+      send(m_out, 2*length);
+   else
+      {
+      size_t remaining = 2*length, offset = 0;
+      while(remaining)
+         {
+         size_t sent = std::min(m_line_length - m_counter, remaining);
+         send(&m_out[offset], sent);
+         m_counter += sent;
+         remaining -= sent;
+         offset += sent;
+         if(m_counter == m_line_length)
+            {
+            send('\n');
+            m_counter = 0;
+            }
+         }
+      }
+   }
+
+/*
+* Convert some data into hex format
+*/
+void Hex_Encoder::write(const uint8_t input[], size_t length)
+   {
+   buffer_insert(m_in, m_position, input, length);
+   if(m_position + length >= m_in.size())
+      {
+      encode_and_send(m_in.data(), m_in.size());
+      input += (m_in.size() - m_position);
+      length -= (m_in.size() - m_position);
+      while(length >= m_in.size())
+         {
+         encode_and_send(input, m_in.size());
+         input += m_in.size();
+         length -= m_in.size();
+         }
+      copy_mem(m_in.data(), input, length);
+      m_position = 0;
+      }
+   m_position += length;
+   }
+
+/*
+* Flush buffers
+*/
+void Hex_Encoder::end_msg()
+   {
+   encode_and_send(m_in.data(), m_position);
+   if(m_counter && m_line_length)
+      send('\n');
+   m_counter = m_position = 0;
+   }
+
+/*
+* Hex_Decoder Constructor
+*/
+Hex_Decoder::Hex_Decoder(Decoder_Checking c) : m_checking(c)
+   {
+   m_in.resize(HEX_CODEC_BUFFER_SIZE);
+   m_out.resize(m_in.size() / 2);
+   m_position = 0;
+   }
+
+/*
+* Convert some data from hex format
+*/
+void Hex_Decoder::write(const uint8_t input[], size_t length)
+   {
+   while(length)
+      {
+      size_t to_copy = std::min<size_t>(length, m_in.size() - m_position);
+      copy_mem(&m_in[m_position], input, to_copy);
+      m_position += to_copy;
+
+      size_t consumed = 0;
+      size_t written = hex_decode(m_out.data(),
+                                  cast_uint8_ptr_to_char(m_in.data()),
+                                  m_position,
+                                  consumed,
+                                  m_checking != FULL_CHECK);
+
+      send(m_out, written);
+
+      if(consumed != m_position)
+         {
+         copy_mem(m_in.data(), m_in.data() + consumed, m_position - consumed);
+         m_position = m_position - consumed;
+         }
+      else
+         m_position = 0;
+
+      length -= to_copy;
+      input += to_copy;
+      }
+   }
+
+/*
+* Flush buffers
+*/
+void Hex_Decoder::end_msg()
+   {
+   size_t consumed = 0;
+   size_t written = hex_decode(m_out.data(),
+                               cast_uint8_ptr_to_char(m_in.data()),
+                               m_position,
+                               consumed,
+                               m_checking != FULL_CHECK);
+
+   send(m_out, written);
+
+   const bool not_full_bytes = consumed != m_position;
+
+   m_position = 0;
+
+   if(not_full_bytes)
+      throw Invalid_Argument("Hex_Decoder: Input not full bytes");
    }
 
 }
@@ -33134,7 +34015,7 @@ void GCM_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
    const uint8_t* included_tag = &buffer[remaining+offset];
 
    if(!constant_time_compare(mac.data(), included_tag, tag_size()))
-      throw Integrity_Failure("GCM tag check failed");
+      throw Invalid_Authentication_Tag("GCM tag check failed");
 
    buffer.resize(offset + remaining);
    }
@@ -34421,7 +35302,7 @@ std::unique_ptr<HashFunction> HashFunction::create(const std::string& algo_spec,
 #endif
 
 #if defined(BOTAN_HAS_BLAKE2B)
-   if(req.algo_name() == "Blake2b")
+   if(req.algo_name() == "Blake2b" || req.algo_name() == "BLAKE2b")
       {
       return std::unique_ptr<HashFunction>(
          new Blake2b(req.arg_as_integer(0, 512)));
@@ -35044,7 +35925,7 @@ void HMAC::final_result(uint8_t mac[])
    verify_key_set(m_okey.empty() == false);
    m_hash->final(mac);
    m_hash->update(m_okey);
-   m_hash->update(mac, output_length());
+   m_hash->update(mac, m_hash_output_length);
    m_hash->final(mac);
    m_hash->update(m_ikey);
    }
@@ -35055,27 +35936,38 @@ Key_Length_Specification HMAC::key_spec() const
    return Key_Length_Specification(0, 4096);
    }
 
+size_t HMAC::output_length() const
+   {
+   return m_hash_output_length;
+   }
+
 /*
 * HMAC Key Schedule
 */
 void HMAC::key_schedule(const uint8_t key[], size_t length)
    {
-   m_hash->clear();
-
-   m_ikey.resize(m_hash->hash_block_size());
-   m_okey.resize(m_hash->hash_block_size());
-
    const uint8_t ipad = 0x36;
    const uint8_t opad = 0x5C;
 
-   std::fill(m_ikey.begin(), m_ikey.end(), ipad);
-   std::fill(m_okey.begin(), m_okey.end(), opad);
+   m_hash->clear();
 
-   if(length > m_hash->hash_block_size())
+   m_ikey.resize(m_hash_block_size);
+   set_mem(m_ikey.data(), m_hash_block_size, ipad);
+
+   m_okey.resize(m_hash_block_size);
+   set_mem(m_okey.data(), m_hash_block_size, opad);
+
+   if(length > m_hash_block_size)
       {
-      secure_vector<uint8_t> hmac_key = m_hash->process(key, length);
-      xor_buf(m_ikey, hmac_key, hmac_key.size());
-      xor_buf(m_okey, hmac_key, hmac_key.size());
+      m_hash->update(key, length);
+      m_hash->final(m_ikey.data());
+
+      xor_buf(m_okey.data(), m_ikey.data(), m_hash_output_length);
+
+      for(size_t i = 0; i != m_hash_output_length; ++i)
+         {
+         m_ikey[i] ^= ipad;
+         }
       }
    else
       {
@@ -35115,9 +36007,12 @@ MessageAuthenticationCode* HMAC::clone() const
 /*
 * HMAC Constructor
 */
-HMAC::HMAC(HashFunction* hash) : m_hash(hash)
+HMAC::HMAC(HashFunction* hash) :
+   m_hash(hash),
+   m_hash_output_length(m_hash->output_length()),
+   m_hash_block_size(m_hash->hash_block_size())
    {
-   BOTAN_ARG_CHECK(m_hash->hash_block_size() > 0,
+   BOTAN_ARG_CHECK(m_hash_block_size >= m_hash_output_length,
                    "HMAC is not compatible with this hash function");
    }
 
@@ -35698,7 +36593,7 @@ inline uint16_t mul(uint16_t x, uint16_t y)
    const uint16_t r_1 = static_cast<uint16_t>((P_lo - P_hi) + carry);
    const uint16_t r_2 = 1 - x - y;
 
-   return P_mask.select(r_2, r_1);;
+   return P_mask.select(r_2, r_1);
    }
 
 /*
@@ -36126,7 +37021,11 @@ namespace Botan {
 namespace {
 
 secure_vector<uint8_t> iso9796_encoding(const secure_vector<uint8_t>& msg,
-                                     size_t output_bits, std::unique_ptr<HashFunction>& hash, size_t SALT_SIZE, bool implicit, RandomNumberGenerator& rng)
+                                        size_t output_bits,
+                                        std::unique_ptr<HashFunction>& hash,
+                                        size_t SALT_SIZE,
+                                        bool implicit,
+                                        RandomNumberGenerator& rng)
    {
    const size_t output_length = (output_bits + 7) / 8;
 
@@ -36144,16 +37043,15 @@ secure_vector<uint8_t> iso9796_encoding(const secure_vector<uint8_t>& msg,
       }
 
    //calculate message capacity
-   const size_t capacity = output_length
-                           - HASH_SIZE - SALT_SIZE - tLength - 1;
+   const size_t capacity = output_length - HASH_SIZE - SALT_SIZE - tLength - 1;
 
    //msg1 is the recoverable and msg2 the unrecoverable message part.
    secure_vector<uint8_t> msg1;
    secure_vector<uint8_t> msg2;
    if(msg.size() > capacity)
       {
-      msg1 = secure_vector<uint8_t> (msg.begin(), msg.begin() + capacity);
-      msg2 = secure_vector<uint8_t> (msg.begin() + capacity, msg.end());
+      msg1 = secure_vector<uint8_t>(msg.begin(), msg.begin() + capacity);
+      msg2 = secure_vector<uint8_t>(msg.begin() + capacity, msg.end());
       hash->update(msg2);
       }
    else
@@ -36163,9 +37061,9 @@ secure_vector<uint8_t> iso9796_encoding(const secure_vector<uint8_t>& msg,
    msg2 = hash->final();
 
    //compute H(C||msg1 ||H(msg2)||S)
-   uint64_t msgLength = msg1.size();
+   const size_t msgLength = msg1.size();
    secure_vector<uint8_t> salt = rng.random_vec(SALT_SIZE);
-   hash->update_be(msgLength * 8);
+   hash->update_be(static_cast<uint64_t>(msgLength) * 8);
    hash->update(msg1);
    hash->update(msg2);
    hash->update(salt);
@@ -36174,8 +37072,7 @@ secure_vector<uint8_t> iso9796_encoding(const secure_vector<uint8_t>& msg,
    secure_vector<uint8_t> EM(output_length);
 
    //compute message offset.
-   size_t offset = output_length - HASH_SIZE - SALT_SIZE - tLength
-                   - msgLength - 1;
+   const size_t offset = output_length - HASH_SIZE - SALT_SIZE - tLength - msgLength - 1;
 
    //insert message border (0x01), msg1 and salt into the output buffer
    EM[offset] = 0x01;
@@ -36351,7 +37248,8 @@ secure_vector<uint8_t> ISO_9796_DS2::raw_data()
  *  ISO-9796-2 scheme 2 encode operation
  */
 secure_vector<uint8_t> ISO_9796_DS2::encoding_of(const secure_vector<uint8_t>& msg,
-      size_t output_bits, RandomNumberGenerator& rng)
+                                                 size_t output_bits,
+                                                 RandomNumberGenerator& rng)
    {
    return iso9796_encoding(msg, output_bits, m_hash, m_SALT_SIZE, m_implicit, rng);
    }
@@ -36362,7 +37260,7 @@ secure_vector<uint8_t> ISO_9796_DS2::encoding_of(const secure_vector<uint8_t>& m
 bool ISO_9796_DS2::verify(const secure_vector<uint8_t>& const_coded,
                           const secure_vector<uint8_t>& raw, size_t key_bits)
    {
-   return iso9796_verification(const_coded,raw,key_bits,m_hash,m_SALT_SIZE);
+   return iso9796_verification(const_coded, raw, key_bits, m_hash, m_SALT_SIZE);
    }
 
 /*
@@ -37324,20 +38222,15 @@ bool mlock_allocator::deallocate(void* p, size_t num_elems, size_t elem_size) no
 mlock_allocator::mlock_allocator()
    {
    const size_t mem_to_lock = OS::get_memory_locking_limit();
+   const size_t page_size = OS::system_page_size();
 
-   if(mem_to_lock)
+   if(mem_to_lock > 0 && mem_to_lock % page_size == 0)
       {
-      m_locked_pages = static_cast<uint8_t*>(OS::allocate_locked_pages(mem_to_lock));
+      m_locked_pages = OS::allocate_locked_pages(mem_to_lock / page_size);
 
-      if(m_locked_pages)
+      if(m_locked_pages.size() > 0)
          {
-         m_locked_pages_size = mem_to_lock;
-         m_pool.reset(new Memory_Pool(m_locked_pages,
-                                      m_locked_pages_size,
-                                      OS::system_page_size(),
-                                      BOTAN_MLOCK_ALLOCATOR_MIN_ALLOCATION,
-                                      BOTAN_MLOCK_ALLOCATOR_MAX_ALLOCATION,
-                                      4));
+         m_pool.reset(new Memory_Pool(m_locked_pages, page_size));
          }
       }
    }
@@ -37348,7 +38241,7 @@ mlock_allocator::~mlock_allocator()
       {
       m_pool.reset();
       // OS::free_locked_pages scrubs the memory before free
-      OS::free_locked_pages(m_locked_pages, m_locked_pages_size);
+      OS::free_locked_pages(m_locked_pages);
       }
    }
 
@@ -37537,37 +38430,43 @@ namespace {
 class binary_matrix final
    {
    public:
-      binary_matrix(uint32_t m_rown, uint32_t m_coln);
+      binary_matrix(size_t m_rown, size_t m_coln);
 
-      void row_xor(uint32_t a, uint32_t b);
+      void row_xor(size_t a, size_t b);
       secure_vector<int> row_reduced_echelon_form();
 
       /**
       * return the coefficient out of F_2
       */
-      uint32_t coef(uint32_t i, uint32_t j)
+      uint32_t coef(size_t i, size_t j)
          {
          return (m_elem[(i) * m_rwdcnt + (j) / 32] >> (j % 32)) & 1;
          }
 
-      void set_coef_to_one(uint32_t i, uint32_t j)
+      void set_coef_to_one(size_t i, size_t j)
          {
          m_elem[(i) * m_rwdcnt + (j) / 32] |= (static_cast<uint32_t>(1) << ((j) % 32)) ;
          }
 
-      void toggle_coeff(uint32_t i, uint32_t j)
+      void toggle_coeff(size_t i, size_t j)
          {
          m_elem[(i) * m_rwdcnt + (j) / 32] ^= (static_cast<uint32_t>(1) << ((j) % 32)) ;
          }
 
-      //private:
-      uint32_t m_rown;  // number of rows.
-      uint32_t m_coln; // number of columns.
-      uint32_t m_rwdcnt; // number of words in a row
+      size_t rows() const { return m_rown; }
+
+      size_t columns() const { return m_coln; }
+
+   private:
+      size_t m_rown;  // number of rows.
+      size_t m_coln; // number of columns.
+      size_t m_rwdcnt; // number of words in a row
+   public:
+      // TODO this should be private
       std::vector<uint32_t> m_elem;
    };
 
-binary_matrix::binary_matrix (uint32_t rown, uint32_t coln)
+binary_matrix::binary_matrix(size_t rown, size_t coln)
    {
    m_coln = coln;
    m_rown = rown;
@@ -37575,39 +38474,41 @@ binary_matrix::binary_matrix (uint32_t rown, uint32_t coln)
    m_elem = std::vector<uint32_t>(m_rown * m_rwdcnt);
    }
 
-void binary_matrix::row_xor(uint32_t a, uint32_t b)
+void binary_matrix::row_xor(size_t a, size_t b)
    {
-   uint32_t i;
-   for(i=0;i<m_rwdcnt;i++)
+   for(size_t i = 0; i != m_rwdcnt; i++)
       {
-      m_elem[a*m_rwdcnt+i]^=m_elem[b*m_rwdcnt+i];
+      m_elem[a*m_rwdcnt+i] ^= m_elem[b*m_rwdcnt+i];
       }
    }
 
 //the matrix is reduced from LSB...(from right)
 secure_vector<int> binary_matrix::row_reduced_echelon_form()
    {
-   uint32_t i, failcnt, findrow, max=m_coln - 1;
-
    secure_vector<int> perm(m_coln);
-   for(i=0;i<m_coln;i++)
+   for(size_t i = 0; i != m_coln; i++)
       {
-      perm[i]=i;//initialize permutation.
+      perm[i] = i;//initialize permutation.
       }
-   failcnt = 0;
 
-   for(i=0;i<m_rown;i++,max--)
+   uint32_t failcnt = 0;
+
+   uint32_t max = m_coln - 1;
+   for(size_t i = 0; i != m_rown; i++, max--)
       {
-      findrow=0;
-      for(uint32_t j=i;j<m_rown;j++)
+      uint32_t findrow = 0;
+      for(size_t j = i; j != m_rown; j++)
          {
-         if(coef(j,max))
+         if(coef(j, max))
             {
-            if (i!=j)//not needed as ith row is 0 and jth row is 1.
-               row_xor(i,j);//xor to the row.(swap)?
+            if(i != j) //not needed as ith row is 0 and jth row is 1.
+               {
+               row_xor(i ,j);//xor to the row.(swap)?
+               }
+
             findrow=1;
             break;
-            }//largest value found (end if)
+            } //largest value found (end if)
          }
 
       if(!findrow)//if no row with a 1 found then swap last column and the column with no 1 down.
@@ -37625,7 +38526,7 @@ secure_vector<int> binary_matrix::row_reduced_echelon_form()
       else
          {
          perm[i+m_coln - m_rown] = max;
-         for(uint32_t j=i+1;j<m_rown;j++)//fill the column downwards with 0's
+         for(size_t j=i+1;j<m_rown;j++)//fill the column downwards with 0's
             {
             if(coef(j,(max)))
                {
@@ -37647,7 +38548,7 @@ secure_vector<int> binary_matrix::row_reduced_echelon_form()
 
 void randomize_support(std::vector<gf2m>& L, RandomNumberGenerator& rng)
    {
-   for(uint32_t i = 0; i != L.size(); ++i)
+   for(size_t i = 0; i != L.size(); ++i)
       {
       gf2m rnd = random_gf2m(rng);
 
@@ -37664,21 +38565,20 @@ std::unique_ptr<binary_matrix> generate_R(std::vector<gf2m> &L, polyn_gf2m* g, s
    //m- The extension degree of the GF
    //g- The generator polynomial.
    gf2m x,y;
-   uint32_t i,j,k,r,n;
+   uint32_t r;
    std::vector<int> Laux(code_length);
-   n=code_length;
    r=t*sp_field->get_extension_degree();
 
-   binary_matrix H(r, n) ;
+   binary_matrix H(r, code_length);
 
-   for(i=0;i< n;i++)
+   for(size_t i = 0; i != code_length; i++)
       {
       x = g->eval(lex_to_gray(L[i]));//evaluate the polynomial at the point L[i].
       x = sp_field->gf_inv(x);
       y = x;
-      for(j=0;j<t;j++)
+      for(size_t j=0;j<t;j++)
          {
-         for(k=0;k<sp_field->get_extension_degree();k++)
+         for(size_t k=0;k<sp_field->get_extension_degree();k++)
             {
             if(y & (1<<k))
                {
@@ -37697,10 +38597,10 @@ std::unique_ptr<binary_matrix> generate_R(std::vector<gf2m> &L, polyn_gf2m* g, s
       throw Invalid_State("could not bring matrix in row reduced echelon form");
       }
 
-   std::unique_ptr<binary_matrix> result(new binary_matrix(n-r,r)) ;
-   for (i = 0; i < (*result).m_rown; ++i)
+   std::unique_ptr<binary_matrix> result(new binary_matrix(code_length-r, r)) ;
+   for(size_t i = 0; i < result->rows(); ++i)
       {
-      for (j = 0; j < (*result).m_coln; ++j)
+      for(size_t j = 0; j < result->columns(); ++j)
          {
          if (H.coef(j,perm[i]))
             {
@@ -37708,11 +38608,12 @@ std::unique_ptr<binary_matrix> generate_R(std::vector<gf2m> &L, polyn_gf2m* g, s
             }
          }
       }
-   for (i = 0; i < code_length; ++i)
+   for(size_t i = 0; i < code_length; ++i)
       {
       Laux[i] = L[perm[i]];
       }
-   for (i = 0; i < code_length; ++i)
+
+   for(size_t i = 0; i < code_length; ++i)
       {
       L[i] = static_cast<gf2m>(Laux[i]);
       }
@@ -37720,7 +38621,7 @@ std::unique_ptr<binary_matrix> generate_R(std::vector<gf2m> &L, polyn_gf2m* g, s
    }
 }
 
-McEliece_PrivateKey generate_mceliece_key( RandomNumberGenerator & rng, uint32_t ext_deg, uint32_t code_length, uint32_t t)
+McEliece_PrivateKey generate_mceliece_key(RandomNumberGenerator & rng, size_t ext_deg, size_t code_length, size_t t)
    {
    const size_t codimension = t * ext_deg;
 
@@ -37728,7 +38629,8 @@ McEliece_PrivateKey generate_mceliece_key( RandomNumberGenerator & rng, uint32_t
       {
       throw Invalid_Argument("invalid McEliece parameters");
       }
-   std::shared_ptr<GF2m_Field> sp_field ( new GF2m_Field(ext_deg ));
+
+   std::shared_ptr<GF2m_Field> sp_field(new GF2m_Field(ext_deg));
 
    //pick the support.........
    std::vector<gf2m> L(code_length);
@@ -37768,18 +38670,18 @@ McEliece_PrivateKey generate_mceliece_key( RandomNumberGenerator & rng, uint32_t
    // speed up the syndrome computation)
    //
    //
-   std::vector<uint32_t> H(bit_size_to_32bit_size(codimension) * code_length );
+   std::vector<uint32_t> H(bit_size_to_32bit_size(codimension) * code_length);
    uint32_t* sk = H.data();
    for(size_t i = 0; i < code_length; ++i)
       {
       for(size_t l = 0; l < t; ++l)
          {
-         const uint32_t k = (l * ext_deg) / 32;
-         const uint32_t j = (l * ext_deg) % 32;
+         const size_t k = (l * ext_deg) / 32;
+         const size_t j = (l * ext_deg) % 32;
          sk[k] ^= static_cast<uint32_t>(F[i].get_coef(l)) << j;
-         if (j + ext_deg > 32)
+         if(j + ext_deg > 32)
             {
-            sk[k + 1] ^= F[i].get_coef( l) >> (32 - j);
+            sk[k + 1] ^= F[i].get_coef(l) >> (32 - j);
             }
          }
       sk += bit_size_to_32bit_size(codimension);
@@ -37789,11 +38691,11 @@ McEliece_PrivateKey generate_mceliece_key( RandomNumberGenerator & rng, uint32_t
    // inverse is needed
 
    std::vector<gf2m> Linv(code_length) ;
-   for (size_t i = 0; i != Linv.size(); ++i)
+   for(size_t i = 0; i != Linv.size(); ++i)
       {
-      Linv[L[i]] = i;
+      Linv[L[i]] = static_cast<gf2m>(i);
       }
-   std::vector<uint8_t> pubmat (R->m_elem.size() * 4);
+   std::vector<uint8_t> pubmat(R->m_elem.size() * 4);
    for(size_t i = 0; i < R->m_elem.size(); i++)
       {
       store_le(R->m_elem[i], &pubmat[i*4]);
@@ -37820,15 +38722,13 @@ uint32_t patch_root_array(gf2m* res_root_arr,
                         uint32_t res_root_arr_len,
                         uint32_t root_pos)
    {
-   volatile uint32_t i;
    volatile gf2m patch_elem = 0x01;
    volatile gf2m cond_mask = (root_pos == res_root_arr_len);
    cond_mask = expand_mask_16bit(cond_mask);
    cond_mask = ~cond_mask; /* now cond = 1 if not enough roots */
    patch_elem &= cond_mask;
-   for(i = 0; i < res_root_arr_len; i++)
+   for(size_t i = 0; i < res_root_arr_len; i++)
       {
-
       gf2m masked_patch_elem = (patch_elem++) & cond_mask;
       res_root_arr[i] ^= masked_patch_elem++;
       }
@@ -38133,24 +39033,23 @@ namespace Botan {
 
 namespace {
 
-unsigned int prim_poly[MAX_EXT_DEG + 1] = {
-   01,		/* extension degree 0 (!) never used */
-   03,		/* extension degree 1 (!) never used */
-   07, 		/* extension degree 2 */
-   013, 		/* extension degree 3 */
-   023, 		/* extension degree 4 */
-   045, 		/* extension degree 5 */
-   0103, 		/* extension degree 6 */
-   0203, 		/* extension degree 7 */
-   0435, 		/* extension degree 8 */
-   01041, 		/* extension degree 9 */
-   02011,		/* extension degree 10 */
-   04005,		/* extension degree 11 */
-   010123,		/* extension degree 12 */
-   020033,		/* extension degree 13 */
-   042103,		/* extension degree 14 */
-   0100003,		/* extension degree 15 */
-   0210013		/* extension degree 16 */
+gf2m prim_poly[MAX_EXT_DEG + 1] = {
+   01,       /* extension degree 0 (!) never used */
+   03,       /* extension degree 1 (!) never used */
+   07,       /* extension degree 2 */
+   013,      /* extension degree 3 */
+   023,      /* extension degree 4 */
+   045,      /* extension degree 5 */
+   0103,     /* extension degree 6 */
+   0203,     /* extension degree 7 */
+   0435,     /* extension degree 8 */
+   01041,    /* extension degree 9 */
+   02011,    /* extension degree 10 */
+   04005,    /* extension degree 11 */
+   010123,   /* extension degree 12 */
+   020033,   /* extension degree 13 */
+   042103,   /* extension degree 14 */
+   0100003,  /* extension degree 15 */
 };
 
 std::vector<gf2m> gf_exp_table(size_t deg, gf2m prime_poly)
@@ -38187,9 +39086,9 @@ std::vector<gf2m> gf_log_table(size_t deg, const std::vector<gf2m>& exp)
    std::vector<gf2m> tab(1 << deg);
 
    tab[0] = (1 << deg) - 1; // log of 0 is the order by convention
-   for (size_t i = 0; i < tab.size(); ++i)
+   for(size_t i = 0; i < tab.size(); ++i)
       {
-      tab[exp[i]] = i;
+      tab[exp[i]] = static_cast<gf2m>(i);
       }
    return tab;
    }
@@ -38373,9 +39272,10 @@ secure_vector<gf2m> goppa_decode(const polyn_gf2m & syndrom_polyn,
 
       gf2m tmp;
       tmp = gray_to_lex(current);
+      /// XXX double assignment, possible bug?
       if(tmp >= code_length) /* invalid root */
          {
-         result[i] = i;
+         result[i] = static_cast<gf2m>(i);
          }
       result[i] = Linv[tmp];
       }
@@ -38455,7 +39355,7 @@ secure_vector<uint8_t> mceliece_decrypt(
    uint32_t syndrome_byte_vec_size = syndrome_byte_vec.size();
    for(uint32_t i = 0; i < syndrome_byte_vec_size; i++)
       {
-      syndrome_byte_vec[i] = syndrome_vec[i/4] >> (8* (i % 4));
+      syndrome_byte_vec[i] = static_cast<uint8_t>(syndrome_vec[i/4] >> (8* (i % 4)));
       }
 
    syndrome_polyn = polyn_gf2m(t-1, syndrome_byte_vec.data(), bit_size_to_byte_size(codimension), key.get_goppa_polyn().get_sp_field());
@@ -38844,25 +39744,26 @@ secure_vector<uint8_t> McEliece_PrivateKey::private_key_bits() const
       .encode(m_public_matrix, OCTET_STRING)
       .encode(m_g.encode(), OCTET_STRING); // g as octet string
    enc.start_cons(SEQUENCE);
-   for(uint32_t i = 0; i < m_sqrtmod.size(); i++)
+   for(size_t i = 0; i < m_sqrtmod.size(); i++)
       {
       enc.encode(m_sqrtmod[i].encode(), OCTET_STRING);
       }
    enc.end_cons();
    secure_vector<uint8_t> enc_support;
-   for(uint32_t i = 0; i < m_Linv.size(); i++)
+
+   for(uint16_t Linv : m_Linv)
       {
-      enc_support.push_back(m_Linv[i] >> 8);
-      enc_support.push_back(m_Linv[i]);
+      enc_support.push_back(get_byte(0, Linv));
+      enc_support.push_back(get_byte(1, Linv));
       }
    enc.encode(enc_support, OCTET_STRING);
    secure_vector<uint8_t> enc_H;
-   for(uint32_t i = 0; i < m_coeffs.size(); i++)
+   for(uint32_t coef : m_coeffs)
       {
-      enc_H.push_back(m_coeffs[i] >> 24);
-      enc_H.push_back(m_coeffs[i] >> 16);
-      enc_H.push_back(m_coeffs[i] >> 8);
-      enc_H.push_back(m_coeffs[i]);
+      enc_H.push_back(get_byte(0, coef));
+      enc_H.push_back(get_byte(1, coef));
+      enc_H.push_back(get_byte(2, coef));
+      enc_H.push_back(get_byte(3, coef));
       }
    enc.encode(enc_H, OCTET_STRING);
    enc.end_cons();
@@ -39184,13 +40085,13 @@ gf2m random_code_element(unsigned code_length, RandomNumberGenerator& rng)
 polyn_gf2m::polyn_gf2m(polyn_gf2m const& other)
    :m_deg(other.m_deg),
     coeff(other.coeff),
-    msp_field(other.msp_field)
+    m_sp_field(other.m_sp_field)
    { }
 
 polyn_gf2m::polyn_gf2m(   int d, std::shared_ptr<GF2m_Field> sp_field)
    :m_deg(-1),
     coeff(d+1),
-    msp_field(sp_field)
+    m_sp_field(sp_field)
    {
    }
 
@@ -39216,8 +40117,8 @@ void polyn_gf2m::realloc(uint32_t new_size)
    this->coeff = secure_vector<gf2m>(new_size);
    }
 
-polyn_gf2m::polyn_gf2m(const uint8_t* mem, uint32_t mem_len, std::shared_ptr<GF2m_Field> sp_field)
-   :msp_field(sp_field)
+polyn_gf2m::polyn_gf2m(const uint8_t* mem, uint32_t mem_len, std::shared_ptr<GF2m_Field> sp_field) :
+   m_deg(-1), m_sp_field(sp_field)
    {
    if(mem_len % sizeof(gf2m))
       {
@@ -39243,14 +40144,12 @@ polyn_gf2m::polyn_gf2m(const uint8_t* mem, uint32_t mem_len, std::shared_ptr<GF2
    }
 
 
-polyn_gf2m::polyn_gf2m( std::shared_ptr<GF2m_Field> sp_field )
-   : m_deg(-1),
-     coeff(1),
-     msp_field(sp_field)
+polyn_gf2m::polyn_gf2m( std::shared_ptr<GF2m_Field> sp_field) :
+   m_deg(-1), coeff(1), m_sp_field(sp_field)
    {}
 
 polyn_gf2m::polyn_gf2m(int degree, const unsigned  char* mem, uint32_t mem_byte_len, std::shared_ptr<GF2m_Field> sp_field)
-   :msp_field(sp_field)
+   :m_sp_field(sp_field)
    {
    uint32_t j, k, l;
    gf2m a;
@@ -39261,7 +40160,7 @@ polyn_gf2m::polyn_gf2m(int degree, const unsigned  char* mem, uint32_t mem_byte_
       throw Botan::Decoding_Error("memory vector for polynomial has wrong size");
       }
    this->coeff = secure_vector<gf2m>(degree+1);
-   gf2m ext_deg = this->msp_field->get_extension_degree();
+   gf2m ext_deg = this->m_sp_field->get_extension_degree();
    for (l = 0; l < polyn_size; l++)
       {
       k = (l * ext_deg) / 8;
@@ -39348,7 +40247,7 @@ static gf2m eval_aux(const gf2m * /*restrict*/ coeff, gf2m a, int d, std::shared
 
 gf2m polyn_gf2m::eval(gf2m a)
    {
-   return eval_aux(&this->coeff[0], a, this->m_deg, this->msp_field);
+   return eval_aux(&this->coeff[0], a, this->m_deg, this->m_sp_field);
    }
 
 
@@ -39356,10 +40255,10 @@ gf2m polyn_gf2m::eval(gf2m a)
 void polyn_gf2m::remainder(polyn_gf2m &p, const polyn_gf2m & g)
    {
    int i, j, d;
-   std::shared_ptr<GF2m_Field> msp_field = g.msp_field;
+   std::shared_ptr<GF2m_Field> m_sp_field = g.m_sp_field;
    d = p.get_degree() - g.get_degree();
    if (d >= 0) {
-   gf2m la = msp_field->gf_inv_rn(g.get_lead_coef());
+   gf2m la = m_sp_field->gf_inv_rn(g.get_lead_coef());
 
    const int p_degree = p.get_degree();
 
@@ -39367,10 +40266,10 @@ void polyn_gf2m::remainder(polyn_gf2m &p, const polyn_gf2m & g)
 
    for (i = p_degree; d >= 0; --i, --d) {
    if (p[i] != 0) {
-   gf2m lb = msp_field->gf_mul_rrn(la, p[i]);
+   gf2m lb = m_sp_field->gf_mul_rrn(la, p[i]);
    for (j = 0; j < g.get_degree(); ++j)
       {
-      p[j+d] ^= msp_field->gf_mul_zrz(lb, g[j]);
+      p[j+d] ^= m_sp_field->gf_mul_zrz(lb, g[j]);
       }
    (*&p).set_coef( i, 0);
    }
@@ -39419,7 +40318,7 @@ polyn_gf2m polyn_gf2m::sqmod( const std::vector<polyn_gf2m> & sq, int d)
    {
    int i, j;
    gf2m la;
-   std::shared_ptr<GF2m_Field> sp_field = this->msp_field;
+   std::shared_ptr<GF2m_Field> sp_field = this->m_sp_field;
 
    polyn_gf2m result(d - 1, sp_field);
    // terms of low degree
@@ -39484,29 +40383,29 @@ polyn_gf2m polyn_gf2m::gcd(polyn_gf2m const& p1, polyn_gf2m const& p2)
 // Returns the degree of the smallest factor
 void polyn_gf2m::degppf(const polyn_gf2m & g, int* p_result)
    {
-   int i, d;
    polyn_gf2m s(g.get_sp_field());
 
-   d = g.get_degree();
+   const size_t ext_deg = g.m_sp_field->get_extension_degree();
+   const int d = g.get_degree();
    std::vector<polyn_gf2m> u = polyn_gf2m::sqmod_init(g);
 
-   polyn_gf2m p( d - 1, g.msp_field);
+   polyn_gf2m p(d - 1, g.m_sp_field);
 
-   p.set_degree( 1);
-   (*&p).set_coef( 1, 1);
+   p.set_degree(1);
+   (*&p).set_coef(1, 1);
    (*p_result) = d;
-   for (i = 1; i <= (d / 2) * g.msp_field->get_extension_degree(); ++i)
+   for(size_t i = 1; i <= (d / 2) * ext_deg; ++i)
       {
       polyn_gf2m r = p.sqmod(u, d);
-      if ((i % g.msp_field->get_extension_degree()) == 0)
+      if ((i % ext_deg) == 0)
          {
          r[1] ^= 1;
          r.get_degree(); // The degree may change
          s = polyn_gf2m::gcd( g, r);
 
-         if (s.get_degree() > 0)
+         if(s.get_degree() > 0)
             {
-            (*p_result) = i / g.msp_field->get_extension_degree();
+            (*p_result) = i / ext_deg;
             break;
             }
          r[1] ^= 1;
@@ -39543,7 +40442,7 @@ void polyn_gf2m::patchup_deg_secure( uint32_t trgt_deg, volatile gf2m patch_elem
 std::pair<polyn_gf2m, polyn_gf2m> polyn_gf2m::eea_with_coefficients( const polyn_gf2m & p, const polyn_gf2m & g, int break_deg)
    {
 
-   std::shared_ptr<GF2m_Field> msp_field = g.msp_field;
+   std::shared_ptr<GF2m_Field> m_sp_field = g.m_sp_field;
    int i, j, dr, du, delta;
    gf2m a;
    polyn_gf2m aux;
@@ -39554,10 +40453,10 @@ std::pair<polyn_gf2m, polyn_gf2m> polyn_gf2m::eea_with_coefficients( const polyn
 
    BOTAN_ASSERT(dr > 3, "Valid polynomial");
 
-   polyn_gf2m r0(dr, g.msp_field);
-   polyn_gf2m r1(dr - 1, g.msp_field);
-   polyn_gf2m u0(dr - 1, g.msp_field);
-   polyn_gf2m u1(dr - 1, g.msp_field);
+   polyn_gf2m r0(dr, g.m_sp_field);
+   polyn_gf2m r1(dr - 1, g.m_sp_field);
+   polyn_gf2m u0(dr - 1, g.m_sp_field);
+   polyn_gf2m u1(dr - 1, g.m_sp_field);
 
    r0 = g;
    r1 = p;
@@ -39583,19 +40482,19 @@ std::pair<polyn_gf2m, polyn_gf2m> polyn_gf2m::eea_with_coefficients( const polyn
 
       for (j = delta; j >= 0; --j)
          {
-         a = msp_field->gf_div(r0[dr + j], r1[dr]);
+         a = m_sp_field->gf_div(r0[dr + j], r1[dr]);
          if (a != 0)
             {
-            gf2m la = msp_field->gf_log(a);
+            gf2m la = m_sp_field->gf_log(a);
             // u0(z) <- u0(z) + a * u1(z) * z^j
             for (i = 0; i <= du; ++i)
                {
-               u0[i + j] ^= msp_field->gf_mul_zrz(la, u1[i]);
+               u0[i + j] ^= m_sp_field->gf_mul_zrz(la, u1[i]);
                }
             // r0(z) <- r0(z) + a * r1(z) * z^j
             for (i = 0; i <= dr; ++i)
                {
-               r0[i + j] ^= msp_field->gf_mul_zrz(la, r1[i]);
+               r0[i + j] ^= m_sp_field->gf_mul_zrz(la, r1[i]);
                }
             }
          } // end loop over j
@@ -39666,7 +40565,7 @@ std::pair<polyn_gf2m, polyn_gf2m> polyn_gf2m::eea_with_coefficients( const polyn
             */
             // Condition for the coefficient to Y to be cancelled out by the
             // addition of Y before the square root computation:
-            int cond_u1 = msp_field->gf_mul(u0.coeff[1], msp_field->gf_inv(r0.coeff[0])) == 1;
+            int cond_u1 = m_sp_field->gf_mul(u0.coeff[1], m_sp_field->gf_inv(r0.coeff[0])) == 1;
 
             // Condition sigma_3 = 0:
             int cond_u3 = u0.coeff[3] == 0;
@@ -39681,7 +40580,7 @@ std::pair<polyn_gf2m, polyn_gf2m> polyn_gf2m::eea_with_coefficients( const polyn
             {
             uint32_t mask = 0;
             int cond_r= r0.get_degree() == 0;
-            int cond_u1 = msp_field->gf_mul(u0.coeff[1], msp_field->gf_inv(r0.coeff[0])) == 1;
+            int cond_u1 = m_sp_field->gf_mul(u0.coeff[1], m_sp_field->gf_inv(r0.coeff[0])) == 1;
             int cond_u3 = u0.coeff[3] == 0;
 
             int cond_u5 = u0.coeff[5] == 0;
@@ -39695,7 +40594,7 @@ std::pair<polyn_gf2m, polyn_gf2m> polyn_gf2m::eea_with_coefficients( const polyn
             {
             uint32_t mask = 0;
             int cond_r= r0.get_degree() == 0;
-            int cond_u1 = msp_field->gf_mul(u0[1], msp_field->gf_inv(r0[0])) == 1;
+            int cond_u1 = m_sp_field->gf_mul(u0[1], m_sp_field->gf_inv(r0[0])) == 1;
             int cond_u3 = u0.coeff[3] == 0;
 
             int cond_u5 = u0.coeff[5] == 0;
@@ -39734,7 +40633,7 @@ std::pair<polyn_gf2m, polyn_gf2m> polyn_gf2m::eea_with_coefficients( const polyn
 polyn_gf2m::polyn_gf2m(int t, Botan::RandomNumberGenerator& rng, std::shared_ptr<GF2m_Field> sp_field)
    :m_deg(t),
     coeff(t+1),
-    msp_field(sp_field)
+    m_sp_field(sp_field)
    {
    (*this).set_coef( t, 1);
    int degree = 0;
@@ -39756,13 +40655,13 @@ void polyn_gf2m::poly_shiftmod( const polyn_gf2m & g)
       {
       throw Invalid_Argument("shiftmod cannot be called on polynomials of degree 1 or less");
       }
-   std::shared_ptr<GF2m_Field> field = g.msp_field;
+   std::shared_ptr<GF2m_Field> field = g.m_sp_field;
 
    int t = g.get_degree();
    gf2m a = field->gf_div(this->coeff[t-1], g.coeff[t]);
    for (int i = t - 1; i > 0; --i)
       {
-      this->coeff[i] = this->coeff[i - 1] ^ this->msp_field->gf_mul(a, g.coeff[i]);
+      this->coeff[i] = this->coeff[i - 1] ^ this->m_sp_field->gf_mul(a, g.coeff[i]);
       }
    this->coeff[0] = field->gf_mul(a, g.coeff[0]);
    }
@@ -39771,7 +40670,7 @@ std::vector<polyn_gf2m> polyn_gf2m::sqrt_mod_init(const polyn_gf2m & g)
    {
    uint32_t i, t;
    uint32_t nb_polyn_sqrt_mat;
-   std::shared_ptr<GF2m_Field> msp_field = g.msp_field;
+   std::shared_ptr<GF2m_Field> m_sp_field = g.m_sp_field;
    std::vector<polyn_gf2m> result;
    t = g.get_degree();
    nb_polyn_sqrt_mat = t/2;
@@ -39784,7 +40683,7 @@ std::vector<polyn_gf2m> polyn_gf2m::sqrt_mod_init(const polyn_gf2m & g)
 
    (*&p).set_coef( 1, 1);
    // q(z) = 0, p(z) = z
-   for (i = 0; i < t * msp_field->get_extension_degree() - 1; ++i)
+   for (i = 0; i < t * m_sp_field->get_extension_degree() - 1; ++i)
       {
       // q(z) <- p(z)^2 mod g(z)
       polyn_gf2m q = p.sqmod(sq_aux, t);
@@ -39818,7 +40717,7 @@ std::vector<polyn_gf2m> syndrome_init(polyn_gf2m const& generator, std::vector<g
    gf2m a;
 
 
-   std::shared_ptr<GF2m_Field> msp_field = generator.msp_field;
+   std::shared_ptr<GF2m_Field> m_sp_field = generator.m_sp_field;
 
    std::vector<polyn_gf2m> result;
    t = generator.get_degree();
@@ -39828,25 +40727,25 @@ std::vector<polyn_gf2m> syndrome_init(polyn_gf2m const& generator, std::vector<g
 
    for(j=0;j<n;j++)
       {
-      result.push_back(polyn_gf2m( t-1, msp_field));
+      result.push_back(polyn_gf2m( t-1, m_sp_field));
 
       (*&result[j]).set_coef(t-1,1);
       for(i=t-2;i>=0;i--)
          {
          (*&result[j]).set_coef(i, (generator)[i+1]  ^
-                                msp_field->gf_mul(lex_to_gray(support[j]),result[j][i+1]));
+                                m_sp_field->gf_mul(lex_to_gray(support[j]),result[j][i+1]));
          }
-      a = ((generator)[0] ^ msp_field->gf_mul(lex_to_gray(support[j]),result[j][0]));
+      a = ((generator)[0] ^ m_sp_field->gf_mul(lex_to_gray(support[j]),result[j][0]));
       for(i=0;i<t;i++)
          {
-         (*&result[j]).set_coef(i, msp_field->gf_div(result[j][i],a));
+         (*&result[j]).set_coef(i, m_sp_field->gf_div(result[j][i],a));
          }
       }
    return result;
    }
 
 polyn_gf2m::polyn_gf2m(const secure_vector<uint8_t>& encoded, std::shared_ptr<GF2m_Field> sp_field )
-   :msp_field(sp_field)
+   :m_sp_field(sp_field)
    {
    if(encoded.size() % 2)
       {
@@ -39875,8 +40774,8 @@ secure_vector<uint8_t> polyn_gf2m::encode() const
    for(unsigned i = 0; i < len; i++)
       {
       // "big endian" encoding of the GF(2^m) elements
-      result.push_back(coeff[i] >> 8);
-      result.push_back(coeff[i]);
+      result.push_back(get_byte(0, coeff[i]));
+      result.push_back(get_byte(1, coeff[i]));
       }
    return result;
    }
@@ -39884,7 +40783,7 @@ secure_vector<uint8_t> polyn_gf2m::encode() const
 void polyn_gf2m::swap(polyn_gf2m& other)
    {
    std::swap(this->m_deg, other.m_deg);
-   std::swap(this->msp_field, other.msp_field);
+   std::swap(this->m_sp_field, other.m_sp_field);
    std::swap(this->coeff, other.coeff);
    }
 
@@ -39918,6 +40817,7 @@ secure_vector<uint8_t> aead_key(const secure_vector<uint8_t>& mk,
       return mk;
 
    secure_vector<uint8_t> r(aead.key_spec().maximum_keylength());
+   BOTAN_ASSERT_NOMSG(r.size() > 0);
    for(size_t i = 0; i != mk.size(); ++i)
       r[i % r.size()] ^= mk[i];
    return r;
@@ -39991,7 +40891,7 @@ mceies_decrypt(const McEliece_PrivateKey& privkey,
       aead->finish(pt, 0);
       return pt;
       }
-   catch(Integrity_Failure&)
+   catch(Invalid_Authentication_Tag&)
       {
       throw;
       }
@@ -40398,15 +41298,115 @@ void MDx_HashFunction::write_count(uint8_t out[])
 
 }
 /*
-* (C) 2018 Jack Lloyd
+* (C) 2018,2019 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
 
+#if defined(BOTAN_MEM_POOL_USE_MMU_PROTECTIONS)
+#endif
+
 namespace Botan {
 
+/*
+* Memory pool theory of operation
+*
+* This allocator is not useful for general purpose but works well within the
+* context of allocating cryptographic keys. It makes several assumptions which
+* don't work for implementing malloc but simplify and speed up the implementation:
+*
+* - There is some set of pages, which cannot be expanded later. These are pages
+*   which were allocated, mlocked and passed to the Memory_Pool constructor.
+*
+* - The allocator is allowed to return null anytime it feels like not servicing
+*   a request, in which case the request will be sent to calloc instead. In
+*   particular, requests which are too small or too large are rejected.
+*
+* - Most allocations are powers of 2, the remainder are usually a multiple of 8
+*
+* - Free requests include the size of the allocation, so there is no need to
+*   track this within the pool.
+*
+* - Alignment is important to the caller. For this allocator, any allocation of
+*   size N is aligned evenly at N bytes.
+*
+* Initially each page is in the free page list. Each page is used for just one
+* size of allocation, with requests bucketed into a small number of common
+* sizes. If the allocation would be too big or too small it is rejected by the pool.
+*
+* The free list is maintained by a bitmap, one per page/Bucket. Since each
+* Bucket only maintains objects of a single size, each bit set or clear
+* indicates the status of one object.
+*
+* An allocation walks the list of buckets and asks each in turn if there is
+* space. If a Bucket does not have any space, it sets a boolean flag m_is_full
+* so that it does not need to rescan when asked again. The flag is cleared on
+* first free from that bucket. If no bucket has space, but there are some free
+* pages left, a free page is claimed as a new Bucket for that size. In this case
+* it is pushed to the front of the list so it is first in line to service new
+* requests.
+*
+* A deallocation also walks the list of buckets for the size and asks each
+* Bucket in turn if it recognizes the pointer. When a Bucket becomes empty as a
+* result of a deallocation, it is recycled back into the free pool. When this
+* happens, the Buckets page goes to the end of the free list. All pages on the
+* free list are marked in the MMU as noaccess, so anything touching them will
+* immediately crash. They are only marked R/W once placed into a new bucket.
+* Making the free list FIFO maximizes the time between the last free of a bucket
+* and that page being writable again, maximizing chances of crashing after a
+* use-after-free.
+*
+* Future work
+* -------------
+*
+* The allocator is protected by a global lock. It would be good to break this
+* up, since almost all of the work can actually be done in parallel especially
+* when allocating objects of different sizes (which can't possibly share a
+* bucket).
+*
+* It may be worthwhile to optimize deallocation by storing the Buckets in order
+* (by pointer value) which would allow binary search to find the owning bucket.
+*
+* A useful addition would be to randomize the allocations. Memory_Pool would be
+* changed to receive also a RandomNumberGenerator& object (presumably the system
+* RNG, or maybe a ChaCha_RNG seeded with system RNG). Then the bucket to use and
+* the offset within the bucket would be chosen randomly, instead of using first fit.
+*
+* Right now we don't make any provision for threading, so if two threads both
+* allocate 32 byte values one after the other, the two allocations will likely
+* share a cache line. Ensuring that distinct threads will (tend to) use distinct
+* buckets would reduce this.
+*
+* Supporting a realloc-style API may be useful.
+*/
+
 namespace {
+
+size_t choose_bucket(size_t n)
+   {
+   const size_t MINIMUM_ALLOCATION = 16;
+   const size_t MAXIMUM_ALLOCATION = 256;
+
+   if(n < MINIMUM_ALLOCATION || n > MAXIMUM_ALLOCATION)
+      return 0;
+
+   // Need to tune these
+
+   const size_t buckets[] = {
+      16, 24, 32, 48, 64, 80, 96, 112, 128, 160, 192, 256, 0,
+   };
+
+   for(size_t i = 0; buckets[i]; ++i)
+      {
+      if(n <= buckets[i])
+         {
+         return buckets[i];
+         }
+      }
+
+   return 0;
+   }
 
 inline bool ptr_in_pool(const void* pool_ptr, size_t poolsize,
                         const void* buf_ptr, size_t bufsize)
@@ -40416,168 +41416,315 @@ inline bool ptr_in_pool(const void* pool_ptr, size_t poolsize,
    return (buf >= pool) && (buf + bufsize <= pool + poolsize);
    }
 
-inline size_t padding_for_alignment(size_t n, size_t alignment)
+// return index of first set bit
+template<typename T>
+size_t find_set_bit(T b)
    {
-   const size_t mod = n % alignment;
-   if(mod == 0)
-      return 0;
-   return alignment - mod;
+   size_t s = 8*sizeof(T) / 2;
+   size_t bit = 0;
+
+   // In this context we don't need to be const-time
+   while(s > 0)
+      {
+      const T mask = (static_cast<T>(1) << s) - 1;
+      if((b & mask) == 0)
+         {
+         bit += s;
+         b >>= s;
+         }
+      s /= 2;
+      }
+
+   return bit;
+   }
+
+class BitMap final
+   {
+   public:
+      BitMap(size_t bits) : m_len(bits)
+         {
+         m_bits.resize((bits + BITMASK_BITS - 1) / BITMASK_BITS);
+         m_main_mask = static_cast<bitmask_type>(0) - 1; // all bits set
+         m_last_mask = m_main_mask;
+
+         if(bits % BITMASK_BITS != 0)
+            m_last_mask = (static_cast<bitmask_type>(1) << (bits % BITMASK_BITS)) - 1;
+         }
+
+      bool find_free(size_t* bit);
+
+      void free(size_t bit)
+         {
+         BOTAN_ASSERT_NOMSG(bit <= m_len);
+         const size_t w = bit / BITMASK_BITS;
+         BOTAN_ASSERT_NOMSG(w < m_bits.size());
+         const bitmask_type mask = static_cast<bitmask_type>(1) << (bit % BITMASK_BITS);
+         m_bits[w] = m_bits[w] & (~mask);
+         }
+
+      bool empty() const
+         {
+         for(size_t i = 0; i != m_bits.size(); ++i)
+            {
+            if(m_bits[i] != 0)
+               {
+               return false;
+               }
+            }
+
+         return true;
+         }
+
+  private:
+#if defined(BOTAN_ENABLE_DEBUG_ASSERTS)
+      typedef uint8_t bitmask_type;
+      enum { BITMASK_BITS = 8 };
+#else
+      typedef word bitmask_type;
+      enum { BITMASK_BITS = BOTAN_MP_WORD_BITS };
+#endif
+
+      size_t m_len;
+      bitmask_type m_main_mask;
+      bitmask_type m_last_mask;
+      std::vector<bitmask_type> m_bits;
+   };
+
+bool BitMap::find_free(size_t* bit)
+   {
+   for(size_t i = 0; i != m_bits.size(); ++i)
+      {
+      const bitmask_type mask = (i == m_bits.size() - 1) ? m_last_mask : m_main_mask;
+      if((m_bits[i] & mask) != mask)
+         {
+         size_t free_bit = find_set_bit(~m_bits[i]);
+         const bitmask_type bmask = static_cast<bitmask_type>(1) << (free_bit % BITMASK_BITS);
+         BOTAN_ASSERT_NOMSG((m_bits[i] & bmask) == 0);
+         m_bits[i] |= bmask;
+         *bit = BITMASK_BITS*i + free_bit;
+         return true;
+         }
+      }
+
+   return false;
    }
 
 }
 
-Memory_Pool::Memory_Pool(uint8_t* pool,
-                         size_t pool_size,
-                         size_t page_size,
-                         size_t min_alloc,
-                         size_t max_alloc,
-                         uint8_t align_bit) :
-   m_page_size(page_size),
-   m_min_alloc(min_alloc),
-   m_max_alloc(max_alloc),
-   m_align_bit(align_bit)
+class Bucket final
    {
-   if(pool == nullptr)
-      throw Invalid_Argument("Memory_Pool pool was null");
+   public:
+      Bucket(uint8_t* mem, size_t mem_size, size_t item_size) :
+         m_item_size(item_size),
+         m_page_size(mem_size),
+         m_range(mem),
+         m_bitmap(mem_size / item_size),
+         m_is_full(false)
+         {
+         }
 
-   if(m_min_alloc > m_max_alloc)
-      throw Invalid_Argument("Memory_Pool min_alloc > max_alloc");
+      uint8_t* alloc()
+         {
+         if(m_is_full)
+            {
+            // I know I am full
+            return nullptr;
+            }
 
-   if(m_align_bit > 6)
-      throw Invalid_Argument("Memory_Pool invalid align_bit");
+         size_t offset;
+         if(!m_bitmap.find_free(&offset))
+            {
+            // I just found out I am full
+            m_is_full = true;
+            return nullptr;
+            }
 
-   // This is basically just to verify that the range is valid
-   clear_mem(pool, pool_size);
+         BOTAN_ASSERT(offset * m_item_size < m_page_size, "Offset is in range");
+         return m_range + m_item_size*offset;
+         }
 
-   m_pool = pool;
-   m_pool_size = pool_size;
-   m_freelist.push_back(std::make_pair(0, m_pool_size));
+      bool free(void* p)
+         {
+         if(!in_this_bucket(p))
+            return false;
+
+         /*
+         Zero also any trailing bytes, which should not have been written to,
+         but maybe the user was bad and wrote past the end.
+         */
+         std::memset(p, 0, m_item_size);
+
+         const size_t offset = (reinterpret_cast<uintptr_t>(p) - reinterpret_cast<uintptr_t>(m_range)) / m_item_size;
+
+         m_bitmap.free(offset);
+         m_is_full = false;
+
+         return true;
+         }
+
+      bool in_this_bucket(void* p) const
+         {
+         return ptr_in_pool(m_range, m_page_size, p, m_item_size);
+         }
+
+      bool empty() const
+         {
+         return m_bitmap.empty();
+         }
+
+      uint8_t* ptr() const
+         {
+         return m_range;
+         }
+
+   private:
+      size_t m_item_size;
+      size_t m_page_size;
+      uint8_t* m_range;
+      BitMap m_bitmap;
+      bool m_is_full;
+   };
+
+Memory_Pool::Memory_Pool(const std::vector<void*>& pages, size_t page_size) :
+   m_page_size(page_size)
+   {
+   m_min_page_ptr = ~static_cast<uintptr_t>(0);
+   m_max_page_ptr = 0;
+
+   for(size_t i = 0; i != pages.size(); ++i)
+      {
+      const uintptr_t p = reinterpret_cast<uintptr_t>(pages[i]);
+
+      m_min_page_ptr = std::min(p, m_min_page_ptr);
+      m_max_page_ptr = std::max(p, m_max_page_ptr);
+
+      clear_bytes(pages[i], m_page_size);
+#if defined(BOTAN_MEM_POOL_USE_MMU_PROTECTIONS)
+      OS::page_prohibit_access(pages[i]);
+#endif
+      m_free_pages.push_back(static_cast<uint8_t*>(pages[i]));
+      }
+
+   /*
+   Right now this points to the start of the last page, adjust it to instead
+   point to the first byte of the following page
+   */
+   m_max_page_ptr += page_size;
    }
 
-void* Memory_Pool::allocate(size_t req)
+Memory_Pool::~Memory_Pool()
    {
-   const size_t alignment = (static_cast<size_t>(1) << m_align_bit);
-
-   if(req > m_pool_size)
-      return nullptr;
-   if(req < m_min_alloc || req > m_max_alloc)
-      return nullptr;
-
-   lock_guard_type<mutex_type> lock(m_mutex);
-
-   auto best_fit = m_freelist.end();
-
-   for(auto i = m_freelist.begin(); i != m_freelist.end(); ++i)
+#if defined(BOTAN_MEM_POOL_USE_MMU_PROTECTIONS)
+   for(size_t i = 0; i != m_free_pages.size(); ++i)
       {
-      // If we have a perfect fit, use it immediately
-      if(i->second == req && (i->first % alignment) == 0)
+      OS::page_allow_access(m_free_pages[i]);
+      }
+#endif
+   }
+
+void* Memory_Pool::allocate(size_t n)
+   {
+   if(n > m_page_size)
+      return nullptr;
+
+   const size_t n_bucket = choose_bucket(n);
+
+   if(n_bucket > 0)
+      {
+      lock_guard_type<mutex_type> lock(m_mutex);
+
+      std::deque<Bucket>& buckets = m_buckets_for[n_bucket];
+
+      /*
+      It would be optimal to pick the bucket with the most usage,
+      since a bucket with say 1 item allocated out of it has a high
+      chance of becoming later freed and then the whole page can be
+      recycled.
+      */
+      for(auto& bucket : buckets)
          {
-         const size_t offset = i->first;
-         m_freelist.erase(i);
-         clear_mem(m_pool + offset, req);
+         if(uint8_t* p = bucket.alloc())
+            return p;
 
-         BOTAN_ASSERT((reinterpret_cast<uintptr_t>(m_pool) + offset) % alignment == 0,
-                      "Returning correctly aligned pointer");
-
-         return m_pool + offset;
+         // If the bucket is full, maybe move it to the end of the list?
+         // Otoh bucket search should be very fast
          }
 
-
-      if(((best_fit == m_freelist.end()) || (best_fit->second > i->second)) &&
-         (i->second >= (req + padding_for_alignment(i->first, alignment))))
+      if(m_free_pages.size() > 0)
          {
-         best_fit = i;
+         uint8_t* ptr = m_free_pages[0];
+         m_free_pages.pop_front();
+#if defined(BOTAN_MEM_POOL_USE_MMU_PROTECTIONS)
+         OS::page_allow_access(ptr);
+#endif
+         buckets.push_front(Bucket(ptr, m_page_size, n_bucket));
+         void* p = buckets[0].alloc();
+         BOTAN_ASSERT_NOMSG(p != nullptr);
+         return p;
          }
       }
 
-   if(best_fit != m_freelist.end())
-      {
-      const size_t offset = best_fit->first;
-
-      const size_t alignment_padding = padding_for_alignment(offset, alignment);
-
-      best_fit->first += req + alignment_padding;
-      best_fit->second -= req + alignment_padding;
-
-      // Need to realign, split the block
-      if(alignment_padding)
-         {
-         /*
-         If we used the entire block except for small piece used for
-         alignment at the beginning, so just update the entry already
-         in place (as it is in the correct location), rather than
-         deleting the empty range and inserting the new one in the
-         same location.
-         */
-         if(best_fit->second == 0)
-            {
-            best_fit->first = offset;
-            best_fit->second = alignment_padding;
-            }
-         else
-            m_freelist.insert(best_fit, std::make_pair(offset, alignment_padding));
-         }
-
-      clear_mem(m_pool + offset + alignment_padding, req);
-
-      BOTAN_ASSERT((reinterpret_cast<uintptr_t>(m_pool) + offset + alignment_padding) % alignment == 0,
-                   "Returning correctly aligned pointer");
-
-      return m_pool + offset + alignment_padding;
-      }
-
+   // out of room
    return nullptr;
    }
 
-bool Memory_Pool::deallocate(void* p, size_t n) noexcept
+bool Memory_Pool::deallocate(void* p, size_t len) noexcept
    {
-   if(!ptr_in_pool(m_pool, m_pool_size, p, n))
+   // Do a fast range check first, before taking the lock
+   const uintptr_t p_val = reinterpret_cast<uintptr_t>(p);
+   if(p_val < m_min_page_ptr || p_val > m_max_page_ptr)
       return false;
 
-   std::memset(p, 0, n);
+   const size_t n_bucket = choose_bucket(len);
 
-   lock_guard_type<mutex_type> lock(m_mutex);
-
-   const size_t start = static_cast<uint8_t*>(p) - m_pool;
-
-   auto comp = [](std::pair<size_t, size_t> x, std::pair<size_t, size_t> y){ return x.first < y.first; };
-
-   auto i = std::lower_bound(m_freelist.begin(), m_freelist.end(),
-                             std::make_pair(start, 0), comp);
-
-   // try to merge with later block
-   if(i != m_freelist.end() && start + n == i->first)
+   if(n_bucket != 0)
       {
-      i->first = start;
-      i->second += n;
-      n = 0;
-      }
-
-   // try to merge with previous block
-   if(i != m_freelist.begin())
-      {
-      auto prev = std::prev(i);
-
-      if(prev->first + prev->second == start)
+      try
          {
-         if(n)
+         lock_guard_type<mutex_type> lock(m_mutex);
+
+         std::deque<Bucket>& buckets = m_buckets_for[n_bucket];
+
+         for(size_t i = 0; i != buckets.size(); ++i)
             {
-            prev->second += n;
-            n = 0;
+            Bucket& bucket = buckets[i];
+            if(bucket.free(p))
+               {
+               if(bucket.empty())
+                  {
+#if defined(BOTAN_MEM_POOL_USE_MMU_PROTECTIONS)
+                  OS::page_prohibit_access(bucket.ptr());
+#endif
+                  m_free_pages.push_back(bucket.ptr());
+
+                  if(i != buckets.size() - 1)
+                     std::swap(buckets.back(), buckets[i]);
+                  buckets.pop_back();
+                  }
+               return true;
+               }
             }
-         else
-            {
-            // merge adjoining
-            prev->second += i->second;
-            m_freelist.erase(i);
-            }
+         }
+      catch(...)
+         {
+         /*
+         * The only exception throws that can occur in the above code are from
+         * either the STL or BOTAN_ASSERT failures. In either case, such an
+         * error indicates a logic error or data corruption in the memory
+         * allocator such that it is no longer safe to continue executing.
+         *
+         * Since this function is noexcept, simply letting the exception escape
+         * is sufficient for terminate to be called. However in this scenario
+         * it is implementation defined if any stack unwinding is performed.
+         * Since stack unwinding could cause further memory deallocations this
+         * could result in further corruption in this allocator state. To prevent
+         * this, call terminate directly.
+         */
+         std::terminate();
          }
       }
 
-   if(n != 0) // no merge possible?
-      m_freelist.insert(i, std::make_pair(start, n));
-
-   return true;
+   return false;
    }
 
 }
@@ -47550,7 +48697,7 @@ nist_key_unwrap(const uint8_t input[],
    secure_vector<uint8_t> R = raw_nist_key_unwrap(input, input_len, bc, ICV_out);
 
    if(ICV_out != 0xA6A6A6A6A6A6A6A6)
-      throw Integrity_Failure("NIST key unwrap failed");
+      throw Invalid_Authentication_Tag("NIST key unwrap failed");
 
    return R;
    }
@@ -47611,19 +48758,19 @@ nist_key_unwrap_padded(const uint8_t input[],
       }
 
    if((ICV_out >> 32) != 0xA65959A6)
-      throw Integrity_Failure("NIST key unwrap failed");
+      throw Invalid_Authentication_Tag("NIST key unwrap failed");
 
    const size_t len = (ICV_out & 0xFFFFFFFF);
 
-   if(len > R.size() || len < R.size() - 8)
-      throw Integrity_Failure("NIST key unwrap failed");
+   if(R.size() < 8 || len > R.size() || len < R.size() - 8)
+      throw Invalid_Authentication_Tag("NIST key unwrap failed");
 
    const size_t padding = R.size() - len;
 
    for(size_t i = 0; i != padding; ++i)
       {
       if(R[R.size() - i - 1] != 0)
-         throw Integrity_Failure("NIST key unwrap failed");
+         throw Invalid_Authentication_Tag("NIST key unwrap failed");
       }
 
    R.resize(R.size() - padding);
@@ -48329,8 +49476,11 @@ BigInt random_prime(RandomNumberGenerator& rng,
       {
       for(;;)
          {
-         size_t idx = make_uint16(rng.next_byte(), rng.next_byte()) % PRIME_TABLE_SIZE;
-         uint16_t small_prime = PRIMES[idx];
+         // This is slightly biased, but for small primes it does not seem to matter
+         const uint8_t b0 = rng.next_byte();
+         const uint8_t b1 = rng.next_byte();
+         const size_t idx = make_uint16(b0, b1) % PRIME_TABLE_SIZE;
+         const uint16_t small_prime = PRIMES[idx];
 
          if(high_bit(small_prime) == bits)
             return small_prime;
@@ -49352,8 +50502,6 @@ void redc_p521(BigInt& x, secure_vector<word>& ws)
    bigint_cnd_sub(needs_reduction.value(), x.mutable_data(), p521_words, p_words);
    }
 
-#if defined(BOTAN_HAS_NIST_PRIME_REDUCERS_W32)
-
 namespace {
 
 /**
@@ -49862,8 +51010,6 @@ void redc_p384(BigInt& x, secure_vector<word>& ws)
    BOTAN_DEBUG_ASSERT(borrow == 0 || borrow == 1);
    bigint_cnd_add(borrow, x.mutable_data(), p384_limbs + 1, p384_mults[0], p384_limbs);
    }
-
-#endif
 
 }
 /*
@@ -50444,8 +51590,8 @@ void Power_Mod::set_modulus(const BigInt& n, Usage_Hints hints, bool disable_mon
 */
 void Power_Mod::set_base(const BigInt& b) const
    {
-   if(b.is_zero() || b.is_negative())
-      throw Invalid_Argument("Power_Mod::set_base: arg must be > 0");
+   if(b.is_negative())
+      throw Invalid_Argument("Power_Mod::set_base: arg must be non-negative");
 
    if(!m_core)
       throw Internal_Error("Power_Mod::set_base: m_core was NULL");
@@ -52205,7 +53351,7 @@ void OCB_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
    const uint8_t* included_tag = &buf[remaining];
 
    if(!constant_time_compare(mac.data(), included_tag, tag_size()))
-      throw Integrity_Failure("OCB tag check failed");
+      throw Invalid_Authentication_Tag("OCB tag check failed");
 
    // remove tag from end of message
    buffer.resize(remaining + offset);
@@ -52603,7 +53749,7 @@ SymmetricKey derive_key(const std::string& passphrase,
 #endif
    else
       throw Decoding_Error("PBE-PKCS5 v2.0: Unknown KDF algorithm " +
-                           kdf_algo.get_oid().as_string());
+                           kdf_algo.get_oid().to_string());
    }
 
 secure_vector<uint8_t> derive_key(const std::string& passphrase,
@@ -52997,6 +54143,12 @@ secure_vector<uint8_t> PBKDF::pbkdf_timed(size_t out_len,
 #if defined(BOTAN_HAS_SCRYPT)
 #endif
 
+#if defined(BOTAN_HAS_ARGON2)
+#endif
+
+#if defined(BOTAN_HAS_PBKDF_BCRYPT)
+#endif
+
 namespace Botan {
 
 std::unique_ptr<PasswordHashFamily> PasswordHashFamily::create(const std::string& algo_spec,
@@ -53026,6 +54178,28 @@ std::unique_ptr<PasswordHashFamily> PasswordHashFamily::create(const std::string
    if(req.algo_name() == "Scrypt")
       {
       return std::unique_ptr<PasswordHashFamily>(new Scrypt_Family);
+      }
+#endif
+
+#if defined(BOTAN_HAS_ARGON2)
+   if(req.algo_name() == "Argon2d")
+      {
+      return std::unique_ptr<PasswordHashFamily>(new Argon2_Family(0));
+      }
+   else if(req.algo_name() == "Argon2i")
+      {
+      return std::unique_ptr<PasswordHashFamily>(new Argon2_Family(1));
+      }
+   else if(req.algo_name() == "Argon2id")
+      {
+      return std::unique_ptr<PasswordHashFamily>(new Argon2_Family(2));
+      }
+#endif
+
+#if defined(BOTAN_HAS_PBKDF_BCRYPT)
+   if(req.algo_name() == "Bcrypt-PBKDF")
+      {
+      return std::unique_ptr<PasswordHashFamily>(new Bcrypt_PBKDF_Family);
       }
 #endif
 
@@ -53205,7 +54379,7 @@ size_t tune_pbkdf2(MessageAuthenticationCode& prf,
 
    const size_t blocks_needed = (output_length + prf_sz - 1) / prf_sz;
 
-   const size_t multiplier = (desired_nsec / duration_nsec / blocks_needed);
+   const size_t multiplier = static_cast<size_t>(desired_nsec / duration_nsec / blocks_needed);
 
    if(multiplier == 0)
       return trial_iterations;
@@ -53557,7 +54731,7 @@ uint8_t RFC4880_encode_count(size_t desired_iterations)
    if(desired_iterations >= OPENPGP_S2K_ITERS[255])
       return 255;
 
-   auto i = std::upper_bound(OPENPGP_S2K_ITERS, OPENPGP_S2K_ITERS + 256, desired_iterations);
+   auto i = std::lower_bound(OPENPGP_S2K_ITERS, OPENPGP_S2K_ITERS + 256, desired_iterations);
 
    return static_cast<uint8_t>(i - OPENPGP_S2K_ITERS);
    }
@@ -53724,7 +54898,7 @@ void RFC4880_S2K::derive_key(uint8_t out[], size_t out_len,
 #if defined(BOTAN_HAS_EME_OAEP)
 #endif
 
-#if defined(BOTAN_HAS_EME_PKCS1v15)
+#if defined(BOTAN_HAS_EME_PKCS1)
 #endif
 
 #if defined(BOTAN_HAS_EME_RAW)
@@ -53739,7 +54913,7 @@ EME* get_eme(const std::string& algo_spec)
       return new EME_Raw;
 #endif
 
-#if defined(BOTAN_HAS_EME_PKCS1v15)
+#if defined(BOTAN_HAS_EME_PKCS1)
    if(algo_spec == "PKCS1v15" || algo_spec == "EME-PKCS1-v1_5")
       return new EME_PKCS1v15;
 #endif
@@ -53892,7 +55066,7 @@ EMSA* get_emsa(const std::string& algo_spec)
             }
          }
       }
-   
+
    if(req.algo_name() == "PSS" ||
       req.algo_name() == "PSSR" ||
       req.algo_name() == "EMSA-PSS" ||
@@ -53988,12 +55162,15 @@ std::string hash_for_emsa(const std::string& algo_spec)
       return pos_hash;
       }
 
-   return "SHA-512"; // safe default if nothing we understand
+   // If we don't understand what this is return a safe default
+#if defined(BOTAN_HAS_SHA2_64)
+   return "SHA-512";
+#else
+   return "SHA-256";
+#endif
    }
 
 }
-
-
 /*
 * Sets of allowed padding schemes for public key types
 *
@@ -54272,7 +55449,7 @@ void poly_double(uint8_t out[], const uint8_t in[])
 
    const uint64_t carry = POLY * (W[0] >> 63);
 
-   if(LIMBS > 0)
+   BOTAN_IF_CONSTEXPR(LIMBS > 0)
       {
       for(size_t i = 0; i != LIMBS - 1; ++i)
          W[i] = (W[i] << 1) ^ (W[i+1] >> 63);
@@ -54293,7 +55470,7 @@ void poly_double_le(uint8_t out[], const uint8_t in[])
 
    const uint64_t carry = POLY * (W[LIMBS-1] >> 63);
 
-   if(LIMBS > 0)
+   BOTAN_IF_CONSTEXPR(LIMBS > 0)
       {
       for(size_t i = 0; i != LIMBS - 1; ++i)
          W[LIMBS-1-i] = (W[LIMBS-1-i] << 1) ^ (W[LIMBS-2-i] >> 63);
@@ -54530,7 +55707,7 @@ size_t X942_PRF::kdf(uint8_t key[], size_t key_len,
 X942_PRF::X942_PRF(const std::string& oid)
    {
    if(OIDS::have_oid(oid))
-      m_key_wrap_oid = OIDS::lookup(oid).as_string();
+      m_key_wrap_oid = OIDS::lookup(oid).to_string();
    else
       m_key_wrap_oid = oid;
    }
@@ -54725,7 +55902,7 @@ std::set<std::string> Encrypted_PSK_Database::list_names() const
          std::string pt_name(cast_uint8_ptr_to_char(name_bits.data()), name_bits.size());
          names.insert(pt_name);
          }
-      catch(Integrity_Failure&)
+      catch(Invalid_Authentication_Tag&)
          {
          }
       }
@@ -54966,7 +56143,7 @@ BigInt Blinder::unblind(const BigInt& i) const
 #if defined(BOTAN_HAS_MCELIECE)
 #endif
 
-#if defined(BOTAN_HAS_XMSS)
+#if defined(BOTAN_HAS_XMSS_RFC8391)
 #endif
 
 #if defined(BOTAN_HAS_SM2)
@@ -54984,7 +56161,7 @@ load_public_key(const AlgorithmIdentifier& alg_id,
    const std::vector<std::string> alg_info = split_on(OIDS::lookup(alg_id.get_oid()), '/');
 
    if(alg_info.empty())
-      throw Decoding_Error("Unknown algorithm OID: " + alg_id.get_oid().as_string());
+      throw Decoding_Error("Unknown algorithm OID: " + alg_id.get_oid().to_string());
 
    const std::string alg_name = alg_info[0];
 
@@ -55053,7 +56230,7 @@ load_public_key(const AlgorithmIdentifier& alg_id,
       return std::unique_ptr<Public_Key>(new SM2_PublicKey(alg_id, key_bits));
 #endif
 
-#if defined(BOTAN_HAS_XMSS)
+#if defined(BOTAN_HAS_XMSS_RFC8391)
    if(alg_name == "XMSS")
       return std::unique_ptr<Public_Key>(new XMSS_PublicKey(key_bits));
 #endif
@@ -55067,7 +56244,7 @@ load_private_key(const AlgorithmIdentifier& alg_id,
    {
    const std::string alg_name = OIDS::lookup(alg_id.get_oid());
    if(alg_name == "")
-      throw Decoding_Error("Unknown algorithm OID: " + alg_id.get_oid().as_string());
+      throw Decoding_Error("Unknown algorithm OID: " + alg_id.get_oid().to_string());
 
 #if defined(BOTAN_HAS_RSA)
    if(alg_name == "RSA")
@@ -55134,7 +56311,7 @@ load_private_key(const AlgorithmIdentifier& alg_id,
       return std::unique_ptr<Private_Key>(new ElGamal_PrivateKey(alg_id, key_bits));
 #endif
 
-#if defined(BOTAN_HAS_XMSS)
+#if defined(BOTAN_HAS_XMSS_RFC8391)
    if(alg_name == "XMSS")
       return std::unique_ptr<Private_Key>(new XMSS_PrivateKey(key_bits));
 #endif
@@ -55212,11 +56389,11 @@ create_private_key(const std::string& alg_name,
       }
 #endif
 
-#if defined(BOTAN_HAS_XMSS)
+#if defined(BOTAN_HAS_XMSS_RFC8391)
    if(alg_name == "XMSS")
       {
       return std::unique_ptr<Private_Key>(
-         new XMSS_PrivateKey(XMSS_Parameters(params.empty() ? "XMSS_SHA2-512_W16_H10" : params).oid(), rng));
+         new XMSS_PrivateKey(XMSS_Parameters(params.empty() ? "XMSS-SHA2_10_512" : params).oid(), rng));
       }
 #endif
 
@@ -55733,7 +56910,7 @@ secure_vector<uint8_t> PKCS8_decode(
       if(is_encrypted)
          {
          if(OIDS::lookup(pbe_alg_id.get_oid()) != "PBE-PKCS5v20")
-            throw PKCS8_Exception("Unknown PBE type " + pbe_alg_id.get_oid().as_string());
+            throw PKCS8_Exception("Unknown PBE type " + pbe_alg_id.get_oid().to_string());
 #if defined(BOTAN_HAS_PKCS5_PBES2)
          key = pbes2_decrypt(key_data, get_passphrase(), pbe_alg_id.get_parameters());
 #else
@@ -55787,11 +56964,24 @@ choose_pbe_params(const std::string& pbe_algo, const std::string& key_algo)
    {
    if(pbe_algo.empty())
       {
-      // Defaults:
-      if(key_algo == "Curve25519" || key_algo == "McEliece")
+      /*
+      * For algorithms where we are using a non-RFC format anyway, default to
+      * SIV or GCM. For others (RSA, ECDSA, ...) default to something widely
+      * compatible.
+      */
+      const bool nonstandard_pk = (key_algo == "McEliece" || key_algo == "XMSS");
+
+      if(nonstandard_pk)
+         {
+#if defined(BOTAN_HAS_AEAD_SIV) && defined(BOTAN_HAS_SHA2_64)
+         return std::make_pair("AES-256/SIV", "SHA-512");
+#elif defined(BOTAN_HAS_AEAD_GCM) && defined(BOTAN_HAS_SHA2_64)
          return std::make_pair("AES-256/GCM", "SHA-512");
-      else // for everything else (RSA, DSA, ECDSA, GOST, ...)
-         return std::make_pair("AES-256/CBC", "SHA-256");
+#endif
+         }
+
+      // Default is something compatible with everyone else
+      return std::make_pair("AES-256/CBC", "SHA-256");
       }
 
    SCAN_Name request(pbe_algo);
@@ -55966,9 +57156,9 @@ load_key(DataSource& source,
    secure_vector<uint8_t> pkcs8_key = PKCS8_decode(source, get_pass, alg_id, is_encrypted);
 
    const std::string alg_name = OIDS::lookup(alg_id.get_oid());
-   if(alg_name.empty() || alg_name == alg_id.get_oid().as_string())
+   if(alg_name.empty() || alg_name == alg_id.get_oid().to_string())
       throw PKCS8_Exception("Unknown algorithm OID: " +
-                            alg_id.get_oid().as_string());
+                            alg_id.get_oid().to_string());
 
    return load_private_key(alg_id, pkcs8_key);
    }
@@ -57336,7 +58526,6 @@ Serialized_RNG::Serialized_RNG()
 #endif
 
 #if defined(BOTAN_TARGET_OS_HAS_THREADS)
-  #include <future>
 #endif
 
 namespace Botan {
@@ -57562,6 +58751,13 @@ class RSA_Private_Operation
 #endif
 
 #if defined(BOTAN_RSA_USE_ASYNC)
+         /*
+         * Precompute m.sig_words in the main thread before calling async. Otherwise
+         * the two threads race (during Modular_Reducer::reduce) and while the output
+         * is correct in both threads, helgrind warns.
+         */
+         m.sig_words();
+
          auto future_j1 = std::async(std::launch::async, [this, &m, &d1_mask, powm_window]() {
 #endif
          const BigInt masked_d1 = m_key.get_d1() + (d1_mask * (m_key.get_p() - 1));
@@ -57703,7 +58899,12 @@ class RSA_Public_Operation
       size_t get_max_input_bits() const
          {
          const size_t n_bits = m_n.bits();
-         BOTAN_ASSERT_NOMSG(n_bits >= 384);
+         /*
+         Make Coverity happy that n_bits - 1 won't underflow
+
+         5 bit minimum: smallest possible RSA key is 3*5
+         */
+         BOTAN_ASSERT_NOMSG(n_bits >= 5);
          return n_bits - 1;
          }
 
@@ -57923,8 +59124,6 @@ RSA_PrivateKey::create_signature_op(RandomNumberGenerator& rng,
 
 namespace Botan {
 
-namespace {
-
 #define SALSA20_QUARTER_ROUND(x1, x2, x3, x4)    \
    do {                                          \
       x2 ^= rotl<7>(x1 + x4);                    \
@@ -57936,7 +59135,8 @@ namespace {
 /*
 * Generate HSalsa20 cipher stream (for XSalsa20 IV setup)
 */
-void hsalsa20(uint32_t output[8], const uint32_t input[16])
+//static
+void Salsa20::hsalsa20(uint32_t output[8], const uint32_t input[16])
    {
    uint32_t x00 = input[ 0], x01 = input[ 1], x02 = input[ 2], x03 = input[ 3],
             x04 = input[ 4], x05 = input[ 5], x06 = input[ 6], x07 = input[ 7],
@@ -57965,8 +59165,6 @@ void hsalsa20(uint32_t output[8], const uint32_t input[16])
    output[6] = x08;
    output[7] = x09;
    }
-
-}
 
 /*
 * Generate Salsa20 cipher stream
@@ -58305,7 +59503,7 @@ std::unique_ptr<PasswordHash> Scrypt_Family::tune(size_t output_length,
    // If we have extra runtime budget, increment p
 
    if(target_nsec / est_nsec > 2)
-      p *= std::min<size_t>(1024, (target_nsec / est_nsec));
+      p *= std::min<size_t>(1024, static_cast<size_t>(target_nsec / est_nsec));
 
    return std::unique_ptr<PasswordHash>(new Scrypt(N, r, p));
    }
@@ -58789,7 +59987,7 @@ void SEED::clear()
 */
 
 
-#if defined(BOTAN_HAS_SERPENT_SIMD)
+#if defined(BOTAN_HAS_SERPENT_SIMD) || defined(BOTAN_HAS_SERPENT_AVX2)
 #endif
 
 namespace Botan {
@@ -60190,6 +61388,36 @@ void SHA_160::sha1_compress_x86(secure_vector<uint32_t>& digest,
 
 namespace Botan {
 
+namespace {
+
+std::string sha256_provider()
+   {
+#if defined(BOTAN_HAS_SHA2_32_X86)
+   if(CPUID::has_intel_sha())
+      {
+      return "shani";
+      }
+#endif
+
+#if defined(BOTAN_HAS_SHA2_32_X86_BMI2)
+   if(CPUID::has_bmi2())
+      {
+      return "bmi2";
+      }
+#endif
+
+#if defined(BOTAN_HAS_SHA2_32_ARMV8)
+   if(CPUID::has_arm_sha2())
+      {
+      return "armv8";
+      }
+#endif
+
+   return "base";
+   }
+
+}
+
 std::unique_ptr<HashFunction> SHA_224::copy_state() const
    {
    return std::unique_ptr<HashFunction>(new SHA_224(*this));
@@ -60346,6 +61574,16 @@ void SHA_256::compress_digest(secure_vector<uint32_t>& digest,
 
       input += 64;
       }
+   }
+
+std::string SHA_224::provider() const
+   {
+   return sha256_provider();
+   }
+
+std::string SHA_256::provider() const
+   {
+   return sha256_provider();
    }
 
 /*
@@ -60773,6 +62011,22 @@ void SHA_256::compress_digest_x86(secure_vector<uint32_t>& digest, const uint8_t
 
 namespace Botan {
 
+namespace {
+
+std::string sha512_provider()
+   {
+#if defined(BOTAN_HAS_SHA2_64_BMI2)
+   if(CPUID::has_bmi2())
+      {
+      return "bmi2";
+      }
+#endif
+
+   return "base";
+   }
+
+}
+
 std::unique_ptr<HashFunction> SHA_384::copy_state() const
    {
    return std::unique_ptr<HashFunction>(new SHA_384(*this));
@@ -60787,8 +62041,6 @@ std::unique_ptr<HashFunction> SHA_512_256::copy_state() const
    {
    return std::unique_ptr<HashFunction>(new SHA_512_256(*this));
    }
-
-namespace {
 
 /*
 * SHA-512 F1 Function
@@ -60811,12 +62063,20 @@ namespace {
 /*
 * SHA-{384,512} Compression Function
 */
-void SHA64_compress(secure_vector<uint64_t>& digest,
-                    const uint8_t input[], size_t blocks)
+//static
+void SHA_512::compress_digest(secure_vector<uint64_t>& digest,
+                              const uint8_t input[], size_t blocks)
    {
+#if defined(BOTAN_HAS_SHA2_64_BMI2)
+   if(CPUID::has_bmi2())
+      {
+      return compress_digest_bmi2(digest, input, blocks);
+      }
+#endif
+
    uint64_t A = digest[0], B = digest[1], C = digest[2],
-          D = digest[3], E = digest[4], F = digest[5],
-          G = digest[6], H = digest[7];
+            D = digest[3], E = digest[4], F = digest[5],
+            G = digest[6], H = digest[7];
 
    for(size_t i = 0; i != blocks; ++i)
       {
@@ -60931,21 +62191,36 @@ void SHA64_compress(secure_vector<uint64_t>& digest,
       }
    }
 
-}
+#undef SHA2_64_F
+
+std::string SHA_512_256::provider() const
+   {
+   return sha512_provider();
+   }
+
+std::string SHA_384::provider() const
+   {
+   return sha512_provider();
+   }
+
+std::string SHA_512::provider() const
+   {
+   return sha512_provider();
+   }
 
 void SHA_512_256::compress_n(const uint8_t input[], size_t blocks)
    {
-   SHA64_compress(m_digest, input, blocks);
+   SHA_512::compress_digest(m_digest, input, blocks);
    }
 
 void SHA_384::compress_n(const uint8_t input[], size_t blocks)
    {
-   SHA64_compress(m_digest, input, blocks);
+   SHA_512::compress_digest(m_digest, input, blocks);
    }
 
 void SHA_512::compress_n(const uint8_t input[], size_t blocks)
    {
-   SHA64_compress(m_digest, input, blocks);
+   SHA_512::compress_digest(m_digest, input, blocks);
    }
 
 void SHA_512_256::copy_out(uint8_t output[])
@@ -61013,9 +62288,90 @@ void SHA_512::clear()
 
 namespace Botan {
 
+namespace {
+
+inline void SHA3_round(uint64_t T[25], const uint64_t A[25], uint64_t RC)
+   {
+   const uint64_t C0 = A[0] ^ A[5] ^ A[10] ^ A[15] ^ A[20];
+   const uint64_t C1 = A[1] ^ A[6] ^ A[11] ^ A[16] ^ A[21];
+   const uint64_t C2 = A[2] ^ A[7] ^ A[12] ^ A[17] ^ A[22];
+   const uint64_t C3 = A[3] ^ A[8] ^ A[13] ^ A[18] ^ A[23];
+   const uint64_t C4 = A[4] ^ A[9] ^ A[14] ^ A[19] ^ A[24];
+
+   const uint64_t D0 = rotl<1>(C0) ^ C3;
+   const uint64_t D1 = rotl<1>(C1) ^ C4;
+   const uint64_t D2 = rotl<1>(C2) ^ C0;
+   const uint64_t D3 = rotl<1>(C3) ^ C1;
+   const uint64_t D4 = rotl<1>(C4) ^ C2;
+
+   const uint64_t B00 =          A[ 0] ^ D1;
+   const uint64_t B01 = rotl<44>(A[ 6] ^ D2);
+   const uint64_t B02 = rotl<43>(A[12] ^ D3);
+   const uint64_t B03 = rotl<21>(A[18] ^ D4);
+   const uint64_t B04 = rotl<14>(A[24] ^ D0);
+   T[ 0] = B00 ^ (~B01 & B02) ^ RC;
+   T[ 1] = B01 ^ (~B02 & B03);
+   T[ 2] = B02 ^ (~B03 & B04);
+   T[ 3] = B03 ^ (~B04 & B00);
+   T[ 4] = B04 ^ (~B00 & B01);
+
+   const uint64_t B05 = rotl<28>(A[ 3] ^ D4);
+   const uint64_t B06 = rotl<20>(A[ 9] ^ D0);
+   const uint64_t B07 = rotl< 3>(A[10] ^ D1);
+   const uint64_t B08 = rotl<45>(A[16] ^ D2);
+   const uint64_t B09 = rotl<61>(A[22] ^ D3);
+   T[ 5] = B05 ^ (~B06 & B07);
+   T[ 6] = B06 ^ (~B07 & B08);
+   T[ 7] = B07 ^ (~B08 & B09);
+   T[ 8] = B08 ^ (~B09 & B05);
+   T[ 9] = B09 ^ (~B05 & B06);
+
+   const uint64_t B10 = rotl< 1>(A[ 1] ^ D2);
+   const uint64_t B11 = rotl< 6>(A[ 7] ^ D3);
+   const uint64_t B12 = rotl<25>(A[13] ^ D4);
+   const uint64_t B13 = rotl< 8>(A[19] ^ D0);
+   const uint64_t B14 = rotl<18>(A[20] ^ D1);
+   T[10] = B10 ^ (~B11 & B12);
+   T[11] = B11 ^ (~B12 & B13);
+   T[12] = B12 ^ (~B13 & B14);
+   T[13] = B13 ^ (~B14 & B10);
+   T[14] = B14 ^ (~B10 & B11);
+
+   const uint64_t B15 = rotl<27>(A[ 4] ^ D0);
+   const uint64_t B16 = rotl<36>(A[ 5] ^ D1);
+   const uint64_t B17 = rotl<10>(A[11] ^ D2);
+   const uint64_t B18 = rotl<15>(A[17] ^ D3);
+   const uint64_t B19 = rotl<56>(A[23] ^ D4);
+   T[15] = B15 ^ (~B16 & B17);
+   T[16] = B16 ^ (~B17 & B18);
+   T[17] = B17 ^ (~B18 & B19);
+   T[18] = B18 ^ (~B19 & B15);
+   T[19] = B19 ^ (~B15 & B16);
+
+   const uint64_t B20 = rotl<62>(A[ 2] ^ D3);
+   const uint64_t B21 = rotl<55>(A[ 8] ^ D4);
+   const uint64_t B22 = rotl<39>(A[14] ^ D0);
+   const uint64_t B23 = rotl<41>(A[15] ^ D1);
+   const uint64_t B24 = rotl< 2>(A[21] ^ D2);
+   T[20] = B20 ^ (~B21 & B22);
+   T[21] = B21 ^ (~B22 & B23);
+   T[22] = B22 ^ (~B23 & B24);
+   T[23] = B23 ^ (~B24 & B20);
+   T[24] = B24 ^ (~B20 & B21);
+   }
+
+}
+
 //static
 void SHA_3::permute(uint64_t A[25])
    {
+#if defined(BOTAN_HAS_SHA3_BMI2)
+   if(CPUID::has_bmi2())
+      {
+      return permute_bmi2(A);
+      }
+#endif
+
    static const uint64_t RC[24] = {
       0x0000000000000001, 0x0000000000008082, 0x800000000000808A,
       0x8000000080008000, 0x000000000000808B, 0x0000000080000001,
@@ -61027,73 +62383,12 @@ void SHA_3::permute(uint64_t A[25])
       0x8000000000008080, 0x0000000080000001, 0x8000000080008008
    };
 
-   for(size_t i = 0; i != 24; ++i)
+   uint64_t T[25];
+
+   for(size_t i = 0; i != 24; i += 2)
       {
-      const uint64_t C0 = A[0] ^ A[5] ^ A[10] ^ A[15] ^ A[20];
-      const uint64_t C1 = A[1] ^ A[6] ^ A[11] ^ A[16] ^ A[21];
-      const uint64_t C2 = A[2] ^ A[7] ^ A[12] ^ A[17] ^ A[22];
-      const uint64_t C3 = A[3] ^ A[8] ^ A[13] ^ A[18] ^ A[23];
-      const uint64_t C4 = A[4] ^ A[9] ^ A[14] ^ A[19] ^ A[24];
-
-      const uint64_t D0 = rotl<1>(C0) ^ C3;
-      const uint64_t D1 = rotl<1>(C1) ^ C4;
-      const uint64_t D2 = rotl<1>(C2) ^ C0;
-      const uint64_t D3 = rotl<1>(C3) ^ C1;
-      const uint64_t D4 = rotl<1>(C4) ^ C2;
-
-      const uint64_t B00 = A[ 0] ^ D1;
-      const uint64_t B10 = rotl< 1>(A[ 1] ^ D2);
-      const uint64_t B20 = rotl<62>(A[ 2] ^ D3);
-      const uint64_t B05 = rotl<28>(A[ 3] ^ D4);
-      const uint64_t B15 = rotl<27>(A[ 4] ^ D0);
-      const uint64_t B16 = rotl<36>(A[ 5] ^ D1);
-      const uint64_t B01 = rotl<44>(A[ 6] ^ D2);
-      const uint64_t B11 = rotl< 6>(A[ 7] ^ D3);
-      const uint64_t B21 = rotl<55>(A[ 8] ^ D4);
-      const uint64_t B06 = rotl<20>(A[ 9] ^ D0);
-      const uint64_t B07 = rotl< 3>(A[10] ^ D1);
-      const uint64_t B17 = rotl<10>(A[11] ^ D2);
-      const uint64_t B02 = rotl<43>(A[12] ^ D3);
-      const uint64_t B12 = rotl<25>(A[13] ^ D4);
-      const uint64_t B22 = rotl<39>(A[14] ^ D0);
-      const uint64_t B23 = rotl<41>(A[15] ^ D1);
-      const uint64_t B08 = rotl<45>(A[16] ^ D2);
-      const uint64_t B18 = rotl<15>(A[17] ^ D3);
-      const uint64_t B03 = rotl<21>(A[18] ^ D4);
-      const uint64_t B13 = rotl< 8>(A[19] ^ D0);
-      const uint64_t B14 = rotl<18>(A[20] ^ D1);
-      const uint64_t B24 = rotl< 2>(A[21] ^ D2);
-      const uint64_t B09 = rotl<61>(A[22] ^ D3);
-      const uint64_t B19 = rotl<56>(A[23] ^ D4);
-      const uint64_t B04 = rotl<14>(A[24] ^ D0);
-
-      A[ 0] = B00 ^ (~B01 & B02);
-      A[ 1] = B01 ^ (~B02 & B03);
-      A[ 2] = B02 ^ (~B03 & B04);
-      A[ 3] = B03 ^ (~B04 & B00);
-      A[ 4] = B04 ^ (~B00 & B01);
-      A[ 5] = B05 ^ (~B06 & B07);
-      A[ 6] = B06 ^ (~B07 & B08);
-      A[ 7] = B07 ^ (~B08 & B09);
-      A[ 8] = B08 ^ (~B09 & B05);
-      A[ 9] = B09 ^ (~B05 & B06);
-      A[10] = B10 ^ (~B11 & B12);
-      A[11] = B11 ^ (~B12 & B13);
-      A[12] = B12 ^ (~B13 & B14);
-      A[13] = B13 ^ (~B14 & B10);
-      A[14] = B14 ^ (~B10 & B11);
-      A[15] = B15 ^ (~B16 & B17);
-      A[16] = B16 ^ (~B17 & B18);
-      A[17] = B17 ^ (~B18 & B19);
-      A[18] = B18 ^ (~B19 & B15);
-      A[19] = B19 ^ (~B15 & B16);
-      A[20] = B20 ^ (~B21 & B22);
-      A[21] = B21 ^ (~B22 & B23);
-      A[22] = B22 ^ (~B23 & B24);
-      A[23] = B23 ^ (~B24 & B20);
-      A[24] = B24 ^ (~B20 & B21);
-
-      A[0] ^= RC[i];
+      SHA3_round(T, A, RC[i+0]);
+      SHA3_round(A, T, RC[i+1]);
       }
    }
 
@@ -61198,6 +62493,18 @@ SHA_3::SHA_3(size_t output_bits) :
 std::string SHA_3::name() const
    {
    return "SHA-3(" + std::to_string(m_output_bits) + ")";
+   }
+
+std::string SHA_3::provider() const
+   {
+#if defined(BOTAN_HAS_SHA3_BMI2)
+   if(CPUID::has_bmi2())
+      {
+      return "bmi2";
+      }
+#endif
+
+   return "base";
    }
 
 std::unique_ptr<HashFunction> SHA_3::copy_state() const
@@ -61814,17 +63121,19 @@ SHAKE_128_Cipher::SHAKE_128_Cipher() :
 
 void SHAKE_128_Cipher::cipher(const uint8_t in[], uint8_t out[], size_t length)
    {
+   const size_t SHAKE_128_BYTERATE = (1600-256)/8;
+
    verify_key_set(m_state.empty() == false);
 
-   while(length >= m_buffer.size() - m_buf_pos)
+   while(length >= SHAKE_128_BYTERATE - m_buf_pos)
       {
-      xor_buf(out, in, &m_buffer[m_buf_pos], m_buffer.size() - m_buf_pos);
-      length -= (m_buffer.size() - m_buf_pos);
-      in += (m_buffer.size() - m_buf_pos);
-      out += (m_buffer.size() - m_buf_pos);
+      xor_buf(out, in, &m_buffer[m_buf_pos], SHAKE_128_BYTERATE - m_buf_pos);
+      length -= (SHAKE_128_BYTERATE - m_buf_pos);
+      in += (SHAKE_128_BYTERATE - m_buf_pos);
+      out += (SHAKE_128_BYTERATE - m_buf_pos);
 
       SHA_3::permute(m_state.data());
-      copy_out_le(m_buffer.data(), m_buffer.size(), m_state.data());
+      copy_out_le(m_buffer.data(), SHAKE_128_BYTERATE, m_state.data());
 
       m_buf_pos = 0;
       }
@@ -61834,19 +63143,13 @@ void SHAKE_128_Cipher::cipher(const uint8_t in[], uint8_t out[], size_t length)
 
 void SHAKE_128_Cipher::key_schedule(const uint8_t key[], size_t length)
    {
+   const size_t SHAKE_128_BITRATE = (1600-256);
    m_state.resize(25);
-   m_buffer.resize((1600 - 256) / 8);
+   m_buffer.resize(SHAKE_128_BITRATE/8);
    zeroise(m_state);
 
-   for(size_t i = 0; i < length/8; ++i)
-      {
-      m_state[i] ^= load_le<uint64_t>(key, i);
-      }
-
-   m_state[length/8] ^= 0x000000000000001F;
-   m_state[20]       ^= 0x8000000000000000;
-
-   SHA_3::permute(m_state.data());
+   const size_t S_pos = SHA_3::absorb(SHAKE_128_BITRATE, m_state, 0, key, length);
+   SHA_3::finish(SHAKE_128_BITRATE, m_state, S_pos, 0x1F, 0x80);
    copy_out_le(m_buffer.data(), m_buffer.size(), m_state.data());
    }
 
@@ -61874,11 +63177,7 @@ void SHAKE_128_Cipher::seek(uint64_t)
 
 Key_Length_Specification SHAKE_128_Cipher::key_spec() const
    {
-   /*
-   In principle SHAKE can accept arbitrary length inputs, but this
-   does not seem required for a stream cipher.
-   */
-   return Key_Length_Specification(16, 160, 8);
+   return Key_Length_Specification(1, 160);
    }
 
 std::string SHAKE_128_Cipher::name() const
@@ -62220,7 +63519,7 @@ void SIV_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
    const secure_vector<uint8_t> T = S2V(buffer.data() + offset, buffer.size() - offset - V.size());
 
    if(!constant_time_compare(T.data(), V.data(), T.size()))
-      throw Integrity_Failure("SIV tag check failed");
+      throw Invalid_Authentication_Tag("SIV tag check failed");
 
    buffer.resize(buffer.size() - tag_size());
    }
@@ -62271,7 +63570,8 @@ std::unique_ptr<HashFunction> Skein_512::copy_state() const
    copy->m_buffer = this->m_buffer;
    copy->m_buf_pos = this->m_buf_pos;
 
-   return std::move(copy);
+   // work around GCC 4.8 bug
+   return std::unique_ptr<HashFunction>(copy.release());
    }
 
 void Skein_512::clear()
@@ -63560,9 +64860,9 @@ std::string SM4::provider() const
 
 #if defined(BOTAN_HAS_BOOST_ASIO)
   /*
-  * We don't need serial port support anyway, and asking for it
-  * causes macro conflicts with Darwin's termios.h when this
-  * file is included in the amalgamation. GH #350
+  * We don't need serial port support anyway, and asking for it causes
+  * macro conflicts with termios.h when this file is included in the
+  * amalgamation.
   */
   #define BOOST_ASIO_DISABLE_SERIAL_PORT
   #include <boost/asio.hpp>
@@ -63628,7 +64928,7 @@ class Asio_Socket final : public OS::Socket
          boost::system::error_code ec = boost::asio::error::would_block;
 
          boost::asio::async_write(m_tcp, boost::asio::buffer(buf, len),
-                                  [&ec](boost::system::error_code e, size_t got) { ec = e; });
+                                  [&ec](boost::system::error_code e, size_t) { ec = e; });
 
          while(ec == boost::asio::error::would_block) { m_io.run_one(); }
 
@@ -63689,6 +64989,7 @@ class BSD_Socket final : public OS::Socket
 #if defined(BOTAN_TARGET_OS_HAS_WINSOCK2)
       typedef SOCKET socket_type;
       typedef int socket_op_ret_type;
+      typedef int socklen_type;
       static socket_type invalid_socket() { return INVALID_SOCKET; }
       static void close_socket(socket_type s) { ::closesocket(s); }
       static std::string get_last_socket_error() { return std::to_string(::WSAGetLastError()); }
@@ -63728,6 +65029,7 @@ class BSD_Socket final : public OS::Socket
 #else
       typedef int socket_type;
       typedef ssize_t socket_op_ret_type;
+      typedef socklen_t socklen_type;
       static socket_type invalid_socket() { return -1; }
       static void close_socket(socket_type s) { ::close(s); }
       static std::string get_last_socket_error() { return ::strerror(errno); }
@@ -63779,7 +65081,7 @@ class BSD_Socket final : public OS::Socket
 
             set_nonblocking(m_socket);
 
-            int err = ::connect(m_socket, rp->ai_addr, rp->ai_addrlen);
+            int err = ::connect(m_socket, rp->ai_addr, static_cast<socklen_type>(rp->ai_addrlen));
 
             if(err == -1)
                {
@@ -63789,7 +65091,8 @@ class BSD_Socket final : public OS::Socket
                   struct timeval timeout_tv = make_timeout_tv();
                   fd_set write_set;
                   FD_ZERO(&write_set);
-                  FD_SET(m_socket, &write_set);
+                  // Weirdly, Winsock uses a SOCKET type but wants FD_SET to get an int instead
+                  FD_SET(static_cast<int>(m_socket), &write_set);
 
                   active = ::select(m_socket + 1, nullptr, &write_set, nullptr, &timeout_tv);
 
@@ -63881,8 +65184,8 @@ class BSD_Socket final : public OS::Socket
       struct timeval make_timeout_tv() const
          {
          struct timeval tv;
-         tv.tv_sec = m_timeout.count() / 1000000;
-         tv.tv_usec = m_timeout.count() % 1000000;
+         tv.tv_sec = static_cast<time_t>(m_timeout.count() / 1000000);
+         tv.tv_usec = static_cast<long>(m_timeout.count() % 1000000);;
          return tv;
          }
 
@@ -63909,6 +65212,1146 @@ OS::open_socket(const std::string& hostname,
    // No sockets for you
    return std::unique_ptr<Socket>();
 #endif
+   }
+
+}
+/*
+* (C) 2019 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
+
+int Sodium::crypto_scalarmult_curve25519(uint8_t out[32], const uint8_t scalar[32], const uint8_t point[32])
+   {
+   curve25519_donna(out, scalar, point);
+   return 0;
+   }
+
+int Sodium::crypto_scalarmult_curve25519_base(uint8_t out[32], const uint8_t scalar[32])
+   {
+   curve25519_basepoint(out, scalar);
+   return 0;
+   }
+int Sodium::crypto_sign_ed25519_detached(uint8_t sig[],
+                                         unsigned long long* sig_len,
+                                         const uint8_t msg[],
+                                         size_t msg_len,
+                                         const uint8_t sk[32])
+   {
+   ed25519_sign(sig, msg, msg_len, sk, nullptr, 0);
+
+   if(sig_len)
+      *sig_len = 64;
+   return 0;
+   }
+
+int Sodium::crypto_sign_ed25519_verify_detached(const uint8_t sig[64],
+                                                const uint8_t msg[],
+                                                size_t msg_len,
+                                                const uint8_t pk[32])
+   {
+   const bool ok = ed25519_verify(msg, msg_len, sig, pk, nullptr, 0);
+   return ok ? 0 : -1;
+   }
+
+int Sodium::crypto_sign_ed25519_keypair(uint8_t pk[32], uint8_t sk[64])
+   {
+   secure_vector<uint8_t> seed(32);
+   randombytes_buf(seed.data(), seed.size());
+   return crypto_sign_ed25519_seed_keypair(pk, sk, seed.data());
+   }
+
+int Sodium::crypto_sign_ed25519_seed_keypair(uint8_t pk[32], uint8_t sk[64],
+                                             const uint8_t seed[32])
+   {
+   ed25519_gen_keypair(pk, sk, seed);
+   return 0;
+   }
+
+}
+/*
+* (C) 2019 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
+
+namespace {
+
+int sodium_aead_chacha20poly1305_encrypt(uint8_t ctext[],
+                                         unsigned long long* ctext_len,
+                                         const uint8_t ptext[],
+                                         size_t ptext_len,
+                                         const uint8_t ad[],
+                                         size_t ad_len,
+                                         const uint8_t nonce[],
+                                         size_t nonce_len,
+                                         const uint8_t key[])
+   {
+   auto chacha20poly1305 = AEAD_Mode::create_or_throw("ChaCha20Poly1305", ENCRYPTION);
+
+   chacha20poly1305->set_key(key, 32);
+   chacha20poly1305->set_associated_data(ad, ad_len);
+   chacha20poly1305->start(nonce, nonce_len);
+
+   // FIXME do this in-place
+   secure_vector<uint8_t> buf;
+   buf.reserve(ptext_len + 16);
+   buf.assign(ptext, ptext + ptext_len);
+
+   chacha20poly1305->finish(buf);
+
+   copy_mem(ctext, buf.data(), buf.size());
+   if(ctext_len)
+      *ctext_len = buf.size();
+   return 0;
+   }
+
+int sodium_aead_chacha20poly1305_decrypt(uint8_t ptext[],
+                                         unsigned long long* ptext_len,
+                                         const uint8_t ctext[],
+                                         size_t ctext_len,
+                                         const uint8_t ad[],
+                                         size_t ad_len,
+                                         const uint8_t nonce[],
+                                         size_t nonce_len,
+                                         const uint8_t key[])
+   {
+   if(ctext_len < 16)
+      return -1;
+
+   *ptext_len = 0;
+
+   auto chacha20poly1305 = AEAD_Mode::create_or_throw("ChaCha20Poly1305", DECRYPTION);
+
+   chacha20poly1305->set_key(key, 32);
+   chacha20poly1305->set_associated_data(ad, ad_len);
+   chacha20poly1305->start(nonce, nonce_len);
+
+   // FIXME do this in-place
+   secure_vector<uint8_t> buf;
+   buf.assign(ctext, ctext + ctext_len);
+
+   try
+      {
+      chacha20poly1305->finish(buf);
+      }
+   catch(Invalid_Authentication_Tag&)
+      {
+      return -1;
+      }
+
+   *ptext_len = ctext_len - 16;
+
+   copy_mem(ptext, buf.data(), buf.size());
+   return 0;
+   }
+
+int sodium_aead_chacha20poly1305_encrypt_detached(uint8_t ctext[],
+                                                  uint8_t mac[],
+                                                  const uint8_t ptext[],
+                                                  size_t ptext_len,
+                                                  const uint8_t ad[],
+                                                  size_t ad_len,
+                                                  const uint8_t nonce[],
+                                                  size_t nonce_len,
+                                                  const uint8_t key[])
+   {
+   auto chacha20poly1305 = AEAD_Mode::create_or_throw("ChaCha20Poly1305", ENCRYPTION);
+
+   chacha20poly1305->set_key(key, 32);
+   chacha20poly1305->set_associated_data(ad, ad_len);
+   chacha20poly1305->start(nonce, nonce_len);
+
+   // FIXME do this in-place
+   secure_vector<uint8_t> buf;
+   buf.reserve(ptext_len + 16);
+   buf.assign(ptext, ptext + ptext_len);
+
+   chacha20poly1305->finish(buf);
+
+   copy_mem(ctext, buf.data(), ptext_len);
+   copy_mem(mac, buf.data() + ptext_len, 16);
+   return 0;
+   }
+
+int sodium_aead_chacha20poly1305_decrypt_detached(uint8_t ptext[],
+                                                  const uint8_t ctext[],
+                                                  size_t ctext_len,
+                                                  const uint8_t mac[],
+                                                  const uint8_t ad[],
+                                                  size_t ad_len,
+                                                  const uint8_t nonce[],
+                                                  size_t nonce_len,
+                                                  const uint8_t key[])
+   {
+   auto chacha20poly1305 = AEAD_Mode::create_or_throw("ChaCha20Poly1305", DECRYPTION);
+
+   chacha20poly1305->set_key(key, 32);
+   chacha20poly1305->set_associated_data(ad, ad_len);
+   chacha20poly1305->start(nonce, nonce_len);
+
+   // FIXME do this in-place
+   secure_vector<uint8_t> buf;
+   buf.reserve(ctext_len + 16);
+   buf.assign(ctext, ctext + ctext_len);
+   buf.insert(buf.end(), mac, mac + 16);
+
+   try
+      {
+      chacha20poly1305->finish(buf);
+      }
+   catch(Invalid_Authentication_Tag&)
+      {
+      return -1;
+      }
+
+   copy_mem(ptext, buf.data(), buf.size());
+   return 0;
+   }
+
+}
+
+int Sodium::crypto_aead_chacha20poly1305_ietf_encrypt(uint8_t ctext[],
+                                                      unsigned long long* ctext_len,
+                                                      const uint8_t ptext[],
+                                                      size_t ptext_len,
+                                                      const uint8_t ad[],
+                                                      size_t ad_len,
+                                                      const uint8_t* unused_secret_nonce,
+                                                      const uint8_t nonce[],
+                                                      const uint8_t key[])
+   {
+   BOTAN_UNUSED(unused_secret_nonce);
+
+   return sodium_aead_chacha20poly1305_encrypt(
+      ctext, ctext_len, ptext, ptext_len,
+      ad, ad_len, nonce, crypto_aead_chacha20poly1305_ietf_npubbytes(), key);
+   }
+
+int Sodium::crypto_aead_chacha20poly1305_ietf_decrypt(uint8_t ptext[],
+                                                      unsigned long long* ptext_len,
+                                                      uint8_t* unused_secret_nonce,
+                                                      const uint8_t ctext[],
+                                                      size_t ctext_len,
+                                                      const uint8_t ad[],
+                                                      size_t ad_len,
+                                                      const uint8_t nonce[],
+                                                      const uint8_t key[])
+   {
+   BOTAN_UNUSED(unused_secret_nonce);
+
+   return sodium_aead_chacha20poly1305_decrypt(
+      ptext, ptext_len, ctext, ctext_len,
+      ad, ad_len, nonce, crypto_aead_chacha20poly1305_ietf_npubbytes(), key);
+   }
+
+int Sodium::crypto_aead_chacha20poly1305_ietf_encrypt_detached(uint8_t ctext[],
+                                                               uint8_t mac[],
+                                                               unsigned long long* mac_len,
+                                                               const uint8_t ptext[],
+                                                               size_t ptext_len,
+                                                               const uint8_t ad[],
+                                                               size_t ad_len,
+                                                               const uint8_t unused_secret_nonce[],
+                                                               const uint8_t nonce[],
+                                                               const uint8_t key[])
+   {
+   BOTAN_UNUSED(unused_secret_nonce);
+
+   if(mac_len)
+      *mac_len = 16;
+
+   return sodium_aead_chacha20poly1305_encrypt_detached(
+      ctext, mac, ptext, ptext_len,
+      ad, ad_len, nonce, crypto_aead_chacha20poly1305_ietf_npubbytes(), key);
+   }
+
+int Sodium::crypto_aead_chacha20poly1305_ietf_decrypt_detached(uint8_t ptext[],
+                                                               uint8_t unused_secret_nonce[],
+                                                               const uint8_t ctext[],
+                                                               size_t ctext_len,
+                                                               const uint8_t mac[],
+                                                               const uint8_t ad[],
+                                                               size_t ad_len,
+                                                               const uint8_t nonce[],
+                                                               const uint8_t key[])
+   {
+   BOTAN_UNUSED(unused_secret_nonce);
+
+   return sodium_aead_chacha20poly1305_decrypt_detached(
+      ptext, ctext, ctext_len, mac,
+      ad, ad_len, nonce, crypto_aead_chacha20poly1305_ietf_npubbytes(), key);
+   }
+
+int Sodium::crypto_aead_chacha20poly1305_encrypt(uint8_t ctext[],
+                                                 unsigned long long* ctext_len,
+                                                 const uint8_t ptext[],
+                                                 size_t ptext_len,
+                                                 const uint8_t ad[],
+                                                 size_t ad_len,
+                                                 const uint8_t unused_secret_nonce[],
+                                                 const uint8_t nonce[],
+                                                 const uint8_t key[])
+   {
+   BOTAN_UNUSED(unused_secret_nonce);
+   return sodium_aead_chacha20poly1305_encrypt(
+      ctext, ctext_len, ptext, ptext_len,
+      ad, ad_len, nonce, crypto_aead_chacha20poly1305_npubbytes(), key);
+   }
+
+int Sodium::crypto_aead_chacha20poly1305_decrypt(uint8_t ptext[],
+                                                 unsigned long long* ptext_len,
+                                                 uint8_t unused_secret_nonce[],
+                                                 const uint8_t ctext[],
+                                                 size_t ctext_len,
+                                                 const uint8_t ad[],
+                                                 size_t ad_len,
+                                                 const uint8_t nonce[],
+                                                 const uint8_t key[])
+   {
+   BOTAN_UNUSED(unused_secret_nonce);
+   return sodium_aead_chacha20poly1305_decrypt(
+      ptext, ptext_len, ctext, ctext_len,
+      ad, ad_len, nonce, crypto_aead_chacha20poly1305_npubbytes(), key);
+   }
+
+int Sodium::crypto_aead_chacha20poly1305_encrypt_detached(uint8_t ctext[],
+                                                          uint8_t mac[],
+                                                          unsigned long long* mac_len,
+                                                          const uint8_t ptext[],
+                                                          size_t ptext_len,
+                                                          const uint8_t ad[],
+                                                          size_t ad_len,
+                                                          const uint8_t unused_secret_nonce[],
+                                                          const uint8_t nonce[],
+                                                          const uint8_t key[])
+   {
+   BOTAN_UNUSED(unused_secret_nonce);
+   if(mac_len)
+      *mac_len = 16;
+
+   return sodium_aead_chacha20poly1305_encrypt_detached(
+      ctext, mac, ptext, ptext_len,
+      ad, ad_len, nonce, crypto_aead_chacha20poly1305_npubbytes(), key);
+   }
+
+int Sodium::crypto_aead_chacha20poly1305_decrypt_detached(uint8_t ptext[],
+                                                          uint8_t unused_secret_nonce[],
+                                                          const uint8_t ctext[],
+                                                          size_t ctext_len,
+                                                          const uint8_t mac[],
+                                                          const uint8_t ad[],
+                                                          size_t ad_len,
+                                                          const uint8_t nonce[],
+                                                          const uint8_t key[])
+   {
+   BOTAN_UNUSED(unused_secret_nonce);
+
+   return sodium_aead_chacha20poly1305_decrypt_detached(
+      ptext, ctext, ctext_len, mac,
+      ad, ad_len, nonce, crypto_aead_chacha20poly1305_npubbytes(), key);
+   }
+
+int Sodium::crypto_aead_xchacha20poly1305_ietf_encrypt(uint8_t ctext[],
+                                                       unsigned long long* ctext_len,
+                                                       const uint8_t ptext[],
+                                                       size_t ptext_len,
+                                                       const uint8_t ad[],
+                                                       size_t ad_len,
+                                                       const uint8_t unused_secret_nonce[],
+                                                       const uint8_t nonce[],
+                                                       const uint8_t key[])
+   {
+   BOTAN_UNUSED(unused_secret_nonce);
+
+   return sodium_aead_chacha20poly1305_encrypt(
+      ctext, ctext_len, ptext, ptext_len,
+      ad, ad_len, nonce, crypto_aead_xchacha20poly1305_ietf_npubbytes(), key);
+   }
+
+int Sodium::crypto_aead_xchacha20poly1305_ietf_decrypt(uint8_t ptext[],
+                                                       unsigned long long* ptext_len,
+                                                       uint8_t unused_secret_nonce[],
+                                                       const uint8_t ctext[],
+                                                       size_t ctext_len,
+                                                       const uint8_t ad[],
+                                                       size_t ad_len,
+                                                       const uint8_t nonce[],
+                                                       const uint8_t key[])
+   {
+   BOTAN_UNUSED(unused_secret_nonce);
+
+   return sodium_aead_chacha20poly1305_decrypt(
+      ptext, ptext_len, ctext, ctext_len,
+      ad, ad_len, nonce, crypto_aead_xchacha20poly1305_ietf_npubbytes(), key);
+   }
+
+int Sodium::crypto_aead_xchacha20poly1305_ietf_encrypt_detached(uint8_t ctext[],
+                                                                uint8_t mac[],
+                                                                unsigned long long* mac_len,
+                                                                const uint8_t ptext[],
+                                                                size_t ptext_len,
+                                                                const uint8_t ad[],
+                                                                size_t ad_len,
+                                                                const uint8_t unused_secret_nonce[],
+                                                                const uint8_t nonce[],
+                                                                const uint8_t key[])
+   {
+   BOTAN_UNUSED(unused_secret_nonce);
+   if(mac_len)
+      *mac_len = 16;
+
+   return sodium_aead_chacha20poly1305_encrypt_detached(
+      ctext, mac, ptext, ptext_len,
+      ad, ad_len, nonce, crypto_aead_xchacha20poly1305_ietf_npubbytes(), key);
+   }
+
+int Sodium::crypto_aead_xchacha20poly1305_ietf_decrypt_detached(uint8_t ptext[],
+                                                                uint8_t unused_secret_nonce[],
+                                                                const uint8_t ctext[],
+                                                                size_t ctext_len,
+                                                                const uint8_t mac[],
+                                                                const uint8_t ad[],
+                                                                size_t ad_len,
+                                                                const uint8_t nonce[],
+                                                                const uint8_t key[])
+   {
+   BOTAN_UNUSED(unused_secret_nonce);
+   return sodium_aead_chacha20poly1305_decrypt_detached(
+      ptext, ctext, ctext_len, mac,
+      ad, ad_len, nonce, crypto_aead_xchacha20poly1305_ietf_npubbytes(), key);
+   }
+
+}
+/*
+* (C) 2019 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
+
+int Sodium::crypto_hash_sha512(uint8_t out[64], const uint8_t in[], size_t in_len)
+   {
+   auto sha512 = HashFunction::create_or_throw("SHA-512");
+   sha512->update(in, in_len);
+   sha512->final(out);
+   return 0;
+   }
+
+int Sodium::crypto_hash_sha256(uint8_t out[], const uint8_t in[], size_t in_len)
+   {
+   auto sha256 = HashFunction::create_or_throw("SHA-256");
+   sha256->update(in, in_len);
+   sha256->final(out);
+   return 0;
+   }
+
+int Sodium::crypto_shorthash_siphash24(uint8_t out[8], const uint8_t in[],
+                                       size_t in_len, const uint8_t key[16])
+   {
+   auto mac = MessageAuthenticationCode::create_or_throw("SipHash(2,4)");
+   mac->set_key(key, crypto_shorthash_siphash24_KEYBYTES);
+   mac->update(in, in_len);
+   mac->final(out);
+   return 0;
+   }
+
+int Sodium::crypto_onetimeauth_poly1305(uint8_t out[],
+                                        const uint8_t in[],
+                                        size_t in_len,
+                                        const uint8_t key[])
+   {
+   auto mac = MessageAuthenticationCode::create_or_throw("Poly1305");
+   mac->set_key(key, crypto_onetimeauth_poly1305_KEYBYTES);
+   mac->update(in, in_len);
+   mac->final(out);
+   return 0;
+   }
+
+int Sodium::crypto_onetimeauth_poly1305_verify(const uint8_t mac[],
+                                               const uint8_t in[],
+                                               size_t in_len,
+                                               const uint8_t key[])
+   {
+   secure_vector<uint8_t> computed(crypto_onetimeauth_poly1305_BYTES);
+   crypto_onetimeauth_poly1305(computed.data(), in, in_len, key);
+   return crypto_verify_16(computed.data(), mac) ? 0 : -1;
+   }
+
+int Sodium::crypto_auth_hmacsha512(uint8_t out[],
+                                   const uint8_t in[],
+                                   size_t in_len,
+                                   const uint8_t key[])
+   {
+   auto mac = MessageAuthenticationCode::create_or_throw("HMAC(SHA-512)");
+   mac->set_key(key, crypto_auth_hmacsha512_KEYBYTES);
+   mac->update(in, in_len);
+   mac->final(out);
+   return 0;
+   }
+
+int Sodium::crypto_auth_hmacsha512_verify(const uint8_t mac[],
+                                          const uint8_t in[],
+                                          size_t in_len,
+                                          const uint8_t key[])
+   {
+   secure_vector<uint8_t> computed(crypto_auth_hmacsha512_BYTES);
+   crypto_auth_hmacsha512(computed.data(), in, in_len, key);
+   return crypto_verify_64(computed.data(), mac) ? 0 : -1;
+   }
+
+int Sodium::crypto_auth_hmacsha512256(uint8_t out[],
+                                      const uint8_t in[],
+                                      size_t in_len,
+                                      const uint8_t key[])
+   {
+   auto mac = MessageAuthenticationCode::create_or_throw("HMAC(SHA-512)");
+   mac->set_key(key, crypto_auth_hmacsha512256_KEYBYTES);
+   mac->update(in, in_len);
+
+   secure_vector<uint8_t> buf(64);
+   mac->final(buf);
+
+   copy_mem(out, buf.data(), crypto_auth_hmacsha512256_BYTES);
+   return 0;
+   }
+
+int Sodium::crypto_auth_hmacsha512256_verify(const uint8_t mac[],
+                                             const uint8_t in[],
+                                             size_t in_len,
+                                             const uint8_t key[])
+   {
+   secure_vector<uint8_t> computed(crypto_auth_hmacsha512256_BYTES);
+   crypto_auth_hmacsha512256(computed.data(), in, in_len, key);
+   return crypto_verify_32(computed.data(), mac) ? 0 : -1;
+   }
+
+int Sodium::crypto_auth_hmacsha256(uint8_t out[],
+                                   const uint8_t in[],
+                                   size_t in_len,
+                                   const uint8_t key[])
+   {
+   auto mac = MessageAuthenticationCode::create_or_throw("HMAC(SHA-256)");
+   mac->set_key(key, crypto_auth_hmacsha256_KEYBYTES);
+   mac->update(in, in_len);
+   mac->final(out);
+   return 0;
+   }
+
+int Sodium::crypto_auth_hmacsha256_verify(const uint8_t mac[],
+                                          const uint8_t in[],
+                                          size_t in_len,
+                                          const uint8_t key[])
+   {
+   secure_vector<uint8_t> computed(crypto_auth_hmacsha256_BYTES);
+   crypto_auth_hmacsha256(computed.data(), in, in_len, key);
+   return crypto_verify_32(computed.data(), mac) ? 0 : -1;
+   }
+
+}
+/*
+* (C) 2019 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
+
+int Sodium::crypto_box_curve25519xsalsa20poly1305_seed_keypair(uint8_t pk[32],
+                                                               uint8_t sk[32],
+                                                               const uint8_t seed[32])
+   {
+   secure_vector<uint8_t> digest(64);
+   crypto_hash_sha512(digest.data(), seed, 32);
+   copy_mem(sk, digest.data(), 32);
+   return crypto_scalarmult_curve25519_base(pk, sk);
+   }
+
+int Sodium::crypto_box_curve25519xsalsa20poly1305_keypair(uint8_t pk[32],
+                                                          uint8_t sk[32])
+   {
+   randombytes_buf(sk, 32);
+   return crypto_scalarmult_curve25519_base(pk, sk);
+   }
+
+int Sodium::crypto_box_curve25519xsalsa20poly1305_beforenm(uint8_t key[],
+                                                           const uint8_t pk[32],
+                                                           const uint8_t sk[32])
+   {
+   const uint8_t zero[16] = { 0 };
+   secure_vector<uint8_t> shared(32);
+
+   if(crypto_scalarmult_curve25519(shared.data(), sk, pk) != 0)
+      return -1;
+
+   return crypto_core_hsalsa20(key, zero, shared.data(), nullptr);
+   }
+
+int Sodium::crypto_box_curve25519xsalsa20poly1305(uint8_t ctext[],
+                                                  const uint8_t ptext[],
+                                                  size_t ptext_len,
+                                                  const uint8_t nonce[],
+                                                  const uint8_t pk[32],
+                                                  const uint8_t sk[32])
+   {
+   secure_vector<uint8_t> shared(32);
+
+   if(crypto_box_curve25519xsalsa20poly1305_beforenm(shared.data(), pk, sk) != 0)
+      return -1;
+
+   return crypto_box_curve25519xsalsa20poly1305_afternm(ctext, ptext, ptext_len, nonce, shared.data());
+   }
+
+int Sodium::crypto_box_curve25519xsalsa20poly1305_open(uint8_t ptext[],
+                                                       const uint8_t ctext[],
+                                                       size_t ctext_len,
+                                                       const uint8_t nonce[],
+                                                       const uint8_t pk[32],
+                                                       const uint8_t sk[32])
+   {
+   secure_vector<uint8_t> shared(32);
+
+   if(crypto_box_curve25519xsalsa20poly1305_beforenm(shared.data(), pk, sk) != 0)
+      return -1;
+
+   return crypto_box_curve25519xsalsa20poly1305_open_afternm(ptext, ctext, ctext_len, nonce, shared.data());
+   }
+
+int Sodium::crypto_box_detached(uint8_t ctext[], uint8_t mac[],
+                                const uint8_t ptext[], size_t ptext_len,
+                                const uint8_t nonce[], const uint8_t pk[32],
+                                const uint8_t sk[32])
+   {
+   secure_vector<uint8_t> shared(32);
+
+   if(crypto_box_beforenm(shared.data(), pk, sk) != 0)
+      return -1;
+
+   return crypto_box_detached_afternm(ctext, mac, ptext, ptext_len, nonce, shared.data());
+   }
+
+int Sodium::crypto_box_open_detached(uint8_t ptext[], const uint8_t ctext[],
+                                     const uint8_t mac[],
+                                     size_t ctext_len,
+                                     const uint8_t nonce[],
+                                     const uint8_t pk[32],
+                                     const uint8_t sk[32])
+   {
+   secure_vector<uint8_t> shared(32);
+
+   if(crypto_box_beforenm(shared.data(), pk, sk) != 0)
+      return -1;
+
+   return crypto_box_open_detached_afternm(ptext, ctext, mac, ctext_len, nonce, shared.data());
+   }
+
+}
+/*
+* (C) 2019 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
+
+int Sodium::crypto_stream_chacha20(uint8_t out[], size_t out_len,
+                                   const uint8_t nonce[], const uint8_t key[])
+   {
+   auto chacha = StreamCipher::create_or_throw("ChaCha(20)");
+   chacha->set_key(key, crypto_stream_chacha20_KEYBYTES);
+   chacha->set_iv(nonce, crypto_stream_chacha20_NONCEBYTES);
+   chacha->write_keystream(out, out_len);
+   return 0;
+   }
+
+int Sodium::crypto_stream_chacha20_xor(uint8_t out[], const uint8_t in[],
+                                       size_t in_len, const uint8_t nonce[],
+                                       const uint8_t key[])
+   {
+   return crypto_stream_chacha20_xor_ic(out, in, in_len, nonce, 0, key);
+   }
+
+int Sodium::crypto_stream_chacha20_xor_ic(uint8_t out[], const uint8_t in[],
+                                          size_t in_len,
+                                          const uint8_t nonce[], uint64_t ic,
+                                          const uint8_t key[])
+   {
+   if((ic >> 6) != 0) // otherwise multiply overflows
+      return -1;
+
+   auto chacha = StreamCipher::create_or_throw("ChaCha(20)");
+   chacha->set_key(key, crypto_stream_chacha20_KEYBYTES);
+   chacha->set_iv(nonce, crypto_stream_chacha20_NONCEBYTES);
+   chacha->seek(ic * 64);
+   chacha->cipher(in, out, in_len);
+   return 0;
+   }
+
+int Sodium::crypto_stream_chacha20_ietf(uint8_t out[], size_t out_len,
+                                        const uint8_t nonce[], const uint8_t key[])
+   {
+   auto chacha = StreamCipher::create_or_throw("ChaCha(20)");
+   chacha->set_key(key, crypto_stream_chacha20_ietf_KEYBYTES);
+   chacha->set_iv(nonce, crypto_stream_chacha20_ietf_NONCEBYTES);
+   chacha->write_keystream(out, out_len);
+   return 0;
+   }
+
+int Sodium::crypto_stream_chacha20_ietf_xor(uint8_t out[],
+                                            const uint8_t in[], size_t in_len,
+                                            const uint8_t nonce[],
+                                            const uint8_t key[])
+   {
+   return crypto_stream_chacha20_ietf_xor_ic(out, in, in_len, nonce, 0, key);
+   }
+
+int Sodium::crypto_stream_chacha20_ietf_xor_ic(uint8_t out[],
+                                               const uint8_t in[], size_t in_len,
+                                               const uint8_t nonce[], uint32_t ic,
+                                               const uint8_t key[])
+   {
+   auto chacha = StreamCipher::create_or_throw("ChaCha(20)");
+   chacha->set_key(key, crypto_stream_chacha20_ietf_KEYBYTES);
+   chacha->set_iv(nonce, crypto_stream_chacha20_ietf_NONCEBYTES);
+   chacha->seek(static_cast<uint64_t>(ic) * 64);
+   chacha->cipher(in, out, in_len);
+   return 0;
+   }
+
+int Sodium::crypto_stream_xchacha20(uint8_t out[], size_t out_len,
+                                    const uint8_t nonce[], const uint8_t key[])
+   {
+   auto chacha = StreamCipher::create_or_throw("ChaCha(20)");
+   chacha->set_key(key, crypto_stream_xchacha20_KEYBYTES);
+   chacha->set_iv(nonce, crypto_stream_xchacha20_NONCEBYTES);
+   chacha->write_keystream(out, out_len);
+   return 0;
+   }
+
+int Sodium::crypto_stream_xchacha20_xor(uint8_t out[], const uint8_t in[],
+                                       size_t in_len, const uint8_t nonce[],
+                                       const uint8_t key[])
+   {
+   return crypto_stream_xchacha20_xor_ic(out, in, in_len, nonce, 0, key);
+   }
+
+int Sodium::crypto_stream_xchacha20_xor_ic(uint8_t out[], const uint8_t in[],
+                                           size_t in_len,
+                                           const uint8_t nonce[], uint64_t ic,
+                                           const uint8_t key[])
+   {
+   if((ic >> 6) != 0) // otherwise multiply overflows
+      return -1;
+
+   auto chacha = StreamCipher::create_or_throw("ChaCha(20)");
+   chacha->set_key(key, crypto_stream_xchacha20_KEYBYTES);
+   chacha->set_iv(nonce, crypto_stream_xchacha20_NONCEBYTES);
+   chacha->seek(ic * 64);
+   chacha->cipher(in, out, in_len);
+   return 0;
+   }
+
+}
+/*
+* (C) 2019 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
+
+int Sodium::crypto_core_hsalsa20(uint8_t out[], const uint8_t in[],
+                                 const uint8_t key[], const uint8_t c[])
+   {
+   uint32_t in32[16] = { 0 };
+
+   static const uint32_t SIGMA[] =
+      { 0x61707865, 0x3320646e, 0x79622d32, 0x6b206574 };
+
+   if(c == nullptr)
+      {
+      in32[0] = SIGMA[0];
+      in32[5] = SIGMA[1];
+      in32[10] = SIGMA[2];
+      in32[15] = SIGMA[3];
+      }
+   else
+      {
+      in32[0] = load_le<uint32_t>(c, 0);
+      in32[5] = load_le<uint32_t>(c, 1);
+      in32[10] = load_le<uint32_t>(c, 2);
+      in32[15] = load_le<uint32_t>(c, 3);
+      }
+
+   in32[1] = load_le<uint32_t>(key, 0);
+   in32[2] = load_le<uint32_t>(key, 1);
+   in32[3] = load_le<uint32_t>(key, 2);
+   in32[4] = load_le<uint32_t>(key, 3);
+
+   in32[6] = load_le<uint32_t>(in, 0);
+   in32[7] = load_le<uint32_t>(in, 1);
+   in32[8] = load_le<uint32_t>(in, 2);
+   in32[9] = load_le<uint32_t>(in, 3);
+
+   in32[11] = load_le<uint32_t>(key, 4);
+   in32[12] = load_le<uint32_t>(key, 5);
+   in32[13] = load_le<uint32_t>(key, 6);
+   in32[14] = load_le<uint32_t>(key, 7);
+
+   uint32_t out32[8] = { 0 };
+   Salsa20::hsalsa20(out32, in32);
+
+   copy_out_le(out, 32, out32);
+   return 0;
+   }
+
+int Sodium::crypto_stream_salsa20(uint8_t out[], size_t out_len,
+                                  const uint8_t nonce[], const uint8_t key[])
+   {
+   Salsa20 salsa;
+   salsa.set_key(key, crypto_stream_salsa20_KEYBYTES);
+   salsa.set_iv(nonce, crypto_stream_salsa20_NONCEBYTES);
+   salsa.write_keystream(out, out_len);
+   return 0;
+   }
+
+int Sodium::crypto_stream_salsa20_xor(uint8_t out[], const uint8_t in[],
+                                      size_t in_len, const uint8_t nonce[],
+                                      const uint8_t key[])
+   {
+   return crypto_stream_salsa20_xor_ic(out, in, in_len, nonce, 0, key);
+   }
+
+int Sodium::crypto_stream_salsa20_xor_ic(uint8_t out[], const uint8_t in[],
+                                         size_t in_len,
+                                         const uint8_t nonce[], uint64_t ic,
+                                         const uint8_t key[])
+   {
+   if((ic >> 6) != 0) // otherwise multiply overflows
+      return -1;
+
+   Salsa20 salsa;
+   salsa.set_key(key, crypto_stream_salsa20_KEYBYTES);
+   salsa.set_iv(nonce, crypto_stream_salsa20_NONCEBYTES);
+   salsa.seek(ic * 64);
+   salsa.cipher(in, out, in_len);
+   return 0;
+   }
+
+int Sodium::crypto_stream_xsalsa20(uint8_t out[], size_t out_len,
+                                   const uint8_t nonce[], const uint8_t key[])
+   {
+   Salsa20 salsa;
+   salsa.set_key(key, crypto_stream_xsalsa20_KEYBYTES);
+   salsa.set_iv(nonce, crypto_stream_xsalsa20_NONCEBYTES);
+   salsa.write_keystream(out, out_len);
+   return 0;
+   }
+
+int Sodium::crypto_stream_xsalsa20_xor(uint8_t out[], const uint8_t in[],
+                                       size_t in_len, const uint8_t nonce[],
+                                       const uint8_t key[])
+   {
+   return crypto_stream_xsalsa20_xor_ic(out, in, in_len, nonce, 0, key);
+   }
+
+int Sodium::crypto_stream_xsalsa20_xor_ic(uint8_t out[], const uint8_t in[],
+                                          size_t in_len,
+                                          const uint8_t nonce[], uint64_t ic,
+                                          const uint8_t key[])
+   {
+   if((ic >> 6) != 0) // otherwise multiply overflows
+      return -1;
+
+   Salsa20 salsa;
+   salsa.set_key(key, crypto_stream_xsalsa20_KEYBYTES);
+   salsa.set_iv(nonce, crypto_stream_xsalsa20_NONCEBYTES);
+   salsa.seek(ic * 64);
+   salsa.cipher(in, out, in_len);
+   return 0;
+   }
+
+}
+/*
+* (C) 2019 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
+
+int Sodium::crypto_secretbox_xsalsa20poly1305(uint8_t ctext[],
+                                              const uint8_t ptext[],
+                                              size_t ptext_len,
+                                              const uint8_t nonce[],
+                                              const uint8_t key[])
+   {
+   if(ptext_len < 32)
+      return -1;
+
+   auto salsa = StreamCipher::create_or_throw("Salsa20");
+   salsa->set_key(key, crypto_secretbox_KEYBYTES);
+   salsa->set_iv(nonce, crypto_secretbox_NONCEBYTES);
+
+   secure_vector<uint8_t> auth_key(32);
+   salsa->write_keystream(auth_key.data(), auth_key.size());
+
+   salsa->cipher(ptext + 32, ctext + 32, ptext_len - 32);
+
+   auto poly1305 = MessageAuthenticationCode::create_or_throw("Poly1305");
+   poly1305->set_key(auth_key);
+   poly1305->update(ctext + 32, ptext_len - 32);
+   poly1305->final(ctext + 16);
+
+   clear_mem(ctext, 16);
+   return 0;
+   }
+
+int Sodium::crypto_secretbox_xsalsa20poly1305_open(uint8_t ptext[],
+                                                   const uint8_t ctext[],
+                                                   size_t ctext_len,
+                                                   const uint8_t nonce[],
+                                                   const uint8_t key[])
+   {
+   if(ctext_len < crypto_box_curve25519xsalsa20poly1305_ZEROBYTES)
+      {
+      return -1;
+      }
+
+   auto salsa = StreamCipher::create_or_throw("Salsa20");
+   salsa->set_key(key, crypto_secretbox_KEYBYTES);
+   salsa->set_iv(nonce, crypto_secretbox_NONCEBYTES);
+
+   secure_vector<uint8_t> auth_key(32);
+   salsa->write_keystream(auth_key.data(), auth_key.size());
+
+   auto poly1305 = MessageAuthenticationCode::create_or_throw("Poly1305");
+   poly1305->set_key(auth_key);
+   poly1305->update(ctext + 32, ctext_len - 32);
+   secure_vector<uint8_t> computed = poly1305->final();
+
+   if(!constant_time_compare(computed.data(), ctext + 16, 16))
+      return -1;
+
+   salsa->cipher(ctext + 32, ptext + 32, ctext_len - 32);
+
+   clear_mem(ptext, 32);
+   return 0;
+   }
+
+int Sodium::crypto_secretbox_detached(uint8_t ctext[], uint8_t mac[],
+                                      const uint8_t ptext[],
+                                      size_t ptext_len,
+                                      const uint8_t nonce[],
+                                      const uint8_t key[])
+   {
+   auto salsa = StreamCipher::create_or_throw("Salsa20");
+   salsa->set_key(key, crypto_secretbox_KEYBYTES);
+   salsa->set_iv(nonce, crypto_secretbox_NONCEBYTES);
+
+   secure_vector<uint8_t> auth_key(32);
+   salsa->write_keystream(auth_key.data(), auth_key.size());
+
+   salsa->cipher(ptext, ctext, ptext_len);
+
+   auto poly1305 = MessageAuthenticationCode::create_or_throw("Poly1305");
+   poly1305->set_key(auth_key);
+   poly1305->update(ctext, ptext_len);
+   poly1305->final(mac);
+
+   return 0;
+   }
+
+int Sodium::crypto_secretbox_open_detached(uint8_t ptext[],
+                                           const uint8_t ctext[],
+                                           const uint8_t mac[],
+                                           size_t ctext_len,
+                                           const uint8_t nonce[],
+                                           const uint8_t key[])
+   {
+   auto salsa = StreamCipher::create_or_throw("Salsa20");
+   salsa->set_key(key, crypto_secretbox_KEYBYTES);
+   salsa->set_iv(nonce, crypto_secretbox_NONCEBYTES);
+
+   secure_vector<uint8_t> auth_key(32);
+   salsa->write_keystream(auth_key.data(), auth_key.size());
+
+   auto poly1305 = MessageAuthenticationCode::create_or_throw("Poly1305");
+   poly1305->set_key(auth_key);
+   poly1305->update(ctext, ctext_len);
+   secure_vector<uint8_t> computed_mac = poly1305->final();
+
+   if(!constant_time_compare(mac, computed_mac.data(), computed_mac.size()))
+      return -1;
+
+   salsa->cipher(ctext, ptext, ctext_len);
+
+   return 0;
+   }
+
+}
+/*
+* (C) 2019 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
+
+void Sodium::randombytes_buf(void* buf, size_t len)
+   {
+   system_rng().randomize(static_cast<uint8_t*>(buf), len);
+   }
+
+uint32_t Sodium::randombytes_uniform(uint32_t upper_bound)
+   {
+   if(upper_bound <= 1)
+      return 0;
+
+   // Not completely uniform
+   uint64_t x;
+   randombytes_buf(&x, sizeof(x));
+   return x % upper_bound;
+   }
+
+void Sodium::randombytes_buf_deterministic(void* buf, size_t size, const uint8_t seed[randombytes_SEEDBYTES])
+   {
+   const unsigned char nonce[12] = {
+      'L', 'i', 'b', 's', 'o', 'd', 'i', 'u', 'm', 'D', 'R', 'G'
+   };
+
+   ChaCha chacha(20);
+   chacha.set_key(seed, randombytes_SEEDBYTES);
+   chacha.set_iv(nonce, sizeof(nonce));
+   chacha.write_keystream(static_cast<uint8_t*>(buf), size);
+   }
+
+int Sodium::crypto_verify_16(const uint8_t* x, const uint8_t* y)
+   {
+   return same_mem(x, y, 16);
+   }
+
+int Sodium::crypto_verify_32(const uint8_t* x, const uint8_t* y)
+   {
+   return same_mem(x, y, 32);
+   }
+
+int Sodium::crypto_verify_64(const uint8_t* x, const uint8_t* y)
+   {
+   return same_mem(x, y, 64);
+   }
+
+void Sodium::sodium_memzero(void* ptr, size_t len)
+   {
+   secure_scrub_memory(ptr, len);
+   }
+
+int Sodium::sodium_memcmp(const void* x, const void* y, size_t len)
+   {
+   const bool same = constant_time_compare(static_cast<const uint8_t*>(x), static_cast<const uint8_t*>(y), len);
+   return same ? 0 : -1;
+   }
+
+int Sodium::sodium_compare(const uint8_t x[], const uint8_t y[], size_t len)
+   {
+   const uint8_t LT = static_cast<uint8_t>(-1);
+   const uint8_t EQ = 0;
+   const uint8_t GT = 1;
+
+   uint8_t result = EQ; // until found otherwise
+
+   for(size_t i = 0; i != len; ++i)
+      {
+      const auto is_eq = CT::Mask<uint8_t>::is_equal(x[i], y[i]);
+      const auto is_lt = CT::Mask<uint8_t>::is_lt(x[i], y[i]);
+      result = is_eq.select(result, is_lt.select(LT, GT));
+      }
+
+   return static_cast<int8_t>(result);
+   }
+
+int Sodium::sodium_is_zero(const uint8_t b[], size_t len)
+   {
+   uint8_t sum = 0;
+   for(size_t i = 0; i != len; ++i)
+      sum |= b[i];
+   return static_cast<int>(CT::Mask<uint8_t>::expand(sum).if_not_set_return(1));
+   }
+
+void Sodium::sodium_increment(uint8_t b[], size_t len)
+   {
+   uint8_t carry = 1;
+   for(size_t i = 0; i != len; ++i)
+      {
+      b[i] += carry;
+      carry &= (b[i] == 0);
+      }
+   }
+
+void Sodium::sodium_add(uint8_t a[], const uint8_t b[], size_t len)
+   {
+   uint8_t carry = 0;
+   for(size_t i = 0; i != len; ++i)
+      {
+      a[i] += b[i] + carry;
+      carry = (a[i] < b[i]);
+      }
+   }
+
+void* Sodium::sodium_malloc(size_t size)
+   {
+   const uint64_t len = size;
+
+   if(size + sizeof(len) < size)
+      return nullptr;
+
+   uint8_t* p = static_cast<uint8_t*>(std::calloc(size + sizeof(len), 1));
+   store_le(len, p);
+   return p + 8;
+   }
+
+void Sodium::sodium_free(void* ptr)
+   {
+   if(ptr == nullptr)
+      return;
+
+   uint8_t* p = static_cast<uint8_t*>(ptr) - 8;
+   const uint64_t len = load_le<uint64_t>(p, 0);
+   secure_scrub_memory(ptr, static_cast<size_t>(len));
+   std::free(p);
+   }
+
+void* Sodium::sodium_allocarray(size_t count, size_t size)
+   {
+   const size_t bytes = count * size;
+   if(bytes < count || bytes < size)
+      return nullptr;
+   return sodium_malloc(bytes);
+   }
+
+int Sodium::sodium_mprotect_noaccess(void* ptr)
+   {
+   OS::page_prohibit_access(ptr);
+   return 0;
+   }
+
+int Sodium::sodium_mprotect_readwrite(void* ptr)
+   {
+   OS::page_allow_access(ptr);
+   return 0;
    }
 
 }
@@ -64175,15 +66618,15 @@ size_t SP800_56C::kdf(uint8_t key[], size_t key_len,
                       const uint8_t salt[], size_t salt_len,
                       const uint8_t label[], size_t label_len) const
    {
-      // Randomness Extraction
-      secure_vector< uint8_t > k_dk;
+   // Randomness Extraction
+   secure_vector<uint8_t> k_dk;
 
-      m_prf->set_key(salt, salt_len);
-      m_prf->update(secret, secret_len);
-      m_prf->final(k_dk);
+   m_prf->set_key(salt, salt_len);
+   m_prf->update(secret, secret_len);
+   m_prf->final(k_dk);
 
-      // Key Expansion
-      m_exp->kdf(key, key_len, k_dk.data(), k_dk.size(), nullptr, 0, label, label_len);
+   // Key Expansion
+   m_exp->kdf(key, key_len, k_dk.data(), k_dk.size(), nullptr, 0, label, label_len);
 
    return key_len;
    }
@@ -64191,7 +66634,7 @@ size_t SP800_56C::kdf(uint8_t key[], size_t key_len,
 }
 /*
 * SRP-6a (RFC 5054 compatatible)
-* (C) 2011,2012 Jack Lloyd
+* (C) 2011,2012,2019 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -64269,9 +66712,22 @@ srp6_client_agree(const std::string& identifier,
                   const BigInt& B,
                   RandomNumberGenerator& rng)
    {
-   const size_t a_bits = 256;
-
    DL_Group group(group_id);
+   const size_t a_bits = group.exponent_bits();
+
+   return srp6_client_agree(identifier, password, group, hash_id, salt, B, a_bits, rng);
+   }
+
+std::pair<BigInt, SymmetricKey>
+srp6_client_agree(const std::string& identifier,
+                  const std::string& password,
+                  const DL_Group& group,
+                  const std::string& hash_id,
+                  const std::vector<uint8_t>& salt,
+                  const BigInt& B,
+                  const size_t a_bits,
+                  RandomNumberGenerator& rng)
+   {
    const BigInt& g = group.get_g();
    const BigInt& p = group.get_p();
 
@@ -64304,10 +66760,18 @@ BigInt generate_srp6_verifier(const std::string& identifier,
                               const std::string& group_id,
                               const std::string& hash_id)
    {
-   const BigInt x = compute_x(hash_id, identifier, password, salt);
-
    DL_Group group(group_id);
-   // FIXME: x should be size of hash fn
+   return generate_srp6_verifier(identifier, password, salt, group, hash_id);
+   }
+
+BigInt generate_srp6_verifier(const std::string& identifier,
+                              const std::string& password,
+                              const std::vector<uint8_t>& salt,
+                              const DL_Group& group,
+                              const std::string& hash_id)
+   {
+   const BigInt x = compute_x(hash_id, identifier, password, salt);
+   // FIXME: x should be size of hash fn so avoid computing x.bits() here
    return group.power_g_p(x, x.bits());
    }
 
@@ -64316,9 +66780,18 @@ BigInt SRP6_Server_Session::step1(const BigInt& v,
                                   const std::string& hash_id,
                                   RandomNumberGenerator& rng)
    {
-   const size_t b_bits = 256;
-
    DL_Group group(group_id);
+   const size_t b_bits = group.exponent_bits();
+
+   return this->step1(v, group, hash_id, b_bits, rng);
+   }
+
+BigInt SRP6_Server_Session::step1(const BigInt& v,
+                                  const DL_Group& group,
+                                  const std::string& hash_id,
+                                  size_t b_bits,
+                                  RandomNumberGenerator& rng)
+   {
    const BigInt& g = group.get_g();
    const BigInt& p = group.get_p();
 
@@ -64545,7 +67018,7 @@ std::unique_ptr<StreamCipher> StreamCipher::create(const std::string& algo_spec,
 #endif
 
 #if defined(BOTAN_HAS_SHAKE_CIPHER)
-   if(req.algo_name() == "SHAKE-128")
+   if(req.algo_name() == "SHAKE-128" || req.algo_name() == "SHAKE-128-XOF")
       {
       if(provider.empty() || provider == "base")
          return std::unique_ptr<StreamCipher>(new SHAKE_128_Cipher);
@@ -65687,18 +68160,18 @@ extern const uint64_t STREEBOG_C[12][8] =
 
 
 #if defined(BOTAN_TARGET_OS_HAS_RTLGENRANDOM)
-  #define NOMINMAX 1
-  #define _WINSOCKAPI_ // stop windows.h including winsock.h
-  #include <windows.h>
+#define NOMINMAX 1
+#define _WINSOCKAPI_ // stop windows.h including winsock.h
+#include <windows.h>
 
 #elif defined(BOTAN_TARGET_OS_HAS_CRYPTO_NG)
-   #include <bcrypt.h>
+#include <bcrypt.h>
 
 #elif defined(BOTAN_TARGET_OS_HAS_ARC4RANDOM)
-   #include <stdlib.h>
+#include <stdlib.h>
 
 #elif defined(BOTAN_TARGET_OS_HAS_GETRANDOM)
-   #include <sys/random.h>
+#include <sys/random.h>
 
 #elif defined(BOTAN_TARGET_OS_HAS_DEV_RANDOM)
 #endif
@@ -65779,7 +68252,7 @@ class System_RNG_Impl final : public RandomNumberGenerator
       void clear() override { /* not possible */ }
       std::string name() const override { return "crypto_ng"; }
    private:
-      BCRYPT_ALG_HANDLE m_handle;
+      BCRYPT_ALG_HANDLE m_prov;
    };
 
 #elif defined(BOTAN_TARGET_OS_HAS_ARC4RANDOM)
@@ -65845,9 +68318,9 @@ class System_RNG_Impl final : public RandomNumberGenerator
    public:
       System_RNG_Impl()
          {
-         #ifndef O_NOCTTY
-            #define O_NOCTTY 0
-         #endif
+#ifndef O_NOCTTY
+#define O_NOCTTY 0
+#endif
 
          m_fd = ::open(BOTAN_SYSTEM_RNG_DEVICE, O_RDWR | O_NOCTTY);
 
@@ -65922,15 +68395,15 @@ void System_RNG_Impl::add_entropy(const uint8_t input[], size_t len)
 
          /*
          * This is seen on OS X CI, despite the fact that the man page
-         * for Darwin urandom explicitly states that writing to it is
+         * for macOS urandom explicitly states that writing to it is
          * supported, and write(2) does not document EPERM at all.
          * But in any case EPERM seems indicative of a policy decision
          * by the OS or sysadmin that additional entropy is not wanted
          * in the system pool, so we accept that and return here,
          * since there is no corrective action possible.
-	 *
-	 * In Linux EBADF or EPERM is returned if m_fd is not opened for
-	 * writing.
+         *
+         * In Linux EBADF or EPERM is returned if m_fd is not opened for
+         * writing.
          */
          if(errno == EPERM || errno == EBADF)
             return;
@@ -65967,13 +68440,13 @@ namespace Botan {
 
 void Barrier::wait(size_t delta)
     {
-    lock_guard_type<mutex_type> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_value += delta;
     }
 
 void Barrier::sync()
     {
-    std::unique_lock<mutex_type> lock(m_mutex);
+    std::unique_lock<std::mutex> lock(m_mutex);
 
     if(m_value > 1)
         {
@@ -66006,7 +68479,7 @@ void Semaphore::release(size_t n)
    {
    for(size_t i = 0; i != n; ++i)
       {
-      lock_guard_type<mutex_type> lock(m_mutex);
+      std::lock_guard<std::mutex> lock(m_mutex);
 
       if(m_value++ < 0)
          {
@@ -66018,12 +68491,111 @@ void Semaphore::release(size_t n)
 
 void Semaphore::acquire()
    {
-   std::unique_lock<mutex_type> lock(m_mutex);
+   std::unique_lock<std::mutex> lock(m_mutex);
    if(m_value-- <= 0)
        {
        m_cond.wait(lock, [this] { return m_wakeups > 0; });
        --m_wakeups;
        }
+   }
+
+}
+/*
+* (C) 2019 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
+
+//static
+Thread_Pool& Thread_Pool::global_instance()
+   {
+   static Thread_Pool g_thread_pool(OS::read_env_variable_sz("BOTAN_THREAD_POOL_SIZE"));
+   return g_thread_pool;
+   }
+
+Thread_Pool::Thread_Pool(size_t pool_size)
+   {
+   if(pool_size == 0)
+      {
+      pool_size = OS::get_cpu_available();
+
+      /*
+      * For large machines don't create too many threads, unless
+      * explicitly asked to by the caller.
+      */
+      if(pool_size > 16)
+         pool_size = 16;
+      }
+
+   if(pool_size <= 1)
+      pool_size = 2;
+
+   m_shutdown = false;
+
+   for(size_t i = 0; i != pool_size; ++i)
+      {
+      m_workers.push_back(std::thread(&Thread_Pool::worker_thread, this));
+      }
+   }
+
+void Thread_Pool::shutdown()
+   {
+      {
+      std::unique_lock<std::mutex> lock(m_mutex);
+
+      if(m_shutdown == true)
+         return;
+
+      m_shutdown = true;
+
+      m_more_tasks.notify_all();
+      }
+
+   for(auto&& thread : m_workers)
+      {
+      thread.join();
+      }
+   m_workers.clear();
+   }
+
+void Thread_Pool::queue_thunk(std::function<void ()> fn)
+   {
+   std::unique_lock<std::mutex> lock(m_mutex);
+
+   if(m_shutdown)
+      throw Invalid_State("Cannot add work after thread pool has shut down");
+
+   m_tasks.push_back(fn);
+   m_more_tasks.notify_one();
+   }
+
+void Thread_Pool::worker_thread()
+   {
+   for(;;)
+      {
+      std::function<void()> task;
+
+         {
+         std::unique_lock<std::mutex> lock(m_mutex);
+         m_more_tasks.wait(lock, [this]{ return m_shutdown || !m_tasks.empty(); });
+
+         if(m_tasks.empty())
+            {
+            if(m_shutdown)
+               return;
+            else
+               continue;
+            }
+
+         task = m_tasks.front();
+         m_tasks.pop_front();
+         }
+
+      task();
+      }
    }
 
 }
@@ -67001,7 +69573,7 @@ Certificate_Req::Certificate_Req(Handshake_IO& io,
                                  const std::vector<X509_DN>& ca_certs,
                                  Protocol_Version version) :
    m_names(ca_certs),
-   m_cert_key_types({ "RSA", "DSA", "ECDSA" })
+   m_cert_key_types({ "RSA", "ECDSA", "DSA" })
    {
    if(version.supports_negotiable_signature_algorithms())
       {
@@ -67078,7 +69650,7 @@ std::vector<uint8_t> Certificate_Req::serialize() const
    append_tls_length_value(buf, cert_types, 1);
 
    if(m_schemes.size() > 0)
-      buf += Signature_Algorithms(m_schemes).serialize();
+      buf += Signature_Algorithms(m_schemes).serialize(Connection_Side::SERVER);
 
    std::vector<uint8_t> encoded_names;
 
@@ -67115,8 +69687,8 @@ Certificate_Status::Certificate_Status(const std::vector<uint8_t>& buf)
    if(buf.size() < 5)
       throw Decoding_Error("Invalid Certificate_Status message: too small");
 
-   if(buf[0] != 1)
-      throw Decoding_Error("Unexpected Certificate_Status message: unexpected message type");
+   if(buf[0] != 1) // not OCSP
+      throw Decoding_Error("Unexpected Certificate_Status message: unexpected response type");
 
    size_t len = make_uint32(0, buf[1], buf[2], buf[3]);
 
@@ -67124,33 +69696,38 @@ Certificate_Status::Certificate_Status(const std::vector<uint8_t>& buf)
    if(buf.size() != len + 4)
       throw Decoding_Error("Invalid Certificate_Status: invalid length field");
 
-   m_response = std::make_shared<OCSP::Response>(buf.data() + 4, buf.size() - 4);
+   m_response.assign(buf.begin() + 4, buf.end());
    }
 
 Certificate_Status::Certificate_Status(Handshake_IO& io,
                                        Handshake_Hash& hash,
                                        std::shared_ptr<const OCSP::Response> ocsp) :
-   m_response(ocsp)
+   m_response(ocsp->raw_bits())
+   {
+   hash.update(io.send(*this));
+   }
+
+Certificate_Status::Certificate_Status(Handshake_IO& io,
+                                       Handshake_Hash& hash,
+                                       const std::vector<uint8_t>& raw_response_bytes) :
+   m_response(raw_response_bytes)
    {
    hash.update(io.send(*this));
    }
 
 std::vector<uint8_t> Certificate_Status::serialize() const
    {
-   BOTAN_ASSERT_NONNULL(m_response);
-   const std::vector<uint8_t>& m_resp_bits = m_response->raw_bits();
-
-   if(m_resp_bits.size() > 0xFFFFFF) // unlikely
+   if(m_response.size() > 0xFFFFFF) // unlikely
       throw Encoding_Error("OCSP response too long to encode in TLS");
 
-   const uint32_t m_resp_bits_len = static_cast<uint32_t>(m_resp_bits.size());
+   const uint32_t response_len = static_cast<uint32_t>(m_response.size());
 
    std::vector<uint8_t> buf;
    buf.push_back(1); // type OCSP
    for(size_t i = 1; i < 4; ++i)
-      buf[i] = get_byte(i, m_resp_bits_len);
+      buf.push_back(get_byte(i, response_len));
 
-   buf += m_resp_bits;
+   buf += m_response;
    return buf;
    }
 
@@ -67205,6 +69782,7 @@ Certificate_Verify::Certificate_Verify(const std::vector<uint8_t>& buf,
       }
 
    m_signature = reader.get_range<uint8_t>(2, 0, 65535);
+   reader.assert_done();
    }
 
 /*
@@ -67220,6 +69798,9 @@ std::vector<uint8_t> Certificate_Verify::serialize() const
       buf.push_back(get_byte(0, scheme_code));
       buf.push_back(get_byte(1, scheme_code));
       }
+
+   if(m_signature.size() > 0xFFFF)
+      throw Encoding_Error("Certificate_Verify signature too long to encode");
 
    const uint16_t sig_len = static_cast<uint16_t>(m_signature.size());
    buf.push_back(get_byte(0, sig_len));
@@ -67283,7 +69864,7 @@ Certificate::Certificate(Handshake_IO& io,
 /**
 * Deserialize a Certificate message
 */
-Certificate::Certificate(const std::vector<uint8_t>& buf, const Policy& /*policy_currently_unused*/)
+Certificate::Certificate(const std::vector<uint8_t>& buf, const Policy& policy)
    {
    if(buf.size() < 3)
       throw Decoding_Error("Certificate: Message malformed");
@@ -67292,6 +69873,10 @@ Certificate::Certificate(const std::vector<uint8_t>& buf, const Policy& /*policy
 
    if(total_size != buf.size() - 3)
       throw Decoding_Error("Certificate: Message malformed");
+
+   const size_t max_size = policy.maximum_certificate_chain_size();
+   if(max_size > 0 && total_size > max_size)
+      throw Decoding_Error("Certificate chain exceeds policy specified maximum size");
 
    const uint8_t* certs = buf.data() + 3;
 
@@ -67422,8 +70007,9 @@ Client_Hello::Client_Hello(Handshake_IO& io,
    m_suites(policy.ciphersuite_list(m_version, !client_settings.srp_identifier().empty())),
    m_comp_methods(1)
    {
-   BOTAN_ASSERT(policy.acceptable_protocol_version(client_settings.protocol_version()),
-                "Our policy accepts the version we are offering");
+   if(!policy.acceptable_protocol_version(m_version))
+      throw Internal_Error("Offering " + m_version.to_string() +
+                           " but our own policy does not accept it");
 
    /*
    * Place all empty extensions in front to avoid a bug in some systems
@@ -67436,7 +70022,11 @@ Client_Hello::Client_Hello(Handshake_IO& io,
       m_extensions.add(new Encrypt_then_MAC);
 
    m_extensions.add(new Renegotiation_Extension(reneg_info));
-   m_extensions.add(new Server_Name_Indicator(client_settings.hostname()));
+
+   m_extensions.add(new Supported_Versions(m_version, policy));
+
+   if(client_settings.hostname() != "")
+      m_extensions.add(new Server_Name_Indicator(client_settings.hostname()));
 
    if(policy.support_cert_status_message())
       m_extensions.add(new Certificate_Status_Request({}, {}));
@@ -67493,6 +70083,10 @@ Client_Hello::Client_Hello(Handshake_IO& io,
    m_suites(policy.ciphersuite_list(m_version, (session.srp_identifier() != ""))),
    m_comp_methods(1)
    {
+   if(!policy.acceptable_protocol_version(m_version))
+      throw Internal_Error("Offering " + m_version.to_string() +
+                           " but our own policy does not accept it");
+
    if(!value_exists(m_suites, session.ciphersuite_code()))
       m_suites.push_back(session.ciphersuite_code());
 
@@ -67506,6 +70100,9 @@ Client_Hello::Client_Hello(Handshake_IO& io,
    m_extensions.add(new Renegotiation_Extension(reneg_info));
    m_extensions.add(new Server_Name_Indicator(session.server_info().hostname()));
    m_extensions.add(new Session_Ticket(session.session_ticket()));
+
+   if(policy.support_cert_status_message())
+      m_extensions.add(new Certificate_Status_Request({}, {}));
 
    std::unique_ptr<Supported_Groups> supported_groups(new Supported_Groups(policy.key_exchange_groups()));
 
@@ -67572,7 +70169,26 @@ std::vector<uint8_t> Client_Hello::serialize() const
    * renegotiating with a modern server)
    */
 
-   buf += m_extensions.serialize();
+   buf += m_extensions.serialize(Connection_Side::CLIENT);
+
+   return buf;
+   }
+
+std::vector<uint8_t> Client_Hello::cookie_input_data() const
+   {
+   std::vector<uint8_t> buf;
+
+   buf.push_back(m_version.major_version());
+   buf.push_back(m_version.minor_version());
+   buf += m_random;
+
+   append_tls_length_value(buf, m_session_id, 1);
+
+   append_tls_length_value(buf, m_suites, 2);
+   append_tls_length_value(buf, m_comp_methods, 1);
+
+   // Here we don't serialize the extensions since the client extensions
+   // may contain values we don't know how to serialize back.
 
    return buf;
    }
@@ -67603,7 +70219,7 @@ Client_Hello::Client_Hello(const std::vector<uint8_t>& buf)
 
    m_comp_methods = reader.get_range_vector<uint8_t>(1, 1, 255);
 
-   m_extensions.deserialize(reader);
+   m_extensions.deserialize(reader, Connection_Side::CLIENT);
 
    if(offered_suite(static_cast<uint16_t>(TLS_EMPTY_RENEGOTIATION_INFO_SCSV)))
       {
@@ -67618,15 +70234,6 @@ Client_Hello::Client_Hello(const std::vector<uint8_t>& buf)
          // add fake extension
          m_extensions.add(new Renegotiation_Extension());
          }
-      }
-
-   // Parsing complete, now any additional decoding checks
-
-   if(m_version.supports_negotiable_signature_algorithms() == false)
-      {
-      if(m_extensions.has<Signature_Algorithms>())
-         throw TLS_Exception(Alert::HANDSHAKE_FAILURE,
-                             "Client sent signature_algorithms extension in version that doesn't support it");
       }
    }
 
@@ -67707,6 +70314,13 @@ std::vector<uint8_t> Client_Hello::renegotiation_info() const
    if(Renegotiation_Extension* reneg = m_extensions.get<Renegotiation_Extension>())
       return reneg->renegotiation_info();
    return std::vector<uint8_t>();
+   }
+
+std::vector<Protocol_Version> Client_Hello::supported_versions() const
+   {
+   if(Supported_Versions* versions = m_extensions.get<Supported_Versions>())
+      return versions->versions();
+   return {};
    }
 
 bool Client_Hello::supports_session_ticket() const
@@ -68010,6 +70624,7 @@ Client_Key_Exchange::Client_Key_Exchange(const std::vector<uint8_t>& contents,
 
       TLS_Data_Reader reader("ClientKeyExchange", contents);
       const std::vector<uint8_t> encrypted_pre_master = reader.get_range<uint8_t>(2, 0, 65535);
+      reader.assert_done();
 
       PK_Decryptor_EME decryptor(*server_rsa_kex_key, rng, "PKCS1v15");
 
@@ -68130,6 +70745,10 @@ Client_Key_Exchange::Client_Key_Exchange(const std::vector<uint8_t>& contents,
             else
                m_pre_master = shared_secret;
             }
+         catch(Invalid_Argument& e)
+            {
+            throw TLS_Exception(Alert::ILLEGAL_PARAMETER, e.what());
+            }
          catch(std::exception &)
             {
             /*
@@ -68140,6 +70759,8 @@ Client_Key_Exchange::Client_Key_Exchange(const std::vector<uint8_t>& contents,
             */
             m_pre_master = rng.random_vec(ka_key->public_value().size());
             }
+
+         reader.assert_done();
          }
       else
          throw Internal_Error("Client_Key_Exchange: Unknown key exchange negotiated");
@@ -68271,15 +70892,16 @@ Hello_Verify_Request::Hello_Verify_Request(const std::vector<uint8_t>& client_he
                                            const std::string& client_identity,
                                            const SymmetricKey& secret_key)
    {
-   std::unique_ptr<MessageAuthenticationCode> hmac(MessageAuthenticationCode::create("HMAC(SHA-256)"));
+   std::unique_ptr<MessageAuthenticationCode> hmac = MessageAuthenticationCode::create_or_throw("HMAC(SHA-256)");
    hmac->set_key(secret_key);
 
-   hmac->update_be(client_hello_bits.size());
+   hmac->update_be(static_cast<uint64_t>(client_hello_bits.size()));
    hmac->update(client_hello_bits);
-   hmac->update_be(client_identity.size());
+   hmac->update_be(static_cast<uint64_t>(client_identity.size()));
    hmac->update(client_identity);
 
-   m_cookie = unlock(hmac->final());
+   m_cookie.resize(hmac->output_length());
+   hmac->final(m_cookie.data());
    }
 
 std::vector<uint8_t> Hello_Verify_Request::serialize() const
@@ -68406,10 +71028,6 @@ Server_Hello::Server_Hello(Handshake_IO& io,
    if(client_hello.supports_extended_master_secret())
       m_extensions.add(new Extended_Master_Secret);
 
-   // Sending the extension back does not commit us to sending a stapled response
-   if(client_hello.supports_cert_status_message() && policy.support_cert_status_message())
-      m_extensions.add(new Certificate_Status_Request);
-
    if(client_hello.supports_encrypt_then_mac() && policy.negotiate_encrypt_then_mac())
       {
       Ciphersuite c = resumed_session.ciphersuite();
@@ -68459,7 +71077,7 @@ Server_Hello::Server_Hello(const std::vector<uint8_t>& buf)
 
    m_comp_method = reader.get_byte();
 
-   m_extensions.deserialize(reader);
+   m_extensions.deserialize(reader, Connection_Side::SERVER);
    }
 
 /*
@@ -68480,7 +71098,7 @@ std::vector<uint8_t> Server_Hello::serialize() const
 
    buf.push_back(m_comp_method);
 
-   buf += m_extensions.serialize();
+   buf += m_extensions.serialize(Connection_Side::SERVER);
 
    return buf;
    }
@@ -68871,6 +71489,7 @@ New_Session_Ticket::New_Session_Ticket(const std::vector<uint8_t>& buf)
 
    m_ticket_lifetime_hint = reader.get_uint32_t();
    m_ticket = reader.get_range<uint8_t>(2, 0, 65535);
+   reader.assert_done();
    }
 
 std::vector<uint8_t> New_Session_Ticket::serialize() const
@@ -68899,13 +71518,13 @@ namespace TLS {
 Alert::Alert(const secure_vector<uint8_t>& buf)
    {
    if(buf.size() != 2)
-      throw Decoding_Error("Alert: Bad size " + std::to_string(buf.size()) +
-                           " for alert message");
+      throw Decoding_Error("Bad size (" + std::to_string(buf.size()) +
+                           ") for TLS alert message");
 
    if(buf[0] == 1)      m_fatal = false;
    else if(buf[0] == 2) m_fatal = true;
    else
-      throw Decoding_Error("Alert: Bad code for alert level");
+      throw TLS_Exception(Alert::ILLEGAL_PARAMETER, "Bad code for TLS alert level");
 
    const uint8_t dc = buf[1];
 
@@ -68987,6 +71606,8 @@ std::string Alert::type_string() const
          return "bad_certificate_hash_value";
       case UNKNOWN_PSK_IDENTITY:
          return "unknown_psk_identity";
+      case CERTIFICATE_REQUIRED:
+         return "certificate_required";
       case NO_APPLICATION_PROTOCOL:
          return "no_application_protocol";
 
@@ -69552,6 +72173,11 @@ std::string TLS::Callbacks::tls_server_choose_app_protocol(const std::vector<std
    return "";
    }
 
+std::string TLS::Callbacks::tls_peer_network_identity()
+   {
+   return "";
+   }
+
 void TLS::Callbacks::tls_modify_extensions(Extensions&, Connection_Side)
    {
    }
@@ -69638,7 +72264,7 @@ std::pair<secure_vector<uint8_t>, std::vector<uint8_t>> TLS::Callbacks::tls_dh_a
     * advantage to bogus keys anyway.
     */
    if(Y <= 1 || Y >= p - 1)
-      throw TLS_Exception(Alert::INSUFFICIENT_SECURITY,
+      throw TLS_Exception(Alert::ILLEGAL_PARAMETER,
                           "Server sent bad DH key for DHE exchange");
 
    DL_Group group(p, g);
@@ -69883,8 +72509,13 @@ void Channel::renegotiate(bool force_full_renegotiation)
       return;
 
    if(auto active = active_state())
+      {
+      if(force_full_renegotiation == false)
+         force_full_renegotiation = !policy().allow_resumption_for_renegotiation();
+
       initiate_handshake(create_handshake_state(active->version()),
                          force_full_renegotiation);
+      }
    else
       throw Invalid_State("Cannot renegotiate on inactive connection");
    }
@@ -70023,6 +72654,10 @@ size_t Channel::received_data(const uint8_t input[], size_t input_size)
          BOTAN_ASSERT(input_size == 0 || needed == 0,
                       "Got a full record or consumed all input");
 
+         // Ignore invalid records in DTLS
+         if(m_is_datagram && *record.get_type() == NO_RECORD)
+            return 0;
+
          if(input_size == 0 && needed != 0)
             return needed; // need more data to complete record
 
@@ -70030,12 +72665,41 @@ size_t Channel::received_data(const uint8_t input[], size_t input_size)
             throw TLS_Exception(Alert::RECORD_OVERFLOW,
                                 "TLS plaintext record is larger than allowed maximum");
 
+         if(auto pending = pending_state())
+            {
+            if(pending->server_hello() != nullptr && record_version != pending->version())
+               {
+               throw TLS_Exception(Alert::PROTOCOL_VERSION,
+                                   "Received unexpected record version");
+               }
+            }
+         else if(auto active = active_state())
+            {
+            if(record_version != active->version())
+               {
+               throw TLS_Exception(Alert::PROTOCOL_VERSION,
+                                   "Received unexpected record version");
+               }
+            }
+         else
+            {
+            // For initial records just check for basic sanity
+            if(record_version.major_version() != 3 &&
+               record_version.major_version() != 0xFE)
+               {
+               throw TLS_Exception(Alert::PROTOCOL_VERSION,
+                                   "Received unexpected record version in initial record");
+               }
+            }
+
          if(record_type == HANDSHAKE || record_type == CHANGE_CIPHER_SPEC)
             {
             process_handshake_ccs(record_data, record_sequence, record_type, record_version);
             }
          else if(record_type == APPLICATION_DATA)
             {
+            if(pending_state() != nullptr)
+               throw TLS_Exception(Alert::UNEXPECTED_MESSAGE, "Can't interleave application and handshake data");
             process_application_data(record_sequence, record_data);
             }
          else if(record_type == ALERT)
@@ -70055,7 +72719,7 @@ size_t Channel::received_data(const uint8_t input[], size_t input_size)
       send_fatal_alert(e.type());
       throw;
       }
-   catch(Integrity_Failure&)
+   catch(Invalid_Authentication_Tag&)
       {
       send_fatal_alert(Alert::BAD_RECORD_MAC);
       throw;
@@ -70099,12 +72763,13 @@ void Channel::process_handshake_ccs(const secure_vector<uint8_t>& record,
             else if(epoch == sequence_numbers().current_read_epoch() - 1)
                {
                BOTAN_ASSERT(m_active_state, "Have active state here");
-               m_active_state->handshake_io().add_record(unlock(record),
+               m_active_state->handshake_io().add_record(record.data(),
+                                                         record.size(),
                                                          record_type,
                                                          record_sequence);
                }
             }
-         else if(record_sequence == 0)
+         else
             {
             create_handshake_state(record_version);
             }
@@ -70118,7 +72783,8 @@ void Channel::process_handshake_ccs(const secure_vector<uint8_t>& record,
    // May have been created in above conditional
    if(m_pending_state)
       {
-      m_pending_state->handshake_io().add_record(unlock(record),
+      m_pending_state->handshake_io().add_record(record.data(),
+                                                 record.size(),
                                                  record_type,
                                                  record_sequence);
 
@@ -70140,13 +72806,7 @@ void Channel::process_application_data(uint64_t seq_no, const secure_vector<uint
    if(!active_state())
       throw Unexpected_Message("Application data before handshake done");
 
-   /*
-   * OpenSSL among others sends empty records in versions
-   * before TLS v1.1 in order to randomize the IV of the
-   * following record. Avoid spurious callbacks.
-   */
-   if(record.size() > 0)
-      callbacks().tls_record_received(seq_no, record.data(), record.size());
+   callbacks().tls_record_received(seq_no, record.data(), record.size());
    }
 
 void Channel::process_alert(const secure_vector<uint8_t>& record)
@@ -70179,7 +72839,7 @@ void Channel::write_record(Connection_Cipher_State* cipher_state, uint16_t epoch
    {
    BOTAN_ASSERT(m_pending_state || m_active_state, "Some connection state exists");
 
-   Protocol_Version record_version =
+   const Protocol_Version record_version =
       (m_pending_state) ? (m_pending_state->version()) : (m_active_state->version());
 
    Record_Message record_message(record_type, 0, input, length);
@@ -70216,18 +72876,29 @@ void Channel::send_record_array(uint16_t epoch, uint8_t type, const uint8_t inpu
 
    if(type == APPLICATION_DATA && m_active_state->version().supports_explicit_cbc_ivs() == false)
       {
-      write_record(cipher_state.get(), epoch, type, input, 1);
-      input += 1;
-      length -= 1;
+      while(length)
+         {
+         write_record(cipher_state.get(), epoch, type, input, 1);
+         input += 1;
+         length -= 1;
+
+         const size_t sending = std::min<size_t>(length, MAX_PLAINTEXT_SIZE);
+         write_record(cipher_state.get(), epoch, type, input, sending);
+
+         input += sending;
+         length -= sending;
+         }
       }
-
-   while(length)
+   else
       {
-      const size_t sending = std::min<size_t>(length, MAX_PLAINTEXT_SIZE);
-      write_record(cipher_state.get(), epoch, type, input, sending);
+      while(length)
+         {
+         const size_t sending = std::min<size_t>(length, MAX_PLAINTEXT_SIZE);
+         write_record(cipher_state.get(), epoch, type, input, sending);
 
-      input += sending;
-      length -= sending;
+         input += sending;
+         length -= sending;
+         }
       }
    }
 
@@ -70362,6 +73033,9 @@ SymmetricKey Channel::key_material_export(const std::string& label,
    {
    if(auto active = active_state())
       {
+      if(pending_state() != nullptr)
+         throw Invalid_State("Channel::key_material_export cannot export during renegotiation");
+
       std::unique_ptr<KDF> prf(active->protocol_specific_prf());
 
       const secure_vector<uint8_t>& master_secret =
@@ -70424,6 +73098,30 @@ size_t Ciphersuite::nonce_bytes_from_handshake() const
    throw Invalid_State("In Ciphersuite::nonce_bytes_from_handshake invalid enum value");
    }
 
+size_t Ciphersuite::nonce_bytes_from_record(Protocol_Version version) const
+   {
+   switch(m_nonce_format)
+      {
+      case Nonce_Format::CBC_MODE:
+         {
+         if(version.supports_explicit_cbc_ivs())
+            {
+            return cipher_algo() == "3DES" ? 8 : 16;
+            }
+         else
+            {
+            return 0;
+            }
+         }
+      case Nonce_Format::AEAD_IMPLICIT_4:
+         return 8;
+      case Nonce_Format::AEAD_XOR_12:
+         return 0;
+      }
+
+   throw Invalid_State("In Ciphersuite::nonce_bytes_from_handshake invalid enum value");
+   }
+
 bool Ciphersuite::is_scsv(uint16_t suite)
    {
    // TODO: derive from IANA file in script
@@ -70442,6 +73140,18 @@ bool Ciphersuite::ecc_ciphersuite() const
    return kex_method() == Kex_Algo::ECDH ||
           kex_method() == Kex_Algo::ECDHE_PSK ||
           auth_method() == Auth_Method::ECDSA;
+   }
+
+bool Ciphersuite::usable_in_version(Protocol_Version version) const
+   {
+   if(!version.supports_aead_modes())
+      {
+      // Old versions do not support AEAD, or any MAC but SHA-1
+      if(mac_algo() != "SHA-1")
+         return false;
+      }
+
+   return true;
    }
 
 bool Ciphersuite::cbc_ciphersuite() const
@@ -70463,6 +73173,19 @@ Ciphersuite Ciphersuite::by_id(uint16_t suite)
    if(s != all_suites.end() && s->ciphersuite_code() == suite)
       {
       return *s;
+      }
+
+   return Ciphersuite(); // some unknown ciphersuite
+   }
+
+Ciphersuite Ciphersuite::from_name(const std::string& name)
+   {
+   const std::vector<Ciphersuite>& all_suites = all_known_ciphersuites();
+
+   for(auto suite : all_suites)
+      {
+      if(suite.to_string() == name)
+         return suite;
       }
 
    return Ciphersuite(); // some unknown ciphersuite
@@ -70608,9 +73331,10 @@ namespace {
 class Client_Handshake_State final : public Handshake_State
    {
    public:
-      // using Handshake_State::Handshake_State;
-
-      Client_Handshake_State(Handshake_IO* io, Callbacks& cb) : Handshake_State(io, cb) {}
+      Client_Handshake_State(Handshake_IO* io, Callbacks& cb) :
+         Handshake_State(io, cb),
+         m_is_reneg(false)
+         {}
 
       const Public_Key& get_server_public_key() const
          {
@@ -70618,13 +73342,26 @@ class Client_Handshake_State final : public Handshake_State
          return *server_public_key.get();
          }
 
-      bool is_a_resumption() const { return (resume_master_secret.empty() == false); }
+      bool is_a_resumption() const { return (resumed_session != nullptr); }
+
+      bool is_a_renegotiation() const { return m_is_reneg; }
+
+      const secure_vector<uint8_t>& resume_master_secret() const
+         {
+         BOTAN_STATE_CHECK(is_a_resumption());
+         return resumed_session->master_secret();
+         }
+
+      const std::vector<X509_Certificate>& resume_peer_certs() const
+         {
+         BOTAN_STATE_CHECK(is_a_resumption());
+         return resumed_session->peer_certs();
+         }
 
       std::unique_ptr<Public_Key> server_public_key;
-
       // Used during session resumption
-      secure_vector<uint8_t> resume_master_secret;
-      std::vector<X509_Certificate> resume_peer_certs;
+      std::unique_ptr<Session> resumed_session;
+      bool m_is_reneg = false;
    };
 
 }
@@ -70708,8 +73445,9 @@ std::vector<X509_Certificate>
 Client::get_peer_cert_chain(const Handshake_State& state) const
    {
    const Client_Handshake_State& cstate = dynamic_cast<const Client_Handshake_State&>(state);
-   if(cstate.resume_peer_certs.size() > 0)
-      return cstate.resume_peer_certs;
+
+   if(cstate.is_a_resumption())
+      return cstate.resume_peer_certs();
 
    if(state.server_certs())
       return state.server_certs()->cert_chain();
@@ -70722,7 +73460,8 @@ Client::get_peer_cert_chain(const Handshake_State& state) const
 void Client::initiate_handshake(Handshake_State& state,
                                 bool force_full_renegotiation)
    {
-   send_client_hello(state, force_full_renegotiation, state.version());
+   send_client_hello(state, force_full_renegotiation,
+                     policy().latest_supported_version(state.version().is_datagram_protocol()));
    }
 
 void Client::send_client_hello(Handshake_State& state_base,
@@ -70739,16 +73478,23 @@ void Client::send_client_hello(Handshake_State& state_base,
 
    if(!force_full_renegotiation && !m_info.empty())
       {
-      Session session_info;
-      if(session_manager().load_from_server_info(m_info, session_info))
+      std::unique_ptr<Session> session_info(new Session);;
+      if(session_manager().load_from_server_info(m_info, *session_info))
          {
          /*
-         Ensure that the session protocol type matches what we want to use
+         Ensure that the session protocol cipher and version are acceptable
          If not skip the resume and establish a new session
          */
-         if(version == session_info.version() && policy().acceptable_ciphersuite(session_info.ciphersuite()))
+         const bool exact_version = session_info->version() == version;
+         const bool ok_version =
+            (session_info->version().is_datagram_protocol() == version.is_datagram_protocol()) &&
+            policy().acceptable_protocol_version(session_info->version());
+
+         const bool session_version_ok = policy().only_resume_with_exact_version() ? exact_version : ok_version;
+
+         if(policy().acceptable_ciphersuite(session_info->ciphersuite()) && session_version_ok)
             {
-            if(srp_identifier == "" || session_info.srp_identifier() == srp_identifier)
+            if(srp_identifier == "" || session_info->srp_identifier() == srp_identifier)
                {
                state.client_hello(
                   new Client_Hello(state.handshake_io(),
@@ -70757,11 +73503,10 @@ void Client::send_client_hello(Handshake_State& state_base,
                                    callbacks(),
                                    rng(),
                                    secure_renegotiation_data_for_client_hello(),
-                                   session_info,
+                                   *session_info,
                                    next_protocols));
 
-               state.resume_master_secret = session_info.master_secret();
-               state.resume_peer_certs = session_info.peer_certs();
+               state.resumed_session = std::move(session_info);
                }
             }
          }
@@ -70798,21 +73543,34 @@ void Client::process_handshake_msg(const Handshake_State* active_state,
       {
       Hello_Request hello_request(contents);
 
-      // Ignore request entirely if we are currently negotiating a handshake
       if(state.client_hello())
-         return;
+         {
+         throw TLS_Exception(Alert::HANDSHAKE_FAILURE, "Cannot renegotiate during a handshake");
+         }
 
       if(policy().allow_server_initiated_renegotiation())
          {
-         if(!secure_renegotiation_supported() && policy().allow_insecure_renegotiation() == false)
-            send_warning_alert(Alert::NO_RENEGOTIATION);
+         if(secure_renegotiation_supported() || policy().allow_insecure_renegotiation())
+            {
+            state.m_is_reneg = true;
+            this->initiate_handshake(state, true);
+            }
          else
-            this->initiate_handshake(state, false);
+            {
+            throw TLS_Exception(Alert::HANDSHAKE_FAILURE, "Client policy prohibits insecure renegotiation");
+            }
          }
       else
          {
-         // RFC 5746 section 4.2
-         send_warning_alert(Alert::NO_RENEGOTIATION);
+         if(policy().abort_connection_on_undesired_renegotiation())
+            {
+            throw TLS_Exception(Alert::NO_RENEGOTIATION, "Client policy prohibits renegotiation");
+            }
+         else
+            {
+            // RFC 5746 section 4.2
+            send_warning_alert(Alert::NO_RENEGOTIATION);
+            }
          }
 
       return;
@@ -70829,7 +73587,6 @@ void Client::process_handshake_msg(const Handshake_State* active_state,
       state.set_expected_next(HELLO_VERIFY_REQUEST); // might get it again
 
       Hello_Verify_Request hello_verify_request(contents);
-
       state.hello_verify_request(hello_verify_request);
       }
    else if(type == SERVER_HELLO)
@@ -70842,6 +73599,12 @@ void Client::process_handshake_msg(const Handshake_State* active_state,
                              "Server replied with ciphersuite we didn't send");
          }
 
+      if(!Ciphersuite::by_id(state.server_hello()->ciphersuite()).usable_in_version(state.server_hello()->version()))
+         {
+         throw TLS_Exception(Alert::HANDSHAKE_FAILURE,
+                             "Server replied using a ciphersuite not allowed in version it offered");
+         }
+
       if(Ciphersuite::is_scsv(state.server_hello()->ciphersuite()))
          {
          throw TLS_Exception(Alert::HANDSHAKE_FAILURE,
@@ -70850,7 +73613,7 @@ void Client::process_handshake_msg(const Handshake_State* active_state,
 
       if(state.server_hello()->compression_method() != 0)
          {
-         throw TLS_Exception(Alert::HANDSHAKE_FAILURE,
+         throw TLS_Exception(Alert::ILLEGAL_PARAMETER,
                              "Server replied with non-null compression method");
          }
 
@@ -70868,10 +73631,10 @@ void Client::process_handshake_msg(const Handshake_State* active_state,
          // Server sent us back an extension we did not send!
 
          std::ostringstream msg;
-         msg << "Server replied with " << diff.size() << " unsupported extensions:";
+         msg << "Server replied with unsupported extensions:";
          for(auto&& d : diff)
             msg << " " << static_cast<int>(d);
-         throw TLS_Exception(Alert::HANDSHAKE_FAILURE, msg.str());
+         throw TLS_Exception(Alert::UNSUPPORTED_EXTENSION, msg.str());
          }
 
       if(uint16_t srtp = state.server_hello()->srtp_profile())
@@ -70904,10 +73667,26 @@ void Client::process_handshake_msg(const Handshake_State* active_state,
             throw TLS_Exception(Alert::HANDSHAKE_FAILURE,
                                 "Server resumed session but with wrong version");
 
-         state.compute_session_keys(state.resume_master_secret);
+         if(state.server_hello()->supports_extended_master_secret() &&
+            !state.resumed_session->supports_extended_master_secret())
+            {
+            throw TLS_Exception(Alert::HANDSHAKE_FAILURE,
+                                "Server resumed session but added extended master secret");
+            }
+
+         if(!state.server_hello()->supports_extended_master_secret() &&
+            state.resumed_session->supports_extended_master_secret())
+            {
+            throw TLS_Exception(Alert::HANDSHAKE_FAILURE,
+                                "Server resumed session and removed extended master secret");
+            }
+
+         state.compute_session_keys(state.resume_master_secret());
 
          if(state.server_hello()->supports_session_ticket())
+            {
             state.set_expected_next(NEW_SESSION_TICKET);
+            }
          else
             {
             state.set_expected_next(HANDSHAKE_CCS);
@@ -70917,8 +73696,25 @@ void Client::process_handshake_msg(const Handshake_State* active_state,
          {
          // new session
 
-         state.resume_master_secret.clear();
-         state.resume_peer_certs.clear();
+         if(active_state)
+            {
+            // Here we are testing things that should not change during a renegotation,
+            // even if the server creates a new session. Howerver they might change
+            // in a resumption scenario.
+
+            if(active_state->version() != state.server_hello()->version())
+               throw TLS_Exception(Alert::PROTOCOL_VERSION,
+                                   "Server changed version after renegotiation");
+
+            if(state.server_hello()->supports_extended_master_secret() !=
+               active_state->server_hello()->supports_extended_master_secret())
+               {
+               throw TLS_Exception(Alert::HANDSHAKE_FAILURE,
+                                   "Server changed its mind about extended master secret");
+               }
+            }
+
+         state.resumed_session.reset(); // non-null if we were attempting a resumption
 
          if(state.client_hello()->version().is_datagram_protocol() !=
             state.server_hello()->version().is_datagram_protocol())
@@ -70957,7 +73753,7 @@ void Client::process_handshake_msg(const Handshake_State* active_state,
                depending on if it has an identity hint for us.
 
                (EC)DHE_PSK always sends a server key exchange for the
-               DH exchange portion.
+               DH exchange portion, and is covered by block below
             */
 
             state.set_expected_next(SERVER_KEX);
@@ -70991,7 +73787,17 @@ void Client::process_handshake_msg(const Handshake_State* active_state,
       in case an OCSP response was also available
       */
 
-      std::unique_ptr<Public_Key> peer_key(server_certs[0].subject_public_key());
+      X509_Certificate server_cert = server_certs[0];
+
+      if(active_state && active_state->server_certs())
+         {
+         X509_Certificate current_cert = active_state->server_certs()->cert_chain().at(0);
+
+         if(current_cert != server_cert)
+            throw TLS_Exception(Alert::BAD_CERTIFICATE, "Server certificate changed during renegotiation");
+         }
+
+      std::unique_ptr<Public_Key> peer_key(server_cert.subject_public_key());
 
       const std::string expected_key_type =
          state.ciphersuite().signature_used() ? state.ciphersuite().sig_algo() : "RSA";
@@ -71029,9 +73835,13 @@ void Client::process_handshake_msg(const Handshake_State* active_state,
                                               m_info.hostname(),
                                               policy());
             }
+         catch(TLS_Exception&)
+            {
+            throw;
+            }
          catch(std::exception& e)
             {
-            throw TLS_Exception(Alert::BAD_CERTIFICATE, e.what());
+            throw TLS_Exception(Alert::INTERNAL_ERROR, e.what());
             }
          }
       }
@@ -71051,7 +73861,8 @@ void Client::process_handshake_msg(const Handshake_State* active_state,
       }
    else if(type == SERVER_KEX)
       {
-      state.set_expected_next(CERTIFICATE_REQUEST); // optional
+      if(state.ciphersuite().psk_ciphersuite() == false)
+         state.set_expected_next(CERTIFICATE_REQUEST); // optional
       state.set_expected_next(SERVER_HELLO_DONE);
 
       state.server_kex(
@@ -71090,7 +73901,15 @@ void Client::process_handshake_msg(const Handshake_State* active_state,
 
             std::vector<std::shared_ptr<const OCSP::Response>> ocsp;
             if(state.server_cert_status() != nullptr)
-               ocsp.push_back(state.server_cert_status()->response());
+               {
+               try {
+                   ocsp.push_back(std::make_shared<OCSP::Response>(state.server_cert_status()->response()));
+               }
+               catch(Decoding_Error&)
+                  {
+                  // ignore it here because it might be our fault
+                  }
+               }
 
             callbacks().tls_verify_cert_chain(state.server_certs()->cert_chain(),
                                               ocsp,
@@ -71099,9 +73918,13 @@ void Client::process_handshake_msg(const Handshake_State* active_state,
                                               m_info.hostname(),
                                               policy());
             }
+         catch(TLS_Exception&)
+            {
+            throw;
+            }
          catch(std::exception& e)
             {
-            throw TLS_Exception(Alert::BAD_CERTIFICATE, e.what());
+            throw TLS_Exception(Alert::INTERNAL_ERROR, e.what());
             }
          }
 
@@ -71245,7 +74068,7 @@ namespace TLS {
 
 namespace {
 
-Extension* make_extension(TLS_Data_Reader& reader, uint16_t code, uint16_t size)
+Extension* make_extension(TLS_Data_Reader& reader, uint16_t code, uint16_t size, Connection_Side from)
    {
    switch(code)
       {
@@ -71261,7 +74084,7 @@ Extension* make_extension(TLS_Data_Reader& reader, uint16_t code, uint16_t size)
          return new Supported_Groups(reader, size);
 
       case TLSEXT_CERT_STATUS_REQUEST:
-         return new Certificate_Status_Request(reader, size);
+         return new Certificate_Status_Request(reader, size, from);
 
       case TLSEXT_EC_POINT_FORMATS:
          return new Supported_Point_Formats(reader, size);
@@ -71286,6 +74109,9 @@ Extension* make_extension(TLS_Data_Reader& reader, uint16_t code, uint16_t size)
 
       case TLSEXT_SESSION_TICKET:
          return new Session_Ticket(reader, size);
+
+      case TLSEXT_SUPPORTED_VERSIONS:
+         return new Supported_Versions(reader, size, from);
       }
 
    return new Unknown_Extension(static_cast<Handshake_Extension_Type>(code),
@@ -71294,7 +74120,7 @@ Extension* make_extension(TLS_Data_Reader& reader, uint16_t code, uint16_t size)
 
 }
 
-void Extensions::deserialize(TLS_Data_Reader& reader)
+void Extensions::deserialize(TLS_Data_Reader& reader, Connection_Side from)
    {
    if(reader.has_remaining())
       {
@@ -71308,16 +74134,21 @@ void Extensions::deserialize(TLS_Data_Reader& reader)
          const uint16_t extension_code = reader.get_uint16_t();
          const uint16_t extension_size = reader.get_uint16_t();
 
-         Extension* extn = make_extension(reader,
-                                          extension_code,
-                                          extension_size);
+         const auto type = static_cast<Handshake_Extension_Type>(extension_code);
+
+         if(m_extensions.find(type) != m_extensions.end())
+            throw TLS_Exception(TLS::Alert::DECODE_ERROR,
+                                "Peer sent duplicated extensions");
+
+         Extension* extn = make_extension(
+            reader, extension_code, extension_size, from);
 
          this->add(extn);
          }
       }
    }
 
-std::vector<uint8_t> Extensions::serialize() const
+std::vector<uint8_t> Extensions::serialize(Connection_Side whoami) const
    {
    std::vector<uint8_t> buf(2); // 2 bytes for length field
 
@@ -71328,7 +74159,7 @@ std::vector<uint8_t> Extensions::serialize() const
 
       const uint16_t extn_code = static_cast<uint16_t>(extn.second->type());
 
-      std::vector<uint8_t> extn_val = extn.second->serialize();
+      const std::vector<uint8_t> extn_val = extn.second->serialize(whoami);
 
       buf.push_back(get_byte(0, extn_code));
       buf.push_back(get_byte(1, extn_code));
@@ -71376,7 +74207,7 @@ Unknown_Extension::Unknown_Extension(Handshake_Extension_Type type,
    {
    }
 
-std::vector<uint8_t> Unknown_Extension::serialize() const
+std::vector<uint8_t> Unknown_Extension::serialize(Connection_Side /*whoami*/) const
    {
    throw Invalid_State("Cannot encode an unknown TLS extension");
    }
@@ -71413,7 +74244,7 @@ Server_Name_Indicator::Server_Name_Indicator(TLS_Data_Reader& reader,
       }
    }
 
-std::vector<uint8_t> Server_Name_Indicator::serialize() const
+std::vector<uint8_t> Server_Name_Indicator::serialize(Connection_Side /*whoami*/) const
    {
    std::vector<uint8_t> buf;
 
@@ -71442,7 +74273,7 @@ SRP_Identifier::SRP_Identifier(TLS_Data_Reader& reader,
       throw Decoding_Error("Bad encoding for SRP identifier extension");
    }
 
-std::vector<uint8_t> SRP_Identifier::serialize() const
+std::vector<uint8_t> SRP_Identifier::serialize(Connection_Side /*whoami*/) const
    {
    std::vector<uint8_t> buf;
 
@@ -71461,7 +74292,7 @@ Renegotiation_Extension::Renegotiation_Extension(TLS_Data_Reader& reader,
       throw Decoding_Error("Bad encoding for secure renegotiation extn");
    }
 
-std::vector<uint8_t> Renegotiation_Extension::serialize() const
+std::vector<uint8_t> Renegotiation_Extension::serialize(Connection_Side /*whoami*/) const
    {
    std::vector<uint8_t> buf;
    append_tls_length_value(buf, m_reneg_data, 1);
@@ -71488,6 +74319,9 @@ Application_Layer_Protocol_Notification::Application_Layer_Protocol_Notification
       if(bytes_remaining < p.size() + 1)
          throw Decoding_Error("Bad encoding of ALPN, length field too long");
 
+      if(p.empty())
+         throw Decoding_Error("Empty ALPN protocol not allowed");
+
       bytes_remaining -= (p.size() + 1);
 
       m_protocols.push_back(p);
@@ -71503,7 +74337,7 @@ const std::string& Application_Layer_Protocol_Notification::single_protocol() co
    return m_protocols[0];
    }
 
-std::vector<uint8_t> Application_Layer_Protocol_Notification::serialize() const
+std::vector<uint8_t> Application_Layer_Protocol_Notification::serialize(Connection_Side /*whoami*/) const
    {
    std::vector<uint8_t> buf(2);
 
@@ -71550,7 +74384,7 @@ std::vector<Group_Params> Supported_Groups::dh_groups() const
    return dh;
    }
 
-std::vector<uint8_t> Supported_Groups::serialize() const
+std::vector<uint8_t> Supported_Groups::serialize(Connection_Side /*whoami*/) const
    {
    std::vector<uint8_t> buf(2);
 
@@ -71589,7 +74423,7 @@ Supported_Groups::Supported_Groups(TLS_Data_Reader& reader,
       }
    }
 
-std::vector<uint8_t> Supported_Point_Formats::serialize() const
+std::vector<uint8_t> Supported_Point_Formats::serialize(Connection_Side /*whoami*/) const
    {
    // if this extension is sent, it MUST include uncompressed (RFC 4492, section 5.1)
    if(m_prefers_compressed)
@@ -71631,7 +74465,7 @@ Supported_Point_Formats::Supported_Point_Formats(TLS_Data_Reader& reader,
       }
    }
 
-std::vector<uint8_t> Signature_Algorithms::serialize() const
+std::vector<uint8_t> Signature_Algorithms::serialize(Connection_Side /*whoami*/) const
    {
    BOTAN_ASSERT(m_schemes.size() < 256, "Too many signature schemes");
 
@@ -71687,7 +74521,7 @@ SRTP_Protection_Profiles::SRTP_Protection_Profiles(TLS_Data_Reader& reader,
       throw Decoding_Error("Unhandled non-empty MKI for SRTP protection extension");
    }
 
-std::vector<uint8_t> SRTP_Protection_Profiles::serialize() const
+std::vector<uint8_t> SRTP_Protection_Profiles::serialize(Connection_Side /*whoami*/) const
    {
    std::vector<uint8_t> buf;
 
@@ -71713,7 +74547,7 @@ Extended_Master_Secret::Extended_Master_Secret(TLS_Data_Reader&,
       throw Decoding_Error("Invalid extended_master_secret extension");
    }
 
-std::vector<uint8_t> Extended_Master_Secret::serialize() const
+std::vector<uint8_t> Extended_Master_Secret::serialize(Connection_Side /*whoami*/) const
    {
    return std::vector<uint8_t>();
    }
@@ -71725,16 +74559,16 @@ Encrypt_then_MAC::Encrypt_then_MAC(TLS_Data_Reader&,
       throw Decoding_Error("Invalid encrypt_then_mac extension");
    }
 
-std::vector<uint8_t> Encrypt_then_MAC::serialize() const
+std::vector<uint8_t> Encrypt_then_MAC::serialize(Connection_Side /*whoami*/) const
    {
    return std::vector<uint8_t>();
    }
 
-std::vector<uint8_t> Certificate_Status_Request::serialize() const
+std::vector<uint8_t> Certificate_Status_Request::serialize(Connection_Side whoami) const
    {
    std::vector<uint8_t> buf;
 
-   if(m_server_side)
+   if(whoami == Connection_Side::SERVER)
       return buf; // server reply is empty
 
    /*
@@ -71757,15 +74591,23 @@ std::vector<uint8_t> Certificate_Status_Request::serialize() const
    }
 
 Certificate_Status_Request::Certificate_Status_Request(TLS_Data_Reader& reader,
-                                                       uint16_t extension_size) :
-   m_server_side(false)
+                                                       uint16_t extension_size,
+                                                       Connection_Side from)
    {
-   if(extension_size > 0)
+   if(from == Connection_Side::SERVER)
+      {
+      if(extension_size != 0)
+         throw Decoding_Error("Server sent non-empty Certificate_Status_Request extension");
+      }
+   else if(extension_size > 0)
       {
       const uint8_t type = reader.get_byte();
       if(type == 1)
          {
-         reader.discard_next(extension_size - 1); // fixme
+         const size_t len_resp_id_list = reader.get_uint16_t();
+         m_ocsp_names = reader.get_fixed<uint8_t>(len_resp_id_list);
+         const size_t len_requ_ext = reader.get_uint16_t();
+         m_extension_bytes = reader.get_fixed<uint8_t>(len_requ_ext);
          }
       else
          {
@@ -71774,18 +74616,88 @@ Certificate_Status_Request::Certificate_Status_Request(TLS_Data_Reader& reader,
       }
    }
 
-Certificate_Status_Request::Certificate_Status_Request(const std::vector<X509_DN>& ocsp_responder_ids,
+Certificate_Status_Request::Certificate_Status_Request(const std::vector<uint8_t>& ocsp_responder_ids,
                                                        const std::vector<std::vector<uint8_t>>& ocsp_key_ids) :
    m_ocsp_names(ocsp_responder_ids),
-   m_ocsp_keys(ocsp_key_ids),
-   m_server_side(false)
+   m_ocsp_keys(ocsp_key_ids)
    {
-
    }
 
-Certificate_Status_Request::Certificate_Status_Request() : m_server_side(true)
+std::vector<uint8_t> Supported_Versions::serialize(Connection_Side whoami) const
    {
+   std::vector<uint8_t> buf;
 
+   if(whoami == Connection_Side::SERVER)
+      {
+      BOTAN_ASSERT_NOMSG(m_versions.size() == 1);
+      buf.push_back(m_versions[0].major_version());
+      buf.push_back(m_versions[0].minor_version());
+      }
+   else
+      {
+      BOTAN_ASSERT_NOMSG(m_versions.size() >= 1);
+      const uint8_t len = static_cast<uint8_t>(m_versions.size() * 2);
+
+      buf.push_back(len);
+
+      for(Protocol_Version version : m_versions)
+         {
+         buf.push_back(get_byte(0, version.major_version()));
+         buf.push_back(get_byte(1, version.minor_version()));
+         }
+      }
+
+   return buf;
+   }
+
+Supported_Versions::Supported_Versions(Protocol_Version offer, const Policy& policy)
+   {
+   if(offer.is_datagram_protocol())
+      {
+      if(offer >= Protocol_Version::DTLS_V12 && policy.allow_dtls12())
+         m_versions.push_back(Protocol_Version::DTLS_V12);
+      if(offer >= Protocol_Version::DTLS_V10 && policy.allow_dtls10())
+         m_versions.push_back(Protocol_Version::DTLS_V10);
+      }
+   else
+      {
+      if(offer >= Protocol_Version::TLS_V12 && policy.allow_tls12())
+         m_versions.push_back(Protocol_Version::TLS_V12);
+      if(offer >= Protocol_Version::TLS_V11 && policy.allow_tls11())
+         m_versions.push_back(Protocol_Version::TLS_V11);
+      if(offer >= Protocol_Version::TLS_V10 && policy.allow_tls10())
+         m_versions.push_back(Protocol_Version::TLS_V10);
+      }
+   }
+
+Supported_Versions::Supported_Versions(TLS_Data_Reader& reader,
+                                       uint16_t extension_size,
+                                       Connection_Side from)
+   {
+   if(from == Connection_Side::SERVER)
+      {
+      if(extension_size != 2)
+         throw Decoding_Error("Server sent invalid supported_versions extension");
+      m_versions.push_back(Protocol_Version(reader.get_uint16_t()));
+      }
+   else
+      {
+      auto versions = reader.get_range<uint16_t>(1, 1, 127);
+
+      for(auto v : versions)
+         m_versions.push_back(Protocol_Version(v));
+
+      if(extension_size != 1+2*versions.size())
+         throw Decoding_Error("Client sent invalid supported_versions extension");
+      }
+   }
+
+bool Supported_Versions::supports(Protocol_Version version) const
+   {
+   for(auto v : m_versions)
+      if(version == v)
+         return true;
+   return false;
    }
 
 }
@@ -71858,18 +74770,6 @@ uint64_t steady_clock_ms()
       std::chrono::steady_clock::now().time_since_epoch()).count();
    }
 
-size_t split_for_mtu(size_t mtu, size_t msg_size)
-   {
-   const size_t DTLS_HEADERS_SIZE = 25; // DTLS record+handshake headers
-
-   const size_t parts = (msg_size + mtu) / mtu;
-
-   if(parts + DTLS_HEADERS_SIZE > mtu)
-      return parts + 1;
-
-   return parts;
-   }
-
 }
 
 Protocol_Version Stream_Handshake_IO::initial_record_version() const
@@ -71877,16 +74777,17 @@ Protocol_Version Stream_Handshake_IO::initial_record_version() const
    return Protocol_Version::TLS_V10;
    }
 
-void Stream_Handshake_IO::add_record(const std::vector<uint8_t>& record,
+void Stream_Handshake_IO::add_record(const uint8_t record[],
+                                     size_t record_len,
                                      Record_Type record_type, uint64_t)
    {
    if(record_type == HANDSHAKE)
       {
-      m_queue.insert(m_queue.end(), record.begin(), record.end());
+      m_queue.insert(m_queue.end(), record, record + record_len);
       }
    else if(record_type == CHANGE_CIPHER_SPEC)
       {
-      if(record.size() != 1 || record[0] != 1)
+      if(record_len != 1 || record[0] != 1)
          throw Decoding_Error("Invalid ChangeCipherSpec");
 
       // Pretend it's a regular handshake message of zero length
@@ -71907,6 +74808,9 @@ Stream_Handshake_IO::get_next_record(bool)
       if(m_queue.size() >= length)
          {
          Handshake_Type type = static_cast<Handshake_Type>(m_queue[0]);
+
+         if(type == HANDSHAKE_NONE)
+            throw Decoding_Error("Invalid handshake message type");
 
          std::vector<uint8_t> contents(m_queue.begin() + 4,
                                        m_queue.begin() + length);
@@ -72012,7 +74916,8 @@ bool Datagram_Handshake_IO::timeout_check()
    return true;
    }
 
-void Datagram_Handshake_IO::add_record(const std::vector<uint8_t>& record,
+void Datagram_Handshake_IO::add_record(const uint8_t record[],
+                                       size_t record_len,
                                        Record_Type record_type,
                                        uint64_t record_sequence)
    {
@@ -72020,6 +74925,9 @@ void Datagram_Handshake_IO::add_record(const std::vector<uint8_t>& record,
 
    if(record_type == CHANGE_CIPHER_SPEC)
       {
+      if(record_len != 1 || record[0] != 1)
+         throw Decoding_Error("Invalid ChangeCipherSpec");
+
       // TODO: check this is otherwise empty
       m_ccs_epochs.insert(epoch);
       return;
@@ -72027,28 +74935,25 @@ void Datagram_Handshake_IO::add_record(const std::vector<uint8_t>& record,
 
    const size_t DTLS_HANDSHAKE_HEADER_LEN = 12;
 
-   const uint8_t* record_bits = record.data();
-   size_t record_size = record.size();
-
-   while(record_size)
+   while(record_len)
       {
-      if(record_size < DTLS_HANDSHAKE_HEADER_LEN)
+      if(record_len < DTLS_HANDSHAKE_HEADER_LEN)
          return; // completely bogus? at least degenerate/weird
 
-      const uint8_t msg_type = record_bits[0];
-      const size_t msg_len = load_be24(&record_bits[1]);
-      const uint16_t message_seq = load_be<uint16_t>(&record_bits[4], 0);
-      const size_t fragment_offset = load_be24(&record_bits[6]);
-      const size_t fragment_length = load_be24(&record_bits[9]);
+      const uint8_t msg_type = record[0];
+      const size_t msg_len = load_be24(&record[1]);
+      const uint16_t message_seq = load_be<uint16_t>(&record[4], 0);
+      const size_t fragment_offset = load_be24(&record[6]);
+      const size_t fragment_length = load_be24(&record[9]);
 
       const size_t total_size = DTLS_HANDSHAKE_HEADER_LEN + fragment_length;
 
-      if(record_size < total_size)
+      if(record_len < total_size)
          throw Decoding_Error("Bad lengths in DTLS header");
 
       if(message_seq >= m_in_message_seq)
          {
-         m_messages[message_seq].add_fragment(&record_bits[DTLS_HANDSHAKE_HEADER_LEN],
+         m_messages[message_seq].add_fragment(&record[DTLS_HANDSHAKE_HEADER_LEN],
                                               fragment_length,
                                               fragment_offset,
                                               epoch,
@@ -72060,8 +74965,8 @@ void Datagram_Handshake_IO::add_record(const std::vector<uint8_t>& record,
          // TODO: detect retransmitted flight
          }
 
-      record_bits += total_size;
-      record_size -= total_size;
+      record += total_size;
+      record_len -= total_size;
       }
    }
 
@@ -72205,7 +75110,6 @@ Datagram_Handshake_IO::format(const std::vector<uint8_t>& msg,
    return format_w_seq(msg, type, m_in_message_seq - 1);
    }
 
-
 std::vector<uint8_t>
 Datagram_Handshake_IO::send(const Handshake_Message& msg)
    {
@@ -72217,6 +75121,13 @@ Datagram_Handshake_IO::send(const Handshake_Message& msg)
       {
       m_send_hs(epoch, CHANGE_CIPHER_SPEC, msg_bits);
       return std::vector<uint8_t>(); // not included in handshake hashes
+      }
+   else if(msg_type == HELLO_VERIFY_REQUEST)
+      {
+      // This message is not included in the handshake hashes
+      send_message(m_out_message_seq, epoch, msg_type, msg_bits);
+      m_out_message_seq += 1;
+      return std::vector<uint8_t>();
       }
 
    // Note: not saving CCS, instead we know it was there due to change in epoch
@@ -72244,17 +75155,15 @@ std::vector<uint8_t> Datagram_Handshake_IO::send_message(uint16_t msg_seq,
       }
    else
       {
-      const size_t parts = split_for_mtu(m_mtu, msg_bits.size());
-
-      const size_t parts_size = (msg_bits.size() + parts) / parts;
-
       size_t frag_offset = 0;
+
+      const size_t DTLS_HANDSHAKE_HEADERS = 32;
+      const size_t ciphersuite_overhead = (epoch > 0) ? 32 : 0;
+      const size_t max_rec_size = m_mtu - DTLS_HANDSHAKE_HEADERS - ciphersuite_overhead;
 
       while(frag_offset != msg_bits.size())
          {
-         const size_t frag_len =
-            std::min<size_t>(msg_bits.size() - frag_offset,
-                             parts_size);
+         const size_t frag_len = std::min<size_t>(msg_bits.size() - frag_offset, max_rec_size);
 
          m_send_hs(epoch,
                    HANDSHAKE,
@@ -72409,7 +75318,7 @@ uint32_t bitmask_for_handshake_type(Handshake_Type type)
                        "Unknown TLS handshake message type " + std::to_string(type));
    }
 
-std::string handshake_mask_to_string(uint32_t mask)
+std::string handshake_mask_to_string(uint32_t mask, char combiner)
    {
    const Handshake_Type types[] = {
       HELLO_VERIFY_REQUEST,
@@ -72436,7 +75345,7 @@ std::string handshake_mask_to_string(uint32_t mask)
       if(mask & bitmask_for_handshake_type(t))
          {
          if(!empty)
-            o << ",";
+            o << combiner;
          o << handshake_type_to_string(t);
          empty = false;
          }
@@ -72474,8 +75383,16 @@ void Handshake_State::hello_verify_request(const Hello_Verify_Request& hello_ver
 
 void Handshake_State::client_hello(Client_Hello* client_hello)
    {
-   m_client_hello.reset(client_hello);
-   note_message(*m_client_hello);
+   if(client_hello == nullptr)
+      {
+      m_client_hello.reset();
+      hash().reset();
+      }
+   else
+      {
+      m_client_hello.reset(client_hello);
+      note_message(*m_client_hello);
+      }
    }
 
 void Handshake_State::server_hello(Server_Hello* server_hello)
@@ -72575,10 +75492,11 @@ void Handshake_State::confirm_transition_to(Handshake_Type handshake_msg)
    const bool ok = (m_hand_expecting_mask & mask) != 0; // overlap?
 
    if(!ok)
-      throw Unexpected_Message("Unexpected state transition in handshake, got type " +
-                               std::to_string(handshake_msg) +
-                               " expected " + handshake_mask_to_string(m_hand_expecting_mask) +
-                               " received " + handshake_mask_to_string(m_hand_received_mask));
+      {
+      throw Unexpected_Message("Unexpected state transition in handshake, expected " +
+                               handshake_mask_to_string(m_hand_expecting_mask, '|') +
+                               " received " + handshake_mask_to_string(m_hand_received_mask, '+'));
+      }
 
    /* We don't know what to expect next, so force a call to
       set_expected_next; if it doesn't happen, the next transition
@@ -72656,18 +75574,18 @@ Handshake_State::choose_sig_format(const Private_Key& key,
       {
       const std::vector<Signature_Scheme> allowed = policy.allowed_signature_schemes();
 
-      std::vector<Signature_Scheme> schemes =
+      std::vector<Signature_Scheme> requested =
          (for_client_auth) ? cert_req()->signature_schemes() : client_hello()->signature_schemes();
 
-      if(schemes.empty())
+      if(requested.empty())
          {
          // Implicit SHA-1
-         schemes.push_back(Signature_Scheme::RSA_PKCS1_SHA1);
-         schemes.push_back(Signature_Scheme::ECDSA_SHA1);
-         schemes.push_back(Signature_Scheme::DSA_SHA1);
+         requested.push_back(Signature_Scheme::RSA_PKCS1_SHA1);
+         requested.push_back(Signature_Scheme::ECDSA_SHA1);
+         requested.push_back(Signature_Scheme::DSA_SHA1);
          }
 
-      for(Signature_Scheme scheme : schemes)
+      for(Signature_Scheme scheme : allowed)
          {
          if(signature_scheme_is_known(scheme) == false)
             {
@@ -72676,7 +75594,7 @@ Handshake_State::choose_sig_format(const Private_Key& key,
 
          if(signature_algorithm_of_scheme(scheme) == sig_algo)
             {
-            if(std::find(allowed.begin(), allowed.end(), scheme) != allowed.end())
+            if(std::find(requested.begin(), requested.end(), scheme) != requested.end())
                {
                chosen_scheme = scheme;
                break;
@@ -72799,11 +75717,15 @@ Handshake_State::parse_sig_format(const Public_Key& key,
       for_client_auth ? cert_req()->signature_schemes() :
       client_hello()->signature_schemes();
 
+   if(!signature_scheme_is_known(scheme))
+      throw TLS_Exception(Alert::HANDSHAKE_FAILURE,
+                          "Peer sent unknown signature scheme");
+
    const std::string hash_algo = hash_function_of_scheme(scheme);
 
    if(!supported_algos_include(supported_algos, key_type, hash_algo))
       {
-      throw TLS_Exception(Alert::HANDSHAKE_FAILURE,
+      throw TLS_Exception(Alert::ILLEGAL_PARAMETER,
                           "TLS signature extension did not allow for " +
                           key_type + "/" + hash_algo + " signature");
       }
@@ -72843,6 +75765,8 @@ std::vector<Signature_Scheme> Policy::allowed_signature_schemes() const
 
    for(Signature_Scheme scheme : all_signature_schemes())
       {
+      if(signature_scheme_is_known(scheme) == false)
+         continue;
       const bool sig_allowed = allowed_signature_method(signature_algorithm_of_scheme(scheme));
       const bool hash_allowed = allowed_signature_hash(hash_function_of_scheme(scheme));
 
@@ -72875,7 +75799,7 @@ std::vector<std::string> Policy::allowed_ciphers() const
       //"AES-128",
       //"Camellia-256",
       //"Camellia-128",
-      //"SEED"
+      //"SEED",
       //"3DES",
       };
    }
@@ -73075,7 +75999,7 @@ void Policy::check_peer_key_acceptable(const Public_Key& public_key) const
 
    if(keylength < expected_keylength)
       throw TLS_Exception(Alert::INSUFFICIENT_SECURITY,
-                          "Peer sent " + 
+                          "Peer sent " +
                            std::to_string(keylength) + " bit " + algo_name + " key"
                            ", policy requires at least " +
                            std::to_string(expected_keylength));
@@ -73094,7 +76018,7 @@ bool Policy::send_fallback_scsv(Protocol_Version version) const
 bool Policy::acceptable_protocol_version(Protocol_Version version) const
    {
    // Uses boolean optimization:
-   // First check the current version (left part), then if it is allowed 
+   // First check the current version (left part), then if it is allowed
    // (right part)
    // checks are ordered according to their probability
    return (
@@ -73110,19 +76034,19 @@ Protocol_Version Policy::latest_supported_version(bool datagram) const
    {
    if(datagram)
       {
-      if(allow_dtls12())
+      if(acceptable_protocol_version(Protocol_Version::DTLS_V12))
          return Protocol_Version::DTLS_V12;
-      if(allow_dtls10())
+      if(acceptable_protocol_version(Protocol_Version::DTLS_V10))
          return Protocol_Version::DTLS_V10;
       throw Invalid_State("Policy forbids all available DTLS version");
       }
    else
       {
-      if(allow_tls12())
+      if(acceptable_protocol_version(Protocol_Version::TLS_V12))
          return Protocol_Version::TLS_V12;
-      if(allow_tls11())
+      if(acceptable_protocol_version(Protocol_Version::TLS_V11))
          return Protocol_Version::TLS_V11;
-      if(allow_tls10())
+      if(acceptable_protocol_version(Protocol_Version::TLS_V10))
          return Protocol_Version::TLS_V10;
       throw Invalid_State("Policy forbids all available TLS version");
       }
@@ -73147,6 +76071,13 @@ bool Policy::hide_unknown_users() const { return false; }
 bool Policy::server_uses_own_ciphersuite_preferences() const { return true; }
 bool Policy::negotiate_encrypt_then_mac() const { return true; }
 bool Policy::support_cert_status_message() const { return true; }
+bool Policy::allow_resumption_for_renegotiation() const { return true; }
+bool Policy::only_resume_with_exact_version() const { return true; }
+bool Policy::require_client_certificate_authentication() const { return false; }
+bool Policy::request_client_certificate_authentication() const { return require_client_certificate_authentication(); }
+bool Policy::abort_connection_on_undesired_renegotiation() const { return false; }
+
+size_t Policy::maximum_certificate_chain_size() const { return 0; }
 
 // 1 second initial timeout, 60 second max - see RFC 6347 sec 4.2.4.1
 size_t Policy::dtls_initial_timeout() const { return 1*1000; }
@@ -73249,7 +76180,11 @@ std::vector<uint16_t> Policy::ciphersuite_list(Protocol_Version version,
    for(auto&& suite : Ciphersuite::all_known_ciphersuites())
       {
       // Can we use it?
-      if(suite.valid() == false)
+      if(!suite.valid())
+         continue;
+
+      // Can we use it in this version?
+      if(!suite.usable_in_version(version))
          continue;
 
       // Is it acceptable to the policy?
@@ -73259,17 +76194,6 @@ std::vector<uint16_t> Policy::ciphersuite_list(Protocol_Version version,
       // Are we doing SRP?
       if(!have_srp && suite.kex_method() == Kex_Algo::SRP_SHA)
          continue;
-
-      if(!version.supports_aead_modes())
-         {
-         // Are we doing AEAD in a non-AEAD version?
-         if(suite.mac_algo() == "AEAD")
-            continue;
-
-         // Older (v1.0/v1.1) versions also do not support any hash but SHA-1
-         if(suite.mac_algo() != "SHA-1")
-            continue;
-         }
 
       if(!value_exists(kex, suite.kex_algo()))
          continue; // unsupported key exchange
@@ -73420,7 +76344,7 @@ bool Strict_Policy::allow_dtls12() const { return true;  }
 }
 /*
 * TLS Record Handling
-* (C) 2012,2013,2014,2015,2016 Jack Lloyd
+* (C) 2012,2013,2014,2015,2016,2019 Jack Lloyd
 *     2016 Juraj Somorovsky
 *     2016 Matthias Gierlings
 *
@@ -73443,25 +76367,14 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
                                                  bool uses_encrypt_then_mac) :
    m_start_time(std::chrono::system_clock::now())
    {
-   SymmetricKey mac_key, cipher_key;
-   InitializationVector iv;
-
-   if(side == CLIENT)
-      {
-      cipher_key = keys.client_cipher_key();
-      iv = keys.client_iv();
-      mac_key = keys.client_mac_key();
-      }
-   else
-      {
-      cipher_key = keys.server_cipher_key();
-      iv = keys.server_iv();
-      mac_key = keys.server_mac_key();
-      }
-
-   m_nonce = unlock(iv.bits_of());
-   m_nonce_bytes_from_handshake = m_nonce.size();
    m_nonce_format = suite.nonce_format();
+   m_nonce_bytes_from_record = suite.nonce_bytes_from_record(version);
+   m_nonce_bytes_from_handshake = suite.nonce_bytes_from_handshake();
+
+   const secure_vector<uint8_t>& aead_key = keys.aead_key(side);
+   m_nonce = keys.nonce(side);
+
+   BOTAN_ASSERT_NOMSG(m_nonce.size() == m_nonce_bytes_from_handshake);
 
    if(nonce_format() == Nonce_Format::CBC_MODE)
       {
@@ -73477,7 +76390,7 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
                          std::move(mac),
                          suite.cipher_keylen(),
                          suite.mac_keylen(),
-                         version.supports_explicit_cbc_ivs(),
+                         version,
                          uses_encrypt_then_mac));
          }
       else
@@ -73487,18 +76400,10 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
                          std::move(mac),
                          suite.cipher_keylen(),
                          suite.mac_keylen(),
-                         version.supports_explicit_cbc_ivs(),
+                         version,
                          uses_encrypt_then_mac));
          }
 
-      m_aead->set_key(cipher_key + mac_key);
-
-      m_nonce_bytes_from_record = 0;
-
-      if(version.supports_explicit_cbc_ivs())
-         m_nonce_bytes_from_record = m_nonce_bytes_from_handshake;
-      else if(our_side == false)
-         m_aead->start(iv.bits_of());
 #else
       throw Internal_Error("Negotiated disabled TLS CBC+HMAC ciphersuite");
 #endif
@@ -73506,19 +76411,9 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
    else
       {
       m_aead = AEAD_Mode::create_or_throw(suite.cipher_algo(), our_side ? ENCRYPTION : DECRYPTION);
-
-      m_aead->set_key(cipher_key + mac_key);
-
-      if(nonce_format() == Nonce_Format::AEAD_IMPLICIT_4)
-         {
-         m_nonce_bytes_from_record = 8;
-         m_nonce.resize(m_nonce.size() + 8);
-         }
-      else if(nonce_format() != Nonce_Format::AEAD_XOR_12)
-         {
-         throw Invalid_State("Invalid AEAD nonce format used");
-         }
       }
+
+   m_aead->set_key(aead_key);
    }
 
 std::vector<uint8_t> Connection_Cipher_State::aead_nonce(uint64_t seq, RandomNumberGenerator& rng)
@@ -73546,7 +76441,9 @@ std::vector<uint8_t> Connection_Cipher_State::aead_nonce(uint64_t seq, RandomNum
          }
       case Nonce_Format::AEAD_IMPLICIT_4:
          {
-         std::vector<uint8_t> nonce = m_nonce;
+         BOTAN_ASSERT_NOMSG(m_nonce.size() == 4);
+         std::vector<uint8_t> nonce(12);
+         copy_mem(&nonce[0], m_nonce.data(), 4);
          store_be(seq, &nonce[nonce_bytes_from_handshake()]);
          return nonce;
          }
@@ -73562,6 +76459,12 @@ Connection_Cipher_State::aead_nonce(const uint8_t record[], size_t record_len, u
       {
       case Nonce_Format::CBC_MODE:
          {
+         if(nonce_bytes_from_record() == 0 && m_nonce.size())
+            {
+            std::vector<uint8_t> nonce;
+            nonce.swap(m_nonce);
+            return nonce;
+            }
          if(record_len < nonce_bytes_from_record())
             throw Decoding_Error("Invalid CBC packet too short to be valid");
          std::vector<uint8_t> nonce(record, record + nonce_bytes_from_record());
@@ -73576,9 +76479,11 @@ Connection_Cipher_State::aead_nonce(const uint8_t record[], size_t record_len, u
          }
       case Nonce_Format::AEAD_IMPLICIT_4:
          {
+         BOTAN_ASSERT_NOMSG(m_nonce.size() == 4);
          if(record_len < nonce_bytes_from_record())
             throw Decoding_Error("Invalid AEAD packet too short to be valid");
-         std::vector<uint8_t> nonce = m_nonce;
+         std::vector<uint8_t> nonce(12);
+         copy_mem(&nonce[0], m_nonce.data(), 4);
          copy_mem(&nonce[nonce_bytes_from_handshake()], record, nonce_bytes_from_record());
          return nonce;
          }
@@ -73643,14 +76548,14 @@ void write_record(secure_vector<uint8_t>& output,
       return;
       }
 
-   AEAD_Mode* aead = cs->aead();
+   AEAD_Mode& aead = cs->aead();
    std::vector<uint8_t> aad = cs->format_ad(seq, msg.get_type(), version, static_cast<uint16_t>(msg.get_size()));
 
-   const size_t ctext_size = aead->output_length(msg.get_size());
+   const size_t ctext_size = aead.output_length(msg.get_size());
 
    const size_t rec_size = ctext_size + cs->nonce_bytes_from_record();
 
-   aead->set_ad(aad);
+   aead.set_ad(aad);
 
    const std::vector<uint8_t> nonce = cs->aead_nonce(seq, rng);
 
@@ -73667,8 +76572,8 @@ void write_record(secure_vector<uint8_t>& output,
    const size_t header_size = output.size();
    output += std::make_pair(msg.get_data(), msg.get_size());
 
-   aead->start(nonce);
-   aead->finish(output, header_size);
+   aead.start(nonce);
+   aead.finish(output, header_size);
 
    BOTAN_ASSERT(output.size() < MAX_CIPHERTEXT_SIZE,
                 "Produced ciphertext larger than protocol allows");
@@ -73702,8 +76607,7 @@ void decrypt_record(secure_vector<uint8_t>& output,
                     Record_Type record_type,
                     Connection_Cipher_State& cs)
    {
-   AEAD_Mode* aead = cs.aead();
-   BOTAN_ASSERT(aead, "Cannot decrypt without cipher");
+   AEAD_Mode& aead = cs.aead();
 
    const std::vector<uint8_t> nonce = cs.aead_nonce(record_contents, record_len, record_sequence);
    const uint8_t* msg = &record_contents[cs.nonce_bytes_from_record()];
@@ -73716,23 +76620,23 @@ void decrypt_record(secure_vector<uint8_t>& output,
    * tools which are attempting automated detection of padding oracles,
    * including older versions of TLS-Attacker.
    */
-   if(msg_length < aead->minimum_final_size())
+   if(msg_length < aead.minimum_final_size())
       throw TLS_Exception(Alert::BAD_RECORD_MAC, "AEAD packet is shorter than the tag");
 
-   const size_t ptext_size = aead->output_length(msg_length);
+   const size_t ptext_size = aead.output_length(msg_length);
 
-   aead->set_associated_data_vec(
+   aead.set_associated_data_vec(
       cs.format_ad(record_sequence,
                    static_cast<uint8_t>(record_type),
                    record_version,
                    static_cast<uint16_t>(ptext_size))
       );
 
-   aead->start(nonce);
+   aead.start(nonce);
 
    const size_t offset = output.size();
    output += std::make_pair(msg, msg_length);
-   aead->finish(output, offset);
+   aead.finish(output, offset);
    }
 
 size_t read_tls_record(secure_vector<uint8_t>& readbuf,
@@ -73753,7 +76657,9 @@ size_t read_tls_record(secure_vector<uint8_t>& readbuf,
 
    *rec.get_protocol_version() = Protocol_Version(readbuf[1], readbuf[2]);
 
-   BOTAN_ASSERT(!rec.get_protocol_version()->is_datagram_protocol(), "Expected TLS");
+   if(rec.get_protocol_version()->is_datagram_protocol())
+      throw TLS_Exception(Alert::PROTOCOL_VERSION,
+                          "Expected TLS but got a record with DTLS version");
 
    const size_t record_size = make_uint16(readbuf[TLS_HEADER_SIZE-2],
                                          readbuf[TLS_HEADER_SIZE-1]);
@@ -73839,19 +76745,29 @@ size_t read_dtls_record(secure_vector<uint8_t>& readbuf,
 
    *rec.get_protocol_version() = Protocol_Version(readbuf[1], readbuf[2]);
 
-   BOTAN_ASSERT(rec.get_protocol_version()->is_datagram_protocol(), "Expected DTLS");
+   if(rec.get_protocol_version()->is_datagram_protocol() == false)
+      {
+      readbuf.clear();
+      *rec.get_type() = NO_RECORD;
+      return 0;
+      }
 
    const size_t record_size = make_uint16(readbuf[DTLS_HEADER_SIZE-2],
                                           readbuf[DTLS_HEADER_SIZE-1]);
 
    if(record_size > MAX_CIPHERTEXT_SIZE)
-      throw TLS_Exception(Alert::RECORD_OVERFLOW,
-                          "Got message that exceeds maximum size");
+      {
+      // Too large to be valid, ignore it
+      readbuf.clear();
+      *rec.get_type() = NO_RECORD;
+      return 0;
+      }
 
    if(fill_buffer_to(readbuf, raw_input.get_data(), raw_input.get_size(), raw_input.get_consumed(), DTLS_HEADER_SIZE + record_size))
       {
       // Truncated packet?
       readbuf.clear();
+      *rec.get_type() = NO_RECORD;
       return 0;
       }
 
@@ -73868,6 +76784,7 @@ size_t read_dtls_record(secure_vector<uint8_t>& readbuf,
    if(sequence_numbers && sequence_numbers->already_seen(*rec.get_sequence()))
       {
       readbuf.clear();
+      *rec.get_type() = NO_RECORD;
       return 0;
       }
 
@@ -73877,6 +76794,8 @@ size_t read_dtls_record(secure_vector<uint8_t>& readbuf,
       {
       rec.get_data().assign(readbuf.begin() + DTLS_HEADER_SIZE, readbuf.begin() + DTLS_HEADER_SIZE + record_size);
       readbuf.clear();
+      if(sequence_numbers)
+         sequence_numbers->read_accept(*rec.get_sequence());
       return 0; // got a full record
       }
 
@@ -73962,6 +76881,10 @@ class Server_Handshake_State final : public Handshake_State
       void set_resume_certs(const std::vector<X509_Certificate>& certs)
          { m_resume_peer_certs = certs; }
 
+      void mark_as_resumption() { m_is_a_resumption = true; }
+
+      bool is_a_resumption() const { return m_is_a_resumption; }
+
    private:
       // Used by the server only, in case of RSA key exchange. Not owned
       Private_Key* m_server_rsa_kex_key = nullptr;
@@ -73971,6 +76894,8 @@ class Server_Handshake_State final : public Handshake_State
       * a server-initiated renegotiation
       */
       bool m_allow_session_resumption = true;
+
+      bool m_is_a_resumption = false;
 
       std::vector<X509_Certificate> m_resume_peer_certs;
    };
@@ -74078,7 +77003,7 @@ uint16_t choose_ciphersuite(
    const Policy& policy,
    Protocol_Version version,
    Credentials_Manager& creds,
-   const std::map<std::string, std::vector<X509_Certificate> >& cert_chains,
+   const std::map<std::string, std::vector<X509_Certificate>>& cert_chains,
    const Client_Hello& client_hello)
    {
    const bool our_choice = policy.server_uses_own_ciphersuite_preferences();
@@ -74146,7 +77071,7 @@ uint16_t choose_ciphersuite(
                client_sig_methods.push_back(Signature_Scheme::DSA_SHA1);
                }
 
-            bool we_support_some_hash_by_client = true;
+            bool we_support_some_hash_by_client = false;
 
             for(Signature_Scheme scheme : client_sig_methods)
                {
@@ -74189,17 +77114,17 @@ uint16_t choose_ciphersuite(
                        "Can't agree on a ciphersuite with client");
    }
 
-std::map<std::string, std::vector<X509_Certificate> >
+std::map<std::string, std::vector<X509_Certificate>>
 get_server_certs(const std::string& hostname,
                  Credentials_Manager& creds)
    {
-   const char* cert_types[] = { "RSA", "DSA", "ECDSA", nullptr };
+   const char* cert_types[] = { "RSA", "ECDSA", "DSA", nullptr };
 
-   std::map<std::string, std::vector<X509_Certificate> > cert_chains;
+   std::map<std::string, std::vector<X509_Certificate>> cert_chains;
 
    for(size_t i = 0; cert_types[i]; ++i)
       {
-      std::vector<X509_Certificate> certs =
+      const std::vector<X509_Certificate> certs =
          creds.cert_chain_single_type(cert_types[i], "tls-server", hostname);
 
       if(!certs.empty())
@@ -74245,7 +77170,6 @@ Server::Server(output_fn output,
    m_choose_next_protocol(next_proto)
    {
    }
-
 
 Server::Server(output_fn output,
                data_cb got_data_cb,
@@ -74297,6 +77221,95 @@ void Server::initiate_handshake(Handshake_State& state,
    Hello_Request hello_req(state.handshake_io());
    }
 
+namespace {
+
+Protocol_Version select_version(const Botan::TLS::Policy& policy,
+                                Protocol_Version client_offer,
+                                Protocol_Version active_version,
+                                bool is_fallback,
+                                const std::vector<Protocol_Version>& supported_versions)
+   {
+   const bool is_datagram = client_offer.is_datagram_protocol();
+   const bool initial_handshake = (active_version.valid() == false);
+
+   const Protocol_Version latest_supported = policy.latest_supported_version(is_datagram);
+
+   if(is_fallback)
+      {
+      if(latest_supported > client_offer)
+         throw TLS_Exception(Alert::INAPPROPRIATE_FALLBACK,
+                              "Client signalled fallback SCSV, possible attack");
+      }
+
+   if(supported_versions.size() > 0)
+      {
+      if(is_datagram)
+         {
+         if(policy.allow_dtls12() && value_exists(supported_versions, Protocol_Version(Protocol_Version::DTLS_V12)))
+            return Protocol_Version::DTLS_V12;
+         if(policy.allow_dtls10() && value_exists(supported_versions, Protocol_Version(Protocol_Version::DTLS_V10)))
+            return Protocol_Version::DTLS_V10;
+         throw TLS_Exception(Alert::PROTOCOL_VERSION, "No shared DTLS version");
+         }
+      else
+         {
+         if(policy.allow_tls12() && value_exists(supported_versions, Protocol_Version(Protocol_Version::TLS_V12)))
+            return Protocol_Version::TLS_V12;
+         if(policy.allow_tls11() && value_exists(supported_versions, Protocol_Version(Protocol_Version::TLS_V11)))
+            return Protocol_Version::TLS_V11;
+         if(policy.allow_tls10() && value_exists(supported_versions, Protocol_Version(Protocol_Version::TLS_V10)))
+            return Protocol_Version::TLS_V10;
+         throw TLS_Exception(Alert::PROTOCOL_VERSION, "No shared TLS version");
+         }
+      }
+
+   const bool client_offer_acceptable =
+      client_offer.known_version() && policy.acceptable_protocol_version(client_offer);
+
+   if(!initial_handshake)
+      {
+      /*
+      * If this is a renegotiation, and the client has offered a
+      * later version than what it initially negotiated, negotiate
+      * the old version. This matches OpenSSL's behavior. If the
+      * client is offering a version earlier than what it initially
+      * negotiated, reject as a probable attack.
+      */
+      if(active_version > client_offer)
+         {
+         throw TLS_Exception(Alert::PROTOCOL_VERSION,
+                              "Client negotiated " +
+                              active_version.to_string() +
+                              " then renegotiated with " +
+                              client_offer.to_string());
+         }
+      else
+         {
+         return active_version;
+         }
+      }
+   else if(client_offer_acceptable)
+      {
+      return client_offer;
+      }
+   else if(!client_offer.known_version() || client_offer > latest_supported)
+      {
+      /*
+      The client offered some version newer than the latest we
+      support.  Offer them the best we know.
+      */
+      return latest_supported;
+      }
+   else
+      {
+      throw TLS_Exception(Alert::PROTOCOL_VERSION,
+                           "Client version " + client_offer.to_string() +
+                           " is unacceptable by policy");
+      }
+   }
+
+}
+
 /*
 * Process a CLIENT HELLO Message
 */
@@ -74308,7 +77321,10 @@ void Server::process_client_hello_msg(const Handshake_State* active_state,
 
    if(initial_handshake == false && policy().allow_client_initiated_renegotiation() == false)
       {
-      send_warning_alert(Alert::NO_RENEGOTIATION);
+      if(policy().abort_connection_on_undesired_renegotiation())
+         throw TLS_Exception(Alert::NO_RENEGOTIATION, "Server policy prohibits renegotiation");
+      else
+         send_warning_alert(Alert::NO_RENEGOTIATION);
       return;
       }
 
@@ -74320,75 +77336,70 @@ void Server::process_client_hello_msg(const Handshake_State* active_state,
       }
 
    pending_state.client_hello(new Client_Hello(contents));
-   const Protocol_Version client_version = pending_state.client_hello()->version();
+   const Protocol_Version client_offer = pending_state.client_hello()->version();
+   const bool datagram = client_offer.is_datagram_protocol();
 
-   if(client_version.major_version() < 3)
-      throw TLS_Exception(Alert::PROTOCOL_VERSION, "Client offered version with major version under 3");
-   if(client_version.major_version() == 3 && client_version.minor_version() == 0)
-      throw TLS_Exception(Alert::PROTOCOL_VERSION, "SSLv3 is not supported");
-
-   Protocol_Version negotiated_version;
-
-   const Protocol_Version latest_supported =
-      policy().latest_supported_version(client_version.is_datagram_protocol());
-
-   if((initial_handshake && client_version.known_version()) ||
-      (!initial_handshake && client_version == active_state->version()))
+   if(datagram)
       {
-      /*
-      Common cases: new client hello with some known version, or a
-      renegotiation using the same version as previously
-      negotiated.
-      */
-
-      negotiated_version = client_version;
-      }
-   else if(!initial_handshake && (client_version != active_state->version()))
-      {
-      /*
-      * If this is a renegotiation, and the client has offered a
-      * later version than what it initially negotiated, negotiate
-      * the old version. This matches OpenSSL's behavior. If the
-      * client is offering a version earlier than what it initially
-      * negotiated, reject as a probable attack.
-      */
-      if(active_state->version() > client_version)
-         {
-         throw TLS_Exception(Alert::PROTOCOL_VERSION,
-                              "Client negotiated " +
-                              active_state->version().to_string() +
-                              " then renegotiated with " +
-                              client_version.to_string());
-         }
-      else
-         negotiated_version = active_state->version();
+      if(client_offer.major_version() == 0xFF)
+         throw TLS_Exception(Alert::PROTOCOL_VERSION, "Client offered DTLS version with major version 0xFF");
       }
    else
       {
-      /*
-      New negotiation using a version we don't know. Offer them the
-      best we currently know and support
-      */
-      negotiated_version = latest_supported;
+      if(client_offer.major_version() < 3)
+         throw TLS_Exception(Alert::PROTOCOL_VERSION, "Client offered TLS version with major version under 3");
+      if(client_offer.major_version() == 3 && client_offer.minor_version() == 0)
+         throw TLS_Exception(Alert::PROTOCOL_VERSION, "SSLv3 is not supported");
       }
 
-   if(!policy().acceptable_protocol_version(negotiated_version))
-      {
-      throw TLS_Exception(Alert::PROTOCOL_VERSION,
-                           "Client version " + negotiated_version.to_string() +
-                           " is unacceptable by policy");
-      }
+   /*
+   * BoGo test suite expects that we will send the hello verify with a record
+   * version matching the version that is eventually negotiated. This is wrong
+   * but harmless, so go with it. Also doing the version negotiation step first
+   * allows to immediately close the connection with an alert if the client has
+   * offered a version that we are not going to negotiate anyway, instead of
+   * making them first do the cookie exchange and then telling them no.
+   *
+   * There is no issue with amplification here, since the alert is just 2 bytes.
+   */
+   const Protocol_Version negotiated_version =
+      select_version(policy(), client_offer,
+                     active_state ? active_state->version() : Protocol_Version(),
+                     pending_state.client_hello()->sent_fallback_scsv(),
+                     pending_state.client_hello()->supported_versions());
 
-   if(pending_state.client_hello()->sent_fallback_scsv())
+   pending_state.set_version(negotiated_version);
+
+   const auto compression_methods = pending_state.client_hello()->compression_methods();
+   if(!value_exists(compression_methods, uint8_t(0)))
+      throw TLS_Exception(Alert::ILLEGAL_PARAMETER, "Client did not offer NULL compression");
+
+   if(initial_handshake && datagram)
       {
-      if(latest_supported > client_version)
-         throw TLS_Exception(Alert::INAPPROPRIATE_FALLBACK,
-                              "Client signalled fallback SCSV, possible attack");
+      SymmetricKey cookie_secret;
+
+      try
+         {
+         cookie_secret = m_creds.psk("tls-server", "dtls-cookie-secret", "");
+         }
+      catch(...) {}
+
+      if(cookie_secret.size() > 0)
+         {
+         const std::string client_identity = callbacks().tls_peer_network_identity();
+         Hello_Verify_Request verify(pending_state.client_hello()->cookie_input_data(), client_identity, cookie_secret);
+
+         if(pending_state.client_hello()->cookie() != verify.cookie())
+            {
+            pending_state.handshake_io().send(verify);
+            pending_state.client_hello(nullptr);
+            pending_state.set_expected_next(CLIENT_HELLO);
+            return;
+            }
+         }
       }
 
    secure_renegotiation_check(pending_state.client_hello());
-
-   pending_state.set_version(negotiated_version);
 
    callbacks().tls_examine_extensions(pending_state.client_hello()->extensions(), CLIENT);
 
@@ -74436,6 +77447,11 @@ void Server::process_certificate_msg(Server_Handshake_State& pending_state,
                                      const std::vector<uint8_t>& contents)
    {
    pending_state.client_certs(new Certificate(contents, policy()));
+
+   // CERTIFICATE_REQUIRED would make more sense but BoGo expects handshake failure alert
+   if(pending_state.client_certs()->empty() && policy().require_client_certificate_authentication())
+      throw TLS_Exception(Alert::HANDSHAKE_FAILURE, "Policy requires client send a certificate, but it did not");
+
    pending_state.set_expected_next(CLIENT_KEX);
    }
 
@@ -74645,6 +77661,7 @@ void Server::session_resume(Server_Handshake_State& pending_state,
 
    secure_renegotiation_check(pending_state.server_hello());
 
+   pending_state.mark_as_resumption();
    pending_state.compute_session_keys(session_info.master_secret());
    pending_state.set_resume_certs(session_info.peer_certs());
 
@@ -74692,7 +77709,7 @@ void Server::session_resume(Server_Handshake_State& pending_state,
 void Server::session_create(Server_Handshake_State& pending_state,
                             bool have_session_ticket_key)
    {
-   std::map<std::string, std::vector<X509_Certificate> > cert_chains;
+   std::map<std::string, std::vector<X509_Certificate>> cert_chains;
 
    const std::string sni_hostname = pending_state.client_hello()->sni_hostname();
 
@@ -74707,10 +77724,10 @@ void Server::session_create(Server_Handshake_State& pending_state,
       * find any certs for the requested name but did find at
       * least one cert to use in general. That avoids sending an
       * unrecognized_name when a server is configured for purely
-      * anonymous operation.
+      * anonymous/PSK operation.
       */
       if(!cert_chains.empty())
-         send_alert(Alert(Alert::UNRECOGNIZED_NAME));
+         send_warning_alert(Alert::UNRECOGNIZED_NAME);
       }
 
    const uint16_t ciphersuite = choose_ciphersuite(policy(), pending_state.version(),
@@ -74752,6 +77769,22 @@ void Server::session_create(Server_Handshake_State& pending_state,
                                                  pending_state.hash(),
                                                  cert_chains[algo_used]));
 
+      if(pending_state.client_hello()->supports_cert_status_message() && pending_state.is_a_resumption() == false)
+         {
+         auto csr = pending_state.client_hello()->extensions().get<Certificate_Status_Request>();
+         // csr is non-null if client_hello()->supports_cert_status_message()
+         BOTAN_ASSERT_NOMSG(csr != nullptr);
+         const auto resp_bytes = callbacks().tls_provide_cert_status(cert_chains[algo_used], *csr);
+         if(resp_bytes.size() > 0)
+            {
+            pending_state.server_cert_status(new Certificate_Status(
+                                                pending_state.handshake_io(),
+                                                pending_state.hash(),
+                                                resp_bytes
+                                                ));
+            }
+         }
+
       private_key = m_creds.private_key_for(
          pending_state.server_certs()->cert_chain()[0],
          "tls-server",
@@ -74782,7 +77815,11 @@ void Server::session_create(Server_Handshake_State& pending_state,
       client_auth_CAs.insert(client_auth_CAs.end(), subjects.begin(), subjects.end());
       }
 
-   if(!client_auth_CAs.empty() && pending_state.ciphersuite().signature_used())
+   const bool request_cert =
+      (client_auth_CAs.empty() == false) ||
+      policy().request_client_certificate_authentication();
+
+   if(request_cert && pending_state.ciphersuite().signature_used())
       {
       pending_state.cert_req(
          new Certificate_Req(pending_state.handshake_io(),
@@ -75034,7 +78071,7 @@ Session Session::decrypt(const uint8_t in[], size_t in_len, const SymmetricKey& 
 }
 /*
 * TLS Session Key
-* (C) 2004-2006,2011,2016 Jack Lloyd
+* (C) 2004-2006,2011,2016,2019 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -75078,17 +78115,17 @@ Session_Keys::Session_Keys(const Handshake_State* state,
       }
    else
       {
-      secure_vector<uint8_t> salt;
-      secure_vector<uint8_t> label;
+      std::vector<uint8_t> salt;
+      std::vector<uint8_t> label;
       if(extended_master_secret)
          {
-         label += std::make_pair(EXT_MASTER_SECRET_MAGIC, sizeof(EXT_MASTER_SECRET_MAGIC));
+         label.assign(EXT_MASTER_SECRET_MAGIC, EXT_MASTER_SECRET_MAGIC + sizeof(EXT_MASTER_SECRET_MAGIC));
          salt += state->hash().final(state->version(),
                                      state->ciphersuite().prf_algo());
          }
       else
          {
-         label += std::make_pair(MASTER_SECRET_MAGIC, sizeof(MASTER_SECRET_MAGIC));
+         label.assign(MASTER_SECRET_MAGIC, MASTER_SECRET_MAGIC + sizeof(MASTER_SECRET_MAGIC));
          salt += state->client_hello()->random();
          salt += state->server_hello()->random();
          }
@@ -75096,32 +78133,34 @@ Session_Keys::Session_Keys(const Handshake_State* state,
       m_master_sec = prf->derive_key(48, pre_master_secret, salt, label);
       }
 
-   secure_vector<uint8_t> salt;
-   secure_vector<uint8_t> label;
-   label += std::make_pair(KEY_GEN_MAGIC, sizeof(KEY_GEN_MAGIC));
+   std::vector<uint8_t> salt;
+   std::vector<uint8_t> label;
+   label.assign(KEY_GEN_MAGIC, KEY_GEN_MAGIC + sizeof(KEY_GEN_MAGIC));
    salt += state->server_hello()->random();
    salt += state->client_hello()->random();
 
-   SymmetricKey keyblock = prf->derive_key(prf_gen, m_master_sec, salt, label);
+   const secure_vector<uint8_t> prf_output = prf->derive_key(
+      prf_gen,
+      m_master_sec.data(), m_master_sec.size(),
+      salt.data(), salt.size(),
+      label.data(), label.size());
 
-   const uint8_t* key_data = keyblock.begin();
+   const uint8_t* key_data = prf_output.data();
 
-   m_c_mac = SymmetricKey(key_data, mac_keylen);
-   key_data += mac_keylen;
+   m_c_aead.resize(mac_keylen + cipher_keylen);
+   m_s_aead.resize(mac_keylen + cipher_keylen);
 
-   m_s_mac = SymmetricKey(key_data, mac_keylen);
-   key_data += mac_keylen;
+   copy_mem(&m_c_aead[0], key_data, mac_keylen);
+   copy_mem(&m_s_aead[0], key_data + mac_keylen, mac_keylen);
 
-   m_c_cipher = SymmetricKey(key_data, cipher_keylen);
-   key_data += cipher_keylen;
+   copy_mem(&m_c_aead[mac_keylen], key_data + 2*mac_keylen, cipher_keylen);
+   copy_mem(&m_s_aead[mac_keylen], key_data + 2*mac_keylen + cipher_keylen, cipher_keylen);
 
-   m_s_cipher = SymmetricKey(key_data, cipher_keylen);
-   key_data += cipher_keylen;
+   m_c_nonce.resize(cipher_nonce_bytes);
+   m_s_nonce.resize(cipher_nonce_bytes);
 
-   m_c_iv = InitializationVector(key_data, cipher_nonce_bytes);
-   key_data += cipher_nonce_bytes;
-
-   m_s_iv = InitializationVector(key_data, cipher_nonce_bytes);
+   copy_mem(&m_c_nonce[0], key_data + 2*(mac_keylen + cipher_keylen), cipher_nonce_bytes);
+   copy_mem(&m_s_nonce[0], key_data + 2*(mac_keylen + cipher_keylen) + cipher_nonce_bytes, cipher_nonce_bytes);
    }
 
 }
@@ -75259,8 +78298,8 @@ void Session_Manager_In_Memory::save(const Session& session)
 * TLS cipher suite information
 *
 * This file was automatically generated from the IANA assignments
-* (tls-parameters.txt hash ac96406c0080f669ca9442b0f5efcb31549ecb2e)
-* by ./src/scripts/tls_suite_info.py on 2017-11-05
+* (tls-parameters.txt hash fe1ef8f3492b0708f3b14c9e8f8de55188c1b3c0)
+* by ./src/scripts/tls_suite_info.py on 2019-05-24
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -75544,6 +78583,11 @@ bool Text_Policy::include_time_in_hello_random() const
    return get_bool("include_time_in_hello_random", Policy::include_time_in_hello_random());
    }
 
+bool Text_Policy::require_client_certificate_authentication() const
+   {
+   return get_bool("require_client_certificate_authentication", Policy::require_client_certificate_authentication());
+   }
+
 bool Text_Policy::allow_client_initiated_renegotiation() const
    {
    return get_bool("allow_client_initiated_renegotiation", Policy::allow_client_initiated_renegotiation());
@@ -75808,7 +78852,7 @@ std::string Protocol_Version::to_string() const
 
 bool Protocol_Version::is_datagram_protocol() const
    {
-   return major_version() == 254;
+   return major_version() > 250;
    }
 
 bool Protocol_Version::operator>(const Protocol_Version& other) const
@@ -75886,7 +78930,7 @@ TLS_CBC_HMAC_AEAD_Mode::TLS_CBC_HMAC_AEAD_Mode(Cipher_Dir dir,
                                                std::unique_ptr<MessageAuthenticationCode> mac,
                                                size_t cipher_keylen,
                                                size_t mac_keylen,
-                                               bool use_explicit_iv,
+                                               Protocol_Version version,
                                                bool use_encrypt_then_mac) :
    m_cipher_name(cipher->name()),
    m_mac_name(mac->name()),
@@ -75897,7 +78941,9 @@ TLS_CBC_HMAC_AEAD_Mode::TLS_CBC_HMAC_AEAD_Mode(Cipher_Dir dir,
    m_tag_size = mac->output_length();
    m_block_size = cipher->block_size();
 
-   m_iv_size = use_explicit_iv ? m_block_size : 0;
+   m_iv_size = version.supports_explicit_cbc_ivs() ? m_block_size : 0;
+
+   m_is_datagram = version.is_datagram_protocol();
 
    m_mac = std::move(mac);
 
@@ -75950,8 +78996,8 @@ void TLS_CBC_HMAC_AEAD_Mode::key_schedule(const uint8_t key[], size_t keylen)
    if(keylen != m_cipher_keylen + m_mac_keylen)
       throw Invalid_Key_Length(name(), keylen);
 
-   cbc().set_key(&key[0], m_cipher_keylen);
-   mac().set_key(&key[m_cipher_keylen], m_mac_keylen);
+   mac().set_key(&key[0], m_mac_keylen);
+   cbc().set_key(&key[m_mac_keylen], m_cipher_keylen);
    }
 
 void TLS_CBC_HMAC_AEAD_Mode::start_msg(const uint8_t nonce[], size_t nonce_len)
@@ -76127,46 +79173,46 @@ size_t TLS_CBC_HMAC_AEAD_Decryption::output_length(size_t) const
    }
 
 /*
-* This function performs additional compression calls in order 
-* to protect from the Lucky 13 attack. It adds new compression 
+* This function performs additional compression calls in order
+* to protect from the Lucky 13 attack. It adds new compression
 * function calls over dummy data, by computing additional HMAC updates.
 *
 * The countermeasure was described (in a similar way) in the Lucky 13 paper.
-* 
+*
 * Background:
 * - One SHA-1/SHA-256 compression is performed with 64 bytes of data.
 * - HMAC adds 8 byte length field and padding (at least 1 byte) so that we have:
 *   - 0 - 55 bytes: 1 compression
 *   - 56 - 55+64 bytes: 2 compressions
 *   - 56+64 - 55+2*64 bytes: 3 compressions ...
-* - For SHA-384, this works similarly, but we have 128 byte blocks and 16 byte 
+* - For SHA-384, this works similarly, but we have 128 byte blocks and 16 byte
 *   long length field. This results in:
 *   - 0 - 111 bytes: 1 compression
 *   - 112 - 111+128 bytes: 2 compressions ...
-* 
+*
 * The implemented countermeasure works as follows:
 * 1) It computes max_compressions: number of maximum compressions performed on
 *    the decrypted data
-* 2) It computes current_compressions: number of compressions performed on the 
+* 2) It computes current_compressions: number of compressions performed on the
 *    decrypted data, after padding has been removed
-* 3) If current_compressions != max_compressions: It invokes an HMAC update 
-*    over dummy data so that (max_compressions - current_compressions) 
+* 3) If current_compressions != max_compressions: It invokes an HMAC update
+*    over dummy data so that (max_compressions - current_compressions)
 *    compressions are performed. Otherwise, it invokes an HMAC update so that
 *    no compressions are performed.
-* 
+*
 * Note that the padding validation in Botan is always performed over
 * min(plen,256) bytes, see the function check_tls_cbc_padding. This differs
 * from the countermeasure described in the paper.
-* 
+*
 * Note that the padding length padlen does also count the last byte
 * of the decrypted plaintext. This is different from the Lucky 13 paper.
-* 
-* This countermeasure leaves a difference of about 100 clock cycles (in 
+*
+* This countermeasure leaves a difference of about 100 clock cycles (in
 * comparison to >1000 clock cycles observed without it).
-* 
+*
 * plen represents the length of the decrypted plaintext message P
 * padlen represents the padding length
-* 
+*
 */
 void TLS_CBC_HMAC_AEAD_Decryption::perform_additional_compressions(size_t plen, size_t padlen)
    {
@@ -76185,7 +79231,7 @@ void TLS_CBC_HMAC_AEAD_Decryption::perform_additional_compressions(size_t plen, 
    // number of maximum MACed bytes
    const uint16_t L1 = static_cast<uint16_t>(13 + plen - tag_size());
    // number of current MACed bytes (L1 - padlen)
-   // Here the Lucky 13 paper is different because the padlen length in the paper 
+   // Here the Lucky 13 paper is different because the padlen length in the paper
    // does not count the last message byte.
    const uint16_t L2 = static_cast<uint16_t>(13 + plen - padlen - tag_size());
    // From the paper, for SHA-256/SHA-1 compute: ceil((L1-55)/64) and ceil((L2-55)/64)
@@ -76200,8 +79246,8 @@ void TLS_CBC_HMAC_AEAD_Decryption::perform_additional_compressions(size_t plen, 
    // If there are no compressions, we just add 55/111 dummy bytes so that no
    // compression is performed.
    const uint16_t data_len = block_size * add_compressions + equal * max_bytes_in_first_block;
-   secure_vector<uint8_t> data(data_len);
-   mac().update(unlock(data));
+   std::vector<uint8_t> data(data_len);
+   mac().update(data);
    // we do not need to clear the MAC since the connection is broken anyway
    }
 
@@ -76318,6 +79364,14 @@ void TLS_CBC_HMAC_AEAD_Decryption::finish(secure_vector<uint8_t>& buffer, size_t
       else
          {
          perform_additional_compressions(record_len, pad_size);
+
+         /*
+         * In DTLS case we have to finish computing the MAC since we require the
+         * MAC state be reset for future packets. This extra timing channel may
+         * be exploitable in a Lucky13 variant.
+         */
+         if(is_datagram_protocol())
+            mac().final(mac_buf);
          throw TLS_Exception(Alert::BAD_RECORD_MAC, "Message authentication failure");
          }
       }
@@ -77330,7 +80384,6 @@ void assertion_failure(const char* expr_str,
 */
 
 #include <ctime>
-#include <stdlib.h>
 
 namespace Botan {
 
@@ -77384,13 +80437,18 @@ std::chrono::system_clock::time_point calendar_point::to_std_timepoint() const
    // 32 bit time_t ends at January 19, 2038
    // https://msdn.microsoft.com/en-us/library/2093ets1.aspx
    // Throw after 2037 if 32 bit time_t is used
-   if(get_year() > 2037 && sizeof(std::time_t) == 4)
+
+   BOTAN_IF_CONSTEXPR(sizeof(std::time_t) == 4)
       {
-      throw Invalid_Argument("calendar_point::to_std_timepoint() does not support years after 2037 on this system");
+      if(get_year() > 2037)
+         {
+         throw Invalid_Argument("calendar_point::to_std_timepoint() does not support years after 2037 on this system");
+         }
       }
-   else if(get_year() >= 2400)
+
+   // This upper bound is completely arbitrary
+   if(get_year() >= 2400)
       {
-      // This upper bound is somewhat arbitrary
       throw Invalid_Argument("calendar_point::to_std_timepoint() does not support years after 2400");
       }
 
@@ -78015,6 +81073,66 @@ DataSource_Stream::~DataSource_Stream()
 
 namespace Botan {
 
+std::string to_string(ErrorType type)
+   {
+   switch(type)
+      {
+      case ErrorType::Unknown:
+         return "Unknown";
+      case ErrorType::SystemError:
+         return "SystemError";
+      case ErrorType::NotImplemented:
+         return "NotImplemented";
+      case ErrorType::OutOfMemory:
+         return "OutOfMemory";
+      case ErrorType::InternalError:
+         return "InternalError";
+      case ErrorType::IoError:
+         return "IoError";
+      case ErrorType::InvalidObjectState :
+         return "InvalidObjectState";
+      case ErrorType::KeyNotSet:
+         return "KeyNotSet";
+      case ErrorType::InvalidArgument:
+         return "InvalidArgument";
+      case ErrorType::InvalidKeyLength:
+         return "InvalidKeyLength";
+      case ErrorType::InvalidNonceLength:
+         return "InvalidNonceLength";
+      case ErrorType::LookupError:
+         return "LookupError";
+      case ErrorType::EncodingFailure:
+         return "EncodingFailure";
+      case ErrorType::DecodingFailure:
+         return "DecodingFailure";
+      case ErrorType::TLSError:
+         return "TLSError";
+      case ErrorType::HttpError:
+         return "HttpError";
+      case ErrorType::InvalidTag:
+         return "InvalidTag";
+      case ErrorType::OpenSSLError :
+         return "OpenSSLError";
+      case ErrorType::CommonCryptoError:
+         return "CommonCryptoError";
+      case ErrorType::Pkcs11Error:
+         return "Pkcs11Error";
+      case ErrorType::TPMError:
+         return "TPMError";
+      case ErrorType::DatabaseError:
+         return "DatabaseError";
+      case ErrorType::ZlibError :
+         return "ZlibError";
+      case ErrorType::Bzip2Error:
+         return "Bzip2Error" ;
+      case ErrorType::LzmaError:
+         return "LzmaError";
+      }
+
+   // No default case in above switch so compiler warns
+   return "Unrecognized Botan error";
+   }
+
 Exception::Exception(const std::string& msg) : m_msg(msg)
    {}
 
@@ -78100,8 +81218,8 @@ Decoding_Error::Decoding_Error(const std::string& msg, const std::exception& e) 
 Decoding_Error::Decoding_Error(const std::string& name, const char* exception_message) :
    Invalid_Argument(name + " failed with exception " + exception_message) {}
 
-Integrity_Failure::Integrity_Failure(const std::string& msg) :
-   Exception("Integrity failure: " + msg)
+Invalid_Authentication_Tag::Invalid_Authentication_Tag(const std::string& msg) :
+   Exception("Invalid authentication tag: " + msg)
    {}
 
 Invalid_OID::Invalid_OID(const std::string& oid) :
@@ -78127,75 +81245,24 @@ Not_Implemented::Not_Implemented(const std::string& err) :
 
 }
 /*
-* (C) 2015,2017 Jack Lloyd
+* (C) 2015,2017,2019 Jack Lloyd
 * (C) 2015 Simon Warta (Kullo GmbH)
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
 
-#if defined(BOTAN_TARGET_OS_HAS_STL_FILESYSTEM_MSVC) && defined(BOTAN_BUILD_COMPILER_IS_MSVC)
-  #include <filesystem>
-#elif defined(BOTAN_HAS_BOOST_FILESYSTEM)
-  #include <boost/filesystem.hpp>
-#elif defined(BOTAN_TARGET_OS_HAS_POSIX1)
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1)
 #elif defined(BOTAN_TARGET_OS_HAS_WIN32)
   #define NOMINMAX 1
   #define _WINSOCKAPI_ // stop windows.h including winsock.h
-  #include <windows.h>
 #endif
 
 namespace Botan {
 
 namespace {
 
-#if defined(BOTAN_TARGET_OS_HAS_STL_FILESYSTEM_MSVC) && defined(BOTAN_BUILD_COMPILER_IS_MSVC)
-std::vector<std::string> impl_stl_filesystem(const std::string& dir)
-   {
-#if (_MSVC_LANG >= 201703L)
-   using namespace std::filesystem;
-#else
-   using namespace std::tr2::sys;
-#endif
-
-   std::vector<std::string> out;
-
-   path p(dir);
-
-   if(is_directory(p))
-      {
-      for(recursive_directory_iterator itr(p), end; itr != end; ++itr)
-         {
-         if(is_regular_file(itr->path()))
-            {
-            out.push_back(itr->path().string());
-            }
-         }
-      }
-
-   return out;
-   }
-
-#elif defined(BOTAN_HAS_BOOST_FILESYSTEM)
-
-std::vector<std::string> impl_boost_filesystem(const std::string& dir_path)
-{
-   namespace fs = boost::filesystem;
-
-   std::vector<std::string> out;
-
-   for(fs::recursive_directory_iterator dir(dir_path), end; dir != end; ++dir)
-      {
-      if(fs::is_regular_file(dir->path()))
-         {
-         out.push_back(dir->path().string());
-         }
-      }
-
-   return out;
-}
-
-#elif defined(BOTAN_TARGET_OS_HAS_POSIX1)
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1)
 
 std::vector<std::string> impl_readdir(const std::string& dir_path)
    {
@@ -78283,11 +81350,7 @@ std::vector<std::string> impl_win32(const std::string& dir_path)
 
 bool has_filesystem_impl()
    {
-#if defined(BOTAN_TARGET_OS_HAS_STL_FILESYSTEM_MSVC) && defined(BOTAN_BUILD_COMPILER_IS_MSVC)
-   return true;
-#elif defined(BOTAN_HAS_BOOST_FILESYSTEM)
-   return true;
-#elif defined(BOTAN_TARGET_OS_HAS_POSIX1)
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1)
    return true;
 #elif defined(BOTAN_TARGET_OS_HAS_WIN32)
    return true;
@@ -78300,11 +81363,7 @@ std::vector<std::string> get_files_recursive(const std::string& dir)
    {
    std::vector<std::string> files;
 
-#if defined(BOTAN_TARGET_OS_HAS_STL_FILESYSTEM_MSVC) && defined(BOTAN_BUILD_COMPILER_IS_MSVC)
-   files = impl_stl_filesystem(dir);
-#elif defined(BOTAN_HAS_BOOST_FILESYSTEM)
-   files = impl_boost_filesystem(dir);
-#elif defined(BOTAN_TARGET_OS_HAS_POSIX1)
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1)
    files = impl_readdir(dir);
 #elif defined(BOTAN_TARGET_OS_HAS_WIN32)
    files = impl_win32(dir);
@@ -78390,6 +81449,9 @@ uint8_t ct_compare_u8(const uint8_t x[],
 
 
 
+#if defined(BOTAN_TARGET_OS_HAS_THREADS)
+#endif
+
 #if defined(BOTAN_TARGET_OS_HAS_EXPLICIT_BZERO)
   #include <string.h>
 #endif
@@ -78407,13 +81469,18 @@ uint8_t ct_compare_u8(const uint8_t x[],
   #include <emscripten/emscripten.h>
 #endif
 
-#if defined(BOTAN_TARGET_OS_HAS_GETAUXVAL)
+#if defined(BOTAN_TARGET_OS_HAS_GETAUXVAL) || defined(BOTAN_TARGET_OS_IS_ANDROID) || \
+  defined(BOTAN_TARGET_OS_HAS_ELF_AUX_INFO)
   #include <sys/auxv.h>
 #endif
 
 #if defined(BOTAN_TARGET_OS_HAS_WIN32)
   #define NOMINMAX 1
-  #include <windows.h>
+#endif
+
+#if defined(BOTAN_TARGET_OS_IS_ANDROID)
+  #include <elf.h>
+  extern "C" char **environ;
 #endif
 
 namespace Botan {
@@ -78462,10 +81529,41 @@ uint32_t OS::get_process_id()
 #endif
    }
 
+unsigned long OS::get_auxval(unsigned long id)
+   {
+#if defined(BOTAN_TARGET_OS_HAS_GETAUXVAL)
+   return ::getauxval(id);
+#elif defined(BOTAN_TARGET_OS_IS_ANDROID)
+   char  **p = environ;
+
+   while (*p++!=nullptr);
+
+   Elf32_auxv_t *e = reinterpret_cast<Elf32_auxv_t *>(p);
+
+   while (e!=nullptr)
+      {
+      if (e->a_type == 0)
+        continue;
+      if (e->a_type == id)
+        return e->a_un.a_val;
+      e++;
+      }
+
+   return 0;
+#elif defined(BOTAN_TARGET_OS_HAS_ELF_AUX_INFO)
+   unsigned long auxinfo = 0;
+   ::elf_aux_info(id, &auxinfo, sizeof(auxinfo));
+   return auxinfo;
+#else
+   BOTAN_UNUSED(id);
+   return 0;
+#endif
+   }
+
 bool OS::running_in_privileged_state()
    {
-#if defined(BOTAN_TARGET_OS_HAS_GETAUXVAL) && defined(AT_SECURE)
-   return ::getauxval(AT_SECURE) != 0;
+#if defined(AT_SECURE)
+   return OS::get_auxval(AT_SECURE) != 0;
 #elif defined(BOTAN_TARGET_OS_HAS_POSIX1)
    return (::getuid() != ::geteuid()) || (::getgid() != ::getegid());
 #else
@@ -78503,10 +81601,10 @@ uint64_t OS::get_cpu_cycle_counter()
       asm volatile("mftbu %0" : "=r" (rtc_high2));
 
       if(rtc_high == rtc_high2)
-	 {
+         {
          rtc = (static_cast<uint64_t>(rtc_high) << 32) | rtc_low;
          break;
-	 }
+         }
       }
 
 #elif defined(BOTAN_TARGET_ARCH_IS_ALPHA)
@@ -78532,6 +81630,36 @@ uint64_t OS::get_cpu_cycle_counter()
 #endif
 
    return rtc;
+   }
+
+size_t OS::get_cpu_total()
+   {
+   size_t tt = 1;
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1) && defined(_SC_NPROCESSORS_CONF)
+   long res;
+   if ((res = ::sysconf(_SC_NPROCESSORS_CONF)) <= 0)
+     {
+          return 1;
+     }
+     tt = static_cast<size_t>(res);
+#elif defined(BOTAN_TARGET_OS_HAS_THREADS)
+     tt = static_cast<size_t>(std::thread::hardware_concurrency());
+#endif
+     return tt;
+   }
+
+size_t OS::get_cpu_available()
+   {
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1) && defined(_SC_NPROCESSORS_ONLN)
+   long res;
+   if ((res = ::sysconf(_SC_NPROCESSORS_ONLN)) <= 0)
+     {
+       return 1;
+     }
+   return static_cast<size_t>(res);
+#else
+   return get_cpu_total();
+#endif
    }
 
 uint64_t OS::get_high_resolution_clock()
@@ -78634,20 +81762,9 @@ size_t OS::get_memory_locking_limit()
    * programs), but small enough that we should not cause problems
    * even if many processes are mlocking on the same machine.
    */
-   size_t mlock_requested = BOTAN_MLOCK_ALLOCATOR_MAX_LOCKED_KB;
+   const size_t user_req = read_env_variable_sz("BOTAN_MLOCK_POOL_SIZE", BOTAN_MLOCK_ALLOCATOR_MAX_LOCKED_KB);
 
-   /*
-   * Allow override via env variable
-   */
-   if(const char* env = read_env_variable("BOTAN_MLOCK_POOL_SIZE"))
-      {
-      try
-         {
-         const size_t user_req = std::stoul(env, nullptr);
-         mlock_requested = std::min(user_req, mlock_requested);
-         }
-      catch(std::exception&) { /* ignore it */ }
-      }
+   const size_t mlock_requested = std::min<size_t>(user_req, BOTAN_MLOCK_ALLOCATOR_MAX_LOCKED_KB);
 
    if(mlock_requested > 0)
       {
@@ -78674,22 +81791,15 @@ size_t OS::get_memory_locking_limit()
 
    // According to Microsoft MSDN:
    // The maximum number of pages that a process can lock is equal to the number of pages in its minimum working set minus a small overhead
-   // In the book "Windows Internals Part 2": the maximum lockable pages are minimum working set size - 8 pages 
+   // In the book "Windows Internals Part 2": the maximum lockable pages are minimum working set size - 8 pages
    // But the information in the book seems to be inaccurate/outdated
    // I've tested this on Windows 8.1 x64, Windows 10 x64 and Windows 7 x86
    // On all three OS the value is 11 instead of 8
-   size_t overhead = OS::system_page_size() * 11ULL;
+   const size_t overhead = OS::system_page_size() * 11;
    if(working_min > overhead)
       {
-      size_t lockable_bytes = working_min - overhead;
-      if(lockable_bytes < (BOTAN_MLOCK_ALLOCATOR_MAX_LOCKED_KB * 1024ULL))
-         {
-         return lockable_bytes;
-         }
-      else
-         {
-         return BOTAN_MLOCK_ALLOCATOR_MAX_LOCKED_KB * 1024ULL;
-         }
+      const size_t lockable_bytes = working_min - overhead;
+      return std::min<size_t>(lockable_bytes, BOTAN_MLOCK_ALLOCATOR_MAX_LOCKED_KB * 1024);
       }
 #endif
 
@@ -78705,73 +81815,137 @@ const char* OS::read_env_variable(const std::string& name)
    return std::getenv(name.c_str());
    }
 
-void* OS::allocate_locked_pages(size_t length)
+size_t OS::read_env_variable_sz(const std::string& name, size_t def)
    {
-#if defined(BOTAN_TARGET_OS_HAS_POSIX1) && defined(BOTAN_TARGET_OS_HAS_POSIX_MLOCK)
+   if(const char* env = read_env_variable(name))
+      {
+      try
+         {
+         const size_t val = std::stoul(env, nullptr);
+         return val;
+         }
+      catch(std::exception&) { /* ignore it */ }
+      }
+
+   return def;
+   }
+
+std::vector<void*> OS::allocate_locked_pages(size_t count)
+   {
+   std::vector<void*> result;
+   result.reserve(count);
 
    const size_t page_size = OS::system_page_size();
 
-   if(length % page_size != 0)
-      return nullptr;
+   for(size_t i = 0; i != count; ++i)
+      {
+      void* ptr = nullptr;
 
-   void* ptr = nullptr;
-   int rc = ::posix_memalign(&ptr, page_size, length);
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1) && defined(BOTAN_TARGET_OS_HAS_POSIX_MLOCK)
 
-   if(rc != 0 || ptr == nullptr)
-      return nullptr;
+#if !defined(MAP_NOCORE)
+#if defined(MAP_CONCEAL)
+   #define MAP_NOCORE MAP_CONCEAL
+#else
+   #define MAP_NOCORE 0
+#endif
+#endif
+#if !defined(PROT_MAX)
+   #define PROT_MAX(p) 0
+#endif
+      int pflags = PROT_READ | PROT_WRITE;
+
+      ptr = ::mmap(nullptr, 2*page_size,
+                   pflags | PROT_MAX(pflags),
+                   MAP_ANONYMOUS | MAP_PRIVATE | MAP_NOCORE,
+                   /*fd=*/-1, /*offset=*/0);
+
+      if(ptr == MAP_FAILED)
+         {
+         continue;
+         }
+
+      // failed to lock
+      if(::mlock(ptr, page_size) != 0)
+         {
+         ::munmap(ptr, 2*page_size);
+         continue;
+         }
 
 #if defined(MADV_DONTDUMP)
-   ::madvise(ptr, length, MADV_DONTDUMP);
+      // we ignore errors here, as DONTDUMP is just a bonus
+      ::madvise(ptr, page_size, MADV_DONTDUMP);
 #endif
 
-   if(::mlock(ptr, length) != 0)
-      {
-      std::free(ptr);
-      return nullptr; // failed to lock
-      }
-
-   ::memset(ptr, 0, length);
-
-   return ptr;
 #elif defined(BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK)
-   LPVOID ptr = ::VirtualAlloc(nullptr, length, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-   if(!ptr)
-      {
-      return nullptr;
+      ptr = ::VirtualAlloc(nullptr, 2*page_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+
+      if(ptr == nullptr)
+         continue;
+
+      if(::VirtualLock(ptr, page_size) == 0)
+         {
+         ::VirtualFree(ptr, 0, MEM_RELEASE);
+         continue;
+         }
+#endif
+
+      std::memset(ptr, 0, 2*page_size); // zero both data and guard pages
+
+      // Make guard page following the data page
+      page_prohibit_access(static_cast<uint8_t*>(ptr) + page_size);
+
+      result.push_back(ptr);
       }
 
-   if(::VirtualLock(ptr, length) == 0)
-      {
-      ::VirtualFree(ptr, 0, MEM_RELEASE);
-      return nullptr; // failed to lock
-      }
+   return result;
+   }
 
-   return ptr;
-#else
-   BOTAN_UNUSED(length);
-   return nullptr; /* not implemented */
+void OS::page_allow_access(void* page)
+   {
+   const size_t page_size = OS::system_page_size();
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1)
+   ::mprotect(page, page_size, PROT_READ | PROT_WRITE);
+#elif defined(BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK)
+   DWORD old_perms = 0;
+   ::VirtualProtect(page, page_size, PAGE_READWRITE, &old_perms);
+   BOTAN_UNUSED(old_perms);
 #endif
    }
 
-void OS::free_locked_pages(void* ptr, size_t length)
+void OS::page_prohibit_access(void* page)
    {
-   if(ptr == nullptr || length == 0)
-      return;
+   const size_t page_size = OS::system_page_size();
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1)
+   ::mprotect(page, page_size, PROT_NONE);
+#elif defined(BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK)
+   DWORD old_perms = 0;
+   ::VirtualProtect(page, page_size, PAGE_NOACCESS, &old_perms);
+   BOTAN_UNUSED(old_perms);
+#endif
+   }
+
+void OS::free_locked_pages(const std::vector<void*>& pages)
+   {
+   const size_t page_size = OS::system_page_size();
+
+   for(size_t i = 0; i != pages.size(); ++i)
+      {
+      void* ptr = pages[i];
+
+      secure_scrub_memory(ptr, page_size);
+
+      // ptr points to the data page, guard page follows
+      page_allow_access(static_cast<uint8_t*>(ptr) + page_size);
 
 #if defined(BOTAN_TARGET_OS_HAS_POSIX1) && defined(BOTAN_TARGET_OS_HAS_POSIX_MLOCK)
-   secure_scrub_memory(ptr, length);
-   ::munlock(ptr, length);
-   std::free(ptr);
-
+      ::munlock(ptr, page_size);
+      ::munmap(ptr, 2*page_size);
 #elif defined(BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK)
-   secure_scrub_memory(ptr, length);
-   ::VirtualUnlock(ptr, length);
-   ::VirtualFree(ptr, 0, MEM_RELEASE);
-
-#else
-   // Invalid argument because no way this pointer was allocated by us
-   throw Invalid_Argument("Invalid ptr to free_locked_pages");
+      ::VirtualUnlock(ptr, page_size);
+      ::VirtualFree(ptr, 0, MEM_RELEASE);
 #endif
+      }
    }
 
 #if defined(BOTAN_TARGET_OS_HAS_POSIX1) && !defined(BOTAN_TARGET_OS_IS_EMSCRIPTEN)
@@ -80844,6 +84018,8 @@ const char* to_string(Certificate_Status_Code code)
          return "OCSP is not yet valid";
       case Certificate_Status_Code::OCSP_HAS_EXPIRED:
          return "OCSP response has expired";
+      case Certificate_Status_Code::OCSP_IS_TOO_OLD:
+         return "OCSP response is too old";
       case Certificate_Status_Code::CRL_NOT_YET_VALID:
          return "CRL response is not yet valid";
       case Certificate_Status_Code::CRL_HAS_EXPIRED:
@@ -81972,7 +85148,7 @@ Certificate_Status_Code Response::verify_signature(const X509_Certificate& issue
    {
    if (m_responses.empty())
       return m_dummy_response_status;
-      
+
    try
       {
       std::unique_ptr<Public_Key> pub_key(issuer.subject_public_key());
@@ -82083,11 +85259,12 @@ Certificate_Status_Code Response::check_signature(const std::vector<Certificate_
    }
 
 Certificate_Status_Code Response::status_for(const X509_Certificate& issuer,
-                                             const X509_Certificate& subject,
-                                             std::chrono::system_clock::time_point ref_time) const
+      const X509_Certificate& subject,
+      std::chrono::system_clock::time_point ref_time,
+      std::chrono::seconds max_age) const
    {
-   if (m_responses.empty())
-      return m_dummy_response_status;
+   if(m_responses.empty())
+      { return m_dummy_response_status; }
 
    for(const auto& response : m_responses)
       {
@@ -82096,18 +85273,23 @@ Certificate_Status_Code Response::status_for(const X509_Certificate& issuer,
          X509_Time x509_ref_time(ref_time);
 
          if(response.cert_status() == 1)
-            return Certificate_Status_Code::CERT_IS_REVOKED;
+            { return Certificate_Status_Code::CERT_IS_REVOKED; }
 
          if(response.this_update() > x509_ref_time)
-            return Certificate_Status_Code::OCSP_NOT_YET_VALID;
+            { return Certificate_Status_Code::OCSP_NOT_YET_VALID; }
 
-         if(response.next_update().time_is_set() && x509_ref_time > response.next_update())
-            return Certificate_Status_Code::OCSP_HAS_EXPIRED;
+         if(response.next_update().time_is_set())
+            {
+            if(x509_ref_time > response.next_update())
+               { return Certificate_Status_Code::OCSP_HAS_EXPIRED; }
+            }
+         else if(max_age > std::chrono::seconds::zero() && ref_time - response.this_update().to_std_timepoint() > max_age)
+            { return Certificate_Status_Code::OCSP_IS_TOO_OLD; }
 
          if(response.cert_status() == 0)
-            return Certificate_Status_Code::OCSP_RESPONSE_GOOD;
+            { return Certificate_Status_Code::OCSP_RESPONSE_GOOD; }
          else
-            return Certificate_Status_Code::OCSP_BAD_STATUS;
+            { return Certificate_Status_Code::OCSP_BAD_STATUS; }
          }
       }
 
@@ -83215,7 +86397,7 @@ std::multimap<std::string, std::string> X509_DN::contents() const
       std::string str_value = OIDS::oid2str(i.first);
 
       if(str_value.empty())
-         str_value = i.first.as_string();
+         str_value = i.first.to_string();
       multimap_insert(retval, str_value, i.second.value());
       }
    return retval;
@@ -83337,16 +86519,54 @@ bool operator<(const X509_DN& dn1, const X509_DN& dn2)
    auto attr1 = dn1.get_attributes();
    auto attr2 = dn2.get_attributes();
 
-   if(attr1.size() < attr2.size()) return true;
-   if(attr1.size() > attr2.size()) return false;
+   // If they are not the same size, choose the smaller as the "lessor"
+   if(attr1.size() < attr2.size())
+      return true;
+   if(attr1.size() > attr2.size())
+      return false;
 
-   for(auto p1 = attr1.begin(); p1 != attr1.end(); ++p1)
+   // We know they are the same # of elements, now compare the OIDs:
+   auto p1 = attr1.begin();
+   auto p2 = attr2.begin();
+
+   while(p1 != attr1.end() && p2 != attr2.end())
       {
-      auto p2 = attr2.find(p1->first);
-      if(p2 == attr2.end())       return false;
-      if(p1->second > p2->second) return false;
-      if(p1->second < p2->second) return true;
+      if(p1->first != p2->first)
+         {
+         return (p1->first < p2->first);
+         }
+
+      ++p1;
+      ++p2;
       }
+
+   // We know this is true because maps have the same size
+   BOTAN_ASSERT_NOMSG(p1 == attr1.end());
+   BOTAN_ASSERT_NOMSG(p2 == attr2.end());
+
+   // Now we know all elements have the same OIDs, compare
+   // their string values:
+
+   p1 = attr1.begin();
+   p2 = attr2.begin();
+   while(p1 != attr1.end() && p2 != attr2.end())
+      {
+      BOTAN_DEBUG_ASSERT(p1->first == p2->first);
+
+      // They may be binary different but same by X.500 rules, check this
+      if(!x500_name_cmp(p1->second, p2->second))
+         {
+         // If they are not (by X.500) the same string, pick the
+         // lexicographic first as the lessor
+         return (p1->second < p2->second);
+         }
+
+      ++p1;
+      ++p2;
+      }
+
+   // if we reach here, then the DNs should be identical
+   BOTAN_DEBUG_ASSERT(dn1 == dn2);
    return false;
    }
 
@@ -83403,7 +86623,10 @@ void X509_DN::decode_from(BER_Decoder& source)
          OID oid;
          ASN1_String str;
 
-         rdn.start_cons(SEQUENCE).decode(oid).decode(str).end_cons();
+         rdn.start_cons(SEQUENCE)
+            .decode(oid)
+            .decode(str) // TODO support Any
+            .end_cons().verify_end("Invalid X509_DN, data follows RDN");
 
          add_attribute(oid, str);
          }
@@ -83437,6 +86660,13 @@ std::string to_short_form(const OID& oid)
    }
 
 }
+
+std::string X509_DN::to_string() const
+   {
+   std::ostringstream out;
+   out << *this;
+   return out.str();
+   }
 
 std::ostream& operator<<(std::ostream& out, const X509_DN& dn)
    {
@@ -83609,7 +86839,7 @@ Extensions::create_extn_obj(const OID& oid,
                             bool critical,
                             const std::vector<uint8_t>& body)
    {
-   const std::string oid_str = oid.as_string();
+   const std::string oid_str = oid.to_string();
 
    std::unique_ptr<Certificate_Extension> extn;
 
@@ -84137,7 +87367,7 @@ void Extended_Key_Usage::decode_inner(const std::vector<uint8_t>& in)
 void Extended_Key_Usage::contents_to(Data_Store& subject, Data_Store&) const
    {
    for(size_t i = 0; i != m_oids.size(); ++i)
-      subject.add("X509v3.ExtendedKeyUsage", m_oids[i].as_string());
+      subject.add("X509v3.ExtendedKeyUsage", m_oids[i].to_string());
    }
 
 /*
@@ -84341,7 +87571,7 @@ void Certificate_Policies::decode_inner(const std::vector<uint8_t>& in)
 void Certificate_Policies::contents_to(Data_Store& info, Data_Store&) const
    {
    for(size_t i = 0; i != m_oids.size(); ++i)
-      info.add("X509v3.CertificatePolicies", m_oids[i].as_string());
+      info.add("X509v3.CertificatePolicies", m_oids[i].to_string());
    }
 
 void Certificate_Policies::validate(
@@ -84716,7 +87946,7 @@ std::string X509_Object::hash_used_for_signature() const
    if(sig_info.size() == 1 && sig_info[0] == "Ed25519")
       return "SHA-512";
    else if(sig_info.size() != 2)
-      throw Internal_Error("Invalid name format found for " + oid.as_string());
+      throw Internal_Error("Invalid name format found for " + oid.to_string());
 
    if(sig_info[1] == "EMSA4")
       {
@@ -85115,17 +88345,13 @@ std::unique_ptr<X509_Certificate_Data> parse_x509_cert_body(const X509_Object& o
                throw Decoding_Error("Algorithm identifier mismatch");
                }
             }
-         if(public_key_info[1] == "OAEP")
-            {
-            throw Decoding_Error("Decoding subject public keys of type RSAES-OAEP is currently not supported");
-            }
          }
       else
          {
          // oid = rsaEncryption -> parameters field MUST contain NULL
          if(public_key_alg_id != AlgorithmIdentifier(public_key_alg_id.get_oid(), AlgorithmIdentifier::USE_NULL_PARAM))
             {
-            throw Decoding_Error("Parameters field MUST contain NULL");
+            throw Decoding_Error("RSA algorithm parameters field MUST contain NULL");
             }
          }
       }
@@ -85140,10 +88366,13 @@ std::unique_ptr<X509_Certificate_Data> parse_x509_cert_body(const X509_Object& o
 
    if(v3_exts_data.is_a(3, ASN1_Tag(CONSTRUCTED | CONTEXT_SPECIFIC)))
       {
+      // Path validation will reject a v1/v2 cert with v3 extensions
       BER_Decoder(v3_exts_data).decode(data->m_v3_extensions).verify_end();
       }
    else if(v3_exts_data.is_set())
+      {
       throw BER_Bad_Tag("Unknown tag in X.509 cert", v3_exts_data.tagging());
+      }
 
    // Now cache some fields from the extensions
    if(auto ext = data->m_v3_extensions.get_extension_object_as<Cert_Extension::Key_Usage>())
@@ -85223,6 +88452,13 @@ std::unique_ptr<X509_Certificate_Data> parse_x509_cert_body(const X509_Object& o
          }
       else
          {
+         /*
+         If a parse error or unknown algorithm is encountered, default
+         to assuming it is self signed. We have no way of being certain but
+         that is usually the default case (self-issued is rare in practice).
+         */
+         data->m_self_signed = true;
+
          try
             {
             std::unique_ptr<Public_Key> pub_key(X509::load_key(data->m_subject_public_key_bits_seq));
@@ -85233,6 +88469,10 @@ std::unique_ptr<X509_Certificate_Data> parse_x509_cert_body(const X509_Object& o
                sig_status == Certificate_Status_Code::SIGNATURE_ALGO_UNKNOWN)
                {
                data->m_self_signed = true;
+               }
+            else
+               {
+               data->m_self_signed = false;
                }
             }
          catch(...)
@@ -85381,11 +88621,17 @@ const std::vector<uint8_t>& X509_Certificate::raw_subject_dn() const
 
 bool X509_Certificate::is_CA_cert() const
    {
+   if(data().m_version < 3 && data().m_self_signed)
+      return true;
+
    return data().m_is_ca_certificate;
    }
 
 uint32_t X509_Certificate::path_limit() const
    {
+   if(data().m_version < 3 && data().m_self_signed)
+      return 32; // in theory infinite, but this is more than enough
+
    return static_cast<uint32_t>(data().m_path_len_constraint);
    }
 
@@ -85732,20 +88978,27 @@ std::string X509_Certificate::to_string() const
          out << "   Decipher Only\n";
       }
 
-   const std::vector<OID> policies = this->certificate_policy_oids();
+   const std::vector<OID>& policies = this->certificate_policy_oids();
    if(!policies.empty())
       {
       out << "Policies: " << "\n";
       for(auto oid : policies)
-         out << "   " << oid.as_string() << "\n";
+         out << "   " << oid.to_string() << "\n";
       }
 
-   std::vector<OID> ex_constraints = this->extended_key_usage();
+   const std::vector<OID>& ex_constraints = this->extended_key_usage();
    if(!ex_constraints.empty())
       {
       out << "Extended Constraints:\n";
-      for(size_t i = 0; i != ex_constraints.size(); i++)
-         out << "   " << OIDS::oid2str(ex_constraints[i]) << "\n";
+      for(auto&& oid : ex_constraints)
+         {
+         const std::string oid_str = OIDS::oid2str(oid);
+
+         if(oid_str.empty())
+            out << "   " << oid.to_string() << "\n";
+         else
+            out << "   " << oid_str << "\n";
+         }
       }
 
    const NameConstraints& name_constraints = this->name_constraints();
@@ -85778,7 +89031,7 @@ std::string X509_Certificate::to_string() const
    if(!ocsp_responder().empty())
       out << "OCSP responder " << ocsp_responder() << "\n";
 
-   std::vector<std::string> ca_issuers = this->ca_issuers();
+   const std::vector<std::string> ca_issuers = this->ca_issuers();
    if(!ca_issuers.empty())
       {
       out << "CA Issuers:\n";
@@ -85809,7 +89062,7 @@ std::string X509_Certificate::to_string() const
    catch(Decoding_Error&)
       {
       const AlgorithmIdentifier& alg_id = this->subject_public_key_algo();
-      out << "Failed to decode key with oid " << alg_id.get_oid().as_string() << "\n";
+      out << "Failed to decode key with oid " << alg_id.get_oid().to_string() << "\n";
       }
 
    return out.str();
@@ -85923,7 +89176,6 @@ X509_Cert_Options::X509_Cert_Options(const std::string& initial_opts,
 
 
 #if defined(BOTAN_HAS_ONLINE_REVOCATION_CHECKS)
-  #include <future>
 #endif
 
 namespace Botan {
@@ -86107,7 +89359,8 @@ CertificatePathStatusCodes
 PKIX::check_ocsp(const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path,
                  const std::vector<std::shared_ptr<const OCSP::Response>>& ocsp_responses,
                  const std::vector<Certificate_Store*>& trusted_certstores,
-                 std::chrono::system_clock::time_point ref_time)
+                 std::chrono::system_clock::time_point ref_time,
+                 std::chrono::seconds max_ocsp_age)
    {
    if(cert_path.empty())
       throw Invalid_Argument("PKIX::check_ocsp cert_path empty");
@@ -86130,7 +89383,7 @@ PKIX::check_ocsp(const std::vector<std::shared_ptr<const X509_Certificate>>& cer
             if(ocsp_signature_status == Certificate_Status_Code::OCSP_SIGNATURE_OK)
                {
                // Signature ok, so check the claimed status
-               Certificate_Status_Code ocsp_status = ocsp_responses.at(i)->status_for(*ca, *subject, ref_time);
+               Certificate_Status_Code ocsp_status = ocsp_responses.at(i)->status_for(*ca, *subject, ref_time, max_ocsp_age);
                status.insert(ocsp_status);
                }
             else
@@ -86253,7 +89506,8 @@ PKIX::check_ocsp_online(const std::vector<std::shared_ptr<const X509_Certificate
                         const std::vector<Certificate_Store*>& trusted_certstores,
                         std::chrono::system_clock::time_point ref_time,
                         std::chrono::milliseconds timeout,
-                        bool ocsp_check_intermediate_CAs)
+                        bool ocsp_check_intermediate_CAs,
+                        std::chrono::seconds max_ocsp_age)
    {
    if(cert_path.empty())
       throw Invalid_Argument("PKIX::check_ocsp_online cert_path empty");
@@ -86312,7 +89566,7 @@ PKIX::check_ocsp_online(const std::vector<std::shared_ptr<const X509_Certificate
       ocsp_responses.push_back(ocsp_response_futures[i].get());
       }
 
-   return PKIX::check_ocsp(cert_path, ocsp_responses, trusted_certstores, ref_time);
+   return PKIX::check_ocsp(cert_path, ocsp_responses, trusted_certstores, ref_time, max_ocsp_age);
    }
 
 CertificatePathStatusCodes
@@ -86778,7 +90032,7 @@ Path_Validation_Result x509_path_validate(
 
       if(ocsp_resp.size() > 0)
          {
-         ocsp_status = PKIX::check_ocsp(cert_path, ocsp_resp, trusted_roots, ref_time);
+         ocsp_status = PKIX::check_ocsp(cert_path, ocsp_resp, trusted_roots, ref_time, restrictions.max_ocsp_age());
          }
 
       if(ocsp_status.empty() && ocsp_timeout != std::chrono::milliseconds(0))
@@ -86860,14 +90114,16 @@ Path_Validation_Result x509_path_validate(
    }
 
 Path_Validation_Restrictions::Path_Validation_Restrictions(bool require_rev,
-                                                           size_t key_strength,
-                                                           bool ocsp_intermediates) :
+      size_t key_strength,
+      bool ocsp_intermediates,
+      std::chrono::seconds max_ocsp_age) :
    m_require_revocation_information(require_rev),
    m_ocsp_all_intermediates(ocsp_intermediates),
-   m_minimum_key_strength(key_strength)
+   m_minimum_key_strength(key_strength),
+   m_max_ocsp_age(max_ocsp_age)
    {
    if(key_strength <= 80)
-      m_trusted_hashes.insert("SHA-160");
+      { m_trusted_hashes.insert("SHA-160"); }
 
    m_trusted_hashes.insert("SHA-224");
    m_trusted_hashes.insert("SHA-256");
@@ -86932,7 +90188,7 @@ bool Path_Validation_Result::successful_validation() const
 
 bool Path_Validation_Result::no_warnings() const
    {
-   for(auto status_set_i : m_warnings) 
+   for(auto status_set_i : m_warnings)
       if(!status_set_i.empty())
          return false;
    return true;
@@ -86995,6 +90251,10 @@ void load_info(const X509_Cert_Options& opts, X509_DN& subject_dn,
    subject_dn.add_attribute("X520.Locality", opts.locality);
    subject_dn.add_attribute("X520.Organization", opts.organization);
    subject_dn.add_attribute("X520.OrganizationalUnit", opts.org_unit);
+   for(auto extra_ou : opts.more_org_units) {
+      subject_dn.add_attribute("X520.OrganizationalUnit", extra_ou);
+   }
+
    subject_dn.add_attribute("X520.SerialNumber", opts.serial_number);
    subject_alt = AlternativeName(opts.email, opts.uri, opts.dns, opts.ip);
    subject_alt.add_othername(OIDS::lookup("PKIX.XMPPAddr"),
@@ -87443,12 +90703,11 @@ size_t XMSS_Index_Registry::add(uint64_t id, size_t last_unused)
  * XMSS Parameters
  * Descibes a signature method for XMSS, as defined in:
  * [1] XMSS: Extended Hash-Based Signatures,
- *     draft-itrf-cfrg-xmss-hash-based-signatures-06
- *     Release: July 2016.
- *     https://datatracker.ietf.org/doc/
- *     draft-irtf-cfrg-xmss-hash-based-signatures/?include_text=1
+ *     Request for Comments: 8391
+ *     Release: May 2018.
+ *     https://datatracker.ietf.org/doc/rfc8391/
  *
- * (C) 2016,2017 Matthias Gierlings
+ * (C) 2016,2017,2018 Matthias Gierlings
  *
  * Botan is released under the Simplified BSD License (see license.txt)
  **/
@@ -87458,30 +90717,30 @@ namespace Botan {
 
 XMSS_Parameters::xmss_algorithm_t XMSS_Parameters::xmss_id_from_string(const std::string& param_set)
    {
-   if(param_set == "XMSS_SHA2-256_W16_H10")
-      { return XMSS_SHA2_256_W16_H10; }
-   if(param_set == "XMSS_SHA2-256_W16_H16")
-      { return XMSS_SHA2_256_W16_H16; }
-   if(param_set == "XMSS_SHA2-256_W16_H20")
-      { return XMSS_SHA2_256_W16_H20; }
-   if(param_set == "XMSS_SHA2-512_W16_H10")
-      { return XMSS_SHA2_512_W16_H10; }
-   if(param_set == "XMSS_SHA2-512_W16_H16")
-      { return XMSS_SHA2_512_W16_H16; }
-   if(param_set == "XMSS_SHA2-512_W16_H20")
-      { return XMSS_SHA2_512_W16_H20; }
-   if(param_set == "XMSS_SHAKE128_W16_H10")
-      { return XMSS_SHAKE128_W16_H10; }
-   if(param_set == "XMSS_SHAKE128_W16_H16")
-      { return XMSS_SHAKE128_W16_H16; }
-   if(param_set == "XMSS_SHAKE128_W16_H20")
-      { return XMSS_SHAKE128_W16_H20; }
-   if(param_set == "XMSS_SHAKE256_W16_H10")
-      { return XMSS_SHAKE256_W16_H10; }
-   if(param_set == "XMSS_SHAKE256_W16_H16")
-      { return XMSS_SHAKE256_W16_H16; }
-   if(param_set == "XMSS_SHAKE256_W16_H20")
-      { return XMSS_SHAKE256_W16_H20; }
+   if(param_set == "XMSS-SHA2_10_256")
+      { return XMSS_SHA2_10_256; }
+   if(param_set == "XMSS-SHA2_16_256")
+      { return XMSS_SHA2_16_256; }
+   if(param_set == "XMSS-SHA2_20_256")
+      { return XMSS_SHA2_20_256; }
+   if(param_set == "XMSS-SHA2_10_512")
+      { return XMSS_SHA2_10_512; }
+   if(param_set == "XMSS-SHA2_16_512")
+      { return XMSS_SHA2_16_512; }
+   if(param_set == "XMSS-SHA2_20_512")
+      { return XMSS_SHA2_20_512; }
+   if(param_set == "XMSS-SHAKE_10_256")
+      { return XMSS_SHAKE_10_256; }
+   if(param_set == "XMSS-SHAKE_10_256")
+      { return XMSS_SHAKE_16_256; }
+   if(param_set == "XMSS-SHAKE_20_256")
+      { return XMSS_SHAKE_20_256; }
+   if(param_set == "XMSS-SHAKE_10_512")
+      { return XMSS_SHAKE_10_512; }
+   if(param_set == "XMSS-SHAKE_16_512")
+      { return XMSS_SHAKE_16_512; }
+   if(param_set == "XMSS-SHAKE_20_512")
+      { return XMSS_SHAKE_20_512; }
    throw Lookup_Error("Unknown XMSS algorithm param '" + param_set + "'");
    }
 
@@ -87495,125 +90754,125 @@ XMSS_Parameters::XMSS_Parameters(xmss_algorithm_t oid)
    {
    switch(oid)
       {
-      case XMSS_SHA2_256_W16_H10:
+      case XMSS_SHA2_10_256:
          m_element_size = 32;
          m_w = 16;
          m_len = 67;
          m_tree_height = 10;
-         m_name = "XMSS_SHA2-256_W16_H10";
+         m_name = "XMSS-SHA2_10_256";
          m_hash_name = "SHA-256";
          m_strength = 256;
-         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHA2_256_W16;
+         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHA2_256;
          break;
-      case XMSS_SHA2_256_W16_H16:
+      case XMSS_SHA2_16_256:
          m_element_size = 32;
          m_w = 16;
          m_len = 67;
          m_tree_height = 16;
-         m_name = "XMSS_SHA2-256_W16_H16";
+         m_name = "XMSS-SHA2_16_256";
          m_hash_name = "SHA-256";
          m_strength = 256;
-         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHA2_256_W16;
+         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHA2_256;
          break;
-      case XMSS_SHA2_256_W16_H20:
+      case XMSS_SHA2_20_256:
          m_element_size = 32;
          m_w = 16;
          m_len = 67;
          m_tree_height = 20;
-         m_name = "XMSS_SHA2-256_W16_H20";
+         m_name = "XMSS-SHA2_20_256";
          m_hash_name = "SHA-256";
          m_strength = 256;
-         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHA2_256_W16;
+         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHA2_256;
          break;
-      case XMSS_SHA2_512_W16_H10:
+      case XMSS_SHA2_10_512:
          m_element_size = 64;
          m_w = 16;
          m_len = 131;
          m_tree_height = 10;
-         m_name = "XMSS_SHA2-512_W16_H10";
+         m_name = "XMSS-SHA2_10_512";
          m_hash_name = "SHA-512";
          m_strength = 512;
-         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHA2_512_W16;
+         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHA2_512;
          break;
-      case XMSS_SHA2_512_W16_H16:
+      case XMSS_SHA2_16_512:
          m_element_size = 64;
          m_w = 16;
          m_len = 131;
          m_tree_height = 16;
-         m_name = "XMSS_SHA2-512_W16_H16";
+         m_name = "XMSS-SHA2_16_512";
          m_hash_name = "SHA-512";
          m_strength = 512;
-         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHA2_512_W16;
+         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHA2_512;
          break;
-      case XMSS_SHA2_512_W16_H20:
+      case XMSS_SHA2_20_512:
          m_element_size = 64;
          m_w = 16;
          m_len = 131;
          m_tree_height = 20;
-         m_name = "XMSS_SHA2-512_W16_H20";
+         m_name = "XMSS-SHA2_20_512";
          m_hash_name = "SHA-512";
          m_strength = 512;
-         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHA2_512_W16;
+         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHA2_512;
          break;
-      case XMSS_SHAKE128_W16_H10:
+      case XMSS_SHAKE_10_256:
          m_element_size = 32;
          m_w = 16;
          m_len = 67;
          m_tree_height = 10;
-         m_name = "XMSS_SHAKE128_W16_H10";
+         m_name = "XMSS-SHAKE_10_256";
          m_hash_name = "SHAKE-128(256)";
          m_strength = 256;
-         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHAKE128_W16;
+         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHAKE_256;
          break;
-      case XMSS_SHAKE128_W16_H16:
+      case XMSS_SHAKE_16_256:
          m_element_size = 32;
          m_w = 16;
          m_len = 67;
          m_tree_height = 16;
-         m_name = "XMSS_SHAKE128_W16_H16";
+         m_name = "XMSS-SHAKE_16_256";
          m_hash_name = "SHAKE-128(256)";
          m_strength = 256;
-         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHAKE128_W16;
+         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHAKE_256;
          break;
-      case XMSS_SHAKE128_W16_H20:
+      case XMSS_SHAKE_20_256:
          m_element_size = 32;
          m_w = 16;
          m_len = 67;
          m_tree_height = 20;
-         m_name = "XMSS_SHAKE128_W16_H20";
+         m_name = "XMSS-SHAKE_20_256";
          m_hash_name = "SHAKE-128(256)";
          m_strength = 256;
-         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHAKE128_W16;
+         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHAKE_256;
          break;
-      case XMSS_SHAKE256_W16_H10:
+      case XMSS_SHAKE_10_512:
          m_element_size = 64;
          m_w = 16;
          m_len = 131;
          m_tree_height = 10;
-         m_name = "XMSS_SHAKE256_W16_H10";
+         m_name = "XMSS-SHAKE_10_512";
          m_hash_name = "SHAKE-256(512)";
          m_strength = 512;
-         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHAKE256_W16;
+         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHAKE_512;
          break;
-      case XMSS_SHAKE256_W16_H16:
+      case XMSS_SHAKE_16_512:
          m_element_size = 64;
          m_w = 16;
          m_len = 131;
          m_tree_height = 16;
-         m_name = "XMSS_SHAKE256_W16_H16";
+         m_name = "XMSS-SHAKE_16_512";
          m_hash_name = "SHAKE-256(512)";
          m_strength = 512;
-         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHAKE256_W16;
+         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHAKE_512;
          break;
-      case XMSS_SHAKE256_W16_H20:
+      case XMSS_SHAKE_20_512:
          m_element_size = 64;
          m_w = 16;
          m_len = 131;
          m_tree_height = 20;
-         m_name = "XMSS_SHAKE256_W16_H20";
+         m_name = "XMSS-SHAKE_20_512";
          m_hash_name = "SHAKE-256(512)";
          m_strength = 512;
-         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHAKE256_W16;
+         m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHAKE_512;
          break;
       default:
          throw Not_Implemented("Algorithm id does not match any known XMSS algorithm id.");
@@ -87628,19 +90887,19 @@ XMSS_Parameters::XMSS_Parameters(xmss_algorithm_t oid)
  * The XMSS private key does not support the X509 and PKCS7 standard. Instead
  * the raw format described in [1] is used.
  *
- *   [1] XMSS: Extended Hash-Based Signatures,
- *       draft-itrf-cfrg-xmss-hash-based-signatures-06
- *       Release: July 2016.
- *       https://datatracker.ietf.org/doc/
- *       draft-irtf-cfrg-xmss-hash-based-signatures/?include_text=1
+ * [1] XMSS: Extended Hash-Based Signatures,
+ *     Request for Comments: 8391
+ *     Release: May 2018.
+ *     https://datatracker.ietf.org/doc/rfc8391/
  *
- * (C) 2016,2017 Matthias Gierlings
+ * (C) 2016,2017,2018 Matthias Gierlings
+ * (C) 2019 Jack Lloyd
  *
  * Botan is released under the Simplified BSD License (see license.txt)
  **/
 
-#if defined(BOTAN_TARGET_OS_HAS_THREADS)
-   #include <thread>
+
+#if defined(BOTAN_HAS_THREAD_UTILS)
 #endif
 
 namespace Botan {
@@ -87651,20 +90910,25 @@ XMSS_PrivateKey::XMSS_PrivateKey(const secure_vector<uint8_t>& raw_key)
      m_wots_priv_key(m_wots_params.oid(), m_public_seed),
      m_index_reg(XMSS_Index_Registry::get_instance())
    {
-   BOTAN_ASSERT(sizeof(size_t) >= std::ceil(
-      static_cast<float>(XMSS_PublicKey::m_xmss_params.tree_height()) / 8.f),
-      "System type \"size_t\" not big enough to support"
-      " leaf index.");
+   /*
+   The code requires sizeof(size_t) >= ceil(tree_height / 8)
 
-   if(raw_key.size() != size())
+   Maximum supported tree height is 20, ceil(20/8) == 3, so 4 byte
+   size_t is sufficient for all defined parameters, or even a
+   (hypothetical) tree height 32, which would be extremely slow to
+   compute.
+   */
+   static_assert(sizeof(size_t) >= 4, "size_t is big enough to support leaf index");
+
+   if(raw_key.size() != XMSS_PrivateKey::size())
       {
-      throw Integrity_Failure("Invalid XMSS private key size detected.");
+      throw Decoding_Error("Invalid XMSS private key size detected.");
       }
 
    // extract & copy unused leaf index from raw_key.
    uint64_t unused_leaf = 0;
    auto begin = (raw_key.begin() + XMSS_PublicKey::size());
-   auto end = raw_key.begin() + XMSS_PublicKey::size() + sizeof(uint64_t);
+   auto end = raw_key.begin() + XMSS_PublicKey::size() + sizeof(uint32_t);
 
    for(auto& i = begin; i != end; i++)
       {
@@ -87673,8 +90937,7 @@ XMSS_PrivateKey::XMSS_PrivateKey(const secure_vector<uint8_t>& raw_key)
 
    if(unused_leaf >= (1ull << XMSS_PublicKey::m_xmss_params.tree_height()))
       {
-      throw Integrity_Failure("XMSS private key leaf index out of "
-                              "bounds.");
+      throw Decoding_Error("XMSS private key leaf index out of bounds");
       }
 
    begin = end;
@@ -87714,28 +90977,24 @@ XMSS_PrivateKey::tree_hash(size_t start_idx,
    BOTAN_ASSERT((start_idx % (1 << target_node_height)) == 0,
                 "Start index must be divisible by 2^{target node height}.");
 
-#if defined(BOTAN_TARGET_OS_HAS_THREADS)
+#if defined(BOTAN_HAS_THREAD_UTILS)
    // dertermine number of parallel tasks to split the tree_hashing into.
-   size_t split_level = std::min(
-      {
-      target_node_height,
-      static_cast<size_t>(
-         std::ceil(std::log2(XMSS_Tools::max_threads())))
-      });
+
+   Thread_Pool& thread_pool = Thread_Pool::global_instance();
+
+   const size_t split_level = std::min(target_node_height, thread_pool.worker_count());
 
    // skip parallelization overhead for leaf nodes.
    if(split_level == 0)
       {
-#endif
       secure_vector<uint8_t> result;
       tree_hash_subtree(result, start_idx, target_node_height, adrs);
       return result;
-#if defined(BOTAN_TARGET_OS_HAS_THREADS)
       }
 
-   size_t subtrees = 1 << split_level;
-   size_t last_idx = static_cast<size_t>(1 << (target_node_height)) + start_idx;
-   size_t offs = (last_idx - start_idx) / subtrees;
+   const size_t subtrees = static_cast<size_t>(1) << split_level;
+   const size_t last_idx = (static_cast<size_t>(1) << (target_node_height)) + start_idx;
+   const size_t offs = (last_idx - start_idx) / subtrees;
    uint8_t level = split_level; // current level in the tree
 
    BOTAN_ASSERT((last_idx - start_idx) % subtrees == 0,
@@ -87747,8 +91006,7 @@ XMSS_PrivateKey::tree_hash(size_t start_idx,
        secure_vector<uint8_t>(XMSS_PublicKey::m_xmss_params.element_size()));
    std::vector<XMSS_Address> node_addresses(subtrees, adrs);
    std::vector<XMSS_Hash> xmss_hash(subtrees, m_hash);
-   std::vector<std::thread> threads;
-   threads.reserve(subtrees);
+   std::vector<std::future<void>> work;
 
    // Calculate multiple subtrees in parallel.
    for(size_t i = 0; i < subtrees; i++)
@@ -87760,24 +91018,23 @@ XMSS_PrivateKey::tree_hash(size_t start_idx,
                                    XMSS_Address&,
                                    XMSS_Hash&);
 
-      threads.emplace_back(
-         std::thread(
-            static_cast<tree_hash_subtree_fn_t>(
-               &XMSS_PrivateKey::tree_hash_subtree),
-            this,
-            std::ref(nodes[i]),
-            start_idx + i * offs,
-            target_node_height - split_level,
-            std::ref(node_addresses[i]),
-            std::ref(xmss_hash[i])));
+      auto work_fn = static_cast<tree_hash_subtree_fn_t>(&XMSS_PrivateKey::tree_hash_subtree);
+
+      work.push_back(thread_pool.run(
+                        work_fn,
+                        this,
+                        std::ref(nodes[i]),
+                        start_idx + i * offs,
+                        target_node_height - split_level,
+                        std::ref(node_addresses[i]),
+                        std::ref(xmss_hash[i])));
       }
 
-   for(auto& t : threads)
+   for(auto& w : work)
       {
-      t.join();
+      w.get();
       }
-
-   threads.clear();
+   work.clear();
 
    // Parallelize the top tree levels horizontally
    while(level-- > 1)
@@ -87787,6 +91044,8 @@ XMSS_PrivateKey::tree_hash(size_t start_idx,
 
       for(size_t i = 0; i < (1U << level); i++)
          {
+         BOTAN_ASSERT_NOMSG(xmss_hash.size() > i);
+
          node_addresses[i].set_tree_height(target_node_height - (level + 1));
          node_addresses[i].set_tree_index(
             (node_addresses[2 * i + 1].get_tree_index() - 1) >> 1);
@@ -87798,10 +91057,10 @@ XMSS_PrivateKey::tree_hash(size_t start_idx,
                                       const secure_vector<uint8_t>&,
                                       XMSS_Hash&);
 
-         threads.emplace_back(
-            std::thread(
-               static_cast<rnd_tree_hash_fn_t>(
-                  &XMSS_PrivateKey::randomize_tree_hash),
+         auto work_fn = static_cast<rnd_tree_hash_fn_t>(&XMSS_PrivateKey::randomize_tree_hash);
+
+         work.push_back(thread_pool.run(
+               work_fn,
                this,
                std::ref(nodes[i]),
                std::ref(ro_nodes[2 * i]),
@@ -87810,11 +91069,12 @@ XMSS_PrivateKey::tree_hash(size_t start_idx,
                std::ref(this->public_seed()),
                std::ref(xmss_hash[i])));
          }
-      for(auto &t : threads)
+
+      for(auto &w : work)
          {
-         t.join();
+         w.get();
          }
-      threads.clear();
+      work.clear();
       }
 
    // Avoid creation an extra thread to calculate root node.
@@ -87827,6 +91087,10 @@ XMSS_PrivateKey::tree_hash(size_t start_idx,
                        node_addresses[0],
                        this->public_seed());
    return nodes[0];
+#else
+   secure_vector<uint8_t> result;
+   tree_hash_subtree(result, start_idx, target_node_height, adrs);
+   return result;
 #endif
    }
 
@@ -87851,7 +91115,7 @@ XMSS_PrivateKey::tree_hash_subtree(secure_vector<uint8_t>& result,
 
    uint8_t level = 0; // current level on the node stack.
    XMSS_WOTS_PublicKey pk(m_wots_priv_key.wots_parameters().oid(), seed);
-   size_t last_idx = static_cast<size_t>(1 << target_node_height) + start_idx;
+   const size_t last_idx = (static_cast<size_t>(1) << target_node_height) + start_idx;
 
    for(size_t i = start_idx; i < last_idx; i++)
       {
@@ -87910,7 +91174,7 @@ secure_vector<uint8_t> XMSS_PrivateKey::raw_private_key() const
    secure_vector<uint8_t> result(pk.begin(), pk.end());
    result.reserve(size());
 
-   for(int i = 7; i >= 0; i--)
+   for(int i = 3; i >= 0; i--)
       {
       result.push_back(
          static_cast<uint8_t>(
@@ -87944,11 +91208,10 @@ XMSS_PrivateKey::create_signature_op(RandomNumberGenerator&,
  * The XMSS public key does not support the X509 standard. Instead the
  * raw format described in [1] is used.
  *
- *   [1] XMSS: Extended Hash-Based Signatures,
- *       draft-itrf-cfrg-xmss-hash-based-signatures-06
- *       Release: July 2016.
- *       https://datatracker.ietf.org/doc/
- *       draft-irtf-cfrg-xmss-hash-based-signatures/?include_text=1
+ * [1] XMSS: Extended Hash-Based Signatures,
+ *     Request for Comments: 8391
+ *     Release: May 2018.
+ *     https://datatracker.ietf.org/doc/rfc8391/
  *
  * (C) 2016,2017 Matthias Gierlings
  *
@@ -87962,9 +91225,9 @@ XMSS_PublicKey::XMSS_PublicKey(const std::vector<uint8_t>& raw_key)
    : m_xmss_params(XMSS_PublicKey::deserialize_xmss_oid(raw_key)),
      m_wots_params(m_xmss_params.ots_oid())
    {
-   if(raw_key.size() < size())
+   if(raw_key.size() < XMSS_PublicKey::size())
       {
-      throw Integrity_Failure("Invalid XMSS public key size detected.");
+      throw Decoding_Error("Invalid XMSS public key size detected.");
       }
 
    // extract & copy root from raw key.
@@ -87987,7 +91250,7 @@ XMSS_PublicKey::deserialize_xmss_oid(const std::vector<uint8_t>& raw_key)
    {
    if(raw_key.size() < 4)
       {
-      throw Integrity_Failure("XMSS signature OID missing.");
+      throw Decoding_Error("XMSS signature OID missing.");
       }
 
    // extract and convert algorithm id to enum type
@@ -88046,20 +91309,20 @@ XMSS_Signature::XMSS_Signature(XMSS_Parameters::xmss_algorithm_t oid,
    XMSS_Parameters xmss_params(oid);
 
    if(raw_sig.size() != (xmss_params.len() + xmss_params.tree_height() + 1)
-                        * xmss_params.element_size() + sizeof(m_leaf_idx))
+                        * xmss_params.element_size() + sizeof(uint32_t))
    {
-      throw Integrity_Failure("XMSS signature size invalid.");
+      throw Decoding_Error("XMSS signature size invalid.");
    }
 
-   for(size_t i = 0; i < 8; i++)
+   for(size_t i = 0; i < 4; i++)
       { m_leaf_idx = ((m_leaf_idx << 8) | raw_sig[i]); }
 
    if(m_leaf_idx >= (1ull << xmss_params.tree_height()))
       {
-      throw Integrity_Failure("XMSS signature leaf index out of bounds.");
+      throw Decoding_Error("XMSS signature leaf index out of bounds.");
       }
 
-   auto begin = raw_sig.begin() + sizeof(m_leaf_idx);
+   auto begin = raw_sig.begin() + sizeof(uint32_t);
    auto end = begin + xmss_params.element_size();
    std::copy(begin, end, std::back_inserter(m_randomness));
 
@@ -88092,10 +91355,6 @@ secure_vector<uint8_t> XMSS_Signature::bytes() const
    {
    secure_vector<uint8_t> result
       {
-      static_cast<uint8_t>(m_leaf_idx >> 56U),
-      static_cast<uint8_t>(m_leaf_idx >> 48U),
-      static_cast<uint8_t>(m_leaf_idx >> 40U),
-      static_cast<uint8_t>(m_leaf_idx >> 32U),
       static_cast<uint8_t>(m_leaf_idx >> 24U),
       static_cast<uint8_t>(m_leaf_idx >> 16U),
       static_cast<uint8_t>(m_leaf_idx >>  8U),
@@ -88129,12 +91388,11 @@ secure_vector<uint8_t> XMSS_Signature::bytes() const
  * defined in:
  *
  * [1] XMSS: Extended Hash-Based Signatures,
- *     draft-itrf-cfrg-xmss-hash-based-signatures-06
- *     Release: July 2016.
- *     https://datatracker.ietf.org/doc/
- *     draft-irtf-cfrg-xmss-hash-based-signatures/?include_text=1
+ *     Request for Comments: 8391
+ *     Release: May 2018.
+ *     https://datatracker.ietf.org/doc/rfc8391/
  *
- * (C) 2016,2017 Matthias Gierlings
+ * (C) 2016,2017,2018 Matthias Gierlings
  *
  * Botan is released under the Simplified BSD License (see license.txt)
  **/
@@ -88238,95 +91496,6 @@ void XMSS_Signature_Operation::initialize()
                      index_bytes);
    m_is_initialized = true;
    }
-
-}
-
-/*
- * XMSS Tools
- * (C) 2017 Matthias Gierlings
- *
- * Botan is released under the Simplified BSD License (see license.txt)
- **/
-
-
-namespace Botan {
-
-#if defined(BOTAN_TARGET_OS_HAS_THREADS)
-
-size_t XMSS_Tools::max_threads()
-   {
-   static const size_t threads { bench_threads() };
-   return threads;
-   }
-
-size_t XMSS_Tools::bench_threads()
-   {
-   const size_t hardware_concurrency = std::thread::hardware_concurrency();
-
-   if(hardware_concurrency <= 1)
-      {
-      return 1;
-      }
-   const size_t BENCH_ITERATIONS = 1000;
-   std::vector<std::thread> threads;
-   threads.reserve(hardware_concurrency);
-   std::vector<std::chrono::nanoseconds> durations;
-
-   std::vector<size_t> concurrency { hardware_concurrency,
-                                     hardware_concurrency / 2 };
-
-   for(const auto& cc : concurrency)
-      {
-      std::vector<XMSS_Hash> hash(hardware_concurrency,
-                                  XMSS_Hash("SHA-256"));
-
-      const std::vector<uint8_t> buffer(hash[0].output_length());
-      std::vector<secure_vector<uint8_t>> data(
-          hardware_concurrency,
-          secure_vector<uint8_t>(hash[0].output_length()));
-      auto start = std::chrono::high_resolution_clock::now();
-      for(size_t i = 0; i < cc; ++i)
-         {
-         auto& hs = hash[i];
-         auto& d = data[i];
-
-         const size_t n_iters = BENCH_ITERATIONS * (hardware_concurrency / cc);
-         threads.emplace_back(std::thread([n_iters, &hs, &d]()
-               {
-               for(size_t n = 0; n < n_iters; n++)
-                  {
-                  hs.h(d, d, d);
-                  }
-               }
-            ));
-         }
-      durations.emplace_back(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start));
-      for(auto& t : threads)
-         {
-         t.join();
-         }
-      threads.clear();
-      }
-
-      if(durations[0].count() < durations[1].count())
-         {
-#if defined(BOTAN_TEST_MODE)
-         return 4;
-#else
-         return concurrency[0];
-#endif
-         }
-      else
-         {
-#if defined(BOTAN_TEST_MODE)
-         return 4;
-#else
-         return concurrency[1];
-#endif
-         }
-  }
-
-#endif
 
 }
 
@@ -88448,7 +91617,7 @@ bool XMSS_Verification_Operation::is_valid_signature(const uint8_t sig[],
       m_msg_buf.clear();
       return result;
       }
-   catch(Integrity_Failure&)
+   catch(...)
       {
       m_msg_buf.clear();
       return false;
@@ -88462,12 +91631,11 @@ bool XMSS_Verification_Operation::is_valid_signature(const uint8_t sig[],
  * Descibes a signature method for XMSS Winternitz One Time Signatures,
  * as defined in:
  * [1] XMSS: Extended Hash-Based Signatures,
- *     draft-itrf-cfrg-xmss-hash-based-signatures-06
- *     Release: July 2016.
- *     https://datatracker.ietf.org/doc/
- *     draft-irtf-cfrg-xmss-hash-based-signatures/?include_text=1
+ *     Request for Comments: 8391
+ *     Release: May 2018.
+ *     https://datatracker.ietf.org/doc/rfc8391/
  *
- * (C) 2016,2017 Matthias Gierlings
+ * (C) 2016,2017,2018 Matthias Gierlings
  *
  * Botan is released under the Simplified BSD License (see license.txt)
  **/
@@ -88478,14 +91646,14 @@ namespace Botan {
 XMSS_WOTS_Parameters::ots_algorithm_t
 XMSS_WOTS_Parameters::xmss_wots_id_from_string(const std::string& param_set)
    {
-   if(param_set == "WOTSP_SHA2-256_W16")
-      { return WOTSP_SHA2_256_W16; }
-   if(param_set == "WOTSP_SHA2-512_W16")
-      { return WOTSP_SHA2_512_W16; }
-   if(param_set == "WOTSP_SHAKE128_W16")
-      { return WOTSP_SHAKE128_W16; }
-   if(param_set == "WOTSP_SHAKE256_W16")
-      { return WOTSP_SHAKE256_W16; }
+   if(param_set == "WOTSP-SHA2_256")
+      { return WOTSP_SHA2_256; }
+   if(param_set == "WOTSP-SHA2_512")
+      { return WOTSP_SHA2_512; }
+   if(param_set == "WOTSP-SHAKE_256")
+      { return WOTSP_SHAKE_256; }
+   if(param_set == "WOTSP-SHAKE_512")
+      { return WOTSP_SHAKE_512; }
    throw Invalid_Argument("Unknown XMSS-WOTS algorithm param '" + param_set + "'");
    }
 
@@ -88498,35 +91666,35 @@ XMSS_WOTS_Parameters::XMSS_WOTS_Parameters(ots_algorithm_t oid)
    {
    switch(oid)
       {
-      case WOTSP_SHA2_256_W16:
+      case WOTSP_SHA2_256:
          m_element_size = 32;
          m_w = 16;
          m_len = 67;
-         m_name = "WOTSP_SHA2-256_W16";
+         m_name = "WOTSP-SHA2_256";
          m_hash_name = "SHA-256";
          m_strength = 256;
          break;
-      case WOTSP_SHA2_512_W16:
+      case WOTSP_SHA2_512:
          m_element_size = 64;
          m_w = 16;
          m_len = 131;
-         m_name = "WOTSP_SHA2-512_W16";
+         m_name = "WOTSP-SHA2_512";
          m_hash_name = "SHA-512";
          m_strength = 512;
          break;
-      case WOTSP_SHAKE128_W16:
+      case WOTSP_SHAKE_256:
          m_element_size = 32;
          m_w = 16;
          m_len = 67;
-         m_name = "WOTSP_SHAKE128_W16";
+         m_name = "WOTSP-SHAKE_256";
          m_hash_name = "SHAKE-128(256)";
          m_strength = 256;
          break;
-      case WOTSP_SHAKE256_W16:
+      case WOTSP_SHAKE_512:
          m_element_size = 64;
          m_w = 16;
          m_len = 131;
-         m_name = "WOTSP_SHAKE256_W16";
+         m_name = "WOTSP-SHAKE_512";
          m_hash_name = "SHAKE-256(512)";
          m_strength = 512;
          break;
@@ -88535,7 +91703,7 @@ XMSS_WOTS_Parameters::XMSS_WOTS_Parameters(ots_algorithm_t oid)
          break;
       }
 
-   m_w == 16 ? m_lg_w = 4 : m_lg_w = 2;
+   m_lg_w = (m_w == 16) ? 4 : 2;
    m_len_1 = static_cast<size_t>(std::ceil((8 * element_size()) / m_lg_w));
    m_len_2 = static_cast<size_t>(
                 floor(log2(m_len_1 * (wots_parameter() - 1)) / m_lg_w) + 1);
@@ -88677,7 +91845,7 @@ XMSS_WOTS_PrivateKey::sign(const secure_vector<uint8_t>& msg,
  * A Winternitz One Time Signature public key for use with Extended Hash-Based
  * Signatures.
  *
- * (C) 2016,2017 Matthias Gierlings
+ * (C) 2016,2017,2018 Matthias Gierlings
  *
  * Botan is released under the Simplified BSD License (see license.txt)
  **/
@@ -88784,7 +91952,7 @@ void XTEA::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
 
       store_be(out + 4*BLOCK_SIZE*i, L0, R0, L1, R1, L2, R2, L3, R3);
       }
-      
+
    BOTAN_PARALLEL_FOR(size_t i = 0; i < blocks_left; ++i)
       {
       uint32_t L, R;
@@ -88832,7 +92000,7 @@ void XTEA::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
 
       store_be(out + 4*BLOCK_SIZE*i, L0, R0, L1, R1, L2, R2, L3, R3);
       }
-      
+
    BOTAN_PARALLEL_FOR(size_t i = 0; i < blocks_left; ++i)
       {
       uint32_t L, R;

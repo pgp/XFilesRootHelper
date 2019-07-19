@@ -2,7 +2,7 @@
 
 set -e
 
-BOTAN_SRC_DIR=/home/pgp/Scaricati/Botan-2.9.0
+BOTAN_SRC_DIR=/home/pgp/Scaricati/Botan-2.11.0
 BOTAN_DEST_DIR=$(pwd)/botanAm
 
 BOTAN_DEST_ANDROID_DIR=$BOTAN_DEST_DIR/android
@@ -42,6 +42,7 @@ mv botan_all.cpp botan_all.h botan_all_internal.h $BOTAN_DEST_ANDROID_DIR/arm
 ./configure.py --amalgamation --single-amalgamation-file --disable-modules=pkcs11 --cpu=aarch64 --os=linux --cc=clang
 mv botan_all.cpp botan_all.h botan_all_internal.h $BOTAN_DEST_ANDROID_DIR/arm64
 
+
 ########## IOS
 
 ./configure.py --amalgamation --single-amalgamation-file --disable-modules=pkcs11 --cpu=arm --os=ios --cc=clang
@@ -49,6 +50,7 @@ mv botan_all.cpp botan_all.h botan_all_internal.h $BOTAN_DEST_IOS_DIR/arm
 
 ./configure.py --amalgamation --single-amalgamation-file --disable-modules=pkcs11 --cpu=aarch64 --os=ios --cc=clang
 mv botan_all.cpp botan_all.h botan_all_internal.h $BOTAN_DEST_IOS_DIR/arm64
+
 
 ########## Desktop (with all possible cpu extensions enabled)
 
