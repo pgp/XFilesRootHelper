@@ -33,6 +33,8 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 /*
 * This file was automatically generated running
@@ -598,15 +600,6 @@ number within 10 retries on a working CPU
     #define BOTAN_NORETURN
   #endif
 
-#endif
-
-/*
-* Define BOTAN_THREAD_LOCAL
-*/
-#if defined(BOTAN_TARGET_OS_HAS_THREADS)
-   #define BOTAN_THREAD_LOCAL thread_local
-#else
-   #define BOTAN_THREAD_LOCAL /**/
 #endif
 
 /*

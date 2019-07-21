@@ -13496,7 +13496,7 @@ namespace Botan {
 //static
 CPUID::CPUID_Data& CPUID::state()
    {
-   static BOTAN_THREAD_LOCAL CPUID::CPUID_Data g_cpuid;
+   static CPUID::CPUID_Data g_cpuid;
    return g_cpuid;
    }
 
@@ -79526,7 +79526,7 @@ std::vector<void*> OS::allocate_locked_pages(size_t count)
 
       ptr = ::mmap(nullptr, 2*page_size,
                    pflags | PROT_MAX(pflags),
-                   MAP_ANONYMOUS | MAP_PRIVATE | MAP_NOCORE,
+                   MAP_ANON | MAP_PRIVATE | MAP_NOCORE,
                    /*fd=*/-1, /*offset=*/0);
 
       if(ptr == MAP_FAILED)
