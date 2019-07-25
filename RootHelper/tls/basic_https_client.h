@@ -2,12 +2,27 @@
 #define __BASIC_HTTPS_CLIENT__
 
 #include <sstream>
+#include <regex>
 #include "../iowrappers_common.h"
 #include "../desc/PosixDescriptor.h"
 #include "botan_rh_rclient.h"
 
 
 // Web source for url encode/decode: https://stackoverflow.com/questions/154536/encode-decode-urls-in-c
+
+// Web sources for parsing content disposition line:
+// https://stackoverflow.com/questions/23054475/javascript-regex-for-extracting-filename-from-content-disposition-header
+// https://regex101.com/r/UhCzyI/3
+std::string parseContentDispLine(const std::string& line) {
+    std::regex theRegex("Content-Disposition: attachment; filename\\*?=['\"]?(?:UTF-\\d['\"]*)?([^;\\r\\n\"']*)['\"]?;?");
+    std::smatch results;
+    std::regex_search(line, results, theRegex);
+    if(results.size() >= 2) {
+        PRINTUNIFIED("First capture group found: %s",results[1].str().c_str());
+        return results[1].str(); // result 0 is full match, return 1st capture group instead
+    }
+    return "";
+}
 
 std::string urlEncode(const std::string& str){
     std::string new_str;
@@ -62,19 +77,47 @@ std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
     const std::string cdPrefix = "Content-Disposition: ";
     while(std::getline(ss,line)) {
         if(line.find(cdPrefix)==0) {
-            auto rawIdx = line.find('=');
-            if (rawIdx != std::string::npos)
-                return line.substr(rawIdx+1);
+            PRINTUNIFIED("Content-Disposition header found\n");
+            // try parsing using regex
+            auto&& z = parseContentDispLine(line);
+            if(z.empty()) {
+                PRINTUNIFIED("Regex failed, using manual split\n");
+                auto rawIdx = line.find('=');
+                if (rawIdx != std::string::npos) {
+                    auto&& y = line.substr(rawIdx+1);
+                    // sanitize for POSIX path compatibility
+                    std::replace(y.begin(),y.end(),'/','_');
+                    return y;
+                }
+            }
+            else {
+                // sanitize for POSIX path compatibility
+                std::replace(z.begin(),z.end(),'/','_');
+                return z;
+            }
         }
     }
 
+    PRINTUNIFIED("Content-Disposition header is malformed or not present, using URL splitting...");
     auto idx = url.find_last_of('/');
-    if(idx != std::string::npos){
-        auto x = url.substr(idx+1);
-        if(!x.empty()) return urlDecode(x);
+    if(idx != std::string::npos) {
+        auto&& x = url.substr(idx+1);
+        if(!x.empty()) {
+            auto&& y = urlDecode(x);
+
+            // drop unwanted query-type parameters after provided filename
+            idx = y.find_first_of('?');
+            if(idx != std::string::npos)
+                y = y.substr(0,idx);
+
+            // sanitize for POSIX path compatibility
+            std::replace(y.begin(),y.end(),'/','_');
+
+            return y;
+        }
     }
 
-    // assign filename as domain name + .html
+    PRINTUNIFIED("URL splitting didn't return a valid filename, assigning filename as domain name + .html");
     idx = url.find_first_of('/');
     if(idx != std::string::npos){
         auto x = url.substr(0,idx);
@@ -288,6 +331,10 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, cons
     auto destFullPath = downloadPath.empty() ? httpFilename : downloadPath + "/" + httpFilename;
     PRINTUNIFIED("Assigned download path is %s\n",destFullPath.c_str());
     std::ofstream body(destFullPath);
+    if(!body.good()) {
+        PRINTUNIFIEDERROR("Unable to open destination file for writing");
+        return -1;
+    }
     body<<tmpbody.str();
 
     PRINTUNIFIED("Finding content length... (part of body may have been already received)\n");
@@ -309,6 +356,8 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, cons
         parsedContentLength = ::strtoll(substrContentLengthField.c_str(),nullptr,10);
         PRINTUNIFIEDERROR("PARSED CONTENT LENGTH IS: %" PRIu64 ,parsedContentLength);
     }
+
+    writeStringWithLen(local_fd,httpFilename); // send guessed filename (or send back received one) in order for the GUI to locate it once completed
     local_fd.writeAllOrExit(&parsedContentLength,sizeof(uint64_t)); // send total size
 
     for(;;) {
