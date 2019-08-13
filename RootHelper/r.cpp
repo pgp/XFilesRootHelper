@@ -246,7 +246,7 @@ HRESULT common_compress_logic(Func_CreateObject& createObjectFunc,
     unknownOutType:
     if (archiveType == UNKNOWN) {
         PrintError("Unable to find any codec associated to the output archive extension for the pathname ", archiveName);
-        errno = 23458;
+        errno = 23460;
         sendErrorResponse(inOutDesc);
         return E_ABORT;
     }
@@ -2350,6 +2350,7 @@ void xreMain() {
 
 int MY_CDECL main(int argc, const char *argv[]) {
 	initLogging();
+	initDefaultHomePaths();
 	registerExitRoutines();
 	print_roothelper_version();
 	if (prog_is_xre(argv[0])) {

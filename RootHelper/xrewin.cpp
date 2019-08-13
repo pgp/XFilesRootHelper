@@ -6,6 +6,7 @@
 
 int main(int argc, char* argv[]) {
 	initLogging();
+    initDefaultHomePaths();
 	registerExitRoutines();
 	print_roothelper_version();
 	rhss = getServerSocket();

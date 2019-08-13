@@ -17,6 +17,7 @@
 #include "resps/folderStats_resp.h"
 #include "desc/FileDescriptorFactory.h"
 #include "rh_hasher_botan.h"
+#include "homePaths.h"
 
 #ifndef _WIN32
 #include "pwd.h"
@@ -790,7 +791,7 @@ void listDir(IDescriptor& inOutDesc) {
 
     // client must send paths in posix format (C:\path becomes /C:/path)
     // dirpath is std::string for unix, std::wstring for windows
-    auto dirpath = FROMUNIXPATH(readStringWithLen(inOutDesc));
+    auto&& dirpath = FROMUNIXPATH(readStringWithLen(inOutDesc));
 
     if (dirpath.empty()) { // list drives
         sendOkResponse(inOutDesc);
@@ -856,8 +857,15 @@ void listDir(IDescriptor& inOutDesc) {
 
     // client must send paths in posix format (C:\path becomes /C:/path)
     // dirpath is std::string for unix, std::wstring for windows
-    auto dirpath = FROMUNIXPATH(readStringWithLen(inOutDesc));
-    
+    auto&& dirpath = FROMUNIXPATH(readStringWithLen(inOutDesc));
+
+    // retrieve current HOME directory if dirpath is empty, then replace dirpath with HOME
+    bool redirectHome = false;
+    if(dirpath.empty()) {
+        // prepare redirect response, send it later
+        dirpath = currentHomePath;
+        redirectHome = true;
+    }
     
 	if (rhss_checkAccess(dirpath)) {
 		PRINTUNIFIEDERROR("Requested directory listing denied (rhss restricted access)\n");
@@ -871,7 +879,13 @@ void listDir(IDescriptor& inOutDesc) {
 		sendErrorResponse(inOutDesc);
         return;
 	}
-	sendOkResponse(inOutDesc);
+
+    if(redirectHome) {
+        // send redirect response
+        inOutDesc.writeAllOrExit(&RESPONSE_REDIRECT,sizeof(uint8_t));
+        writeStringWithLen(inOutDesc,currentHomePath);
+    }
+    else sendOkResponse(inOutDesc);
 	
     while (it.next()) {
         auto&& filepathname = it.getCurrent();
@@ -1555,7 +1569,7 @@ void stats_file(IDescriptor& inOutDesc) {
 }
 
 void stats_dir(IDescriptor& inOutDesc) {
-    auto dirpath = FROMUNIXPATH(readStringWithLen(inOutDesc));
+    auto&& dirpath = FROMUNIXPATH(readStringWithLen(inOutDesc));
     // check access unconditionally (on local, always succeeds because rhss_currentlyServedDirectory is empty)
 	if (rhss_checkAccess(dirpath)) {
 		PRINTUNIFIEDERROR("Requested dir stat denied (rhss restricted access)\n");

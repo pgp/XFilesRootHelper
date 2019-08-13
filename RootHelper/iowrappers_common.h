@@ -10,6 +10,7 @@
 
 constexpr uint8_t RESPONSE_OK = 0x00;
 constexpr uint8_t RESPONSE_ERROR = 0xFF;
+constexpr uint8_t RESPONSE_REDIRECT = 0x11; // used for sending back HOME directory on empty LS request
 
 constexpr uint64_t maxuint = -1; // 2**64 - 1
 constexpr uint64_t maxuint_2 = -2; // 2**64 - 2, for indicating termination of series of progresses (in copy dir)
