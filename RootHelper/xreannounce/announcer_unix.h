@@ -4,19 +4,16 @@
 
 #ifdef ANDROID_NDK
 #include "ifaddrs-android.h"
-
-const std::string defaultAnnouncedPath = "/sdcard";
-
 #else
 #include <ifaddrs.h>
-
-const std::string defaultAnnouncedPath = "/tmp";
-
 #endif
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+
+
+std::string xreAnnouncedPath; // leave empty dir for announce for better security (will redir to home once connected)
 
 std::vector<std::pair<std::string,std::string>> getIPAddressesWithBroadcasts() {
 	std::vector<std::pair<std::string,std::string>> addresses;
@@ -61,7 +58,7 @@ std::vector<std::pair<std::string,std::string>> getIPAddressesWithBroadcasts() {
 }
 
 int xre_announce() { // TODO add sleep priod and total time
-    struct sockaddr_in send_addr, recv_addr;
+    struct sockaddr_in send_addr;
     int trueflag = 1, count = 0;
     int fd;
     if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
@@ -85,7 +82,7 @@ int xre_announce() { // TODO add sleep priod and total time
     for(int i=0;i<15;i++) { // TODO parameterize total time
 		for(auto& pair : ipAddresses) {
 			inet_aton(pair.second.c_str(), &send_addr.sin_addr);
-			auto&& announce = getPreparedAnnounce(XRE_ANNOUNCE_SERVERPORT,pair.first,defaultAnnouncedPath);
+			auto&& announce = getPreparedAnnounce(XRE_ANNOUNCE_SERVERPORT,pair.first,xreAnnouncedPath);
 			auto retval = sendto(fd, &announce[0], announce.size(), 0, (struct sockaddr*) &send_addr, sizeof send_addr);
 			if (retval < announce.size()) {
 				PRINTUNIFIEDERROR("sendto error, bytes or return value %zd\n",retval);

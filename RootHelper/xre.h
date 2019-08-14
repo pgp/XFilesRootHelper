@@ -18,12 +18,6 @@ SOCKET Accept(SOCKET &serv, struct sockaddr_in &client_info) {
 
 #endif
 
-#ifdef _WIN32
-SOCKET rhss = INVALID_SOCKET; // acceptor socket
-#else
-int rhss = -1; // acceptor socket (assigned only in forked process or in xre mode)
-#endif
-
 // logic for announcing XRE server via UDP broadcast 
 #include "xreannounce/announcer.h"
 
@@ -135,7 +129,7 @@ void tlsServerSessionEventLoop(RingBuffer& inRb, Botan::TLS::Server& server) {
 
 #ifdef _WIN32
 
-SOCKET getServerSocket() {
+SOCKET getServerSocket(int cl = -1) {
     int iResult;
     WSADATA wsaData;
     SOCKET ListenSocket = INVALID_SOCKET;
@@ -227,9 +221,11 @@ void acceptLoop(SOCKET rhss) {
 }
 #else
 
-int getServerSocket() {
+int getServerSocket(int cl = -1) {
     int rhss = socket(AF_INET, SOCK_STREAM, 0);
+    PosixDescriptor pd_cl(cl);
     if(rhss == -1) {
+        if(cl != -1) sendErrorResponse(pd_cl);
         PRINTUNIFIEDERROR("Unable to create TLS server socket\n");
         exit(-1);
     }
@@ -242,6 +238,7 @@ int getServerSocket() {
 
     if(bind(rhss, reinterpret_cast<struct sockaddr*>(&socket_info), sizeof(struct sockaddr)) != 0) {
         close(rhss);
+        if(cl != -1) sendErrorResponse(pd_cl);
         PRINTUNIFIEDERROR("TLS server bind failed\n");
         exit(-1);
     }
@@ -249,11 +246,13 @@ int getServerSocket() {
     // up to 10 concurrent clients (both with 2 sessions) allowed
     if(listen(rhss, MAX_CLIENTS) != 0) {
         close(rhss);
+        if(cl != -1) sendErrorResponse(pd_cl);
         PRINTUNIFIEDERROR("TLS server listen failed\n");
         exit(-1);
     }
 
-    PRINTUNIFIED("remote rhServer acceptor started\n");
+    PRINTUNIFIED("remote rhServer acceptor process started, pid: %d\n",getpid());
+    if(cl != -1) sendOkResponse(pd_cl);
     return rhss;
 }
 
@@ -323,15 +322,14 @@ void tlsServerSession(int remoteCl) {
 	on_server_session_exit_func(clientIPAndPortOfThisServerSession);
 }
 
-void acceptLoop(int& rhss) {
-    const struct linger lo = {1, 0};
+void acceptLoop(int& rhss_socket) {
+    constexpr struct linger lo = {1, 0};
     for(;;) {
         struct sockaddr_in st{};
         socklen_t stlen{};
-        int remoteCl = accept(rhss,(struct sockaddr *)&st,&stlen); // (#1) peer info retrieved and converted to string in spawned thread
+        int remoteCl = accept(rhss_socket,(struct sockaddr *)&st,&stlen); // (#1) peer info retrieved and converted to string in spawned thread
         if (remoteCl == -1) {
-            PRINTUNIFIEDERROR("accept error on remote server\n");
-            PRINTUNIFIEDERROR("ERRNO is %d\n",errno);
+            PRINTUNIFIEDERROR("accept error on remote server,errno is %d\n",errno);
             continue;
         }
         

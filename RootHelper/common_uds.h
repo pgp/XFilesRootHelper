@@ -49,7 +49,7 @@ constexpr int MAX_CLIENTS = 20; // 10 short ops, 10 longterm ops sessions
 #define ACTION_DOWNLOAD 0x10
 constexpr uint8_t ACTION_UPLOAD = 0x11; // flags: 000 - receive list of path pairs, 111 - receive file descriptors over UDS (one by one)
 
-#define REMOTE_SERVER_MANAGEMENT 0x12 // flags: 010 - get status, 111 - start, 000 - stop
+#define REMOTE_SERVER_MANAGEMENT 0x12 // flags: 010 - get status, 111 - start, 101 - start with announce, 000 - stop
 
 #define REMOTE_CONNECT 0x14
 

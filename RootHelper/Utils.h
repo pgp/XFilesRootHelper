@@ -190,18 +190,6 @@ int getFileExtension(const STR& filepath, STR& tmp) {
 }
 
 #ifdef _WIN32
-template<typename STR>
-inline int rhss_checkAccess(const STR& targetPath) {
-	return 0; // not implemented
-}
-#else
-std::string rhss_currentlyServedDirectory; // currently served directory, may be empty (assigned only in forked process)
-inline int rhss_checkAccess(const std::string& targetPath) {
-	return strncmp(targetPath.c_str(),rhss_currentlyServedDirectory.c_str(),rhss_currentlyServedDirectory.size());
-}
-#endif
-
-#ifdef _WIN32
 int isDirectoryEmpty(const std::wstring& dirname) {
     auto&& it = itf.createIterator(dirname,FULL,false,PLAIN);
     if(!it) return -1;

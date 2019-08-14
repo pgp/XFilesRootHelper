@@ -1828,20 +1828,23 @@ void on_server_acceptor_exit_func() {
 	rhss_local = -1;
 }
 
-constexpr struct linger lo = {1, 0};
-
 void forkServerAcceptor(int cl, uint8_t rq_flags) {
-	// receive byte indicating whether to serve entire filesystem (0x00) or only custom directory (non-zero byte)
-	uint8_t x;
-	PosixDescriptor pd_cl(cl);
-	pd_cl.readAllOrExit(&x,sizeof(uint8_t));
-	
-	if(x) {
-		std::string filepath = readStringWithLen(pd_cl);
-		PRINTUNIFIED("received directory to be offered is:\t%s\n", filepath.c_str());
-		
-		rhss_currentlyServedDirectory = filepath;
-	}
+    PosixDescriptor pd_cl(cl);
+
+    // LEGACY
+//    // receive byte indicating whether to serve entire filesystem (0x00) or only custom directory (non-zero byte)
+//	uint8_t x;
+//	pd_cl.readAllOrExit(&x,sizeof(uint8_t));
+
+    // NEW
+    // receive strings for default path, announced path, exposed path (with default received empty means UNCHANGED from OS default)
+    auto&& tmp = readStringWithLen(pd_cl);
+    if(!tmp.empty()) currentXREHomePath = tmp;
+    PRINTUNIFIED("xre home directory:\t%s\n", currentXREHomePath.c_str());
+    xreAnnouncedPath = readStringWithLen(pd_cl);
+    PRINTUNIFIED("received directory to be announced is:\t%s\n", xreAnnouncedPath.c_str());
+    xreExposedDirectory = readStringWithLen(pd_cl);
+    PRINTUNIFIED("received directory to be offered is:\t%s\n", xreExposedDirectory.c_str());
 	
 	// if server already active, bind will give error
 	pid_t pid = fork();
@@ -1855,38 +1858,7 @@ void forkServerAcceptor(int cl, uint8_t rq_flags) {
 		try {
 		
 		atexit(on_server_acceptor_exit_func);
-		rhss = socket(AF_INET, SOCK_STREAM, 0);
-		if(rhss == -1) {
-		    PRINTUNIFIEDERROR("Unable to create TLS server socket\n");
-		    sendErrorResponse(pd_cl);
-			exit(-1);
-		}
-		
-		struct sockaddr_in socket_info = {};
-		socket_info.sin_family = AF_INET;
-		socket_info.sin_port = htons(rhServerPort);
-		
-		socket_info.sin_addr.s_addr = INADDR_ANY;
-
-		if(bind(rhss, reinterpret_cast<struct sockaddr*>(&socket_info), sizeof(struct sockaddr)) != 0)
-		{
-		    close(rhss);
-		    PRINTUNIFIEDERROR("TLS server bind failed\n");
-		    sendErrorResponse(pd_cl);
-			exit(-1);
-		}
-
-		// up to 10 concurrent clients (both with 2 sessions) allowed
-		if(listen(rhss, MAX_CLIENTS) != 0)
-		{
-		    close(rhss);
-		    PRINTUNIFIEDERROR("TLS server listen failed\n");
-		    sendErrorResponse(pd_cl);
-			exit(-1);
-		}
-		
-		PRINTUNIFIED("remote rhServer acceptor process started, pid: %d\n",getpid());
-		sendOkResponse(pd_cl);
+		rhss = getServerSocket(cl);
 		
 		// from now on, server session threads communicate with local client over rhss_local
 		rhss_local = cl;
@@ -1897,24 +1869,8 @@ void forkServerAcceptor(int cl, uint8_t rq_flags) {
 			std::thread announceThread(xre_announce);
             announceThread.detach();
 		}
-		
-		for(;;) {
-			struct sockaddr_in st{};
-			socklen_t stlen{};
-			int remoteCl = accept(rhss,(struct sockaddr *)&st,&stlen); // (#1) peer info retrieved and converted to string in spawned thread
-			if (remoteCl == -1) {
-				PRINTUNIFIEDERROR("accept error on remote server\n");
-				continue;
-			}
-			
-			// this is needed in order for (client) write operations to fail when the remote (server) socket is closed
-			// (e.g. client is performing unacked writing and server disconnects)
-			// so that client does not hangs when server abruptly closes connections
-			setsockopt(remoteCl, SOL_SOCKET, SO_LINGER, &lo, sizeof(lo));
-			
-			std::thread serverToClientThread(tlsServerSession,remoteCl);
-			serverToClientThread.detach();
-		}
+
+		acceptLoop(rhss);
 		
 		}
 		catch (threadExitThrowable& i) {
@@ -1922,7 +1878,7 @@ void forkServerAcceptor(int cl, uint8_t rq_flags) {
 		}
 	}
 	else { // in parent
-		rhss_currentlyServedDirectory.clear(); // operation methods are in common, clear in parent otherwise we will have restrictions on local operations
+        xreExposedDirectory.clear(); // this shouldn't be needed anymore
 		rhss_pid = pid;
 		// just exit current thread, don't need it anymore
 		// cl descriptor is duplicated in parent and child, close it in parent
@@ -2329,6 +2285,14 @@ void rhMain(int uid=rh_default_uid, std::string name=rh_uds_default_name) {
 	}
 }
 
+/** TODO
+ * for now, use default config for paths in standalone XRE:
+ * - default is OS-default (after initDefaultHomePaths())
+ * - announced is empty
+ * - exposed is empty (expose all)
+ *
+ * Next step is receiving these from command line arguments
+*/
 void xreMain() {
     rhss = getServerSocket();
     printNetworkInfo();
