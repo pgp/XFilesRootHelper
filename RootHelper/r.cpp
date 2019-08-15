@@ -1605,14 +1605,24 @@ void client_ls(IDescriptor& cl, IDescriptor& rcl) {
 	uint8_t resp;
 	int receivedErrno;
 	rcl.readAllOrExit(&resp,sizeof(uint8_t));
-	if (resp != 0) { // list dir error
-		rcl.readAllOrExit(&receivedErrno,sizeof(int));
-		cl.writeAllOrExit(&resp,sizeof(uint8_t));
-		cl.writeAllOrExit(&receivedErrno,sizeof(int));
-		return;
-	}
-	else { // OK
-		cl.writeAllOrExit(&resp,sizeof(uint8_t));
+
+	switch(resp) {
+	    case RESPONSE_ERROR: // list dir error
+	        rcl.readAllOrExit(&receivedErrno,sizeof(int));
+            cl.writeAllOrExit(&resp,sizeof(uint8_t));
+            cl.writeAllOrExit(&receivedErrno,sizeof(int));
+            return;
+        case RESPONSE_REDIRECT:
+            dirpath = readStringWithLen(rcl); // receive and send redirect path
+            cl.writeAllOrExit(&resp,sizeof(uint8_t));
+            writeStringWithLen(cl,dirpath);
+            break;
+        case RESPONSE_OK:
+            cl.writeAllOrExit(&resp,sizeof(uint8_t));
+            break;
+        default:
+            PRINTUNIFIEDERROR("Unexpected response byte");
+            threadExit();
 	}
 	
 	for(;;) {
