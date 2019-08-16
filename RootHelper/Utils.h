@@ -137,7 +137,8 @@ time_t convertWindowsTimeToUnixTime(long long int input){
 /********************* Windows-only ************************/
 #ifdef _WIN32
 std::wstring unixToWindowsPath(std::string s) {
-    if (s.size() <= 0 || s[0] != '/') {
+    if(s.empty()) return L"";
+    if (s[0] != '/') {
         PRINTUNIFIEDERROR("'/' expected in Unix-to-Windows conversion path\n");
         exit(-1);
     }
@@ -149,6 +150,7 @@ std::wstring unixToWindowsPath(std::string s) {
 }
 
 std::string windowsToUnixPath(const std::wstring& ws) {
+    if(ws.empty()) return "";
     std::string s = std::string("/") + wchar_to_UTF8(ws);
     std::replace(s.begin(),s.end(),'\\','/');
     return s;
@@ -159,9 +161,13 @@ std::string windowsToUnixPath(const std::wstring& ws) {
 #ifdef _WIN32
 #define FROMUNIXPATH(s) (unixToWindowsPath((s)))
 #define TOUNIXPATH(s) (windowsToUnixPath((s)))
+#define FROMUTF(s) (UTF8_to_wchar(s))
+#define TOUTF(s) (wchar_to_UTF8(s))
 #else
 #define FROMUNIXPATH(s) (s)
 #define TOUNIXPATH(s) (s)
+#define FROMUTF(s) (s)
+#define TOUTF(s) (s)
 #endif
 
 template<typename T>
@@ -779,9 +785,17 @@ void listDir(IDescriptor& inOutDesc) {
 
     // client must send paths in posix format (C:\path becomes /C:/path)
     // dirpath is std::string for unix, std::wstring for windows
-    auto&& dirpath = FROMUNIXPATH(readStringWithLen(inOutDesc));
+    auto&& posixdirpath = readStringWithLen(inOutDesc);
+    auto&& dirpath = getSystemPathSeparator(); // placeholder, just for deducing template
 
-    if (dirpath.empty()) { // list drives
+    if(posixdirpath.empty()) {
+        dirpath = currentXREHomePath;
+        inOutDesc.writeAllOrExit(&RESPONSE_REDIRECT,sizeof(uint8_t));
+        writeStringWithLen(inOutDesc,TOUNIXPATH(currentXREHomePath));
+    }
+    else dirpath = FROMUNIXPATH(posixdirpath);
+
+    if (posixdirpath == "/") { // list drives
         sendOkResponse(inOutDesc);
         for (auto& drive : listWinDrives()) {
             ls_resp_t responseEntry{};
@@ -798,21 +812,14 @@ void listDir(IDescriptor& inOutDesc) {
         }
     }
     else {
-		// checks only if folder exists, not if its content is listable
-        //~ int efd = existsIsFileIsDir_(dirpath);
-        //~ if (efd != 2) {
-            //~ sendErrorResponse(inOutDesc);
-            //~ return;
-        //~ }
-        //~ else sendOkResponse(inOutDesc);
-
-        // std::unique_ptr<IDirIterator<std::string>> or std::unique_ptr<IDirIterator<std::wstring>>
         auto&& it = itf.createIterator(dirpath,FULL,true,PLAIN);
-        if(!it) {
-			sendErrorResponse(inOutDesc);
-            return;
+        if(!posixdirpath.empty()) {
+            if(!it) {
+			    sendErrorResponse(inOutDesc);
+                return;
+		    }
+		    sendOkResponse(inOutDesc);
 		}
-		sendOkResponse(inOutDesc);
 
         while (it.next()) {
             auto&& filepathname = it.getCurrent();
@@ -851,7 +858,7 @@ void listDir(IDescriptor& inOutDesc) {
     bool redirectHome = false;
     if(dirpath.empty()) {
         // prepare redirect response, send it later
-        dirpath = currentHomePath;
+        dirpath = rhss==-1?currentHomePath:TOUNIXPATH(currentXREHomePath);
         redirectHome = true;
     }
     
@@ -871,7 +878,7 @@ void listDir(IDescriptor& inOutDesc) {
     if(redirectHome) {
         // send redirect response
         inOutDesc.writeAllOrExit(&RESPONSE_REDIRECT,sizeof(uint8_t));
-        writeStringWithLen(inOutDesc,currentHomePath);
+        writeStringWithLen(inOutDesc,rhss==-1?currentHomePath:TOUNIXPATH(currentXREHomePath));
     }
     else sendOkResponse(inOutDesc);
 	

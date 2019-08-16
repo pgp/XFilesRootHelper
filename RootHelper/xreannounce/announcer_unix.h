@@ -57,7 +57,7 @@ std::vector<std::pair<std::string,std::string>> getIPAddressesWithBroadcasts() {
     return addresses;
 }
 
-int xre_announce() { // TODO add sleep priod and total time
+int xre_announce() { // TODO add sleep period and total time
     struct sockaddr_in send_addr;
     int trueflag = 1, count = 0;
     int fd;
@@ -82,7 +82,7 @@ int xre_announce() { // TODO add sleep priod and total time
     for(int i=0;i<15;i++) { // TODO parameterize total time
 		for(auto& pair : ipAddresses) {
 			inet_aton(pair.second.c_str(), &send_addr.sin_addr);
-			auto&& announce = getPreparedAnnounce(XRE_ANNOUNCE_SERVERPORT,pair.first,xreAnnouncedPath);
+			auto&& announce = getPreparedAnnounce(XRE_ANNOUNCE_SERVERPORT,pair.first,TOUNIXPATH(xreAnnouncedPath));
 			auto retval = sendto(fd, &announce[0], announce.size(), 0, (struct sockaddr*) &send_addr, sizeof send_addr);
 			if (retval < announce.size()) {
 				PRINTUNIFIEDERROR("sendto error, bytes or return value %zd\n",retval);

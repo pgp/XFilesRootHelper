@@ -25,7 +25,6 @@
 #include "desc/PosixDescriptor.h"
 #include "androidjni/wrapper.h"
 #include "archiveUtils.h"
-#include "args_switch.h"
 #endif
 
 #include "xre.h"
@@ -1020,7 +1019,7 @@ void listDirOrArchive(IDescriptor& inOutDesc, uint8_t flags) {
 	}
 }
 
-const char* find_legend = R"V0G0N(
+const char* find_legend = R"FIND1(
 /*
  * FIND request:
  *  - Input: source path (dir or archive), filename pattern (can be empty), content pattern (can be empty)
@@ -1038,7 +1037,7 @@ const char* find_legend = R"V0G0N(
  * 				b4,b5,b6,b7 same as b0,b1,b2,b3
  * 				b8 (b0 of second byte): find all occurrences in content
  */
-)V0G0N";
+)FIND1";
 
 // std::atomic_int currentSearchInOutDesc(-1); // at most one search thread per roothelper instance
 std::mutex currentSearchInOutDesc_mx;
@@ -2295,23 +2294,6 @@ void rhMain(int uid=rh_default_uid, std::string name=rh_uds_default_name) {
 	}
 }
 
-/** TODO
- * for now, use default config for paths in standalone XRE:
- * - default is OS-default (after initDefaultHomePaths())
- * - announced is empty
- * - exposed is empty (expose all)
- *
- * Next step is receiving these from command line arguments
-*/
-void xreMain() {
-    rhss = getServerSocket();
-    printNetworkInfo();
-    // start announce loop (for now with default parameters)
-    std::thread announceThread(xre_announce);
-    announceThread.detach();
-    acceptLoop(rhss);
-}
-
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -2332,14 +2314,14 @@ int MY_CDECL main(int argc, const char *argv[]) {
 			print_help(argv[0]);
 		}
 		else {
-			PRINTUNIFIED("xre mode by filename, won't accept further command line arguments\n");
-			xreMain();
+			PRINTUNIFIED("xre mode by filename\n");
+			return xreMain(argc,argv,getSystemPathSeparator());
 		}
 	}
 	else if (argc >= 2) {
 		if (mode_is_xre(argv[1])) {
-			PRINTUNIFIED("xre mode, won't accept further command line arguments\n");
-			xreMain();
+			PRINTUNIFIED("xre mode\n");
+			return xreMain(argc,argv,getSystemPathSeparator());
 		}
 		else if(mode_is_help(argv[1])) {
 			print_help(argv[0]);

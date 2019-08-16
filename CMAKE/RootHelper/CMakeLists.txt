@@ -18,7 +18,7 @@ if(DEFINED USE_X11)
 endif()
 
 if(WIN32) # -O3 allows fast data transfer (order of Gbps)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -mavx -Wl,--stack,67108864 -Wa,-mbig-obj")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -municode -mavx -Wl,--stack,67108864 -Wa,-mbig-obj")
 else()
 	if(DEFINED USE_X11)
 		if(X11_FOUND)
@@ -47,27 +47,27 @@ include_directories(${BOTAN_DIR})
 set(BOTAN_AM_SRC ${BOTAN_DIR}/botan_all.cpp)
 
 if(WIN32)
-include_directories(
-	"-I../../RootHelper"
-	"-I../../RootHelper/hashing"
-	"-I../../RootHelper/reqs"
-	"-I../../RootHelper/resps"
-	"${BOTAN_DIR}"
-)
+	include_directories(
+			"-I../../RootHelper"
+			"-I../../RootHelper/hashing"
+			"-I../../RootHelper/reqs"
+			"-I../../RootHelper/resps"
+			"${BOTAN_DIR}"
+	)
 else()
-include_directories(
-	"-I../../CPP/Windows"
-	"-I../../CPP/Common"
-	"-I../../C"
-	"-I../../RootHelper"
-	"-I../../RootHelper/hashing"
-	"-I../../RootHelper/reqs"
-	"-I../../RootHelper/resps"
-	"../../CPP/myWindows"
-	"../../CPP/"
-	"../../CPP/include_windows"
-	"${BOTAN_DIR}"
-)
+	include_directories(
+			"-I../../CPP/Windows"
+			"-I../../CPP/Common"
+			"-I../../C"
+			"-I../../RootHelper"
+			"-I../../RootHelper/hashing"
+			"-I../../RootHelper/reqs"
+			"-I../../RootHelper/resps"
+			"../../CPP/myWindows"
+			"../../CPP/"
+			"../../CPP/include_windows"
+			"${BOTAN_DIR}"
+	)
 endif()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions -Werror=return-type")
@@ -77,33 +77,33 @@ add_definitions( -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_REENTRANT -DENV_U
 
 
 if(WIN32)
-add_executable(r
-"../../RootHelper/xrewin.cpp"
-"${BOTAN_AM_SRC}"
-)
+	add_executable(r
+			"../../RootHelper/xrewin.cpp"
+			"${BOTAN_AM_SRC}"
+			)
 else()
-add_executable(r
-"../../CPP/7zip/Common/FileStreams.cpp"
-"../../RootHelper/r.cpp"
-"../../CPP/Common/IntToString.cpp"
-"../../CPP/Common/MyString.cpp"
-"../../CPP/Common/MyVector.cpp"
-"../../CPP/Common/MyWindows.cpp"
-"../../CPP/Common/StringConvert.cpp"
-"../../CPP/Common/UTFConvert.cpp"
-"../../CPP/Common/Wildcard.cpp"
-"../../CPP/Windows/DLL.cpp"
-"../../CPP/Windows/FileDir.cpp"
-"../../CPP/Windows/FileFind.cpp"
-"../../CPP/Windows/FileIO.cpp"
-"../../CPP/Windows/FileName.cpp"
-"../../CPP/Windows/PropVariant.cpp"
-"../../CPP/Windows/PropVariantConv.cpp"
-"../../CPP/Windows/TimeUtils.cpp"
-"../../CPP/myWindows/wine_date_and_time.cpp"
-"${BOTAN_AM_SRC}"
-"../../C/Threads.c"
-)
+	add_executable(r
+			"../../CPP/7zip/Common/FileStreams.cpp"
+			"../../RootHelper/r.cpp"
+			"../../CPP/Common/IntToString.cpp"
+			"../../CPP/Common/MyString.cpp"
+			"../../CPP/Common/MyVector.cpp"
+			"../../CPP/Common/MyWindows.cpp"
+			"../../CPP/Common/StringConvert.cpp"
+			"../../CPP/Common/UTFConvert.cpp"
+			"../../CPP/Common/Wildcard.cpp"
+			"../../CPP/Windows/DLL.cpp"
+			"../../CPP/Windows/FileDir.cpp"
+			"../../CPP/Windows/FileFind.cpp"
+			"../../CPP/Windows/FileIO.cpp"
+			"../../CPP/Windows/FileName.cpp"
+			"../../CPP/Windows/PropVariant.cpp"
+			"../../CPP/Windows/PropVariantConv.cpp"
+			"../../CPP/Windows/TimeUtils.cpp"
+			"../../CPP/myWindows/wine_date_and_time.cpp"
+			"${BOTAN_AM_SRC}"
+			"../../C/Threads.c"
+			)
 endif()
 
 if(WIN32)

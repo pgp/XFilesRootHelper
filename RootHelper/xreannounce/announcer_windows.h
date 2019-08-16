@@ -1,6 +1,6 @@
 #include <winsock2.h>
 
-std::string xreAnnouncedPath; // leave empty dir for announce for better security (will redir to home once connected)
+std::wstring xreAnnouncedPath; // leave empty dir for announce for better security (will redir to home once connected)
 
 /**
 * Web source: http://www.cs.ubbcluj.ro/~dadi/compnet/labs/lab3/udp-broadcast.html
@@ -62,7 +62,7 @@ int xre_announce() {
     
     for(int i=0;i<15;i++) { // TODO parameterize total time
 		for(auto& addr : ipAddresses) {
-			auto&& announce = getPreparedAnnounce(XRE_ANNOUNCE_SERVERPORT,addr,xreAnnouncedPath);
+			auto&& announce = getPreparedAnnounce(XRE_ANNOUNCE_SERVERPORT,addr,TOUNIXPATH(xreAnnouncedPath));
 			if(sendto(sock,(const char*)(&announce[0]),announce.size(),0,(sockaddr *)&Recv_addr,sizeof(Recv_addr))==SOCKET_ERROR) {
 				PRINTUNIFIEDERROR("sendto error\n");
 				return -3;

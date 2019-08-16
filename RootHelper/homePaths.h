@@ -52,16 +52,17 @@ int rhss = -1; // acceptor socket (assigned only in forked process or in xre mod
  */
 
 #ifdef _WIN32
+inline bool isXreProcess() { return rhss != INVALID_SOCKET; }
+std::wstring xreExposedDirectory;
+#else
+inline bool isXreProcess() { return rhss != -1; }
+std::string xreExposedDirectory; // currently served directory, may be empty (assigned only in forked process or in standalone xre mode)
+#endif
+
 template<typename STR>
 inline int rhss_checkAccess(const STR& targetPath) {
-	return 0; // not implemented
+    if(!isXreProcess()) return 0; // don't enforce restrictions for exploring filesystem locally
+    return targetPath.rfind(xreExposedDirectory,0);
 }
-#else
-std::string xreExposedDirectory; // currently served directory, may be empty (assigned only in forked process)
-inline int rhss_checkAccess(const std::string& targetPath) {
-    if(rhss == -1) return 0; // don't enforce restrictions for exploring filesystem locally
-    return strncmp(targetPath.c_str(),xreExposedDirectory.c_str(),xreExposedDirectory.size());
-}
-#endif
 
 #endif /* __HOME_PATHS_H__ */

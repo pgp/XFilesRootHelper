@@ -18,6 +18,9 @@ SOCKET Accept(SOCKET &serv, struct sockaddr_in &client_info) {
 
 #endif
 
+#include "args_switch.h"
+#include "homePaths.h"
+
 // logic for announcing XRE server via UDP broadcast 
 #include "xreannounce/announcer.h"
 
@@ -365,4 +368,33 @@ inline void registerExitRoutines() {
     SetConsoleCtrlHandler(exitHr,true);
 #endif
 }
+
+/**
+ * default config for paths in standalone XRE:
+ * - default is OS-default (after initDefaultHomePaths())
+ * - announced is empty
+ * - exposed is empty (expose all)
+ * - announce is enabled
+ *
+ * custom paths can be received from command line arguments
+*/
+template<typename C, typename STR>
+int xreMain(int argc, C* argv[], const STR& placeholder) {
+    bool enableAnnounce = true;
+    auto&& paths = getXREPaths(argc,argv,enableAnnounce,placeholder);
+    currentXREHomePath = paths[0];
+    xreAnnouncedPath = paths[1];
+    xreExposedDirectory = paths[2];
+
+    rhss = getServerSocket();
+    printNetworkInfo();
+    // start announce loop (for now with default parameters)
+    if(enableAnnounce) {
+        std::thread announceThread(xre_announce);
+        announceThread.detach();
+    }
+    acceptLoop(rhss);
+    return 0;
+}
+
 #endif /* __XRE_H__ */
