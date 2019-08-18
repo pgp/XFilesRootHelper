@@ -3,6 +3,8 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 LOCAL_MODULE := r
 
+LOCAL_SHORT_COMMANDS := true
+
 # BEGIN Botan TLS
 BOTAN_AM_PREFIX := ../../../botanAm/android
 
