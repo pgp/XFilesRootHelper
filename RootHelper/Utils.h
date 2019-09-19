@@ -96,7 +96,7 @@ std::wstring UTF8_to_wchar(const std::string& in_) {
     unsigned int codepoint;
     while (*in != 0)
     {
-        unsigned char ch = static_cast<unsigned char>(*in);
+        auto ch = static_cast<unsigned char>(*in);
         if (ch <= 0x7f)
             codepoint = ch;
         else if (ch <= 0xbf)
@@ -530,7 +530,7 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
     // TODO send also struct stat's mode_t in order to set destination permissions
 
     // TO BE SENT OVER NETWORK SOCKET: fileOrDir flag, full (destination) pathname and file size
-    auto dp = TOUNIXPATH(destination);
+    auto&& dp = TOUNIXPATH(destination);
     uint16_t destLen = dp.size();
     uint64_t thisFileSize = fileinfo.size;
     PRINTUNIFIED("File size for upload is %" PRIu64 "\n",thisFileSize);
@@ -1163,7 +1163,7 @@ int genericUploadBasicRecursiveImplWithProgress(const STR& src_path, // local pa
             if(empty) { // treat also non-listable folders as empty ones
                 // send empty dir item to network descriptor
                 uint8_t d = 0x01; // flag byte for folder
-                auto dp = TOUNIXPATH(dest_path);
+                auto&& dp = TOUNIXPATH(dest_path);
                 uint16_t y_len = dp.size();
 
                 uint32_t vlen = sizeof(uint8_t)+sizeof(uint16_t)+y_len;

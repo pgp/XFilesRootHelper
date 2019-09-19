@@ -119,7 +119,7 @@ public:
                 auto status = result.all_statuses();
                 std::cout << "Cert chain validation OK" << std::endl;
 
-                if(status.size() > 0 && status[0].count(Botan::Certificate_Status_Code::OCSP_RESPONSE_GOOD))
+                if(!status.empty() && status[0].count(Botan::Certificate_Status_Code::OCSP_RESPONSE_GOOD))
                     std::cout << "Valid OCSP response for this server\n";
             }
             else {
