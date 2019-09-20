@@ -59,20 +59,14 @@ std::vector<STR> getXREPaths(int argc, C* argv[], bool& enableAnnounce, const ST
         }
         if(p.rfind(homePrefix,0)==0) {
             paths[0] = p.substr(homePrefix.length());
-            auto&& x = TOUNIXPATH(paths[0]);
-            PRINTUNIFIED("Using as home path: %s\n",x.c_str());
             continue;
         }
         if(p.rfind(announcePrefix,0)==0) {
             paths[1] = p.substr(announcePrefix.length());
-            auto&& x = TOUNIXPATH(paths[1]);
-            PRINTUNIFIED("Using as announced path: %s\n",x.c_str());
             continue;
         }
         if(p.rfind(exposePrefix,0)==0) {
             paths[2] = p.substr(exposePrefix.length());
-            auto&& x = TOUNIXPATH(paths[2]);
-            PRINTUNIFIED("Using as exposed path: %s\n",x.c_str());
             continue;
         }
     }

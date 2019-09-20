@@ -382,9 +382,17 @@ template<typename C, typename STR>
 int xreMain(int argc, C* argv[], const STR& placeholder) {
     bool enableAnnounce = true;
     auto&& paths = getXREPaths(argc,argv,enableAnnounce,placeholder);
-    currentXREHomePath = paths[0];
+    if(!paths[0].empty()) // replace home path only if not empty, otherwise leave OS default
+        currentXREHomePath = paths[0];
     xreAnnouncedPath = paths[1];
     xreExposedDirectory = paths[2];
+
+    auto x = TOUNIXPATH(currentXREHomePath);
+    PRINTUNIFIED("Using as home path: %s\n",x.c_str());
+    x = TOUNIXPATH(xreAnnouncedPath);
+    PRINTUNIFIED("Using as announced path: %s\n",x.c_str());
+    x = TOUNIXPATH(xreExposedDirectory);
+    PRINTUNIFIED("Using as exposed path: %s\n",x.c_str());
 
     rhss = getServerSocket();
     printNetworkInfo();
