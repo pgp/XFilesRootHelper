@@ -1010,12 +1010,22 @@ void listArchive(IDescriptor& inOutDesc) {
 
 // switch using flags
 void listDirOrArchive(IDescriptor& inOutDesc, uint8_t flags) {
-	if (flags == 0) { // all bits set or none (for simplicity, since we need only one flag bit at the current time)
-		listDir(inOutDesc);
-	}
-	else {
-		auto& pd = static_cast<PosixDescriptor&>(inOutDesc);
-		listArchive(pd);
+	switch(flags) {
+		case 0: // 000
+			listDir(inOutDesc);
+			break;
+		case 2: // 010
+			retrieveHomePath(inOutDesc);
+			break;
+		case 7: // 111
+			{
+				auto& pd = static_cast<PosixDescriptor&>(inOutDesc);
+				listArchive(pd);
+				break;
+			}
+		default:
+			PRINTUNIFIEDERROR("Unexpected flags in listdir");
+			threadExit();
 	}
 }
 
@@ -1585,16 +1595,14 @@ void client_hash(IDescriptor& cl, IDescriptor& rcl, request_type rqByteWithFlags
 }
 
 // cl: Unix socket, remoteCl: TLS socket wrapper
-void client_ls(IDescriptor& cl, IDescriptor& rcl) {
+void client_ls(IDescriptor& cl, IDescriptor& rcl, const request_type rq) {
 	std::string dirpath = readStringWithLen(cl);
 	uint16_t dirpath_sz = dirpath.size();
-	
-	static constexpr uint8_t ls_rq = ACTION_LS;
 
 	uint32_t totalRqSize = sizeof(uint8_t)+sizeof(uint16_t)+dirpath_sz;
 	std::vector<uint8_t> ls_opt_rq(totalRqSize);
 	uint8_t* v = &ls_opt_rq[0];
-	memcpy(v,&ls_rq,sizeof(uint8_t));
+	memcpy(v,&rq,sizeof(uint8_t));
 	memcpy(v+sizeof(uint8_t),&dirpath_sz,sizeof(uint16_t));
 	memcpy(v+sizeof(uint8_t)+sizeof(uint16_t),dirpath.c_str(),dirpath_sz);
 	rcl.writeAllOrExit(v,totalRqSize);
@@ -1622,6 +1630,12 @@ void client_ls(IDescriptor& cl, IDescriptor& rcl) {
         default:
             PRINTUNIFIEDERROR("Unexpected response byte");
             threadExit();
+	}
+	
+	if(rq.flags==2) { // read home path as response
+		auto&& homepath = readStringWithLen(rcl);
+		writeStringWithLen(cl,homepath);
+		return;
 	}
 	
 	for(;;) {
@@ -1931,7 +1945,7 @@ void tlsClientSessionEventLoop(TLS_Client& client_wrapper) {
 		cl.readAllOrExit(&rq,sizeof(rq));
 		switch (rq.request) {
 			case ACTION_LS:
-				client_ls(cl,rcl);
+				client_ls(cl,rcl,rq);
 				break;
 			case ACTION_CREATE:
 				client_createFileOrDirectory(cl,rcl,rq);

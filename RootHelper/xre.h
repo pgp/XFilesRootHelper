@@ -95,7 +95,9 @@ void tlsServerSessionEventLoop(RingBuffer& inRb, Botan::TLS::Server& server) {
 
             switch(rq.request) {
                 case ACTION_LS:
-                    listDir(rcl);
+                    if(rq.flags == 0) listDir(rcl);
+                    else if (rq.flags == 2) retrieveHomePath(rcl);
+                    else threadExit();
                     break;
                 case ACTION_DOWNLOAD:
                     // client sends DOWNLOAD action, server has to UPLOAD data

@@ -909,6 +909,22 @@ void listDir(IDescriptor& inOutDesc) {
 }
 #endif
 
+// client sends LS request with flags = 2 (010) and ANY input path
+// server replies with xre home dir
+void retrieveHomePath(IDescriptor& inOutDesc) {
+	auto&& inputPath = readStringWithLen(inOutDesc); // just to free input buffer
+	if(!inputPath.empty())
+		PRINTUNIFIEDERROR("Warning: non-empty input supplied when requesting home dir path, possible use mismatch");
+	
+	sendOkResponse(inOutDesc);
+#ifdef _WIN32
+	writeStringWithLen(inOutDesc,TOUNIXPATH(currentXREHomePath));
+#else
+	auto homepath = rhss==-1?currentHomePath:TOUNIXPATH(currentXREHomePath);
+	writeStringWithLen(inOutDesc,homepath);
+#endif
+}
+
 #ifdef _WIN32
 int genericDeleteBasicImpl(const std::wstring& path) {
 	// NOT IMPLEMENTED, NEITHER NECESSARY FOR NOW (Win32: XRE_RHSS, remote delete not available by design)
