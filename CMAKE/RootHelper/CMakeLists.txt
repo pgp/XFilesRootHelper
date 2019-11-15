@@ -32,6 +32,12 @@ else()
 	add_compile_options(-O3 -mavx)
 endif()
 
+if(WIN32)
+	set(CMAKE_RC_COMPILER_INIT windres)
+	ENABLE_LANGUAGE(RC)
+	SET(CMAKE_RC_COMPILE_OBJECT "<CMAKE_RC_COMPILER> <FLAGS> -O coff <DEFINES> -i <SOURCE> -o <OBJECT>")
+endif()
+
 set(BOTAN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../botanAm/desktop")
 
 if(WIN32)
@@ -78,6 +84,7 @@ add_definitions( -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_REENTRANT -DENV_U
 
 if(WIN32)
 	add_executable(r
+			"../../appIcon.rc"
 			"../../RootHelper/xrewin.cpp"
 			"${BOTAN_AM_SRC}"
 			)
