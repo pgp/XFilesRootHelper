@@ -271,6 +271,7 @@ class CDecoder:
   Byte _dictSizeLog;
   bool _tableWasFilled;
   bool _isSolid;
+  bool _solidAllowed;
   bool _wasInit;
 
   UInt32 _reps[kNumReps];

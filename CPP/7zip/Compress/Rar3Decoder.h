@@ -191,7 +191,9 @@ class CDecoder:
   CRecordVector<CTempFilter *>  _tempFilters;
   UInt32 _lastFilter;
 
-  bool m_IsSolid;
+  bool _isSolid;
+  bool _solidAllowed;
+  bool _errorMode;
 
   bool _lzMode;
   bool _unsupportedFilter;
@@ -200,6 +202,7 @@ class CDecoder:
   UInt32 PrevAlignCount;
 
   bool TablesRead;
+  bool TablesOK;
 
   CPpmd7 _ppmd;
   int PpmEscChar;
