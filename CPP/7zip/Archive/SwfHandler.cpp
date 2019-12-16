@@ -167,7 +167,7 @@ class CHandler:
 public:
   CHandler(): _lzmaMode(false) {}
   MY_UNKNOWN_IMP4(IInArchive, IArchiveOpenSeq, IOutArchive, ISetProperties)
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
   INTERFACE_IOutArchive(;)
   STDMETHOD(OpenSeq)(ISequentialInStream *stream);
   STDMETHOD(SetProperties)(const wchar_t * const *names, const PROPVARIANT *values, UInt32 numProps);
@@ -612,7 +612,7 @@ class CHandler:
   HRESULT OpenSeq2(ISequentialInStream *stream, IArchiveOpenCallback *callback);
 public:
   MY_UNKNOWN_IMP2(IInArchive, IArchiveOpenSeq)
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
 
   STDMETHOD(OpenSeq)(ISequentialInStream *stream);
 };

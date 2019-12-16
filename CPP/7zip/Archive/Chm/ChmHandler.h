@@ -19,7 +19,7 @@ class CHandler:
 public:
   MY_UNKNOWN_IMP1(IInArchive)
 
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
 
   bool _help2;
   CHandler(bool help2): _help2(help2) {}

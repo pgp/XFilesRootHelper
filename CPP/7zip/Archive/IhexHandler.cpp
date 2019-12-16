@@ -40,7 +40,7 @@ class CHandler:
   CObjectVector<CBlock> _blocks;
 public:
   MY_UNKNOWN_IMP1(IInArchive)
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
 };
 
 static const Byte kProps[] =

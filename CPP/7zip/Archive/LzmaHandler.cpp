@@ -200,7 +200,7 @@ class CHandler:
 public:
   MY_UNKNOWN_IMP2(IInArchive, IArchiveOpenSeq)
 
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
   STDMETHOD(OpenSeq)(ISequentialInStream *stream);
 
   CHandler(bool lzma86) { _lzma86 = lzma86; }

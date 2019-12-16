@@ -106,7 +106,7 @@ public:
   MY_QUERYINTERFACE_END
   MY_ADDREF_RELEASE
   
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
 
   DECL_ISetCompressCodecsInfo
 };

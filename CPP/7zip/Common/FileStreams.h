@@ -95,13 +95,13 @@ public:
   MY_QUERYINTERFACE_END
   MY_ADDREF_RELEASE
 
-  STDMETHOD(Read)(void *data, UInt32 size, UInt32 *processedSize) override;
-  STDMETHOD(Seek)(Int64 offset, UInt32 seekOrigin, UInt64 *newPosition) override;
+  STDMETHOD(Read)(void *data, UInt32 size, UInt32 *processedSize);
+  STDMETHOD(Seek)(Int64 offset, UInt32 seekOrigin, UInt64 *newPosition);
 
-  STDMETHOD(GetSize)(UInt64 *size) override;
+  STDMETHOD(GetSize)(UInt64 *size);
   #if 0 // #ifdef USE_WIN_FILE
-  STDMETHOD(GetProps)(UInt64 *size, FILETIME *cTime, FILETIME *aTime, FILETIME *mTime, UInt32 *attrib) override;
-  STDMETHOD(GetProps2)(CStreamFileProps *props) override;
+  STDMETHOD(GetProps)(UInt64 *size, FILETIME *cTime, FILETIME *aTime, FILETIME *mTime, UInt32 *attrib);
+  STDMETHOD(GetProps2)(CStreamFileProps *props);
   #endif
 };
 
@@ -139,8 +139,8 @@ class CStdInFileStream:
 public:
   MY_UNKNOWN_IMP
 
-  virtual ~CStdInFileStream() = default;
-  STDMETHOD(Read)(void *data, UInt32 size, UInt32 *processedSize) override;
+  virtual ~CStdInFileStream() {}
+  STDMETHOD(Read)(void *data, UInt32 size, UInt32 *processedSize);
 };
 
 class COutFileStream:
@@ -180,9 +180,9 @@ public:
 
   MY_UNKNOWN_IMP1(IOutStream)
 
-  STDMETHOD(Write)(const void *data, UInt32 size, UInt32 *processedSize) override;
-  STDMETHOD(Seek)(Int64 offset, UInt32 seekOrigin, UInt64 *newPosition) override;
-  STDMETHOD(SetSize)(UInt64 newSize) override;
+  STDMETHOD(Write)(const void *data, UInt32 size, UInt32 *processedSize);
+  STDMETHOD(Seek)(Int64 offset, UInt32 seekOrigin, UInt64 *newPosition);
+  STDMETHOD(SetSize)(UInt64 newSize);
 
   HRESULT GetSize(UInt64 *size);
 };
@@ -198,7 +198,7 @@ public:
   UInt64 GetSize() const { return _size; }
   CStdOutFileStream(): _size(0) {}
   virtual ~CStdOutFileStream() {}
-  STDMETHOD(Write)(const void *data, UInt32 size, UInt32 *processedSize) override;
+  STDMETHOD(Write)(const void *data, UInt32 size, UInt32 *processedSize);
 };
 
 #endif

@@ -122,7 +122,7 @@ public:
   MY_QUERYINTERFACE_END
   MY_ADDREF_RELEASE
 
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
   STDMETHOD(OpenSeq)(ISequentialInStream *stream);
 
   #ifndef EXTRACT_ONLY

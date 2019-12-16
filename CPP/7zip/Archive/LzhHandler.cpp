@@ -462,7 +462,7 @@ class CHandler:
   bool _isArc;
 public:
   MY_UNKNOWN_IMP1(IInArchive)
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
   CHandler();
 };
 

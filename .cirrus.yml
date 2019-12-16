@@ -34,6 +34,7 @@ osx_task:
 windows_task:
   windows_container:
     image: cirrusci/windowsservercore:2019
+    memory: 8G
     os_version: 2019
   env:
     CIRRUS_CLONE_DEPTH: 1

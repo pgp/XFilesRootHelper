@@ -740,7 +740,7 @@ public:
   CHandler(): _allowTail(false) {}
 
   MY_UNKNOWN_IMP3(IInArchive, IInArchiveGetStream, IArchiveAllowTail)
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
   STDMETHOD(GetStream)(UInt32 index, ISequentialInStream **stream);
   STDMETHOD(AllowTail)(Int32 allowTail);
 };
@@ -2823,7 +2823,7 @@ class CHandler:
   HRESULT Open2(IInStream *stream);
 public:
   MY_UNKNOWN_IMP3(IInArchive, IInArchiveGetStream, IArchiveAllowTail)
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
   STDMETHOD(GetStream)(UInt32 index, ISequentialInStream **stream);
   STDMETHOD(AllowTail)(Int32 allowTail);
   CHandler(): _allowTail(false) {}

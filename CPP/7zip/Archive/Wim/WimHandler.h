@@ -90,7 +90,7 @@ public:
       IArchiveKeepModeForNextOpen,
       ISetProperties,
       IOutArchive)
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
   INTERFACE_IArchiveGetRawProps(;)
   INTERFACE_IArchiveGetRootProps(;)
   STDMETHOD(SetProperties)(const wchar_t * const *names, const PROPVARIANT *values, UInt32 numProps);

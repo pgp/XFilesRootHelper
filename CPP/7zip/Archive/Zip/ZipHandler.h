@@ -30,7 +30,7 @@ public:
   MY_QUERYINTERFACE_END
   MY_ADDREF_RELEASE
 
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
   INTERFACE_IOutArchive(;)
 
   STDMETHOD(SetProperties)(const wchar_t * const *names, const PROPVARIANT *values, UInt32 numProps);

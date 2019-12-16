@@ -224,7 +224,7 @@ public:
   CHandler(): _data(0) {}
   ~CHandler() { Free(); }
   MY_UNKNOWN_IMP2(IInArchive, IInArchiveGetStream)
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
   STDMETHOD(GetStream)(UInt32 index, ISequentialInStream **stream);
   HRESULT ReadBlock(UInt64 blockIndex, Byte *dest, size_t blockSize);
 };

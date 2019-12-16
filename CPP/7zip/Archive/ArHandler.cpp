@@ -300,7 +300,7 @@ class CHandler:
   HRESULT ParseLibSymbols(IInStream *stream, unsigned fileIndex);
 public:
   MY_UNKNOWN_IMP2(IInArchive, IInArchiveGetStream)
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
   STDMETHOD(GetStream)(UInt32 index, ISequentialInStream **stream);
 };
 

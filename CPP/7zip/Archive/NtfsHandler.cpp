@@ -2055,7 +2055,7 @@ public:
       IArchiveGetRawProps,
       IInArchiveGetStream,
       ISetProperties)
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
   INTERFACE_IArchiveGetRawProps(;)
   STDMETHOD(GetStream)(UInt32 index, ISequentialInStream **stream);
   STDMETHOD(SetProperties)(const wchar_t * const *names, const PROPVARIANT *values, UInt32 numProps);

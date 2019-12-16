@@ -63,7 +63,7 @@ public:
     IOutArchive
   )
 
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
   INTERFACE_IOutArchive(;)
   STDMETHOD(OpenSeq)(ISequentialInStream *stream);
   STDMETHOD(GetStream)(UInt32 index, ISequentialInStream **stream);

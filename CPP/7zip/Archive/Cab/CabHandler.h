@@ -19,7 +19,7 @@ class CHandler:
 public:
   MY_UNKNOWN_IMP1(IInArchive)
 
-  INTERFACE_IInArchive(override ;)
+  INTERFACE_IInArchive(;)
 
 private:
   CMvDatabaseEx m_Database;
