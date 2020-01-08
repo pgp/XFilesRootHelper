@@ -5,8 +5,6 @@
 #ifndef WINDIRITERATOR_H
 #define WINDIRITERATOR_H
 
-#include "../common_win.h"
-#include <string>
 #include "IdirIterator.h"
 
 class windirIterator: public IDirIterator<std::wstring> {
@@ -16,13 +14,6 @@ private:
     std::stack<std::wstring> S;
     std::stack<std::wstring>* NamesOnly; // auxiliary stack with same ordering of S, where filenames are pushed only where in NAME mode
     size_t rootLen;
-
-    // FIXME duplicated from Utils.h
-    int existsIsFileIsDir_(const std::wstring& filepath) {
-        DWORD attrs = GetFileAttributesW(filepath.c_str());
-        if (attrs == INVALID_FILE_ATTRIBUTES) return 0;
-        return (attrs & FILE_ATTRIBUTE_DIRECTORY)?2:1;
-    }
 
     std::wstring getParentDir(std::wstring child) {
         if (((child[0] >= L'A' && child[0] <= L'Z') || (child[0] >= L'a' && child[0] <= L'z')) && child[1]==L':') return L"";
@@ -43,25 +34,56 @@ private:
             return false;
         }
 
-        do {
-            //Find first file will always return "."
-            //    and ".." as the first two directories.
-            if(wcscmp(fdFile.cFileName, L".") != 0
-               && wcscmp(fdFile.cFileName, L"..") != 0) {
-                //Build up our file path using the passed in
-                //  [dir] and the file/foldername we just found:
+        if(sortCurrentLevelByName) {
+            // sort current listing and add the sorted array to the stack(s); used by directory hashing
+            std::vector<std::pair<std::wstring,std::wstring>> currentLevel;
+            do {
+                //Find first file will always return "."
+                //    and ".." as the first two directories.
+                if(wcscmp(fdFile.cFileName, L".") != 0
+                   && wcscmp(fdFile.cFileName, L"..") != 0) {
+                    //Build up our file path using the passed in
+                    //  [dir] and the file/foldername we just found:
 
-                std::wstring currentFilePath = dir + L"\\" + fdFile.cFileName;
-                std::wstring currentFileName = fdFile.cFileName;
+                    std::wstring currentFilePath = dir + L"\\" + fdFile.cFileName;
+                    std::wstring currentFileName = fdFile.cFileName;
 
-                // Plain, no recursion
-                std::wcout<<L"Current file path: "<<currentFilePath<<L"\tCurrent filename: "<<currentFileName<<std::endl;
+                    // Plain, no recursion
+                    std::wcout<<L"Current file path: "<<currentFilePath<<L"\tCurrent filename: "<<currentFileName<<std::endl;
 
-                S.push(currentFilePath);
-                if (provideFilenames) NamesOnly->push(currentFileName);
+                    currentLevel.emplace_back(currentFilePath,currentFileName);
+                    // S.push(currentFilePath);
+                    // if (provideFilenames) NamesOnly->push(currentFileName);
+                }
+            }
+            while(FindNextFileW(hFind, &fdFile)); //Find the next file.
+            std::sort(currentLevel.begin(),currentLevel.end(),IDirIterator::defaultPairComparator);
+            for(auto& pair: currentLevel) {
+                S.push(pair.first);
+                if(provideFilenames) NamesOnly->push(pair.second);
             }
         }
-        while(FindNextFileW(hFind, &fdFile)); //Find the next file.
+        else {
+            do {
+                //Find first file will always return "."
+                //    and ".." as the first two directories.
+                if(wcscmp(fdFile.cFileName, L".") != 0
+                   && wcscmp(fdFile.cFileName, L"..") != 0) {
+                    //Build up our file path using the passed in
+                    //  [dir] and the file/foldername we just found:
+
+                    std::wstring currentFilePath = dir + L"\\" + fdFile.cFileName;
+                    std::wstring currentFileName = fdFile.cFileName;
+
+                    // Plain, no recursion
+                    std::wcout<<L"Current file path: "<<currentFilePath<<L"\tCurrent filename: "<<currentFileName<<std::endl;
+
+                    S.push(currentFilePath);
+                    if (provideFilenames) NamesOnly->push(currentFileName);
+                }
+            }
+            while(FindNextFileW(hFind, &fdFile)); //Find the next file.
+        }
 
         FindClose(hFind); //Always, Always, clean things up!
         return true;
@@ -71,8 +93,9 @@ public:
     windirIterator(std::wstring& dir_,
                    IterationMode mode_,
                    bool provideFilenames_ = true,
-                   ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS) :
-            IDirIterator(dir_,mode_,provideFilenames_,recursiveListing_) { // TODO discriminate between RECURSIVE and RECURSIVE_FOLLOW_SYMLINKS
+                   ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS,
+                   bool sortCurrentLevelByName_ = false) :
+            IDirIterator(dir_,mode_,provideFilenames_,recursiveListing_,sortCurrentLevelByName_) { // TODO discriminate between RECURSIVE and RECURSIVE_FOLLOW_SYMLINKS
 
         if(provideFilenames) NamesOnly = new std::stack<std::wstring>();
 
@@ -85,7 +108,7 @@ public:
         std::wstring parentDir;
         switch (mode) {
             case RELATIVE_INCL_BASE:
-                parentDir = getParentDir(dir); // TODO implement for windows
+                parentDir = getParentDir(dir);
                 // std::cout<<"parent dir is "<<parentDir<<std::endl;
                 rootLen = parentDir.length() + 1;
                 break;
@@ -102,7 +125,7 @@ public:
                 return;
         }
 
-        if (!listOnStack(dir_)) error = GetLastError();
+        if (!listOnStack(dir)) error = GetLastError();
     }
 
     ~windirIterator() {
@@ -119,8 +142,8 @@ public:
             NamesOnly->pop();
         }
 
-        int efd = existsIsFileIsDir_(current);
-        if (efd == 2 && (recursiveListing == RECURSIVE_FOLLOW_SYMLINKS || recursiveListing == RECURSIVE)) {
+        char efd = IDirIterator::efdL(current);
+        if (efd == 'd' && (recursiveListing == RECURSIVE_FOLLOW_SYMLINKS || recursiveListing == RECURSIVE)) {
             // folder
             listOnStack(current); // TODO bool check
         }
@@ -151,8 +174,9 @@ class windirIteratorFactory {
 public:
     windirIterator createIterator(std::wstring dir_,IterationMode mode_,
                                   bool provideFilenames_ = true,
-                                  ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS) {
-        return {dir_,mode_,provideFilenames_,recursiveListing_};
+                                  ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS,
+                                  bool sortCurrentLevelByName_ = false) {
+        return {dir_,mode_,provideFilenames_,recursiveListing_,sortCurrentLevelByName_};
     }
 };
 

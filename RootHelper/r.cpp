@@ -1566,7 +1566,7 @@ void client_hash(IDescriptor& cl, IDescriptor& rcl, request_type rqByteWithFlags
 	uint8_t algorithm;
 	cl.readAllOrExit(&algorithm, sizeof(uint8_t));
 	PRINTUNIFIED("received algorithm hash position is:\t%u\n", algorithm);
-	if (algorithm == 0 || algorithm >= rh_hash_maxAlgoIndex) {
+	if (algorithm >= rh_hash_maxAlgoIndex) {
 		sendErrorResponse(cl);
 		return;
 	}

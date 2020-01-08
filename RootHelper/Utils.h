@@ -1239,15 +1239,15 @@ void hashFile(IDescriptor& inOutDesc) {
     uint8_t algorithm;
     inOutDesc.readAllOrExit(&algorithm, sizeof(uint8_t));
     PRINTUNIFIED("received algorithm hash position is:\t%u\n", algorithm);
-    if (algorithm == 0 || algorithm >= rh_hash_maxAlgoIndex) {
+    if (algorithm >= rh_hash_maxAlgoIndex) {
         sendErrorResponse(inOutDesc);
         return;
     }
 
-    auto filepath = FROMUNIXPATH(readStringWithLen(inOutDesc));
+    auto&& filepath = FROMUNIXPATH(readStringWithLen(inOutDesc));
     // PRINTUNIFIED("received filepath to hash is:\t%s\n", filepath.c_str());
 
-    std::vector<uint8_t> digest = rh_computeHash(filepath, rh_hashLabels[algorithm]);
+    std::vector<uint8_t> digest = rh_computeHash_wrapper(filepath, rh_hashLabels[algorithm]);
 
     if (digest.empty()) {
         PRINTUNIFIEDERROR("Size is 0");
@@ -1418,7 +1418,7 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
 	uint8_t creationStrategy;
 	uint64_t filesize;
 
-	auto filepath = FROMUNIXPATH(readStringWithLen(inOutDesc));
+	auto&& filepath = FROMUNIXPATH(readStringWithLen(inOutDesc));
 
 	// read mode (mode_t) - 4 bytes
 	inOutDesc.readAllOrExit(&mode, sizeof(int32_t));

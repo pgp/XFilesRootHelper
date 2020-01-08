@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <sstream>
 #include <stack>
+#include <algorithm>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -24,23 +25,6 @@ private:
     std::string getParentDir(const std::string& child) {
         size_t last = child.find_last_of('/');
         return child.substr(0, last);
-    }
-
-    // 0: not exists or access error
-    // 1: existing file
-    // 'd': existing directory
-    // 'L': existing symlink to existing directory
-    char efdL(const std::string& filepath) {
-        struct stat st{};
-        if (lstat(filepath.c_str(), &st) < 0) return 0; // non-existing or non-accessible
-        if (S_ISLNK(st.st_mode)) {
-			memset(&st,0,sizeof(struct stat));
-			if (stat(filepath.c_str(), &st) < 0) return 0;
-			if (S_ISDIR(st.st_mode)) return 'L'; // symlink to directory
-			return 1; // symlink to file
-		}
-		else if (S_ISDIR(st.st_mode)) return 'd'; // actual directory
-        else return 1;
     }
     
     /* 
@@ -91,12 +75,49 @@ private:
 		else return false;
 	}
 
+	void listOnStack(DIR* Cdir_, const std::string& current) {
+        struct dirent *d;
+        if(sortCurrentLevelByName) {
+            // sort current listing and add the sorted array to the stack(s); used by directory hashing
+            std::vector<std::pair<std::string,std::string>> currentLevel;
+            while ((d = readdir(Cdir_)) != nullptr) {
+                // exclude current (.) and parent (..) directory
+                if (strcmp(d->d_name, ".") == 0 || strcmp(d->d_name, "..") == 0)
+                    continue;
+                std::stringstream ss;
+                ss<<current<<"/"<<d->d_name; // path concat
+                auto cItem_ = ss.str();
+                currentLevel.emplace_back(ss.str(),std::string(d->d_name));
+            }
+            std::sort(currentLevel.begin(),currentLevel.end(),IDirIterator::defaultPairComparator);
+            for(auto& pair: currentLevel) {
+                S.push(pair.first);
+                if(provideFilenames) NamesOnly->push(pair.second);
+            }
+        }
+        else {
+            while ((d = readdir(Cdir_)) != nullptr) {
+                // exclude current (.) and parent (..) directory
+                if (strcmp(d->d_name, ".") == 0 || strcmp(d->d_name, "..") == 0)
+                    continue;
+                std::stringstream ss;
+                ss<<current<<"/"<<d->d_name; // path concat
+                // PRINTUNIFIED("+ adding to stack: %s\n",ss.str().c_str());
+                S.push(ss.str());
+                if (provideFilenames) NamesOnly->push(std::string(d->d_name));
+            }
+        }
+
+        closedir(Cdir_);
+	}
+
 public:
     readdirIterator(std::string& dir_,
                     IterationMode mode_,
                     bool provideFilenames_ = true,
-                    ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS) :
-            IDirIterator(dir_,mode_,provideFilenames_,recursiveListing_) {
+                    ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS,
+                    bool sortCurrentLevelByName_ = false) :
+            IDirIterator(dir_,mode_,provideFilenames_,recursiveListing_,sortCurrentLevelByName_) {
 
         if(provideFilenames) NamesOnly = new std::stack<std::string>();
 
@@ -126,7 +147,6 @@ public:
                 return;
         }
 
-        struct dirent *d;
         auto dx = dir.c_str();
         errno = 0;
         DIR *Cdir_ = opendir(dx);
@@ -135,19 +155,8 @@ public:
 			error = errno;
 			return;
 		}
-        
-        while ((d = readdir(Cdir_)) != nullptr) {
-            // exclude current (.) and parent (..) directory
-            if (strcmp(d->d_name, ".") == 0 || strcmp(d->d_name, "..") == 0)
-                continue;
-            std::stringstream ss;
-            ss<<dir<<"/"<<d->d_name; // path concat
-            // PRINTUNIFIED("+ adding to stack: %s\n",ss.str().c_str());
-            auto cItem_ = ss.str();
-            S.push(cItem_);
-            if (provideFilenames) NamesOnly->push(std::string(d->d_name));
-        }
-        closedir(Cdir_);
+
+        listOnStack(Cdir_,dir);
     }
 
     ~readdirIterator() {
@@ -164,32 +173,20 @@ public:
             NamesOnly->pop();
         }
         
-        char efd = efdL(current);
+        char efd = IDirIterator::efdL(current);
+        currentEfd = efd;
         //~ if (efd == 2 && recursiveListing) { // LEGACY, always solves symlinks
         if ((recursiveListing == RECURSIVE_FOLLOW_SYMLINKS && (efd == 'd' || efd == 'L')) || 
 			(recursiveListing == RECURSIVE && efd == 'd') || 
 			(recursiveListing == SMART_SYMLINK_RESOLUTION && (efd == 'd' || efd == 'L') && smartVisitSymlink(current,efd))) {
             // folder
-            struct dirent *d;
             errno = 0;
             DIR *dir_ = opendir(current.c_str());
             if (dir_ == nullptr) {
 				int err___ = errno;
 				PRINTUNIFIEDERROR("Error opening dir %s for listing, content won't be available during iteration, errno is %d\n",current.c_str(),err___);
 			}
-			else {
-            while ((d = readdir(dir_)) != nullptr) {
-                // exclude current (.) and parent (..) directory
-                if (strcmp(d->d_name, ".") == 0 || strcmp(d->d_name, "..") == 0)
-                    continue;
-                std::stringstream ss;
-                ss<<current<<"/"<<d->d_name; // path concat
-                // PRINTUNIFIED("+ adding to stack: %s\n",ss.str().c_str());
-                S.push(ss.str());
-                if (provideFilenames) NamesOnly->push(std::string(d->d_name));
-            }
-            closedir(dir_);
-			}
+            else listOnStack(dir_,current);
         }
         
         switch (mode) {
@@ -211,8 +208,9 @@ public:
     readdirIterator createIterator(std::string dir_,
                                    IterationMode mode_,
                                    bool provideFilenames_ = true,
-                                   ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS) {
-        return {dir_,mode_,provideFilenames_,recursiveListing_};
+                                   ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS,
+                                   bool sortCurrentLevelByName_ = false) {
+        return {dir_,mode_,provideFilenames_,recursiveListing_,sortCurrentLevelByName_};
     }
 };
 

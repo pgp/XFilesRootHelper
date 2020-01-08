@@ -3,15 +3,18 @@
 
 #include "botan_all.h"
 #include "desc/FileDescriptorFactory.h"
+#include "diriterator/IdirIterator.h"
 
 #define HASH_BLOCK_SIZE 1048576
 
 const std::vector<uint8_t> rh_emptyHash;
 
 template<typename STR>
-std::vector<uint8_t> rh_computeHash(const STR& filePath, const std::string& algo) {
+std::vector<uint8_t> rh_computeHash(const STR& filePath, const std::string& algo, std::shared_ptr<Botan::HashFunction> hash1 = nullptr) {
 
-	std::unique_ptr<Botan::HashFunction> hash1(Botan::HashFunction::create(algo));
+    bool externalState = !!hash1;
+    if(!externalState)
+        hash1 = Botan::HashFunction::create(algo);
 	auto&& fd = fdfactory.create(filePath,"rb");
 
 //	PRINTUNIFIEDERROR("@@@filepath is:\t%s\n", filePath.c_str());
@@ -38,41 +41,79 @@ std::vector<uint8_t> rh_computeHash(const STR& filePath, const std::string& algo
 		}
 		hash1->update(&buffer[0],readBytes);
 	}
-	auto result = hash1->final(); // botan secure vector
-	fd.close();
-	return std::vector<uint8_t>(result.data(),result.data()+result.size());
+    fd.close();
+	if(!externalState) {
+        auto result = hash1->final(); // botan secure vector
+        return std::vector<uint8_t>(result.data(),result.data()+result.size());
+    }
+	else return {}; // just ignore return value and release state for caller to use it in subsequent invocations
 }
-    
-    // Botan-compatible labels
-	const std::vector<std::string> rh_hashLabels {
-		"CRC32",
-		"MD5",
-		"SHA-1",
-		"SHA-256",
-		"SHA-384",
-		"SHA-512",
-		"SHA-3(224)",
-		"SHA-3(256)",
-		"SHA-3(384)",
-		"SHA-3(512)",
-		"Blake2b(256)"
-	};
-	
-	// only needed for remote hash computation
-	const std::vector<size_t> rh_hashSizes {
-		4,
-		16,
-		20,
-		32,
-		48,
-		64,
-		28,
-		32,
-		48,
-		64,
-		32
-	};
-	
-	const size_t rh_hash_maxAlgoIndex = rh_hashLabels.size();
+
+template<typename STR>
+std::vector<uint8_t> rh_computeHash_dir(
+        const STR& filePath,
+        const std::string& algo,
+        bool withNames = false,
+        bool ignoreThumbsFiles = true,
+        bool ignoreUnixHiddenFiles = true, // filenames starting with '.'
+        bool ignoreEmptyDirs = true // parameter used only if withNames is true
+        ) {
+    const std::string thumbsnames[] = {"Thumbs.db", ".DS_Store"};
+
+    std::shared_ptr<Botan::HashFunction> dirHasher(Botan::HashFunction::create(algo));
+    auto&& it = itf.createIterator(filePath,FULL,true,RECURSIVE,true); // enforce dir ordering on every listing during DFS
+    if(it) {
+        while(it.next()) {
+            if(it.currentEfd == 1) {
+                rh_computeHash(it.getCurrent(),algo,dirHasher);
+                PRINTUNIFIEDERROR("current shared_ptr count: %d\n",dirHasher.use_count()); // TODO check, should be constant, NOT increasing
+            }
+        }
+        auto result = dirHasher->final();
+        return std::vector<uint8_t>(result.data(),result.data()+result.size());
+    }
+    else return rh_emptyHash;
+}
+
+template<typename STR>
+std::vector<uint8_t> rh_computeHash_wrapper(
+        const STR& path,
+        const std::string& algo) {
+    // TODO in IDirIterator::efdL, add logic for WIN32
+    auto efd = IDirIterator<STR>::efdL(path);
+    return (efd == 'd' || efd == 'L')?rh_computeHash_dir(path,algo):rh_computeHash(path,algo);
+}
+
+// Botan-compatible labels
+const std::vector<std::string> rh_hashLabels {
+        "CRC32",
+        "MD5",
+        "SHA-1",
+        "SHA-256",
+        "SHA-384",
+        "SHA-512",
+        "SHA-3(224)",
+        "SHA-3(256)",
+        "SHA-3(384)",
+        "SHA-3(512)",
+        "Blake2b(256)"
+};
+
+// only needed for remote hash computation
+constexpr size_t rh_hashSizes[] {
+        4,
+        16,
+        20,
+        32,
+        48,
+        64,
+        28,
+        32,
+        48,
+        64,
+        32
+};
+
+constexpr size_t rh_hash_maxAlgoIndex = sizeof(rh_hashSizes)/sizeof(size_t);
 
 #endif /* RH_HASHER_H */
