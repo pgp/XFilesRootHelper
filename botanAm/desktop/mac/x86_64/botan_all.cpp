@@ -1,5 +1,5 @@
 /*
-* Botan 2.11.0 Amalgamation
+* Botan 2.13.0 Amalgamation
 * (C) 1999-2018 The Botan Authors
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -137,6 +137,7 @@ std::unique_ptr<AEAD_Mode> AEAD_Mode::create(const std::string& algo,
                                              Cipher_Dir dir,
                                              const std::string& provider)
    {
+   BOTAN_UNUSED(provider);
 #if defined(BOTAN_HAS_AEAD_CHACHA20_POLY1305)
    if(algo == "ChaCha20Poly1305")
       {
@@ -676,6 +677,20 @@ size_t aes_parallelism()
       }
 #endif
 
+#if defined(BOTAN_HAS_AES_POWER8)
+   if(CPUID::has_power_crypto())
+      {
+      return 4;
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_ARMV8)
+   if(CPUID::has_arm_aes())
+      {
+      return 4;
+      }
+#endif
+
    return 1;
    }
 
@@ -688,15 +703,8 @@ const char* aes_provider()
       }
 #endif
 
-#if defined(BOTAN_HAS_AES_SSSE3)
-   if(CPUID::has_ssse3())
-      {
-      return "ssse3";
-      }
-#endif
-
 #if defined(BOTAN_HAS_AES_POWER8)
-   if(CPUID::has_ppc_crypto())
+   if(CPUID::has_power_crypto())
       {
       return "power8";
       }
@@ -706,6 +714,13 @@ const char* aes_provider()
    if(CPUID::has_arm_aes())
       {
       return "armv8";
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_VPERM)
+   if(CPUID::has_vperm())
+      {
+      return "vperm";
       }
 #endif
 
@@ -733,13 +748,6 @@ void AES_128::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
       }
 #endif
 
-#if defined(BOTAN_HAS_AES_SSSE3)
-   if(CPUID::has_ssse3())
-      {
-      return ssse3_encrypt_n(in, out, blocks);
-      }
-#endif
-
 #if defined(BOTAN_HAS_AES_ARMV8)
    if(CPUID::has_arm_aes())
       {
@@ -748,9 +756,16 @@ void AES_128::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
 #endif
 
 #if defined(BOTAN_HAS_AES_POWER8)
-   if(CPUID::has_ppc_crypto())
+   if(CPUID::has_power_crypto())
       {
       return power8_encrypt_n(in, out, blocks);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_VPERM)
+   if(CPUID::has_vperm())
+      {
+      return vperm_encrypt_n(in, out, blocks);
       }
 #endif
 
@@ -768,13 +783,6 @@ void AES_128::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
       }
 #endif
 
-#if defined(BOTAN_HAS_AES_SSSE3)
-   if(CPUID::has_ssse3())
-      {
-      return ssse3_decrypt_n(in, out, blocks);
-      }
-#endif
-
 #if defined(BOTAN_HAS_AES_ARMV8)
    if(CPUID::has_arm_aes())
       {
@@ -783,9 +791,16 @@ void AES_128::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
 #endif
 
 #if defined(BOTAN_HAS_AES_POWER8)
-   if(CPUID::has_ppc_crypto())
+   if(CPUID::has_power_crypto())
       {
       return power8_decrypt_n(in, out, blocks);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_VPERM)
+   if(CPUID::has_vperm())
+      {
+      return vperm_decrypt_n(in, out, blocks);
       }
 #endif
 
@@ -801,10 +816,24 @@ void AES_128::key_schedule(const uint8_t key[], size_t length)
       }
 #endif
 
-#if defined(BOTAN_HAS_AES_SSSE3)
-   if(CPUID::has_ssse3())
+#if defined(BOTAN_HAS_AES_ARMV8)
+   if(CPUID::has_arm_aes())
       {
-      return ssse3_key_schedule(key, length);
+      return aes_key_schedule(key, length, m_EK, m_DK, m_ME, m_MD);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_POWER8)
+   if(CPUID::has_power_crypto())
+      {
+      return aes_key_schedule(key, length, m_EK, m_DK, m_ME, m_MD);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_VPERM)
+   if(CPUID::has_vperm())
+      {
+      return vperm_key_schedule(key, length);
       }
 #endif
 
@@ -830,13 +859,6 @@ void AES_192::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
       }
 #endif
 
-#if defined(BOTAN_HAS_AES_SSSE3)
-   if(CPUID::has_ssse3())
-      {
-      return ssse3_encrypt_n(in, out, blocks);
-      }
-#endif
-
 #if defined(BOTAN_HAS_AES_ARMV8)
    if(CPUID::has_arm_aes())
       {
@@ -845,9 +867,16 @@ void AES_192::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
 #endif
 
 #if defined(BOTAN_HAS_AES_POWER8)
-   if(CPUID::has_ppc_crypto())
+   if(CPUID::has_power_crypto())
       {
       return power8_encrypt_n(in, out, blocks);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_VPERM)
+   if(CPUID::has_vperm())
+      {
+      return vperm_encrypt_n(in, out, blocks);
       }
 #endif
 
@@ -865,13 +894,6 @@ void AES_192::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
       }
 #endif
 
-#if defined(BOTAN_HAS_AES_SSSE3)
-   if(CPUID::has_ssse3())
-      {
-      return ssse3_decrypt_n(in, out, blocks);
-      }
-#endif
-
 #if defined(BOTAN_HAS_AES_ARMV8)
    if(CPUID::has_arm_aes())
       {
@@ -880,9 +902,16 @@ void AES_192::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
 #endif
 
 #if defined(BOTAN_HAS_AES_POWER8)
-   if(CPUID::has_ppc_crypto())
+   if(CPUID::has_power_crypto())
       {
       return power8_decrypt_n(in, out, blocks);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_VPERM)
+   if(CPUID::has_vperm())
+      {
+      return vperm_decrypt_n(in, out, blocks);
       }
 #endif
 
@@ -898,10 +927,24 @@ void AES_192::key_schedule(const uint8_t key[], size_t length)
       }
 #endif
 
-#if defined(BOTAN_HAS_AES_SSSE3)
-   if(CPUID::has_ssse3())
+#if defined(BOTAN_HAS_AES_ARMV8)
+   if(CPUID::has_arm_aes())
       {
-      return ssse3_key_schedule(key, length);
+      return aes_key_schedule(key, length, m_EK, m_DK, m_ME, m_MD);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_POWER8)
+   if(CPUID::has_power_crypto())
+      {
+      return aes_key_schedule(key, length, m_EK, m_DK, m_ME, m_MD);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_VPERM)
+   if(CPUID::has_vperm())
+      {
+      return vperm_key_schedule(key, length);
       }
 #endif
 
@@ -927,13 +970,6 @@ void AES_256::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
       }
 #endif
 
-#if defined(BOTAN_HAS_AES_SSSE3)
-   if(CPUID::has_ssse3())
-      {
-      return ssse3_encrypt_n(in, out, blocks);
-      }
-#endif
-
 #if defined(BOTAN_HAS_AES_ARMV8)
    if(CPUID::has_arm_aes())
       {
@@ -942,9 +978,16 @@ void AES_256::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
 #endif
 
 #if defined(BOTAN_HAS_AES_POWER8)
-   if(CPUID::has_ppc_crypto())
+   if(CPUID::has_power_crypto())
       {
       return power8_encrypt_n(in, out, blocks);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_VPERM)
+   if(CPUID::has_vperm())
+      {
+      return vperm_encrypt_n(in, out, blocks);
       }
 #endif
 
@@ -962,13 +1005,6 @@ void AES_256::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
       }
 #endif
 
-#if defined(BOTAN_HAS_AES_SSSE3)
-   if(CPUID::has_ssse3())
-      {
-      return ssse3_decrypt_n(in, out, blocks);
-      }
-#endif
-
 #if defined(BOTAN_HAS_AES_ARMV8)
    if(CPUID::has_arm_aes())
       {
@@ -977,9 +1013,16 @@ void AES_256::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
 #endif
 
 #if defined(BOTAN_HAS_AES_POWER8)
-   if(CPUID::has_ppc_crypto())
+   if(CPUID::has_power_crypto())
       {
       return power8_decrypt_n(in, out, blocks);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_VPERM)
+   if(CPUID::has_vperm())
+      {
+      return vperm_decrypt_n(in, out, blocks);
       }
 #endif
 
@@ -995,10 +1038,24 @@ void AES_256::key_schedule(const uint8_t key[], size_t length)
       }
 #endif
 
-#if defined(BOTAN_HAS_AES_SSSE3)
-   if(CPUID::has_ssse3())
+#if defined(BOTAN_HAS_AES_ARMV8)
+   if(CPUID::has_arm_aes())
       {
-      return ssse3_key_schedule(key, length);
+      return aes_key_schedule(key, length, m_EK, m_DK, m_ME, m_MD);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_POWER8)
+   if(CPUID::has_power_crypto())
+      {
+      return aes_key_schedule(key, length, m_EK, m_DK, m_ME, m_MD);
+      }
+#endif
+
+#if defined(BOTAN_HAS_AES_VPERM)
+   if(CPUID::has_vperm())
+      {
+      return vperm_key_schedule(key, length);
       }
 #endif
 
@@ -1793,637 +1850,626 @@ void AES_256::aesni_key_schedule(const uint8_t key[], size_t)
 
 }
 /*
-* AES using SSSE3
-* (C) 2010,2016 Jack Lloyd
+* AES using vector permutes (SSSE3, NEON)
+* (C) 2010,2016,2019 Jack Lloyd
 *
-* This is more or less a direct translation of public domain x86-64
-* assembly written by Mike Hamburg, described in "Accelerating AES
-* with Vector Permute Instructions" (CHES 2009). His original code is
-* available at https://crypto.stanford.edu/vpaes/
+* Based on public domain x86-64 assembly written by Mike Hamburg,
+* described in "Accelerating AES with Vector Permute Instructions"
+* (CHES 2009). His original code is available at
+* https://crypto.stanford.edu/vpaes/
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
-#include <tmmintrin.h>
+
+#if defined(BOTAN_SIMD_USE_SSE2)
+  #include <tmmintrin.h>
+#endif
 
 namespace Botan {
 
 namespace {
 
-const __m128i low_nibs = _mm_set1_epi8(0x0F);
+inline SIMD_4x32 BOTAN_FUNC_ISA(BOTAN_VPERM_ISA) shuffle(SIMD_4x32 a, SIMD_4x32 b)
+   {
+#if defined(BOTAN_SIMD_USE_SSE2)
+   return SIMD_4x32(_mm_shuffle_epi8(a.raw(), b.raw()));
+#elif defined(BOTAN_SIMD_USE_NEON)
+   const uint8x16_t tbl = vreinterpretq_u8_u32(a.raw());
+   const uint8x16_t idx = vreinterpretq_u8_u32(b.raw());
 
-const __m128i k_ipt1 = _mm_set_epi32(
-   0xCABAE090, 0x52227808, 0xC2B2E898, 0x5A2A7000);
-const __m128i k_ipt2 = _mm_set_epi32(
-   0xCD80B1FC, 0xB0FDCC81, 0x4C01307D, 0x317C4D00);
+#if defined(BOTAN_TARGET_ARCH_IS_ARM32)
+   const uint8x8x2_t tbl2 = { vget_low_u8(tbl), vget_high_u8(tbl) };
 
-const __m128i k_inv1 = _mm_set_epi32(
-   0x04070309, 0x0A0B0C02, 0x0E05060F, 0x0D080180);
-const __m128i k_inv2 = _mm_set_epi32(
-   0x030D0E0C, 0x02050809, 0x01040A06, 0x0F0B0780);
+   return SIMD_4x32(vreinterpretq_u32_u8(
+                       vcombine_u8(vtbl2_u8(tbl2, vget_low_u8(idx)),
+                                   vtbl2_u8(tbl2, vget_high_u8(idx)))));
 
-const __m128i sb1u = _mm_set_epi32(
-   0xA5DF7A6E, 0x142AF544, 0xB19BE18F, 0xCB503E00);
-const __m128i sb1t = _mm_set_epi32(
-   0x3BF7CCC1, 0x0D2ED9EF, 0x3618D415, 0xFAE22300);
+#else
+   return SIMD_4x32(vreinterpretq_u32_u8(vqtbl1q_u8(tbl, idx)));
+#endif
 
-const __m128i mc_forward[4] = {
-   _mm_set_epi32(0x0C0F0E0D, 0x080B0A09, 0x04070605, 0x00030201),
-   _mm_set_epi32(0x00030201, 0x0C0F0E0D, 0x080B0A09, 0x04070605),
-   _mm_set_epi32(0x04070605, 0x00030201, 0x0C0F0E0D, 0x080B0A09),
-   _mm_set_epi32(0x080B0A09, 0x04070605, 0x00030201, 0x0C0F0E0D)
+#elif defined(BOTAN_SIMD_USE_ALTIVEC)
+   __vector unsigned char bv = (__vector unsigned char)b.raw();
+
+   const auto high_bit = vec_sl(vec_sr(bv, vec_splat_u8(7)), vec_splat_u8(4));
+   bv = vec_and(bv, vec_splat_u8(0x0F));
+   bv = vec_add(bv, high_bit);
+
+   const __vector unsigned int zero = vec_splat_u32(0);
+   return SIMD_4x32(vec_perm(a.raw(), zero, bv));
+#else
+   #error "No shuffle implementation available"
+#endif
+   }
+
+inline SIMD_4x32 BOTAN_FUNC_ISA(BOTAN_VPERM_ISA) alignr8(SIMD_4x32 a, SIMD_4x32 b)
+   {
+#if defined(BOTAN_SIMD_USE_SSE2)
+   return SIMD_4x32(_mm_alignr_epi8(a.raw(), b.raw(), 8));
+#elif defined(BOTAN_SIMD_USE_NEON)
+   return SIMD_4x32(vextq_u32(b.raw(), a.raw(), 2));
+#elif defined(BOTAN_SIMD_USE_ALTIVEC)
+   const __vector unsigned char mask = {8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23};
+   return SIMD_4x32(vec_perm(b.raw(), a.raw(), mask));
+#else
+   #error "No alignr8 implementation available"
+#endif
+   }
+
+const SIMD_4x32 k_ipt1 = SIMD_4x32(0x5A2A7000, 0xC2B2E898, 0x52227808, 0xCABAE090);
+const SIMD_4x32 k_ipt2 = SIMD_4x32(0x317C4D00, 0x4C01307D, 0xB0FDCC81, 0xCD80B1FC);
+
+const SIMD_4x32 k_inv1 = SIMD_4x32(0x0D080180, 0x0E05060F, 0x0A0B0C02, 0x04070309);
+const SIMD_4x32 k_inv2 = SIMD_4x32(0x0F0B0780, 0x01040A06, 0x02050809, 0x030D0E0C);
+
+const SIMD_4x32 sb1u = SIMD_4x32(0xCB503E00, 0xB19BE18F, 0x142AF544, 0xA5DF7A6E);
+const SIMD_4x32 sb1t = SIMD_4x32(0xFAE22300, 0x3618D415, 0x0D2ED9EF, 0x3BF7CCC1);
+
+const SIMD_4x32 mc_forward[4] = {
+   SIMD_4x32(0x00030201, 0x04070605, 0x080B0A09, 0x0C0F0E0D),
+   SIMD_4x32(0x04070605, 0x080B0A09, 0x0C0F0E0D, 0x00030201),
+   SIMD_4x32(0x080B0A09, 0x0C0F0E0D, 0x00030201, 0x04070605),
+   SIMD_4x32(0x0C0F0E0D, 0x00030201, 0x04070605, 0x080B0A09)
 };
 
-const __m128i sr[4] = {
-   _mm_set_epi32(0x0F0E0D0C, 0x0B0A0908, 0x07060504, 0x03020100),
-   _mm_set_epi32(0x0B06010C, 0x07020D08, 0x030E0904, 0x0F0A0500),
-   _mm_set_epi32(0x070E050C, 0x030A0108, 0x0F060D04, 0x0B020900),
-   _mm_set_epi32(0x0306090C, 0x0F020508, 0x0B0E0104, 0x070A0D00),
+const SIMD_4x32 vperm_sr[4] = {
+   SIMD_4x32(0x03020100, 0x07060504, 0x0B0A0908, 0x0F0E0D0C),
+   SIMD_4x32(0x0F0A0500, 0x030E0904, 0x07020D08, 0x0B06010C),
+   SIMD_4x32(0x0B020900, 0x0F060D04, 0x030A0108, 0x070E050C),
+   SIMD_4x32(0x070A0D00, 0x0B0E0104, 0x0F020508, 0x0306090C),
 };
 
-#define mm_xor3(x, y, z) _mm_xor_si128(x, _mm_xor_si128(y, z))
+const SIMD_4x32 rcon[10] = {
+   SIMD_4x32(0x00000070, 0x00000000, 0x00000000, 0x00000000),
+   SIMD_4x32(0x0000002A, 0x00000000, 0x00000000, 0x00000000),
+   SIMD_4x32(0x00000098, 0x00000000, 0x00000000, 0x00000000),
+   SIMD_4x32(0x00000008, 0x00000000, 0x00000000, 0x00000000),
+   SIMD_4x32(0x0000004D, 0x00000000, 0x00000000, 0x00000000),
+   SIMD_4x32(0x0000007C, 0x00000000, 0x00000000, 0x00000000),
+   SIMD_4x32(0x0000007D, 0x00000000, 0x00000000, 0x00000000),
+   SIMD_4x32(0x00000081, 0x00000000, 0x00000000, 0x00000000),
+   SIMD_4x32(0x0000001F, 0x00000000, 0x00000000, 0x00000000),
+   SIMD_4x32(0x00000083, 0x00000000, 0x00000000, 0x00000000),
+};
 
-BOTAN_FUNC_ISA("ssse3")
-__m128i aes_schedule_transform(__m128i input,
-                               __m128i table_1,
-                               __m128i table_2)
+inline SIMD_4x32 low_nibs(SIMD_4x32 x)
    {
-   __m128i i_1 = _mm_and_si128(low_nibs, input);
-   __m128i i_2 = _mm_srli_epi32(_mm_andnot_si128(low_nibs, input), 4);
-
-   return _mm_xor_si128(
-      _mm_shuffle_epi8(table_1, i_1),
-      _mm_shuffle_epi8(table_2, i_2));
+   const SIMD_4x32 lo_nibs_mask = SIMD_4x32::splat_u8(0x0F);
+   return lo_nibs_mask & x;
    }
 
-BOTAN_FUNC_ISA("ssse3")
-__m128i aes_schedule_mangle(__m128i k, uint8_t round_no)
+inline SIMD_4x32 high_nibs(SIMD_4x32 x)
    {
-   __m128i t = _mm_shuffle_epi8(_mm_xor_si128(k, _mm_set1_epi8(0x5B)),
-                                mc_forward[0]);
-
-   __m128i t2 = t;
-
-   t = _mm_shuffle_epi8(t, mc_forward[0]);
-
-   t2 = mm_xor3(t2, t, _mm_shuffle_epi8(t, mc_forward[0]));
-
-   return _mm_shuffle_epi8(t2, sr[round_no % 4]);
+   const SIMD_4x32 hi_nibs_mask = SIMD_4x32::splat_u8(0xF0);
+   return (hi_nibs_mask & x).shr<4>();
    }
 
-BOTAN_FUNC_ISA("ssse3")
-__m128i aes_schedule_192_smear(__m128i x, __m128i y)
+inline SIMD_4x32 aes_enc_first_round(SIMD_4x32 B, SIMD_4x32 K)
    {
-   return mm_xor3(y,
-                  _mm_shuffle_epi32(x, 0xFE),
-                  _mm_shuffle_epi32(y, 0x80));
+   return shuffle(k_ipt1, low_nibs(B)) ^ shuffle(k_ipt2, high_nibs(B)) ^ K;
    }
 
-BOTAN_FUNC_ISA("ssse3")
-__m128i aes_schedule_mangle_dec(__m128i k, uint8_t round_no)
+inline SIMD_4x32 aes_enc_round(SIMD_4x32 B, SIMD_4x32 K, size_t r)
    {
-   const __m128i dsk[8] = {
-      _mm_set_epi32(0x4AED9334, 0x82255BFC, 0xB6116FC8, 0x7ED9A700),
-      _mm_set_epi32(0x8BB89FAC, 0xE9DAFDCE, 0x45765162, 0x27143300),
-      _mm_set_epi32(0x4622EE8A, 0xADC90561, 0x27438FEB, 0xCCA86400),
-      _mm_set_epi32(0x73AEE13C, 0xBD602FF2, 0x815C13CE, 0x4F92DD00),
-      _mm_set_epi32(0xF83F3EF9, 0xFA3D3CFB, 0x03C4C502, 0x01C6C700),
-      _mm_set_epi32(0xA5526A9D, 0x7384BC4B, 0xEE1921D6, 0x38CFF700),
-      _mm_set_epi32(0xA080D3F3, 0x10306343, 0xE3C390B0, 0x53732000),
-      _mm_set_epi32(0x2F45AEC4, 0x8CE60D67, 0xA0CA214B, 0x036982E8)
+   const SIMD_4x32 sb2u = SIMD_4x32(0x0B712400, 0xE27A93C6, 0xBC982FCD, 0x5EB7E955);
+   const SIMD_4x32 sb2t = SIMD_4x32(0x0AE12900, 0x69EB8840, 0xAB82234A, 0xC2A163C8);
+
+   const SIMD_4x32 mc_backward[4] = {
+      SIMD_4x32(0x02010003, 0x06050407, 0x0A09080B, 0x0E0D0C0F),
+      SIMD_4x32(0x0E0D0C0F, 0x02010003, 0x06050407, 0x0A09080B),
+      SIMD_4x32(0x0A09080B, 0x0E0D0C0F, 0x02010003, 0x06050407),
+      SIMD_4x32(0x06050407, 0x0A09080B, 0x0E0D0C0F, 0x02010003),
    };
 
-   __m128i t = aes_schedule_transform(k, dsk[0], dsk[1]);
-   __m128i output = _mm_shuffle_epi8(t, mc_forward[0]);
+   const SIMD_4x32 Bh = high_nibs(B);
+   SIMD_4x32 Bl = low_nibs(B);
+   const SIMD_4x32 t2 = shuffle(k_inv2, Bl);
+   Bl ^= Bh;
 
-   t = aes_schedule_transform(t, dsk[2], dsk[3]);
-   output = _mm_shuffle_epi8(_mm_xor_si128(t, output), mc_forward[0]);
+   const SIMD_4x32 t5 = Bl ^ shuffle(k_inv1, t2 ^ shuffle(k_inv1, Bh));
+   const SIMD_4x32 t6 = Bh ^ shuffle(k_inv1, t2 ^ shuffle(k_inv1, Bl));
 
-   t = aes_schedule_transform(t, dsk[4], dsk[5]);
-   output = _mm_shuffle_epi8(_mm_xor_si128(t, output), mc_forward[0]);
+   const SIMD_4x32 t7 = shuffle(sb1t, t6) ^ shuffle(sb1u, t5) ^ K;
+   const SIMD_4x32 t8 = shuffle(sb2t, t6) ^ shuffle(sb2u, t5) ^ shuffle(t7, mc_forward[r % 4]);
 
-   t = aes_schedule_transform(t, dsk[6], dsk[7]);
-   output = _mm_shuffle_epi8(_mm_xor_si128(t, output), mc_forward[0]);
-
-   return _mm_shuffle_epi8(output, sr[round_no % 4]);
+   return shuffle(t8, mc_forward[r % 4]) ^ shuffle(t7, mc_backward[r % 4]) ^ t8;
    }
 
-BOTAN_FUNC_ISA("ssse3")
-__m128i aes_schedule_mangle_last(__m128i k, uint8_t round_no)
+inline SIMD_4x32 aes_enc_last_round(SIMD_4x32 B, SIMD_4x32 K, size_t r)
    {
-   const __m128i out_tr1 = _mm_set_epi32(
-      0xF7974121, 0xDEBE6808, 0xFF9F4929, 0xD6B66000);
-   const __m128i out_tr2 = _mm_set_epi32(
-      0xE10D5DB1, 0xB05C0CE0, 0x01EDBD51, 0x50BCEC00);
+   const SIMD_4x32 sbou = SIMD_4x32(0x6FBDC700, 0xD0D26D17, 0xC502A878, 0x15AABF7A);
+   const SIMD_4x32 sbot = SIMD_4x32(0x5FBB6A00, 0xCFE474A5, 0x412B35FA, 0x8E1E90D1);
 
-   k = _mm_shuffle_epi8(k, sr[round_no % 4]);
-   k = _mm_xor_si128(k, _mm_set1_epi8(0x5B));
-   return aes_schedule_transform(k, out_tr1, out_tr2);
+   const SIMD_4x32 Bh = high_nibs(B);
+   SIMD_4x32 Bl = low_nibs(B);
+   const SIMD_4x32 t2 = shuffle(k_inv2, Bl);
+   Bl ^= Bh;
+
+   const SIMD_4x32 t5 = Bl ^ shuffle(k_inv1, t2 ^ shuffle(k_inv1, Bh));
+   const SIMD_4x32 t6 = Bh ^ shuffle(k_inv1, t2 ^ shuffle(k_inv1, Bl));
+
+   return shuffle(shuffle(sbou, t5) ^ shuffle(sbot, t6) ^ K, vperm_sr[r % 4]);
    }
 
-BOTAN_FUNC_ISA("ssse3")
-__m128i aes_schedule_mangle_last_dec(__m128i k)
+inline SIMD_4x32 aes_dec_first_round(SIMD_4x32 B, SIMD_4x32 K)
    {
-   const __m128i deskew1 = _mm_set_epi32(
-      0x1DFEB95A, 0x5DBEF91A, 0x07E4A340, 0x47A4E300);
-   const __m128i deskew2 = _mm_set_epi32(
-      0x2841C2AB, 0xF49D1E77, 0x5F36B5DC, 0x83EA6900);
+   const SIMD_4x32 k_dipt1 = SIMD_4x32(0x0B545F00, 0x0F505B04, 0x114E451A, 0x154A411E);
+   const SIMD_4x32 k_dipt2 = SIMD_4x32(0x60056500, 0x86E383E6, 0xF491F194, 0x12771772);
 
-   k = _mm_xor_si128(k, _mm_set1_epi8(0x5B));
-   return aes_schedule_transform(k, deskew1, deskew2);
+   return shuffle(k_dipt1, low_nibs(B)) ^ shuffle(k_dipt2, high_nibs(B)) ^ K;
    }
 
-BOTAN_FUNC_ISA("ssse3")
-__m128i aes_schedule_round(__m128i* rcon, __m128i input1, __m128i input2)
+inline SIMD_4x32 aes_dec_round(SIMD_4x32 B, SIMD_4x32 K, size_t r)
    {
-   if(rcon)
-      {
-      input2 = _mm_xor_si128(_mm_alignr_epi8(_mm_setzero_si128(), *rcon, 15),
-                             input2);
+   const SIMD_4x32 sb9u = SIMD_4x32(0x9A86D600, 0x851C0353, 0x4F994CC9, 0xCAD51F50);
+   const SIMD_4x32 sb9t = SIMD_4x32(0xECD74900, 0xC03B1789, 0xB2FBA565, 0x725E2C9E);
 
-      *rcon = _mm_alignr_epi8(*rcon, *rcon, 15); // next rcon
+   const SIMD_4x32 sbeu = SIMD_4x32(0x26D4D000, 0x46F29296, 0x64B4F6B0, 0x22426004);
+   const SIMD_4x32 sbet = SIMD_4x32(0xFFAAC100, 0x0C55A6CD, 0x98593E32, 0x9467F36B);
 
-      input1 = _mm_shuffle_epi32(input1, 0xFF); // rotate
-      input1 = _mm_alignr_epi8(input1, input1, 1);
-      }
+   const SIMD_4x32 sbdu = SIMD_4x32(0xE6B1A200, 0x7D57CCDF, 0x882A4439, 0xF56E9B13);
+   const SIMD_4x32 sbdt = SIMD_4x32(0x24C6CB00, 0x3CE2FAF7, 0x15DEEFD3, 0x2931180D);
 
-   __m128i smeared = _mm_xor_si128(input2, _mm_slli_si128(input2, 4));
-   smeared = mm_xor3(smeared, _mm_slli_si128(smeared, 8), _mm_set1_epi8(0x5B));
+   const SIMD_4x32 sbbu = SIMD_4x32(0x96B44200, 0xD0226492, 0xB0F2D404, 0x602646F6);
+   const SIMD_4x32 sbbt = SIMD_4x32(0xCD596700, 0xC19498A6, 0x3255AA6B, 0xF3FF0C3E);
 
-   __m128i t = _mm_srli_epi32(_mm_andnot_si128(low_nibs, input1), 4);
-
-   input1 = _mm_and_si128(low_nibs, input1);
-
-   __m128i t2 = _mm_shuffle_epi8(k_inv2, input1);
-
-   input1 = _mm_xor_si128(input1, t);
-
-   __m128i t3 = _mm_xor_si128(t2, _mm_shuffle_epi8(k_inv1, t));
-   __m128i t4 = _mm_xor_si128(t2, _mm_shuffle_epi8(k_inv1, input1));
-
-   __m128i t5 = _mm_xor_si128(input1, _mm_shuffle_epi8(k_inv1, t3));
-   __m128i t6 = _mm_xor_si128(t, _mm_shuffle_epi8(k_inv1, t4));
-
-   return mm_xor3(_mm_shuffle_epi8(sb1u, t5),
-                  _mm_shuffle_epi8(sb1t, t6),
-                  smeared);
-   }
-
-BOTAN_FUNC_ISA("ssse3")
-__m128i aes_ssse3_encrypt(__m128i B, const __m128i* keys, size_t rounds)
-   {
-   const __m128i sb2u = _mm_set_epi32(
-      0x5EB7E955, 0xBC982FCD, 0xE27A93C6, 0x0B712400);
-   const __m128i sb2t = _mm_set_epi32(
-      0xC2A163C8, 0xAB82234A, 0x69EB8840, 0x0AE12900);
-
-   const __m128i sbou = _mm_set_epi32(
-      0x15AABF7A, 0xC502A878, 0xD0D26D17, 0x6FBDC700);
-   const __m128i sbot = _mm_set_epi32(
-      0x8E1E90D1, 0x412B35FA, 0xCFE474A5, 0x5FBB6A00);
-
-   const __m128i mc_backward[4] = {
-      _mm_set_epi32(0x0E0D0C0F, 0x0A09080B, 0x06050407, 0x02010003),
-      _mm_set_epi32(0x0A09080B, 0x06050407, 0x02010003, 0x0E0D0C0F),
-      _mm_set_epi32(0x06050407, 0x02010003, 0x0E0D0C0F, 0x0A09080B),
-      _mm_set_epi32(0x02010003, 0x0E0D0C0F, 0x0A09080B, 0x06050407),
+   const SIMD_4x32 mcx[4] = {
+      SIMD_4x32(0x0C0F0E0D, 0x00030201, 0x04070605, 0x080B0A09),
+      SIMD_4x32(0x080B0A09, 0x0C0F0E0D, 0x00030201, 0x04070605),
+      SIMD_4x32(0x04070605, 0x080B0A09, 0x0C0F0E0D, 0x00030201),
+      SIMD_4x32(0x00030201, 0x04070605, 0x080B0A09, 0x0C0F0E0D),
    };
 
-   B = mm_xor3(_mm_shuffle_epi8(k_ipt1, _mm_and_si128(low_nibs, B)),
-               _mm_shuffle_epi8(k_ipt2,
-                                _mm_srli_epi32(
-                                   _mm_andnot_si128(low_nibs, B),
-                                   4)),
-               _mm_loadu_si128(keys));
+   const SIMD_4x32 Bh = high_nibs(B);
+   B = low_nibs(B);
+   const SIMD_4x32 t2 = shuffle(k_inv2, B);
 
-   for(size_t r = 1; ; ++r)
-      {
-      const __m128i K = _mm_loadu_si128(keys + r);
+   B ^= Bh;
 
-      __m128i t = _mm_srli_epi32(_mm_andnot_si128(low_nibs, B), 4);
+   const SIMD_4x32 t5 = B ^ shuffle(k_inv1, t2 ^ shuffle(k_inv1, Bh));
+   const SIMD_4x32 t6 = Bh ^ shuffle(k_inv1, t2 ^ shuffle(k_inv1, B));
 
-      B = _mm_and_si128(low_nibs, B);
+   const SIMD_4x32 mc = mcx[(r-1)%4];
 
-      __m128i t2 = _mm_shuffle_epi8(k_inv2, B);
-
-      B = _mm_xor_si128(B, t);
-
-      __m128i t3 = _mm_xor_si128(t2, _mm_shuffle_epi8(k_inv1, t));
-      __m128i t4 = _mm_xor_si128(t2, _mm_shuffle_epi8(k_inv1, B));
-
-      __m128i t5 = _mm_xor_si128(B, _mm_shuffle_epi8(k_inv1, t3));
-      __m128i t6 = _mm_xor_si128(t, _mm_shuffle_epi8(k_inv1, t4));
-
-      if(r == rounds)
-         {
-         B = _mm_shuffle_epi8(
-            mm_xor3(_mm_shuffle_epi8(sbou, t5),
-                    _mm_shuffle_epi8(sbot, t6),
-                    K),
-            sr[r % 4]);
-
-         return B;
-         }
-
-      __m128i t7 = mm_xor3(_mm_shuffle_epi8(sb1t, t6),
-                           _mm_shuffle_epi8(sb1u, t5),
-                           K);
-
-      __m128i t8 = mm_xor3(_mm_shuffle_epi8(sb2t, t6),
-                           _mm_shuffle_epi8(sb2u, t5),
-                           _mm_shuffle_epi8(t7, mc_forward[r % 4]));
-
-      B = mm_xor3(_mm_shuffle_epi8(t8, mc_forward[r % 4]),
-                  _mm_shuffle_epi8(t7, mc_backward[r % 4]),
-                  t8);
-      }
+   const SIMD_4x32 t8 = shuffle(sb9t, t6) ^ shuffle(sb9u, t5) ^ K;
+   const SIMD_4x32 t9 = shuffle(t8, mc) ^ shuffle(sbdu, t5) ^ shuffle(sbdt, t6);
+   const SIMD_4x32 t12 = shuffle(t9, mc) ^ shuffle(sbbu, t5) ^ shuffle(sbbt, t6);
+   return shuffle(t12, mc) ^ shuffle(sbeu, t5) ^ shuffle(sbet, t6);
    }
 
-BOTAN_FUNC_ISA("ssse3")
-__m128i aes_ssse3_decrypt(__m128i B, const __m128i* keys, size_t rounds)
+inline SIMD_4x32 aes_dec_last_round(SIMD_4x32 B, SIMD_4x32 K, size_t r)
    {
-   const __m128i k_dipt1 = _mm_set_epi32(
-      0x154A411E, 0x114E451A, 0x0F505B04, 0x0B545F00);
-   const __m128i k_dipt2 = _mm_set_epi32(
-      0x12771772, 0xF491F194, 0x86E383E6, 0x60056500);
+   const SIMD_4x32 sbou = SIMD_4x32(0x7EF94000, 0x1387EA53, 0xD4943E2D, 0xC7AA6DB9);
+   const SIMD_4x32 sbot = SIMD_4x32(0x93441D00, 0x12D7560F, 0xD8C58E9C, 0xCA4B8159);
 
-   const __m128i sb9u = _mm_set_epi32(
-      0xCAD51F50, 0x4F994CC9, 0x851C0353, 0x9A86D600);
-   const __m128i sb9t = _mm_set_epi32(
-      0x725E2C9E, 0xB2FBA565, 0xC03B1789, 0xECD74900);
+   const uint32_t which_sr = ((((r - 1) << 4) ^ 48) & 48) / 16;
 
-   const __m128i sbeu = _mm_set_epi32(
-      0x22426004, 0x64B4F6B0, 0x46F29296, 0x26D4D000);
-   const __m128i sbet = _mm_set_epi32(
-      0x9467F36B, 0x98593E32, 0x0C55A6CD, 0xFFAAC100);
+   const SIMD_4x32 Bh = high_nibs(B);
+   B = low_nibs(B);
+   const SIMD_4x32 t2 = shuffle(k_inv2, B);
 
-   const __m128i sbdu = _mm_set_epi32(
-      0xF56E9B13, 0x882A4439, 0x7D57CCDF, 0xE6B1A200);
-   const __m128i sbdt = _mm_set_epi32(
-      0x2931180D, 0x15DEEFD3, 0x3CE2FAF7, 0x24C6CB00);
+   B ^= Bh;
 
-   const __m128i sbbu = _mm_set_epi32(
-      0x602646F6, 0xB0F2D404, 0xD0226492, 0x96B44200);
-   const __m128i sbbt = _mm_set_epi32(
-      0xF3FF0C3E, 0x3255AA6B, 0xC19498A6, 0xCD596700);
+   const SIMD_4x32 t5 = B ^ shuffle(k_inv1, t2 ^ shuffle(k_inv1, Bh));
+   const SIMD_4x32 t6 = Bh ^ shuffle(k_inv1, t2 ^ shuffle(k_inv1, B));
 
-   __m128i mc = mc_forward[3];
+   const SIMD_4x32 x = shuffle(sbou, t5) ^ shuffle(sbot, t6) ^ K;
+   return shuffle(x, vperm_sr[which_sr]);
+   }
 
-   __m128i t =
-      _mm_shuffle_epi8(k_dipt2,
-                       _mm_srli_epi32(
-                          _mm_andnot_si128(low_nibs, B),
-                          4));
+void vperm_encrypt_blocks(const uint8_t in[], uint8_t out[], size_t blocks,
+                          const SIMD_4x32 K[], size_t rounds)
+   {
+   CT::poison(in, blocks * 16);
 
-   B = mm_xor3(t, _mm_loadu_si128(keys),
-               _mm_shuffle_epi8(k_dipt1, _mm_and_si128(B, low_nibs)));
+   const size_t blocks2 = blocks - (blocks % 2);
 
-   for(size_t r = 1; ; ++r)
+   for(size_t i = 0; i != blocks2; i += 2)
       {
-      const __m128i K = _mm_loadu_si128(keys + r);
+      SIMD_4x32 B0 = SIMD_4x32::load_le(in + i*16);
+      SIMD_4x32 B1 = SIMD_4x32::load_le(in + (i+1)*16);
 
-      t = _mm_srli_epi32(_mm_andnot_si128(low_nibs, B), 4);
+      B0 = aes_enc_first_round(B0, K[0]);
+      B1 = aes_enc_first_round(B1, K[0]);
 
-      B = _mm_and_si128(low_nibs, B);
-
-      __m128i t2 = _mm_shuffle_epi8(k_inv2, B);
-
-      B = _mm_xor_si128(B, t);
-
-      __m128i t3 = _mm_xor_si128(t2, _mm_shuffle_epi8(k_inv1, t));
-      __m128i t4 = _mm_xor_si128(t2, _mm_shuffle_epi8(k_inv1, B));
-      __m128i t5 = _mm_xor_si128(B, _mm_shuffle_epi8(k_inv1, t3));
-      __m128i t6 = _mm_xor_si128(t, _mm_shuffle_epi8(k_inv1, t4));
-
-      if(r == rounds)
+      for(size_t r = 1; r != rounds; ++r)
          {
-         const __m128i sbou = _mm_set_epi32(
-            0xC7AA6DB9, 0xD4943E2D, 0x1387EA53, 0x7EF94000);
-         const __m128i sbot = _mm_set_epi32(
-            0xCA4B8159, 0xD8C58E9C, 0x12D7560F, 0x93441D00);
-
-         __m128i x = _mm_shuffle_epi8(sbou, t5);
-         __m128i y = _mm_shuffle_epi8(sbot, t6);
-         x = _mm_xor_si128(x, K);
-         x = _mm_xor_si128(x, y);
-
-         const uint32_t which_sr = ((((rounds - 1) << 4) ^ 48) & 48) / 16;
-         return _mm_shuffle_epi8(x, sr[which_sr]);
+         B0 = aes_enc_round(B0, K[r], r);
+         B1 = aes_enc_round(B1, K[r], r);
          }
 
-      __m128i t8 = _mm_xor_si128(_mm_shuffle_epi8(sb9t, t6),
-                                 _mm_xor_si128(_mm_shuffle_epi8(sb9u, t5), K));
+      B0 = aes_enc_last_round(B0, K[rounds], rounds);
+      B1 = aes_enc_last_round(B1, K[rounds], rounds);
 
-      __m128i t9 = mm_xor3(_mm_shuffle_epi8(t8, mc),
-                           _mm_shuffle_epi8(sbdu, t5),
-                           _mm_shuffle_epi8(sbdt, t6));
-
-      __m128i t12 = _mm_xor_si128(
-         _mm_xor_si128(
-            _mm_shuffle_epi8(t9, mc),
-            _mm_shuffle_epi8(sbbu, t5)),
-         _mm_shuffle_epi8(sbbt, t6));
-
-      B = _mm_xor_si128(_mm_xor_si128(_mm_shuffle_epi8(t12, mc),
-                                      _mm_shuffle_epi8(sbeu, t5)),
-                        _mm_shuffle_epi8(sbet, t6));
-
-      mc = _mm_alignr_epi8(mc, mc, 12);
+      B0.store_le(out + i*16);
+      B1.store_le(out + (i+1)*16);
       }
+
+   for(size_t i = blocks2; i < blocks; ++i)
+      {
+      SIMD_4x32 B = SIMD_4x32::load_le(in + i*16); // ???
+
+      B = aes_enc_first_round(B, K[0]);
+
+      for(size_t r = 1; r != rounds; ++r)
+         {
+         B = aes_enc_round(B, K[r], r);
+         }
+
+      B = aes_enc_last_round(B, K[rounds], rounds);
+      B.store_le(out + i*16);
+      }
+
+   CT::unpoison(in,  blocks * 16);
+   CT::unpoison(out, blocks * 16);
+   }
+
+void vperm_decrypt_blocks(const uint8_t in[], uint8_t out[], size_t blocks,
+                          const SIMD_4x32 K[], size_t rounds)
+   {
+   CT::poison(in, blocks * 16);
+
+   const size_t blocks2 = blocks - (blocks % 2);
+
+   for(size_t i = 0; i != blocks2; i += 2)
+      {
+      SIMD_4x32 B0 = SIMD_4x32::load_le(in + i*16);
+      SIMD_4x32 B1 = SIMD_4x32::load_le(in + (i+1)*16);
+
+      B0 = aes_dec_first_round(B0, K[0]);
+      B1 = aes_dec_first_round(B1, K[0]);
+
+      for(size_t r = 1; r != rounds; ++r)
+         {
+         B0 = aes_dec_round(B0, K[r], r);
+         B1 = aes_dec_round(B1, K[r], r);
+         }
+
+      B0 = aes_dec_last_round(B0, K[rounds], rounds);
+      B1 = aes_dec_last_round(B1, K[rounds], rounds);
+
+      B0.store_le(out + i*16);
+      B1.store_le(out + (i+1)*16);
+      }
+
+   for(size_t i = blocks2; i < blocks; ++i)
+      {
+      SIMD_4x32 B = SIMD_4x32::load_le(in + i*16); // ???
+
+      B = aes_dec_first_round(B, K[0]);
+
+      for(size_t r = 1; r != rounds; ++r)
+         {
+         B = aes_dec_round(B, K[r], r);
+         }
+
+      B = aes_dec_last_round(B, K[rounds], rounds);
+      B.store_le(out + i*16);
+      }
+
+   CT::unpoison(in,  blocks * 16);
+   CT::unpoison(out, blocks * 16);
    }
 
 }
 
-/*
-* AES-128 Encryption
-*/
-BOTAN_FUNC_ISA("ssse3")
-void AES_128::ssse3_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
+void AES_128::vperm_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
-   const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
-   __m128i* out_mm = reinterpret_cast<__m128i*>(out);
+   const SIMD_4x32 K[11] = {
+      SIMD_4x32(&m_EK[4* 0]), SIMD_4x32(&m_EK[4* 1]), SIMD_4x32(&m_EK[4* 2]),
+      SIMD_4x32(&m_EK[4* 3]), SIMD_4x32(&m_EK[4* 4]), SIMD_4x32(&m_EK[4* 5]),
+      SIMD_4x32(&m_EK[4* 6]), SIMD_4x32(&m_EK[4* 7]), SIMD_4x32(&m_EK[4* 8]),
+      SIMD_4x32(&m_EK[4* 9]), SIMD_4x32(&m_EK[4*10]),
+   };
 
-   const __m128i* keys = reinterpret_cast<const __m128i*>(m_EK.data());
-
-   CT::poison(in, blocks * block_size());
-
-   BOTAN_PARALLEL_FOR(size_t i = 0; i < blocks; ++i)
-      {
-      __m128i B = _mm_loadu_si128(in_mm + i);
-      _mm_storeu_si128(out_mm + i, aes_ssse3_encrypt(B, keys, 10));
-      }
-
-   CT::unpoison(in,  blocks * block_size());
-   CT::unpoison(out, blocks * block_size());
+   return vperm_encrypt_blocks(in, out, blocks, K, 10);
    }
 
-/*
-* AES-128 Decryption
-*/
-BOTAN_FUNC_ISA("ssse3")
-void AES_128::ssse3_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
+void AES_128::vperm_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
-   const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
-   __m128i* out_mm = reinterpret_cast<__m128i*>(out);
+   const SIMD_4x32 K[11] = {
+      SIMD_4x32(&m_DK[4* 0]), SIMD_4x32(&m_DK[4* 1]), SIMD_4x32(&m_DK[4* 2]),
+      SIMD_4x32(&m_DK[4* 3]), SIMD_4x32(&m_DK[4* 4]), SIMD_4x32(&m_DK[4* 5]),
+      SIMD_4x32(&m_DK[4* 6]), SIMD_4x32(&m_DK[4* 7]), SIMD_4x32(&m_DK[4* 8]),
+      SIMD_4x32(&m_DK[4* 9]), SIMD_4x32(&m_DK[4*10]),
+   };
 
-   const __m128i* keys = reinterpret_cast<const __m128i*>(m_DK.data());
-
-   CT::poison(in, blocks * block_size());
-
-   BOTAN_PARALLEL_FOR(size_t i = 0; i < blocks; ++i)
-      {
-      __m128i B = _mm_loadu_si128(in_mm + i);
-      _mm_storeu_si128(out_mm + i, aes_ssse3_decrypt(B, keys, 10));
-      }
-
-   CT::unpoison(in,  blocks * block_size());
-   CT::unpoison(out, blocks * block_size());
+   return vperm_decrypt_blocks(in, out, blocks, K, 10);
    }
 
-/*
-* AES-128 Key Schedule
-*/
-BOTAN_FUNC_ISA("ssse3")
-void AES_128::ssse3_key_schedule(const uint8_t keyb[], size_t)
+void AES_192::vperm_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
-   __m128i rcon = _mm_set_epi32(0x702A9808, 0x4D7C7D81,
-                                0x1F8391B9, 0xAF9DEEB6);
+   const SIMD_4x32 K[13] = {
+      SIMD_4x32(&m_EK[4* 0]), SIMD_4x32(&m_EK[4* 1]), SIMD_4x32(&m_EK[4* 2]),
+      SIMD_4x32(&m_EK[4* 3]), SIMD_4x32(&m_EK[4* 4]), SIMD_4x32(&m_EK[4* 5]),
+      SIMD_4x32(&m_EK[4* 6]), SIMD_4x32(&m_EK[4* 7]), SIMD_4x32(&m_EK[4* 8]),
+      SIMD_4x32(&m_EK[4* 9]), SIMD_4x32(&m_EK[4*10]), SIMD_4x32(&m_EK[4*11]),
+      SIMD_4x32(&m_EK[4*12]),
+   };
 
-   __m128i key = _mm_loadu_si128(reinterpret_cast<const __m128i*>(keyb));
+   return vperm_encrypt_blocks(in, out, blocks, K, 12);
+   }
 
+void AES_192::vperm_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
+   {
+   const SIMD_4x32 K[13] = {
+      SIMD_4x32(&m_DK[4* 0]), SIMD_4x32(&m_DK[4* 1]), SIMD_4x32(&m_DK[4* 2]),
+      SIMD_4x32(&m_DK[4* 3]), SIMD_4x32(&m_DK[4* 4]), SIMD_4x32(&m_DK[4* 5]),
+      SIMD_4x32(&m_DK[4* 6]), SIMD_4x32(&m_DK[4* 7]), SIMD_4x32(&m_DK[4* 8]),
+      SIMD_4x32(&m_DK[4* 9]), SIMD_4x32(&m_DK[4*10]), SIMD_4x32(&m_DK[4*11]),
+      SIMD_4x32(&m_DK[4*12]),
+   };
+
+   return vperm_decrypt_blocks(in, out, blocks, K, 12);
+   }
+
+void AES_256::vperm_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
+   {
+   const SIMD_4x32 K[15] = {
+      SIMD_4x32(&m_EK[4* 0]), SIMD_4x32(&m_EK[4* 1]), SIMD_4x32(&m_EK[4* 2]),
+      SIMD_4x32(&m_EK[4* 3]), SIMD_4x32(&m_EK[4* 4]), SIMD_4x32(&m_EK[4* 5]),
+      SIMD_4x32(&m_EK[4* 6]), SIMD_4x32(&m_EK[4* 7]), SIMD_4x32(&m_EK[4* 8]),
+      SIMD_4x32(&m_EK[4* 9]), SIMD_4x32(&m_EK[4*10]), SIMD_4x32(&m_EK[4*11]),
+      SIMD_4x32(&m_EK[4*12]), SIMD_4x32(&m_EK[4*13]), SIMD_4x32(&m_EK[4*14]),
+   };
+
+   return vperm_encrypt_blocks(in, out, blocks, K, 14);
+   }
+
+void AES_256::vperm_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
+   {
+   const SIMD_4x32 K[15] = {
+      SIMD_4x32(&m_DK[4* 0]), SIMD_4x32(&m_DK[4* 1]), SIMD_4x32(&m_DK[4* 2]),
+      SIMD_4x32(&m_DK[4* 3]), SIMD_4x32(&m_DK[4* 4]), SIMD_4x32(&m_DK[4* 5]),
+      SIMD_4x32(&m_DK[4* 6]), SIMD_4x32(&m_DK[4* 7]), SIMD_4x32(&m_DK[4* 8]),
+      SIMD_4x32(&m_DK[4* 9]), SIMD_4x32(&m_DK[4*10]), SIMD_4x32(&m_DK[4*11]),
+      SIMD_4x32(&m_DK[4*12]), SIMD_4x32(&m_DK[4*13]), SIMD_4x32(&m_DK[4*14]),
+   };
+
+   return vperm_decrypt_blocks(in, out, blocks, K, 14);
+   }
+
+namespace {
+
+SIMD_4x32 aes_schedule_transform(SIMD_4x32 input,
+                                 SIMD_4x32 table_1,
+                                 SIMD_4x32 table_2)
+   {
+   return shuffle(table_1, low_nibs(input)) ^ shuffle(table_2, high_nibs(input));
+   }
+
+SIMD_4x32 aes_schedule_mangle(SIMD_4x32 k, uint8_t round_no)
+   {
+   const SIMD_4x32 mc_forward0(0x00030201, 0x04070605, 0x080B0A09, 0x0C0F0E0D);
+
+   SIMD_4x32 t = shuffle(k ^ SIMD_4x32::splat_u8(0x5B), mc_forward0);
+   SIMD_4x32 t2 = t;
+   t = shuffle(t, mc_forward0);
+   t2 = t ^ t2 ^ shuffle(t, mc_forward0);
+   return shuffle(t2, vperm_sr[round_no % 4]);
+   }
+
+SIMD_4x32 aes_schedule_mangle_dec(SIMD_4x32 k, uint8_t round_no)
+   {
+   const SIMD_4x32 mc_forward0(0x00030201, 0x04070605, 0x080B0A09, 0x0C0F0E0D);
+
+   const SIMD_4x32 dsk[8] = {
+      SIMD_4x32(0x7ED9A700, 0xB6116FC8, 0x82255BFC, 0x4AED9334),
+      SIMD_4x32(0x27143300, 0x45765162, 0xE9DAFDCE, 0x8BB89FAC),
+      SIMD_4x32(0xCCA86400, 0x27438FEB, 0xADC90561, 0x4622EE8A),
+      SIMD_4x32(0x4F92DD00, 0x815C13CE, 0xBD602FF2, 0x73AEE13C),
+      SIMD_4x32(0x01C6C700, 0x03C4C502, 0xFA3D3CFB, 0xF83F3EF9),
+      SIMD_4x32(0x38CFF700, 0xEE1921D6, 0x7384BC4B, 0xA5526A9D),
+      SIMD_4x32(0x53732000, 0xE3C390B0, 0x10306343, 0xA080D3F3),
+      SIMD_4x32(0x036982E8, 0xA0CA214B, 0x8CE60D67, 0x2F45AEC4),
+   };
+
+   SIMD_4x32 t = aes_schedule_transform(k, dsk[0], dsk[1]);
+   SIMD_4x32 output = shuffle(t, mc_forward0);
+
+   t = aes_schedule_transform(t, dsk[2], dsk[3]);
+   output = shuffle(t ^ output, mc_forward0);
+
+   t = aes_schedule_transform(t, dsk[4], dsk[5]);
+   output = shuffle(t ^ output, mc_forward0);
+
+   t = aes_schedule_transform(t, dsk[6], dsk[7]);
+   output = shuffle(t ^ output, mc_forward0);
+
+   return shuffle(output, vperm_sr[round_no % 4]);
+   }
+
+SIMD_4x32 aes_schedule_mangle_last(SIMD_4x32 k, uint8_t round_no)
+   {
+   const SIMD_4x32 out_tr1(0xD6B66000, 0xFF9F4929, 0xDEBE6808, 0xF7974121);
+   const SIMD_4x32 out_tr2(0x50BCEC00, 0x01EDBD51, 0xB05C0CE0, 0xE10D5DB1);
+
+   k = shuffle(k, vperm_sr[round_no % 4]);
+   k ^= SIMD_4x32::splat_u8(0x5B);
+   return aes_schedule_transform(k, out_tr1, out_tr2);
+   }
+
+SIMD_4x32 aes_schedule_mangle_last_dec(SIMD_4x32 k)
+   {
+   const SIMD_4x32 deskew1(0x47A4E300, 0x07E4A340, 0x5DBEF91A, 0x1DFEB95A);
+   const SIMD_4x32 deskew2(0x83EA6900, 0x5F36B5DC, 0xF49D1E77, 0x2841C2AB);
+
+   k ^= SIMD_4x32::splat_u8(0x5B);
+   return aes_schedule_transform(k, deskew1, deskew2);
+   }
+
+SIMD_4x32 aes_schedule_round(SIMD_4x32 input1, SIMD_4x32 input2)
+   {
+   SIMD_4x32 smeared = input2 ^ input2.shift_elems_left<1>();
+   smeared ^= smeared.shift_elems_left<2>();
+   smeared ^= SIMD_4x32::splat_u8(0x5B);
+
+   const SIMD_4x32 Bh = high_nibs(input1);
+   SIMD_4x32 Bl = low_nibs(input1);
+
+   const SIMD_4x32 t2 = shuffle(k_inv2, Bl);
+
+   Bl ^= Bh;
+
+   SIMD_4x32 t5 = Bl ^ shuffle(k_inv1, t2 ^ shuffle(k_inv1, Bh));
+   SIMD_4x32 t6 = Bh ^ shuffle(k_inv1, t2 ^ shuffle(k_inv1, Bl));
+
+   return smeared ^ shuffle(sb1u, t5) ^ shuffle(sb1t, t6);
+   }
+
+SIMD_4x32 aes_schedule_round(SIMD_4x32 rc, SIMD_4x32 input1, SIMD_4x32 input2)
+   {
+   // This byte shuffle is equivalent to alignr<1>(shuffle32(input1, (3,3,3,3)));
+   const SIMD_4x32 shuffle3333_15 = SIMD_4x32::splat(0x0C0F0E0D);
+   return aes_schedule_round(shuffle(input1, shuffle3333_15), input2 ^ rc);
+   }
+
+SIMD_4x32 aes_schedule_192_smear(SIMD_4x32 x, SIMD_4x32 y)
+   {
+   const SIMD_4x32 shuffle3332 =
+      SIMD_4x32(0x0B0A0908, 0x0F0E0D0C, 0x0F0E0D0C, 0x0F0E0D0C);
+   const SIMD_4x32 shuffle2000 =
+      SIMD_4x32(0x03020100, 0x03020100, 0x03020100, 0x0B0A0908);
+
+   const SIMD_4x32 zero_top_half(0, 0, 0xFFFFFFFF, 0xFFFFFFFF);
+   y &= zero_top_half;
+   return y ^ shuffle(x, shuffle3332) ^ shuffle(y, shuffle2000);
+   }
+
+}
+
+void AES_128::vperm_key_schedule(const uint8_t keyb[], size_t)
+   {
    m_EK.resize(11*4);
    m_DK.resize(11*4);
 
-   __m128i* EK_mm = reinterpret_cast<__m128i*>(m_EK.data());
-   __m128i* DK_mm = reinterpret_cast<__m128i*>(m_DK.data());
+   SIMD_4x32 key = SIMD_4x32::load_le(keyb);
 
-   _mm_storeu_si128(DK_mm + 10, _mm_shuffle_epi8(key, sr[2]));
+   shuffle(key, vperm_sr[2]).store_le(&m_DK[4*10]);
 
    key = aes_schedule_transform(key, k_ipt1, k_ipt2);
-
-   _mm_storeu_si128(EK_mm, key);
+   key.store_le(&m_EK[0]);
 
    for(size_t i = 1; i != 10; ++i)
       {
-      key = aes_schedule_round(&rcon, key, key);
+      key = aes_schedule_round(rcon[i-1], key, key);
 
-      _mm_storeu_si128(EK_mm + i,
-                       aes_schedule_mangle(key, (12-i) % 4));
+      aes_schedule_mangle(key, (12-i) % 4).store_le(&m_EK[4*i]);
 
-      _mm_storeu_si128(DK_mm + (10-i),
-                       aes_schedule_mangle_dec(key, (10-i) % 4));
+      aes_schedule_mangle_dec(key, (10-i)%4).store_le(&m_DK[4*(10-i)]);
       }
 
-   key = aes_schedule_round(&rcon, key, key);
-   _mm_storeu_si128(EK_mm + 10, aes_schedule_mangle_last(key, 2));
-   _mm_storeu_si128(DK_mm, aes_schedule_mangle_last_dec(key));
+   key = aes_schedule_round(rcon[9], key, key);
+   aes_schedule_mangle_last(key, 2).store_le(&m_EK[4*10]);
+   aes_schedule_mangle_last_dec(key).store_le(&m_DK[0]);
    }
 
-/*
-* AES-192 Encryption
-*/
-BOTAN_FUNC_ISA("ssse3")
-void AES_192::ssse3_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
+void AES_192::vperm_key_schedule(const uint8_t keyb[], size_t)
    {
-   const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
-   __m128i* out_mm = reinterpret_cast<__m128i*>(out);
-
-   const __m128i* keys = reinterpret_cast<const __m128i*>(m_EK.data());
-
-   CT::poison(in, blocks * block_size());
-
-   for(size_t i = 0; i != blocks; ++i)
-      {
-      __m128i B = _mm_loadu_si128(in_mm + i);
-      _mm_storeu_si128(out_mm + i, aes_ssse3_encrypt(B, keys, 12));
-      }
-
-   CT::unpoison(in,  blocks * block_size());
-   CT::unpoison(out, blocks * block_size());
-   }
-
-/*
-* AES-192 Decryption
-*/
-BOTAN_FUNC_ISA("ssse3")
-void AES_192::ssse3_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
-   {
-   const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
-   __m128i* out_mm = reinterpret_cast<__m128i*>(out);
-
-   const __m128i* keys = reinterpret_cast<const __m128i*>(m_DK.data());
-
-   CT::poison(in, blocks * block_size());
-
-   for(size_t i = 0; i != blocks; ++i)
-      {
-      __m128i B = _mm_loadu_si128(in_mm + i);
-      _mm_storeu_si128(out_mm + i, aes_ssse3_decrypt(B, keys, 12));
-      }
-
-   CT::unpoison(in,  blocks * block_size());
-   CT::unpoison(out, blocks * block_size());
-   }
-
-/*
-* AES-192 Key Schedule
-*/
-BOTAN_FUNC_ISA("ssse3")
-void AES_192::ssse3_key_schedule(const uint8_t keyb[], size_t)
-   {
-   __m128i rcon = _mm_set_epi32(0x702A9808, 0x4D7C7D81,
-                                0x1F8391B9, 0xAF9DEEB6);
-
    m_EK.resize(13*4);
    m_DK.resize(13*4);
 
-   __m128i* EK_mm = reinterpret_cast<__m128i*>(m_EK.data());
-   __m128i* DK_mm = reinterpret_cast<__m128i*>(m_DK.data());
+   SIMD_4x32 key1 = SIMD_4x32::load_le(keyb);
+   SIMD_4x32 key2 = SIMD_4x32::load_le(keyb + 8);
 
-   __m128i key1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(keyb));
-   __m128i key2 = _mm_loadu_si128(reinterpret_cast<const __m128i*>((keyb + 8)));
-
-   _mm_storeu_si128(DK_mm + 12, _mm_shuffle_epi8(key1, sr[0]));
+   shuffle(key1, vperm_sr[0]).store_le(&m_DK[12*4]);
 
    key1 = aes_schedule_transform(key1, k_ipt1, k_ipt2);
    key2 = aes_schedule_transform(key2, k_ipt1, k_ipt2);
 
-   _mm_storeu_si128(EK_mm + 0, key1);
-
-   // key2 with 8 high bytes masked off
-   __m128i t = _mm_slli_si128(_mm_srli_si128(key2, 8), 8);
+   key1.store_le(&m_EK[0]);
 
    for(size_t i = 0; i != 4; ++i)
       {
-      key2 = aes_schedule_round(&rcon, key2, key1);
-
-      _mm_storeu_si128(EK_mm + 3*i+1,
-                       aes_schedule_mangle(_mm_alignr_epi8(key2, t, 8), (i+3)%4));
-      _mm_storeu_si128(DK_mm + 11-3*i,
-                       aes_schedule_mangle_dec(_mm_alignr_epi8(key2, t, 8), (i+3)%4));
+      // key2 with 8 high bytes masked off
+      SIMD_4x32 t = key2;
+      key2 = aes_schedule_round(rcon[2*i], key2, key1);
+      const SIMD_4x32 key2t = alignr8(key2, t);
+      aes_schedule_mangle(key2t, (i+3)%4).store_le(&m_EK[4*(3*i+1)]);
+      aes_schedule_mangle_dec(key2t, (i+3)%4).store_le(&m_DK[4*(11-3*i)]);
 
       t = aes_schedule_192_smear(key2, t);
 
-      _mm_storeu_si128(EK_mm + 3*i+2,
-                       aes_schedule_mangle(t, (i+2)%4));
-      _mm_storeu_si128(DK_mm + 10-3*i,
-                       aes_schedule_mangle_dec(t, (i+2)%4));
+      aes_schedule_mangle(t, (i+2)%4).store_le(&m_EK[4*(3*i+2)]);
+      aes_schedule_mangle_dec(t, (i+2)%4).store_le(&m_DK[4*(10-3*i)]);
 
-      key2 = aes_schedule_round(&rcon, t, key2);
+      key2 = aes_schedule_round(rcon[2*i+1], t, key2);
 
       if(i == 3)
          {
-         _mm_storeu_si128(EK_mm + 3*i+3,
-                          aes_schedule_mangle_last(key2, (i+1)%4));
-         _mm_storeu_si128(DK_mm + 9-3*i,
-                          aes_schedule_mangle_last_dec(key2));
+         aes_schedule_mangle_last(key2, (i+1)%4).store_le(&m_EK[4*(3*i+3)]);
+         aes_schedule_mangle_last_dec(key2).store_le(&m_DK[4*(9-3*i)]);
          }
       else
          {
-         _mm_storeu_si128(EK_mm + 3*i+3,
-                          aes_schedule_mangle(key2, (i+1)%4));
-         _mm_storeu_si128(DK_mm + 9-3*i,
-                          aes_schedule_mangle_dec(key2, (i+1)%4));
+         aes_schedule_mangle(key2, (i+1)%4).store_le(&m_EK[4*(3*i+3)]);
+         aes_schedule_mangle_dec(key2, (i+1)%4).store_le(&m_DK[4*(9-3*i)]);
          }
 
       key1 = key2;
-      key2 = aes_schedule_192_smear(key2,
-                                    _mm_slli_si128(_mm_srli_si128(t, 8), 8));
-      t = _mm_slli_si128(_mm_srli_si128(key2, 8), 8);
+      key2 = aes_schedule_192_smear(key2, t);
       }
    }
 
-/*
-* AES-256 Encryption
-*/
-BOTAN_FUNC_ISA("ssse3")
-void AES_256::ssse3_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
+void AES_256::vperm_key_schedule(const uint8_t keyb[], size_t)
    {
-   const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
-   __m128i* out_mm = reinterpret_cast<__m128i*>(out);
-
-   const __m128i* keys = reinterpret_cast<const __m128i*>(m_EK.data());
-
-   CT::poison(in, blocks * block_size());
-
-   for(size_t i = 0; i != blocks; ++i)
-      {
-      __m128i B = _mm_loadu_si128(in_mm + i);
-      _mm_storeu_si128(out_mm + i, aes_ssse3_encrypt(B, keys, 14));
-      }
-
-   CT::unpoison(in,  blocks * block_size());
-   CT::unpoison(out, blocks * block_size());
-   }
-
-/*
-* AES-256 Decryption
-*/
-BOTAN_FUNC_ISA("ssse3")
-void AES_256::ssse3_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
-   {
-   const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
-   __m128i* out_mm = reinterpret_cast<__m128i*>(out);
-
-   const __m128i* keys = reinterpret_cast<const __m128i*>(m_DK.data());
-
-   CT::poison(in, blocks * block_size());
-
-   for(size_t i = 0; i != blocks; ++i)
-      {
-      __m128i B = _mm_loadu_si128(in_mm + i);
-      _mm_storeu_si128(out_mm + i, aes_ssse3_decrypt(B, keys, 14));
-      }
-
-   CT::unpoison(in,  blocks * block_size());
-   CT::unpoison(out, blocks * block_size());
-   }
-
-/*
-* AES-256 Key Schedule
-*/
-BOTAN_FUNC_ISA("ssse3")
-void AES_256::ssse3_key_schedule(const uint8_t keyb[], size_t)
-   {
-   __m128i rcon = _mm_set_epi32(0x702A9808, 0x4D7C7D81,
-                                0x1F8391B9, 0xAF9DEEB6);
-
    m_EK.resize(15*4);
    m_DK.resize(15*4);
 
-   __m128i* EK_mm = reinterpret_cast<__m128i*>(m_EK.data());
-   __m128i* DK_mm = reinterpret_cast<__m128i*>(m_DK.data());
+   SIMD_4x32 key1 = SIMD_4x32::load_le(keyb);
+   SIMD_4x32 key2 = SIMD_4x32::load_le(keyb + 16);
 
-   __m128i key1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(keyb));
-   __m128i key2 = _mm_loadu_si128(reinterpret_cast<const __m128i*>((keyb + 16)));
-
-   _mm_storeu_si128(DK_mm + 14, _mm_shuffle_epi8(key1, sr[2]));
+   shuffle(key1, vperm_sr[2]).store_le(&m_DK[4*14]);
 
    key1 = aes_schedule_transform(key1, k_ipt1, k_ipt2);
    key2 = aes_schedule_transform(key2, k_ipt1, k_ipt2);
 
-   _mm_storeu_si128(EK_mm + 0, key1);
-   _mm_storeu_si128(EK_mm + 1, aes_schedule_mangle(key2, 3));
+   key1.store_le(&m_EK[0]);
+   aes_schedule_mangle(key2, 3).store_le(&m_EK[4]);
 
-   _mm_storeu_si128(DK_mm + 13, aes_schedule_mangle_dec(key2, 1));
+   aes_schedule_mangle_dec(key2, 1).store_le(&m_DK[4*13]);
+
+   const SIMD_4x32 shuffle3333 = SIMD_4x32::splat(0x0F0E0D0C);
 
    for(size_t i = 2; i != 14; i += 2)
       {
-      __m128i k_t = key2;
-      key1 = key2 = aes_schedule_round(&rcon, key2, key1);
+      const SIMD_4x32 k_t = key2;
+      key1 = key2 = aes_schedule_round(rcon[(i/2)-1], key2, key1);
 
-      _mm_storeu_si128(EK_mm + i, aes_schedule_mangle(key2, i % 4));
-      _mm_storeu_si128(DK_mm + (14-i), aes_schedule_mangle_dec(key2, (i+2) % 4));
+      aes_schedule_mangle(key2, i % 4).store_le(&m_EK[4*i]);
+      aes_schedule_mangle_dec(key2, (i+2)%4).store_le(&m_DK[4*(14-i)]);
 
-      key2 = aes_schedule_round(nullptr, _mm_shuffle_epi32(key2, 0xFF), k_t);
-      _mm_storeu_si128(EK_mm + i + 1, aes_schedule_mangle(key2, (i - 1) % 4));
-      _mm_storeu_si128(DK_mm + (13-i), aes_schedule_mangle_dec(key2, (i+1) % 4));
+      key2 = aes_schedule_round(shuffle(key2, shuffle3333), k_t);
+
+      aes_schedule_mangle(key2, (i-1)%4).store_le(&m_EK[4*(i+1)]);
+      aes_schedule_mangle_dec(key2, (i+1)%4).store_le(&m_DK[4*(13-i)]);
       }
 
-   key2 = aes_schedule_round(&rcon, key2, key1);
+   key2 = aes_schedule_round(rcon[6], key2, key1);
 
-   _mm_storeu_si128(EK_mm + 14, aes_schedule_mangle_last(key2, 2));
-   _mm_storeu_si128(DK_mm + 0, aes_schedule_mangle_last_dec(key2));
+   aes_schedule_mangle_last(key2, 2).store_le(&m_EK[4*14]);
+   aes_schedule_mangle_last_dec(key2).store_le(&m_DK[0]);
    }
 
 }
@@ -2570,23 +2616,23 @@ secure_vector<uint8_t> argon2_H0(HashFunction& blake2b,
    {
    const uint8_t v = 19; // Argon2 version code
 
-   blake2b.update_le<uint32_t>(static_cast<uint32_t>(p));
-   blake2b.update_le<uint32_t>(static_cast<uint32_t>(output_len));
-   blake2b.update_le<uint32_t>(static_cast<uint32_t>(M));
-   blake2b.update_le<uint32_t>(static_cast<uint32_t>(t));
-   blake2b.update_le<uint32_t>(static_cast<uint32_t>(v));
-   blake2b.update_le<uint32_t>(static_cast<uint32_t>(y));
+   blake2b.update_le(static_cast<uint32_t>(p));
+   blake2b.update_le(static_cast<uint32_t>(output_len));
+   blake2b.update_le(static_cast<uint32_t>(M));
+   blake2b.update_le(static_cast<uint32_t>(t));
+   blake2b.update_le(static_cast<uint32_t>(v));
+   blake2b.update_le(static_cast<uint32_t>(y));
 
-   blake2b.update_le<uint32_t>(static_cast<uint32_t>(password_len));
+   blake2b.update_le(static_cast<uint32_t>(password_len));
    blake2b.update(cast_char_ptr_to_uint8(password), password_len);
 
-   blake2b.update_le<uint32_t>(static_cast<uint32_t>(salt_len));
+   blake2b.update_le(static_cast<uint32_t>(salt_len));
    blake2b.update(salt, salt_len);
 
-   blake2b.update_le<uint32_t>(static_cast<uint32_t>(key_len));
+   blake2b.update_le(static_cast<uint32_t>(key_len));
    blake2b.update(key, key_len);
 
-   blake2b.update_le<uint32_t>(static_cast<uint32_t>(ad_len));
+   blake2b.update_le(static_cast<uint32_t>(ad_len));
    blake2b.update(ad, ad_len);
 
    return blake2b.final();
@@ -2601,10 +2647,10 @@ void Htick(secure_vector<uint8_t>& T,
    {
    BOTAN_ASSERT_NOMSG(output_len % 64 == 0);
 
-   blake2b.update_le<uint32_t>(static_cast<uint32_t>(output_len));
+   blake2b.update_le(static_cast<uint32_t>(output_len));
    blake2b.update(H0);
-   blake2b.update_le<uint32_t>(static_cast<uint32_t>(p0));
-   blake2b.update_le<uint32_t>(static_cast<uint32_t>(p1));
+   blake2b.update_le(static_cast<uint32_t>(p0));
+   blake2b.update_le(static_cast<uint32_t>(p1));
 
    blake2b.final(&T[0]);
 
@@ -2647,15 +2693,43 @@ void extract_key(uint8_t output[], size_t output_len,
    if(output_len <= 64)
       {
       std::unique_ptr<HashFunction> blake2b = HashFunction::create_or_throw("BLAKE2b(" + std::to_string(output_len*8) + ")");
-
       blake2b->update_le(static_cast<uint32_t>(output_len));
       blake2b->update(sum8.data(), sum8.size());
-
       blake2b->final(output);
       }
    else
       {
-      throw Not_Implemented("todo");
+      secure_vector<uint8_t> T(64);
+
+      std::unique_ptr<HashFunction> blake2b = HashFunction::create_or_throw("BLAKE2b(512)");
+      blake2b->update_le(static_cast<uint32_t>(output_len));
+      blake2b->update(sum8.data(), sum8.size());
+      blake2b->final(&T[0]);
+
+      while(output_len > 64)
+         {
+         copy_mem(output, &T[0], 32);
+         output_len -= 32;
+         output += 32;
+
+         if(output_len > 64)
+            {
+            blake2b->update(T);
+            blake2b->final(&T[0]);
+            }
+         }
+
+      if(output_len == 64)
+         {
+         blake2b->update(T);
+         blake2b->final(output);
+         }
+      else
+         {
+         std::unique_ptr<HashFunction> blake2b_f = HashFunction::create_or_throw("BLAKE2b(" + std::to_string(output_len*8) + ")");
+         blake2b_f->update(T);
+         blake2b_f->final(output);
+         }
       }
    }
 
@@ -3149,8 +3223,8 @@ std::unique_ptr<PasswordHash> Argon2_Family::tune(size_t /*output_length*/,
    const size_t max_kib = (max_memory == 0) ? 256*1024 : max_memory*1024;
 
    // Tune with a large memory otherwise we measure cache vs RAM speeds and underestimate
-   // costs for larger params
-   const size_t tune_M = 256*1024; // in KiB
+   // costs for larger params. Default is 36 MiB, or use 128 for long times.
+   const size_t tune_M = (msec >= std::chrono::milliseconds(500) ? 128 : 36) * 1024;
    const size_t p = 1;
    size_t t = 1;
 
@@ -3158,7 +3232,7 @@ std::unique_ptr<PasswordHash> Argon2_Family::tune(size_t /*output_length*/,
    const auto tune_time = BOTAN_PBKDF_TUNING_TIME;
 
    timer.run_until_elapsed(tune_time, [&]() {
-      uint8_t output[32] = { 0 };
+      uint8_t output[64] = { 0 };
       argon2(output, sizeof(output), "test", 4, nullptr, 0, nullptr, 0, nullptr, 0, m_family, p, tune_M, t);
       });
 
@@ -3752,8 +3826,7 @@ AlgorithmIdentifier::AlgorithmIdentifier(const OID& alg_id,
 */
 AlgorithmIdentifier::AlgorithmIdentifier(const std::string& alg_id,
                                          const std::vector<uint8_t>& param) :
-   oid(OIDS::lookup(alg_id)),
-   parameters(param)
+   AlgorithmIdentifier(OID::from_string(alg_id), param)
    {}
 
 /*
@@ -3775,7 +3848,7 @@ AlgorithmIdentifier::AlgorithmIdentifier(const OID& alg_id,
 */
 AlgorithmIdentifier::AlgorithmIdentifier(const std::string& alg_id,
                                          Encoding_Option option) :
-   oid(OIDS::lookup(alg_id)),
+   oid(OID::from_string(alg_id)),
    parameters()
    {
    const uint8_t DER_NULL[] = { 0x05, 0x00 };
@@ -3864,7 +3937,7 @@ Attribute::Attribute(const OID& attr_oid, const std::vector<uint8_t>& attr_value
 */
 Attribute::Attribute(const std::string& attr_oid,
                      const std::vector<uint8_t>& attr_value) :
-   oid(OIDS::lookup(attr_oid)),
+   oid(OID::from_string(attr_oid)),
    parameters(attr_value)
    {}
 
@@ -4138,6 +4211,66 @@ bool maybe_BER(DataSource& source)
 
 namespace Botan {
 
+namespace {
+
+// returns empty on invalid
+std::vector<uint32_t> parse_oid_str(const std::string& oid)
+   {
+   try
+      {
+      std::string elem;
+      std::vector<uint32_t> oid_elems;
+
+      for(char c : oid)
+         {
+         if(c == '.')
+            {
+            if(elem.empty())
+               return std::vector<uint32_t>();
+            oid_elems.push_back(to_u32bit(elem));
+            elem.clear();
+            }
+         else
+            {
+            elem += c;
+            }
+         }
+
+      if(elem.empty())
+         return std::vector<uint32_t>();
+      oid_elems.push_back(to_u32bit(elem));
+
+      if(oid_elems.size() < 2)
+         return std::vector<uint32_t>();
+
+      return oid_elems;
+      }
+   catch(Invalid_Argument&) // thrown by to_u32bit
+      {
+      return std::vector<uint32_t>();
+      }
+   }
+
+}
+
+//static
+OID OID::from_string(const std::string& str)
+   {
+   if(str.empty())
+      throw Invalid_Argument("OID::from_string argument must be non-empty");
+
+   const OID o = OIDS::str2oid_or_empty(str);
+   if(o.has_value())
+      return o;
+
+   std::vector<uint32_t> raw = parse_oid_str(str);
+
+   if(raw.size() > 0)
+      return OID(std::move(raw));
+
+   throw Lookup_Error("No OID associated with name " + str);
+   }
+
 /*
 * ASN.1 OID Constructor
 */
@@ -4145,14 +4278,7 @@ OID::OID(const std::string& oid_str)
    {
    if(!oid_str.empty())
       {
-      try
-         {
-         m_id = parse_asn1_oid(oid_str);
-         }
-      catch(...)
-         {
-         throw Invalid_OID(oid_str);
-         }
+      m_id = parse_oid_str(oid_str);
 
       if(m_id.size() < 2 || m_id[0] > 2)
          throw Invalid_OID(oid_str);
@@ -4162,66 +4288,36 @@ OID::OID(const std::string& oid_str)
    }
 
 /*
-* Clear the current OID
-*/
-void OID::clear()
-   {
-   m_id.clear();
-   }
-
-/*
 * Return this OID as a string
 */
 std::string OID::to_string() const
    {
-   std::string oid_str;
+   std::ostringstream oss;
    for(size_t i = 0; i != m_id.size(); ++i)
       {
-      oid_str += std::to_string(m_id[i]);
+      oss << m_id[i];
       if(i != m_id.size() - 1)
-         oid_str += ".";
+         oss << ".";
       }
-   return oid_str;
+   return oss.str();
    }
 
-/*
-* OID equality comparison
-*/
-bool OID::operator==(const OID& oid) const
+std::string OID::to_formatted_string() const
    {
-   if(m_id.size() != oid.m_id.size())
-      return false;
-   for(size_t i = 0; i != m_id.size(); ++i)
-      if(m_id[i] != oid.m_id[i])
-         return false;
-   return true;
+   const std::string s = OIDS::oid2str_or_empty(*this);
+   if(!s.empty())
+      return s;
+   return this->to_string();
    }
 
 /*
 * Append another component to the OID
 */
-OID& OID::operator+=(uint32_t component)
+OID operator+(const OID& oid, uint32_t new_component)
    {
-   m_id.push_back(component);
-   return (*this);
-   }
-
-/*
-* Append another component to the OID
-*/
-OID operator+(const OID& oid, uint32_t component)
-   {
-   OID new_oid(oid);
-   new_oid += component;
-   return new_oid;
-   }
-
-/*
-* OID inequality comparison
-*/
-bool operator!=(const OID& a, const OID& b)
-   {
-   return !(a == b);
+   std::vector<uint32_t> val = oid.get_components();
+   val.push_back(new_component);
+   return OID(std::move(val));
    }
 
 /*
@@ -4229,21 +4325,11 @@ bool operator!=(const OID& a, const OID& b)
 */
 bool operator<(const OID& a, const OID& b)
    {
-   const std::vector<uint32_t>& oid1 = a.get_id();
-   const std::vector<uint32_t>& oid2 = b.get_id();
+   const std::vector<uint32_t>& oid1 = a.get_components();
+   const std::vector<uint32_t>& oid2 = b.get_components();
 
-   if(oid1.size() < oid2.size())
-      return true;
-   if(oid1.size() > oid2.size())
-      return false;
-   for(size_t i = 0; i != oid1.size(); ++i)
-      {
-      if(oid1[i] < oid2[i])
-         return true;
-      if(oid1[i] > oid2[i])
-         return false;
-      }
-   return false;
+   return std::lexicographical_compare(oid1.begin(), oid1.end(),
+                                       oid2.begin(), oid2.end());
    }
 
 /*
@@ -4297,7 +4383,7 @@ void OID::decode_from(BER_Decoder& decoder)
       throw BER_Decoding_Error("OID encoding is too short");
       }
 
-   clear();
+   m_id.clear();
    m_id.push_back(bits[0] / 40);
    m_id.push_back(bits[0] % 40);
 
@@ -4464,7 +4550,7 @@ void ASN1_Formatter::decode(std::ostream& output,
          OID oid;
          data.decode(oid);
 
-         std::string out = OIDS::lookup(oid);
+         std::string out = OIDS::oid2str_or_empty(oid);
          if(out.empty())
             {
             out = oid.to_string();
@@ -6020,7 +6106,7 @@ DER_Encoder& DER_Encoder::add_object(ASN1_Tag type_tag,
 /*
 * OID maps
 *
-* This file was automatically generated by ./src/scripts/oids.py on 2019-06-23
+* This file was automatically generated by ./src/scripts/oids.py on 2019-10-21
 *
 * All manual edits to this file will be lost. Edit the script
 * then regenerate this source file.
@@ -6037,6 +6123,7 @@ std::unordered_map<std::string, std::string> OIDS::load_oid2str_map()
       { "0.3.4401.5.3.1.9.26", "Camellia-192/GCM" },
       { "0.3.4401.5.3.1.9.46", "Camellia-256/GCM" },
       { "0.3.4401.5.3.1.9.6", "Camellia-128/GCM" },
+      { "0.4.0.127.0.15.1.1.13.0", "XMSS" },
       { "1.0.14888.3.0.5", "ECKCDSA" },
       { "1.2.156.10197.1.104.100", "SM4/OCB" },
       { "1.2.156.10197.1.104.2", "SM4/CBC" },
@@ -6056,12 +6143,24 @@ std::unordered_map<std::string, std::string> OIDS::load_oid2str_map()
       { "1.2.410.200004.1.100.4.4", "ECKCDSA/EMSA1(SHA-224)" },
       { "1.2.410.200004.1.100.4.5", "ECKCDSA/EMSA1(SHA-256)" },
       { "1.2.410.200004.1.4", "SEED/CBC" },
+      { "1.2.643.100.1", "GOST.OGRN" },
+      { "1.2.643.100.111", "GOST.SubjectSigningTool" },
+      { "1.2.643.100.112", "GOST.IssuerSigningTool" },
       { "1.2.643.2.2.19", "GOST-34.10" },
       { "1.2.643.2.2.3", "GOST-34.10/EMSA1(GOST-R-34.11-94)" },
       { "1.2.643.2.2.35.1", "gost_256A" },
       { "1.2.643.2.2.36.0", "gost_256A" },
+      { "1.2.643.3.131.1.1", "GOST.INN" },
+      { "1.2.643.7.1.1.1.1", "GOST-34.10-2012-256" },
+      { "1.2.643.7.1.1.1.2", "GOST-34.10-2012-512" },
       { "1.2.643.7.1.1.2.2", "Streebog-256" },
       { "1.2.643.7.1.1.2.3", "Streebog-512" },
+      { "1.2.643.7.1.1.3.2", "GOST-34.10-2012-256/EMSA1(Streebog-256)" },
+      { "1.2.643.7.1.1.3.3", "GOST-34.10-2012-512/EMSA1(Streebog-512)" },
+      { "1.2.643.7.1.2.1.1.1", "gost_256A" },
+      { "1.2.643.7.1.2.1.1.2", "gost_256B" },
+      { "1.2.643.7.1.2.1.2.1", "gost_512A" },
+      { "1.2.643.7.1.2.1.2.2", "gost_512B" },
       { "1.2.840.10040.4.1", "DSA" },
       { "1.2.840.10040.4.3", "DSA/EMSA1(SHA-160)" },
       { "1.2.840.10045.2.1", "ECDSA" },
@@ -6145,8 +6244,8 @@ std::unordered_map<std::string, std::string> OIDS::load_oid2str_map()
       { "1.3.6.1.4.1.11591.4.11", "Scrypt" },
       { "1.3.6.1.4.1.25258.1.3", "McEliece" },
       { "1.3.6.1.4.1.25258.1.5", "XMSS-draft6" },
-      { "1.3.6.1.4.1.25258.1.6.1", "GOST-34.10/EMSA1(SHA-256)" },
-      { "1.3.6.1.4.1.25258.1.8", "XMSS" },
+      { "1.3.6.1.4.1.25258.1.6.1", "GOST-34.10-2012-256/EMSA1(SHA-256)" },
+      { "1.3.6.1.4.1.25258.1.8", "XMSS-draft12" },
       { "1.3.6.1.4.1.25258.3.1", "Serpent/CBC" },
       { "1.3.6.1.4.1.25258.3.101", "Serpent/GCM" },
       { "1.3.6.1.4.1.25258.3.102", "Twofish/GCM" },
@@ -6230,6 +6329,7 @@ std::unordered_map<std::string, std::string> OIDS::load_oid2str_map()
       { "2.16.840.1.113730.1.13", "Certificate Comment" },
       { "2.5.29.14", "X509v3.SubjectKeyIdentifier" },
       { "2.5.29.15", "X509v3.KeyUsage" },
+      { "2.5.29.16", "X509v3.PrivateKeyUsagePeriod" },
       { "2.5.29.17", "X509v3.SubjectAlternativeName" },
       { "2.5.29.18", "X509v3.IssuerAlternativeName" },
       { "2.5.29.19", "X509v3.BasicConstraints" },
@@ -6259,6 +6359,7 @@ std::unordered_map<std::string, std::string> OIDS::load_oid2str_map()
       { "2.5.4.65", "X520.Pseudonym" },
       { "2.5.4.7", "X520.Locality" },
       { "2.5.4.8", "X520.State" },
+      { "2.5.4.9", "X520.StreetAddress" },
       { "2.5.8.1.1", "RSA" }
       };
    }
@@ -6335,8 +6436,16 @@ std::unordered_map<std::string, OID> OIDS::load_str2oid_map()
       { "Ed25519", OID({1,3,101,112}) },
       { "ElGamal", OID({1,3,6,1,4,1,3029,1,2,1}) },
       { "GOST-34.10", OID({1,2,643,2,2,19}) },
+      { "GOST-34.10-2012-256", OID({1,2,643,7,1,1,1,1}) },
+      { "GOST-34.10-2012-256/EMSA1(SHA-256)", OID({1,3,6,1,4,1,25258,1,6,1}) },
+      { "GOST-34.10-2012-256/EMSA1(Streebog-256)", OID({1,2,643,7,1,1,3,2}) },
+      { "GOST-34.10-2012-512", OID({1,2,643,7,1,1,1,2}) },
+      { "GOST-34.10-2012-512/EMSA1(Streebog-512)", OID({1,2,643,7,1,1,3,3}) },
       { "GOST-34.10/EMSA1(GOST-R-34.11-94)", OID({1,2,643,2,2,3}) },
-      { "GOST-34.10/EMSA1(SHA-256)", OID({1,3,6,1,4,1,25258,1,6,1}) },
+      { "GOST.INN", OID({1,2,643,3,131,1,1}) },
+      { "GOST.IssuerSigningTool", OID({1,2,643,100,112}) },
+      { "GOST.OGRN", OID({1,2,643,100,1}) },
+      { "GOST.SubjectSigningTool", OID({1,2,643,100,111}) },
       { "HMAC(SHA-160)", OID({1,2,840,113549,2,7}) },
       { "HMAC(SHA-224)", OID({1,2,840,113549,2,8}) },
       { "HMAC(SHA-256)", OID({1,2,840,113549,2,9}) },
@@ -6446,6 +6555,7 @@ std::unordered_map<std::string, OID> OIDS::load_str2oid_map()
       { "X509v3.KeyUsage", OID({2,5,29,15}) },
       { "X509v3.NameConstraints", OID({2,5,29,30}) },
       { "X509v3.PolicyConstraints", OID({2,5,29,36}) },
+      { "X509v3.PrivateKeyUsagePeriod", OID({2,5,29,16}) },
       { "X509v3.ReasonCode", OID({2,5,29,21}) },
       { "X509v3.SubjectAlternativeName", OID({2,5,29,17}) },
       { "X509v3.SubjectKeyIdentifier", OID({2,5,29,14}) },
@@ -6461,9 +6571,11 @@ std::unordered_map<std::string, OID> OIDS::load_str2oid_map()
       { "X520.Pseudonym", OID({2,5,4,65}) },
       { "X520.SerialNumber", OID({2,5,4,5}) },
       { "X520.State", OID({2,5,4,8}) },
+      { "X520.StreetAddress", OID({2,5,4,9}) },
       { "X520.Surname", OID({2,5,4,4}) },
       { "X520.Title", OID({2,5,4,12}) },
-      { "XMSS", OID({1,3,6,1,4,1,25258,1,8}) },
+      { "XMSS", OID({0,4,0,127,0,15,1,1,13,0}) },
+      { "XMSS-draft12", OID({1,3,6,1,4,1,25258,1,8}) },
       { "XMSS-draft6", OID({1,3,6,1,4,1,25258,1,5}) },
       { "brainpool160r1", OID({1,3,36,3,3,2,8,1,1,1}) },
       { "brainpool192r1", OID({1,3,36,3,3,2,8,1,1,3}) },
@@ -6473,7 +6585,10 @@ std::unordered_map<std::string, OID> OIDS::load_str2oid_map()
       { "brainpool384r1", OID({1,3,36,3,3,2,8,1,1,11}) },
       { "brainpool512r1", OID({1,3,36,3,3,2,8,1,1,13}) },
       { "frp256v1", OID({1,2,250,1,223,101,256,1}) },
-      { "gost_256A", OID({1,2,643,2,2,35,1}) },
+      { "gost_256A", OID({1,2,643,7,1,2,1,1,1}) },
+      { "gost_256B", OID({1,2,643,7,1,2,1,1,2}) },
+      { "gost_512A", OID({1,2,643,7,1,2,1,2,1}) },
+      { "gost_512B", OID({1,2,643,7,1,2,1,2,2}) },
       { "secp160k1", OID({1,3,132,0,9}) },
       { "secp160r1", OID({1,3,132,0,8}) },
       { "secp160r2", OID({1,3,132,0,30}) },
@@ -6506,8 +6621,6 @@ std::unordered_map<std::string, OID> OIDS::load_str2oid_map()
 
 namespace Botan {
 
-namespace OIDS {
-
 namespace {
 
 class OID_Map final
@@ -6536,7 +6649,7 @@ class OID_Map final
             m_oid2str.insert(std::make_pair(oid_str, str));
          }
 
-      std::string lookup(const OID& oid)
+      std::string oid2str(const OID& oid)
          {
          const std::string oid_str = oid.to_string();
 
@@ -6549,7 +6662,7 @@ class OID_Map final
          return "";
          }
 
-      OID lookup(const std::string& str)
+      OID str2oid(const std::string& str)
          {
          lock_guard_type<mutex_type> lock(m_mutex);
          auto i = m_str2oid.find(str);
@@ -6575,8 +6688,8 @@ class OID_Map final
 
       OID_Map()
          {
-         m_str2oid = load_str2oid_map();
-         m_oid2str = load_oid2str_map();
+         m_str2oid = OIDS::load_str2oid_map();
+         m_oid2str = OIDS::load_oid2str_map();
          }
 
       mutex_type m_mutex;
@@ -6586,47 +6699,48 @@ class OID_Map final
 
 }
 
-void add_oid(const OID& oid, const std::string& name)
+void OIDS::add_oid(const OID& oid, const std::string& name)
    {
    OID_Map::global_registry().add_oid(oid, name);
    }
 
-void add_oidstr(const char* oidstr, const char* name)
+void OIDS::add_oidstr(const char* oidstr, const char* name)
    {
    add_oid(OID(oidstr), name);
    }
 
-void add_oid2str(const OID& oid, const std::string& name)
+void OIDS::add_oid2str(const OID& oid, const std::string& name)
    {
    OID_Map::global_registry().add_oid2str(oid, name);
    }
 
-void add_str2oid(const OID& oid, const std::string& name)
+void OIDS::add_str2oid(const OID& oid, const std::string& name)
    {
    OID_Map::global_registry().add_str2oid(oid, name);
    }
 
-std::string lookup(const OID& oid)
+std::string OIDS::oid2str_or_empty(const OID& oid)
    {
-   return OID_Map::global_registry().lookup(oid);
+   return OID_Map::global_registry().oid2str(oid);
    }
 
-OID lookup(const std::string& name)
+OID OIDS::str2oid_or_empty(const std::string& name)
    {
-   return OID_Map::global_registry().lookup(name);
+   return OID_Map::global_registry().str2oid(name);
    }
 
-bool have_oid(const std::string& name)
+std::string OIDS::oid2str_or_throw(const OID& oid)
+   {
+   const std::string s = OIDS::oid2str_or_empty(oid);
+   if(s.empty())
+      throw Lookup_Error("No name associated with OID " + oid.to_string());
+   return s;
+   }
+
+bool OIDS::have_oid(const std::string& name)
    {
    return OID_Map::global_registry().have_oid(name);
    }
-
-bool name_of(const OID& oid, const std::string& name)
-   {
-   return (oid == lookup(name));
-   }
-
-}
 
 }
 /*
@@ -6734,6 +6848,58 @@ void AutoSeeded_RNG::randomize_with_input(uint8_t output[], size_t output_len,
                                           const uint8_t ad[], size_t ad_len)
    {
    m_rng->randomize_with_input(output, output_len, ad, ad_len);
+   }
+
+}
+/*
+* (C) 2019 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
+
+void Buffered_Computation::update_be(uint16_t val)
+   {
+   uint8_t inb[sizeof(val)];
+   store_be(val, inb);
+   add_data(inb, sizeof(inb));
+   }
+
+void Buffered_Computation::update_be(uint32_t val)
+   {
+   uint8_t inb[sizeof(val)];
+   store_be(val, inb);
+   add_data(inb, sizeof(inb));
+   }
+
+void Buffered_Computation::update_be(uint64_t val)
+   {
+   uint8_t inb[sizeof(val)];
+   store_be(val, inb);
+   add_data(inb, sizeof(inb));
+   }
+
+void Buffered_Computation::update_le(uint16_t val)
+   {
+   uint8_t inb[sizeof(val)];
+   store_le(val, inb);
+   add_data(inb, sizeof(inb));
+   }
+
+void Buffered_Computation::update_le(uint32_t val)
+   {
+   uint8_t inb[sizeof(val)];
+   store_le(val, inb);
+   add_data(inb, sizeof(inb));
+   }
+
+void Buffered_Computation::update_le(uint64_t val)
+   {
+   uint8_t inb[sizeof(val)];
+   store_le(val, inb);
+   add_data(inb, sizeof(inb));
    }
 
 }
@@ -6918,7 +7084,7 @@ namespace Botan {
 OctetString::OctetString(RandomNumberGenerator& rng,
                          size_t len)
    {
-   m_data = rng.random_vec(len);
+   rng.random_vec(m_data, len);
    }
 
 /*
@@ -6926,8 +7092,11 @@ OctetString::OctetString(RandomNumberGenerator& rng,
 */
 OctetString::OctetString(const std::string& hex_string)
    {
-   m_data.resize(1 + hex_string.length() / 2);
-   m_data.resize(hex_decode(m_data.data(), hex_string));
+   if(!hex_string.empty())
+      {
+      m_data.resize(1 + hex_string.length() / 2);
+      m_data.resize(hex_decode(m_data.data(), hex_string));
+      }
    }
 
 /*
@@ -7790,7 +7959,10 @@ std::string generate_bcrypt(const std::string& pass,
 
    if(version != 'a' && version != 'b' && version != 'y')
       throw Invalid_Argument("Unknown bcrypt version '" + std::string(1, version) + "'");
-   return make_bcrypt(pass, unlock(rng.random_vec(16)), work_factor, version);
+
+   std::vector<uint8_t> salt;
+   rng.random_vec(salt, 16);
+   return make_bcrypt(pass, salt, work_factor, version);
    }
 
 bool check_bcrypt(const std::string& pass, const std::string& hash)
@@ -8394,22 +8566,7 @@ BigInt& BigInt::mod_mul(uint8_t y, const BigInt& mod, secure_vector<word>& ws)
 
    BOTAN_DEBUG_ASSERT(*this < mod);
 
-   switch(y)
-      {
-      case 2:
-         *this <<= 1;
-         break;
-      case 4:
-         *this <<= 2;
-         break;
-      case 8:
-         *this <<= 3;
-         break;
-      default:
-         *this *= static_cast<word>(y);
-         break;
-      }
-
+   *this *= static_cast<word>(y);
    this->reduce_below(mod, ws);
    return (*this);
    }
@@ -8459,8 +8616,8 @@ BigInt& BigInt::mul(const BigInt& y, secure_vector<word>& ws)
       }
    else if(y_sw == 1 && x_sw)
       {
-      grow_to(x_sw + 1);
-      bigint_linmul2(mutable_data(), x_sw, y.word_at(0));
+      word carry = bigint_linmul2(mutable_data(), x_sw, y.word_at(0));
+      set_word_at(x_sw, carry);
       }
    else
       {
@@ -8504,11 +8661,8 @@ BigInt& BigInt::operator*=(word y)
       set_sign(Positive);
       }
 
-   const size_t x_sw = sig_words();
-
-   if(size() < x_sw + 1)
-      grow_to(x_sw + 1);
-   bigint_linmul2(mutable_data(), x_sw, y);
+   const word carry = bigint_linmul2(mutable_data(), size(), y);
+   set_word_at(size(), carry);
 
    return (*this);
    }
@@ -8574,7 +8728,7 @@ BigInt& BigInt::operator<<=(size_t shift)
 
    const size_t bits_free = top_bits_free();
 
-   const size_t new_size = size + shift_words + (bits_free < shift);
+   const size_t new_size = size + shift_words + (bits_free < shift_bits);
 
    m_data.grow_to(new_size);
 
@@ -8942,6 +9096,12 @@ BigInt::BigInt(RandomNumberGenerator& rng, size_t bits, bool set_high_bit)
    randomize(rng, bits, set_high_bit);
    }
 
+uint8_t BigInt::byte_at(size_t n) const
+   {
+   return get_byte(sizeof(word) - (n % sizeof(word)) - 1,
+                   word_at(n / sizeof(word)));
+   }
+
 int32_t BigInt::cmp_word(word other) const
    {
    if(is_negative())
@@ -8968,12 +9128,12 @@ int32_t BigInt::cmp(const BigInt& other, bool check_signs) const
          return 1;
 
       if(other.is_negative() && this->is_negative())
-         return (-bigint_cmp(this->data(), this->sig_words(),
-                             other.data(), other.sig_words()));
+         return (-bigint_cmp(this->data(), this->size(),
+                             other.data(), other.size()));
       }
 
-   return bigint_cmp(this->data(), this->sig_words(),
-                     other.data(), other.sig_words());
+   return bigint_cmp(this->data(), this->size(),
+                     other.data(), other.size());
    }
 
 bool BigInt::is_equal(const BigInt& other) const
@@ -9639,12 +9799,13 @@ void BLAKE2b::state_init()
    m_H[0] ^= 0x01010000 ^ static_cast<uint8_t>(output_length());
    m_T[0] = m_T[1] = 0;
    m_F[0] = m_F[1] = 0;
+   m_bufpos = 0;
    }
 
 namespace {
 
-inline void G(uint64_t& a, uint64_t& b, uint64_t& c, uint64_t& d,
-              uint64_t M0, uint64_t M1)
+BOTAN_FORCE_INLINE void G(uint64_t& a, uint64_t& b, uint64_t& c, uint64_t& d,
+                          uint64_t M0, uint64_t M1)
    {
    a = a + b + M0;
    d = rotr<32>(d ^ a);
@@ -9658,7 +9819,7 @@ inline void G(uint64_t& a, uint64_t& b, uint64_t& c, uint64_t& d,
 
 template<size_t i0, size_t i1, size_t i2, size_t i3, size_t i4, size_t i5, size_t i6, size_t i7,
          size_t i8, size_t i9, size_t iA, size_t iB, size_t iC, size_t iD, size_t iE, size_t iF>
-inline void ROUND(uint64_t* v, const uint64_t* M)
+BOTAN_FORCE_INLINE void ROUND(uint64_t* v, const uint64_t* M)
    {
    G(v[ 0], v[ 4], v[ 8], v[12], M[i0], M[i1]);
    G(v[ 1], v[ 5], v[ 9], v[13], M[i2], M[i3]);
@@ -9765,7 +9926,7 @@ void BLAKE2b::final_result(uint8_t output[])
    m_F[0] = 0xFFFFFFFFFFFFFFFF;
    compress(m_buffer.data(), 1, m_bufpos);
    copy_out_vec_le(output, output_length(), m_H);
-   clear();
+   state_init();
    }
 
 std::string BLAKE2b::name() const
@@ -11803,9 +11964,12 @@ void CAST_128::key_schedule(const uint8_t key[], size_t length)
    m_MK.resize(48);
    m_RK.resize(48);
 
+   secure_vector<uint8_t> key16(16);
+   copy_mem(key16.data(), key, length);
+
    secure_vector<uint32_t> X(4);
-   for(size_t i = 0; i != length; ++i)
-      X[i/4] = (X[i/4] << 8) + key[i];
+   for(size_t i = 0; i != 4; ++i)
+      X[i] = load_be<uint32_t>(key16.data(), i);
 
    cast_ks(m_MK, X);
 
@@ -12824,7 +12988,7 @@ void CCM_Mode::encode_length(uint64_t len, uint8_t out[])
    {
    const size_t len_bytes = L();
 
-   BOTAN_ASSERT_NOMSG(len_bytes >= 1 && len_bytes <= 8);
+   BOTAN_ASSERT_NOMSG(len_bytes >= 2 && len_bytes <= 8);
 
    for(size_t i = 0; i != len_bytes; ++i)
       out[len_bytes-1-i] = get_byte(sizeof(uint64_t)-1-i, len);
@@ -12842,6 +13006,8 @@ void CCM_Mode::inc(secure_vector<uint8_t>& C)
 
 secure_vector<uint8_t> CCM_Mode::format_b0(size_t sz)
    {
+   if(m_nonce.size() != 15-L())
+      throw Invalid_State("CCM mode must set nonce");
    secure_vector<uint8_t> B0(CCM_BS);
 
    const uint8_t b_flags =
@@ -12856,6 +13022,8 @@ secure_vector<uint8_t> CCM_Mode::format_b0(size_t sz)
 
 secure_vector<uint8_t> CCM_Mode::format_c0()
    {
+   if(m_nonce.size() != 15-L())
+      throw Invalid_State("CCM mode must set nonce");
    secure_vector<uint8_t> C(CCM_BS);
 
    const uint8_t a_flags = static_cast<uint8_t>(L() - 1);
@@ -12915,6 +13083,8 @@ void CCM_Encryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
    T ^= S0;
 
    buffer += std::make_pair(T.data(), tag_size());
+
+   reset();
    }
 
 void CCM_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
@@ -12972,6 +13142,8 @@ void CCM_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
       throw Invalid_Authentication_Tag("CCM tag check failed");
 
    buffer.resize(buffer.size() - tag_size());
+
+   reset();
    }
 
 }
@@ -13454,7 +13626,7 @@ void Certificate_Store_In_SQL::revoke_cert(const X509_Certificate& cert, CRL_Cod
       }
    else
       {
-      stmt1->bind(3,-1);
+      stmt1->bind(3, static_cast<size_t>(-1));
       }
 
    stmt1->spin();
@@ -14117,7 +14289,7 @@ void CFB_Mode::start_msg(const uint8_t nonce[], size_t nonce_len)
    if(!valid_nonce_length(nonce_len))
       throw Invalid_IV_Length(name(), nonce_len);
 
-   verify_key_set(m_keystream.size());
+   verify_key_set(!m_keystream.empty());
 
    if(nonce_len == 0)
       {
@@ -14151,7 +14323,7 @@ void CFB_Mode::shift_register()
 
 size_t CFB_Encryption::process(uint8_t buf[], size_t sz)
    {
-   verify_key_set(m_keystream.size());
+   verify_key_set(!m_keystream.empty());
    BOTAN_STATE_CHECK(m_state.empty() == false);
 
    const size_t shift = feedback();
@@ -14216,7 +14388,7 @@ inline void xor_copy(uint8_t buf[], uint8_t key_buf[], size_t len)
 
 size_t CFB_Decryption::process(uint8_t buf[], size_t sz)
    {
-   verify_key_set(m_keystream.size());
+   verify_key_set(!m_keystream.empty());
    BOTAN_STATE_CHECK(m_state.empty() == false);
 
    const size_t shift = feedback();
@@ -14708,11 +14880,12 @@ void ChaCha20Poly1305_Mode::start_msg(const uint8_t nonce[], size_t nonce_len)
 
    m_chacha->set_iv(nonce, nonce_len);
 
-   secure_vector<uint8_t> first_block(64);
-   m_chacha->write_keystream(first_block.data(), first_block.size());
+   uint8_t first_block[64];
+   m_chacha->write_keystream(first_block, sizeof(first_block));
 
-   m_poly1305->set_key(first_block.data(), 32);
+   m_poly1305->set_key(first_block, 32);
    // Remainder of first block is discarded
+   secure_scrub_memory(first_block, sizeof(first_block));
 
    m_poly1305->update(m_ad);
 
@@ -14752,8 +14925,8 @@ void ChaCha20Poly1305_Encryption::finish(secure_vector<uint8_t>& buffer, size_t 
       }
    update_len(m_ctext_len);
 
-   const secure_vector<uint8_t> mac = m_poly1305->final();
-   buffer += std::make_pair(mac.data(), tag_size());
+   buffer.resize(buffer.size() + tag_size());
+   m_poly1305->final(&buffer[buffer.size() - tag_size()]);
    m_ctext_len = 0;
    m_nonce_len = 0;
    }
@@ -14794,14 +14967,16 @@ void ChaCha20Poly1305_Decryption::finish(secure_vector<uint8_t>& buffer, size_t 
       }
 
    update_len(m_ctext_len);
-   const secure_vector<uint8_t> mac = m_poly1305->final();
+
+   uint8_t mac[16];
+   m_poly1305->final(mac);
 
    const uint8_t* included_tag = &buf[remaining];
 
    m_ctext_len = 0;
    m_nonce_len = 0;
 
-   if(!constant_time_compare(mac.data(), included_tag, tag_size()))
+   if(!constant_time_compare(mac, included_tag, tag_size()))
       throw Invalid_Authentication_Tag("ChaCha20Poly1305 tag check failed");
    buffer.resize(offset + remaining);
    }
@@ -14985,30 +15160,25 @@ void ChaCha::chacha_avx2_x8(uint8_t output[64*8], uint32_t state[16], size_t rou
    R14 += SIMD_8x32::splat(state[14]);
    R15 += SIMD_8x32::splat(state[15]);
 
-   SIMD_8x32::transpose(R00, R01, R02, R03);
-   SIMD_8x32::transpose(R04, R05, R06, R07);
-   SIMD_8x32::transpose(R08, R09, R10, R11);
-   SIMD_8x32::transpose(R12, R13, R14, R15);
+   SIMD_8x32::transpose(R00, R01, R02, R03, R04, R05, R06, R07);
+   SIMD_8x32::transpose(R08, R09, R10, R11, R12, R13, R14, R15);
 
-   __m256i* output_mm = reinterpret_cast<__m256i*>(output);
-
-   _mm256_storeu_si256(output_mm     , _mm256_permute2x128_si256(R00.handle(), R04.handle(), 0 + (2 << 4)));
-   _mm256_storeu_si256(output_mm +  1, _mm256_permute2x128_si256(R08.handle(), R12.handle(), 0 + (2 << 4)));
-   _mm256_storeu_si256(output_mm +  2, _mm256_permute2x128_si256(R01.handle(), R05.handle(), 0 + (2 << 4)));
-   _mm256_storeu_si256(output_mm +  3, _mm256_permute2x128_si256(R09.handle(), R13.handle(), 0 + (2 << 4)));
-   _mm256_storeu_si256(output_mm +  4, _mm256_permute2x128_si256(R02.handle(), R06.handle(), 0 + (2 << 4)));
-   _mm256_storeu_si256(output_mm +  5, _mm256_permute2x128_si256(R10.handle(), R14.handle(), 0 + (2 << 4)));
-   _mm256_storeu_si256(output_mm +  6, _mm256_permute2x128_si256(R03.handle(), R07.handle(), 0 + (2 << 4)));
-   _mm256_storeu_si256(output_mm +  7, _mm256_permute2x128_si256(R11.handle(), R15.handle(), 0 + (2 << 4)));
-
-   _mm256_storeu_si256(output_mm +  8, _mm256_permute2x128_si256(R00.handle(), R04.handle(), 1 + (3 << 4)));
-   _mm256_storeu_si256(output_mm +  9, _mm256_permute2x128_si256(R08.handle(), R12.handle(), 1 + (3 << 4)));
-   _mm256_storeu_si256(output_mm + 10, _mm256_permute2x128_si256(R01.handle(), R05.handle(), 1 + (3 << 4)));
-   _mm256_storeu_si256(output_mm + 11, _mm256_permute2x128_si256(R09.handle(), R13.handle(), 1 + (3 << 4)));
-   _mm256_storeu_si256(output_mm + 12, _mm256_permute2x128_si256(R02.handle(), R06.handle(), 1 + (3 << 4)));
-   _mm256_storeu_si256(output_mm + 13, _mm256_permute2x128_si256(R10.handle(), R14.handle(), 1 + (3 << 4)));
-   _mm256_storeu_si256(output_mm + 14, _mm256_permute2x128_si256(R03.handle(), R07.handle(), 1 + (3 << 4)));
-   _mm256_storeu_si256(output_mm + 15, _mm256_permute2x128_si256(R11.handle(), R15.handle(), 1 + (3 << 4)));
+   R00.store_le(output);
+   R08.store_le(output + 32*1);
+   R01.store_le(output + 32*2);
+   R09.store_le(output + 32*3);
+   R02.store_le(output + 32*4);
+   R10.store_le(output + 32*5);
+   R03.store_le(output + 32*6);
+   R11.store_le(output + 32*7);
+   R04.store_le(output + 32*8);
+   R12.store_le(output + 32*9);
+   R05.store_le(output + 32*10);
+   R13.store_le(output + 32*11);
+   R06.store_le(output + 32*12);
+   R14.store_le(output + 32*13);
+   R07.store_le(output + 32*14);
+   R15.store_le(output + 32*15);
 
    SIMD_8x32::zero_registers();
 
@@ -15326,191 +15496,12 @@ void ChaCha::chacha_simd32_x4(uint8_t output[64*4], uint32_t state[16], size_t r
 
 }
 /*
-* CLMUL hook
-* (C) 2013,2017 Jack Lloyd
-*
-* Botan is released under the Simplified BSD License (see license.txt)
-*/
-
-#include <immintrin.h>
-
-namespace Botan {
-
-namespace {
-
-BOTAN_FUNC_ISA("sse2")
-inline __m128i gcm_reduce(const __m128i& B0, const __m128i& B1)
-   {
-   __m128i T0, T1, T2, T3;
-
-   T0 = _mm_srli_epi32(B1, 31);
-   T1 = _mm_slli_epi32(B1, 1);
-   T2 = _mm_srli_epi32(B0, 31);
-   T3 = _mm_slli_epi32(B0, 1);
-
-   T3 = _mm_or_si128(T3, _mm_srli_si128(T0, 12));
-   T3 = _mm_or_si128(T3, _mm_slli_si128(T2, 4));
-   T1 = _mm_or_si128(T1, _mm_slli_si128(T0, 4));
-
-   T0 = _mm_xor_si128(_mm_slli_epi32(T1, 31), _mm_slli_epi32(T1, 30));
-   T0 = _mm_xor_si128(T0, _mm_slli_epi32(T1, 25));
-
-   T1 = _mm_xor_si128(T1, _mm_slli_si128(T0, 12));
-
-   T0 = _mm_xor_si128(T3, _mm_srli_si128(T0, 4));
-   T0 = _mm_xor_si128(T0, T1);
-   T0 = _mm_xor_si128(T0, _mm_srli_epi32(T1, 7));
-   T0 = _mm_xor_si128(T0, _mm_srli_epi32(T1, 1));
-   T0 = _mm_xor_si128(T0, _mm_srli_epi32(T1, 2));
-   return T0;
-   }
-
-BOTAN_FUNC_ISA("pclmul,sse2")
-inline __m128i gcm_multiply(const __m128i& H, const __m128i& x)
-   {
-   __m128i T0, T1, T2, T3;
-
-   T0 = _mm_clmulepi64_si128(x, H, 0x11);
-   T1 = _mm_clmulepi64_si128(x, H, 0x10);
-   T2 = _mm_clmulepi64_si128(x, H, 0x01);
-   T3 = _mm_clmulepi64_si128(x, H, 0x00);
-
-   T1 = _mm_xor_si128(T1, T2);
-   T0 = _mm_xor_si128(T0, _mm_srli_si128(T1, 8));
-   T3 = _mm_xor_si128(T3, _mm_slli_si128(T1, 8));
-
-   return gcm_reduce(T0, T3);
-   }
-
-BOTAN_FUNC_ISA("pclmul,sse2")
-inline __m128i gcm_multiply_x4(const __m128i& H1, const __m128i& H2, const __m128i& H3, const __m128i& H4,
-                               const __m128i& X1, const __m128i& X2, const __m128i& X3, const __m128i& X4)
-   {
-   /*
-   * Mutiply with delayed reduction, algorithm by Krzysztof Jankowski
-   * and Pierre Laurent of Intel
-   */
-
-   const __m128i H1_X1_lo = _mm_clmulepi64_si128(H1, X1, 0x00);
-   const __m128i H2_X2_lo = _mm_clmulepi64_si128(H2, X2, 0x00);
-   const __m128i H3_X3_lo = _mm_clmulepi64_si128(H3, X3, 0x00);
-   const __m128i H4_X4_lo = _mm_clmulepi64_si128(H4, X4, 0x00);
-
-   const __m128i lo = _mm_xor_si128(
-      _mm_xor_si128(H1_X1_lo, H2_X2_lo),
-      _mm_xor_si128(H3_X3_lo, H4_X4_lo));
-
-   const __m128i H1_X1_hi = _mm_clmulepi64_si128(H1, X1, 0x11);
-   const __m128i H2_X2_hi = _mm_clmulepi64_si128(H2, X2, 0x11);
-   const __m128i H3_X3_hi = _mm_clmulepi64_si128(H3, X3, 0x11);
-   const __m128i H4_X4_hi = _mm_clmulepi64_si128(H4, X4, 0x11);
-
-   const __m128i hi = _mm_xor_si128(
-      _mm_xor_si128(H1_X1_hi, H2_X2_hi),
-      _mm_xor_si128(H3_X3_hi, H4_X4_hi));
-
-   __m128i T0 = _mm_xor_si128(lo, hi);
-   __m128i T1, T2, T3, T4;
-
-   T1 = _mm_xor_si128(_mm_srli_si128(H1, 8), H1);
-   T2 = _mm_xor_si128(_mm_srli_si128(X1, 8), X1);
-   T3 = _mm_xor_si128(_mm_srli_si128(H2, 8), H2);
-   T4 = _mm_xor_si128(_mm_srli_si128(X2, 8), X2);
-   T0 = _mm_xor_si128(T0, _mm_clmulepi64_si128(T1, T2, 0x00));
-   T0 = _mm_xor_si128(T0, _mm_clmulepi64_si128(T3, T4, 0x00));
-
-   T1 = _mm_xor_si128(_mm_srli_si128(H3, 8), H3);
-   T2 = _mm_xor_si128(_mm_srli_si128(X3, 8), X3);
-   T3 = _mm_xor_si128(_mm_srli_si128(H4, 8), H4);
-   T4 = _mm_xor_si128(_mm_srli_si128(X4, 8), X4);
-   T0 = _mm_xor_si128(T0, _mm_clmulepi64_si128(T1, T2, 0x00));
-   T0 = _mm_xor_si128(T0, _mm_clmulepi64_si128(T3, T4, 0x00));
-
-   T1 = _mm_xor_si128(_mm_srli_si128(T0, 8), hi);
-   T2 = _mm_xor_si128(_mm_slli_si128(T0, 8), lo);
-
-   return gcm_reduce(T1, T2);
-   }
-
-}
-
-BOTAN_FUNC_ISA("ssse3")
-void gcm_clmul_precompute(const uint8_t H_bytes[16], uint64_t H_pow[4*2])
-   {
-   const __m128i BSWAP_MASK = _mm_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-
-   const __m128i H = _mm_shuffle_epi8(_mm_loadu_si128(reinterpret_cast<const __m128i*>(H_bytes)), BSWAP_MASK);
-   const __m128i H2 = gcm_multiply(H, H);
-   const __m128i H3 = gcm_multiply(H, H2);
-   const __m128i H4 = gcm_multiply(H, H3);
-
-   __m128i* H_pow_mm = reinterpret_cast<__m128i*>(H_pow);
-
-   _mm_storeu_si128(H_pow_mm+0, H);
-   _mm_storeu_si128(H_pow_mm+1, H2);
-   _mm_storeu_si128(H_pow_mm+2, H3);
-   _mm_storeu_si128(H_pow_mm+3, H4);
-   }
-
-BOTAN_FUNC_ISA("ssse3")
-void gcm_multiply_clmul(uint8_t x[16],
-                        const uint64_t H_pow[8],
-                        const uint8_t input_bytes[], size_t blocks)
-   {
-   /*
-   * Algorithms 1 and 5 from Intel's CLMUL guide
-   */
-   const __m128i BSWAP_MASK = _mm_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-
-   const __m128i* input = reinterpret_cast<const __m128i*>(input_bytes);
-
-   const __m128i* H_pow_mm = reinterpret_cast<const __m128i*>(H_pow);
-
-   const __m128i H = _mm_loadu_si128(H_pow_mm);
-
-   __m128i a = _mm_loadu_si128(reinterpret_cast<const __m128i*>(x));
-   a = _mm_shuffle_epi8(a, BSWAP_MASK);
-
-   if(blocks >= 4)
-      {
-      const __m128i H2 = _mm_loadu_si128(H_pow_mm + 1);
-      const __m128i H3 = _mm_loadu_si128(H_pow_mm + 2);
-      const __m128i H4 = _mm_loadu_si128(H_pow_mm + 3);
-
-      while(blocks >= 4)
-         {
-         const __m128i m0 = _mm_shuffle_epi8(_mm_loadu_si128(input + 0), BSWAP_MASK);
-         const __m128i m1 = _mm_shuffle_epi8(_mm_loadu_si128(input + 1), BSWAP_MASK);
-         const __m128i m2 = _mm_shuffle_epi8(_mm_loadu_si128(input + 2), BSWAP_MASK);
-         const __m128i m3 = _mm_shuffle_epi8(_mm_loadu_si128(input + 3), BSWAP_MASK);
-
-         a = _mm_xor_si128(a, m0);
-         a = gcm_multiply_x4(H, H2, H3, H4, m3, m2, m1, a);
-
-         input += 4;
-         blocks -= 4;
-         }
-      }
-
-   for(size_t i = 0; i != blocks; ++i)
-      {
-      const __m128i m = _mm_shuffle_epi8(_mm_loadu_si128(input + i), BSWAP_MASK);
-
-      a = _mm_xor_si128(a, m);
-      a = gcm_multiply(H, a);
-      }
-
-   a = _mm_shuffle_epi8(a, BSWAP_MASK);
-   _mm_storeu_si128(reinterpret_cast<__m128i*>(x), a);
-   }
-
-}
-/*
 * (C) 2017 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include <immintrin.h>
 
 namespace Botan {
 
@@ -15817,13 +15808,6 @@ void Comb4P::final_result(uint8_t out[])
 
 namespace Botan {
 
-//static
-CPUID::CPUID_Data& CPUID::state()
-   {
-   static BOTAN_THREAD_LOCAL CPUID::CPUID_Data g_cpuid;
-   return g_cpuid;
-   }
-
 bool CPUID::has_simd_32()
    {
 #if defined(BOTAN_TARGET_SUPPORTS_SSE2)
@@ -15866,7 +15850,8 @@ std::string CPUID::to_string()
 
 #if defined(BOTAN_TARGET_CPU_IS_PPC_FAMILY)
    CPUID_PRINT(altivec);
-   CPUID_PRINT(ppc_crypto);
+   CPUID_PRINT(power_crypto);
+   CPUID_PRINT(darn_rng);
 #endif
 
 #if defined(BOTAN_TARGET_CPU_IS_ARM_FAMILY)
@@ -15977,8 +15962,8 @@ CPUID::bit_from_string(const std::string& tok)
 #elif defined(BOTAN_TARGET_CPU_IS_PPC_FAMILY)
    if(tok == "altivec" || tok == "simd")
       return {Botan::CPUID::CPUID_ALTIVEC_BIT};
-   if(tok == "ppc_crypto")
-      return {Botan::CPUID::CPUID_PPC_CRYPTO_BIT};
+   if(tok == "power_crypto")
+      return {Botan::CPUID::CPUID_POWER_CRYPTO_BIT};
 
 #elif defined(BOTAN_TARGET_CPU_IS_ARM_FAMILY)
    if(tok == "neon" || tok == "simd")
@@ -16153,6 +16138,8 @@ uint64_t CPUID::CPUID_Data::detect_cpu_features(size_t* cache_line_size)
    // plausibility check
    if(dcache_line == 32 || dcache_line == 64 || dcache_line == 128)
       *cache_line_size = static_cast<size_t>(dcache_line);
+#else
+   BOTAN_UNUSED(cache_line_size);
 #endif
 
    const unsigned long hwcap_neon = OS::get_auxval(ARM_hwcap_bit::ARCH_hwcap_neon);
@@ -16206,11 +16193,11 @@ uint64_t CPUID::CPUID_Data::detect_cpu_features(size_t* cache_line_size)
    NEON registers v0-v7 are caller saved in Aarch64
    */
 
-   auto neon_probe  = []() -> int { asm("and v0.16b, v0.16b, v0.16b"); return 1; };
-   auto aes_probe   = []() -> int { asm(".word 0x4e284800"); return 1; };
-   auto pmull_probe = []() -> int { asm(".word 0x0ee0e000"); return 1; };
-   auto sha1_probe  = []() -> int { asm(".word 0x5e280800"); return 1; };
-   auto sha2_probe  = []() -> int { asm(".word 0x5e282800"); return 1; };
+   auto neon_probe  = []() noexcept -> int { asm("and v0.16b, v0.16b, v0.16b"); return 1; };
+   auto aes_probe   = []() noexcept -> int { asm(".word 0x4e284800"); return 1; };
+   auto pmull_probe = []() noexcept -> int { asm(".word 0x0ee0e000"); return 1; };
+   auto sha1_probe  = []() noexcept -> int { asm(".word 0x5e280800"); return 1; };
+   auto sha2_probe  = []() noexcept -> int { asm(".word 0x5e282800"); return 1; };
 
    // Only bother running the crypto detection if we found NEON
 
@@ -16294,6 +16281,7 @@ uint64_t CPUID::CPUID_Data::detect_cpu_features(size_t* cache_line_size)
    enum PPC_hwcap_bit {
       ALTIVEC_bit  = (1 << 28),
       CRYPTO_bit   = (1 << 25),
+      DARN_bit     = (1 << 21),
 
       ARCH_hwcap_altivec = 16, // AT_HWCAP
       ARCH_hwcap_crypto  = 26, // AT_HWCAP2
@@ -16307,7 +16295,9 @@ uint64_t CPUID::CPUID_Data::detect_cpu_features(size_t* cache_line_size)
 
    const unsigned long hwcap_crypto = OS::get_auxval(PPC_hwcap_bit::ARCH_hwcap_crypto);
    if(hwcap_crypto & PPC_hwcap_bit::CRYPTO_bit)
-     detected_features |= CPUID::CPUID_PPC_CRYPTO_BIT;
+     detected_features |= CPUID::CPUID_POWER_CRYPTO_BIT;
+   if(hwcap_crypto & PPC_hwcap_bit::DARN_bit)
+     detected_features |= CPUID::CPUID_DARN_BIT;
 
    return detected_features;
 
@@ -16319,7 +16309,7 @@ uint64_t CPUID::CPUID_Data::detect_cpu_features(size_t* cache_line_size)
    (others, too, maybe?) will trap and emulate it for us.
    */
 
-   int pvr = OS::run_cpu_instruction_probe([]() -> int {
+   int pvr = OS::run_cpu_instruction_probe([]() noexcept -> int {
       uint32_t pvr = 0;
       asm volatile("mfspr %0, 287" : "=r" (pvr));
       // Top 16 bits suffice to identify the model
@@ -17203,31 +17193,27 @@ void CTR_BE::add_counter(const uint64_t counter)
 
    if(ctr_size == 4)
       {
-      size_t off = (BS - 4);
-      uint32_t low32 = static_cast<uint32_t>(counter + load_be<uint32_t>(&m_counter[off], 0));
+      const size_t off = (BS - 4);
+      const uint32_t low32 = static_cast<uint32_t>(counter + load_be<uint32_t>(&m_counter[off], 0));
 
       for(size_t i = 0; i != ctr_blocks; ++i)
          {
-         store_be(low32, &m_counter[off]);
-         off += BS;
-         low32 += 1;
+         store_be(uint32_t(low32 + i), &m_counter[i*BS+off]);
          }
       }
    else if(ctr_size == 8)
       {
-      size_t off = (BS - 8);
-      uint64_t low64 = counter + load_be<uint64_t>(&m_counter[off], 0);
+      const size_t off = (BS - 8);
+      const uint64_t low64 = counter + load_be<uint64_t>(&m_counter[off], 0);
 
       for(size_t i = 0; i != ctr_blocks; ++i)
          {
-         store_be(low64, &m_counter[off]);
-         off += BS;
-         low64 += 1;
+         store_be(uint64_t(low64 + i), &m_counter[i*BS+off]);
          }
       }
    else if(ctr_size == 16)
       {
-      size_t off = (BS - 16);
+      const size_t off = (BS - 16);
       uint64_t b0 = load_be<uint64_t>(&m_counter[off], 0);
       uint64_t b1 = load_be<uint64_t>(&m_counter[off], 1);
       b1 += counter;
@@ -17235,9 +17221,8 @@ void CTR_BE::add_counter(const uint64_t counter)
 
       for(size_t i = 0; i != ctr_blocks; ++i)
          {
-         store_be(b0, &m_counter[off]);
-         store_be(b1, &m_counter[off+8]);
-         off += BS;
+         store_be(b0, &m_counter[i*BS+off]);
+         store_be(b1, &m_counter[i*BS+off+8]);
          b1 += 1;
          b0 += (b1 == 0); // carry
          }
@@ -17276,15 +17261,33 @@ void CTR_BE::seek(uint64_t offset)
    if(m_ctr_size == 4 && BS >= 8)
       {
       const uint32_t low32 = load_be<uint32_t>(&m_counter[BS-4], 0);
+
+      if(m_ctr_blocks >= 4 && is_power_of_2(m_ctr_blocks))
+         {
+         size_t written = 1;
+         while(written < m_ctr_blocks)
+            {
+            copy_mem(&m_counter[written*BS], &m_counter[0], BS*written);
+            written *= 2;
+            }
+         }
+      else
+         {
+         for(size_t i = 1; i != m_ctr_blocks; ++i)
+            {
+            copy_mem(&m_counter[i*BS], &m_counter[0], BS - 4);
+            }
+         }
+
       for(size_t i = 1; i != m_ctr_blocks; ++i)
          {
-         copy_mem(&m_counter[i*BS], &m_counter[0], BS);
          const uint32_t c = static_cast<uint32_t>(low32 + i);
          store_be(c, &m_counter[(BS-4)+i*BS]);
          }
       }
    else
       {
+      // do everything sequentially:
       for(size_t i = 1; i != m_ctr_blocks; ++i)
          {
          buffer_insert(m_counter, i*BS, &m_counter[(i-1)*BS], BS);
@@ -18863,7 +18866,7 @@ size_t Device_EntropySource::poll(RandomNumberGenerator& rng)
 }
 /*
 * Diffie-Hellman
-* (C) 1999-2007,2016 Jack Lloyd
+* (C) 1999-2007,2016,2019 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -18945,20 +18948,30 @@ class DH_KA_Operation final : public PK_Ops::Key_Agreement_with_KDF
       DH_KA_Operation(const DH_PrivateKey& key, const std::string& kdf, RandomNumberGenerator& rng) :
          PK_Ops::Key_Agreement_with_KDF(kdf),
          m_p(key.group_p()),
-         m_powermod_x_p(key.get_x(), m_p),
+         m_x(key.get_x()),
+         m_x_bits(m_x.bits()),
+         m_monty_p(key.get_group().monty_params_p()),
          m_blinder(m_p,
                    rng,
                    [](const BigInt& k) { return k; },
-                   [this](const BigInt& k) { return m_powermod_x_p(inverse_mod(k, m_p)); })
+                   [this](const BigInt& k) { return powermod_x_p(inverse_mod(k, m_p)); })
          {}
 
       size_t agreed_value_size() const override { return m_p.bytes(); }
 
       secure_vector<uint8_t> raw_agree(const uint8_t w[], size_t w_len) override;
    private:
-      const BigInt& m_p;
+      BigInt powermod_x_p(const BigInt& v) const
+         {
+         const size_t powm_window = 4;
+         auto powm_v_p = monty_precompute(m_monty_p, v, powm_window);
+         return monty_execute(*powm_v_p, m_x, m_x_bits);
+         }
 
-      Fixed_Exponent_Power_Mod m_powermod_x_p;
+      const BigInt& m_p;
+      const BigInt& m_x;
+      const size_t m_x_bits;
+      std::shared_ptr<const Montgomery_Params> m_monty_p;
       Blinder m_blinder;
    };
 
@@ -18970,7 +18983,7 @@ secure_vector<uint8_t> DH_KA_Operation::raw_agree(const uint8_t w[], size_t w_le
       throw Invalid_Argument("DH agreement - invalid key provided");
 
    v = m_blinder.blind(v);
-   v = m_powermod_x_p(v);
+   v = powermod_x_p(v);
    v = m_blinder.unblind(v);
 
    return BigInt::encode_1363(v, m_p.bytes());
@@ -19920,11 +19933,9 @@ std::vector<uint8_t> DLIES_Encryptor::enc(const uint8_t in[], size_t length,
       SymmetricKey enc_key(secret_keys.data(), cipher_key_len);
       m_cipher->set_key(enc_key);
 
-      if(m_iv.size())
-         {
-         m_cipher->start(m_iv.bits_of());
-         }
-
+      if(m_iv.size() == 0 && !m_cipher->valid_nonce_length(m_iv.size()))
+         throw Invalid_Argument("DLIES with " + m_cipher->name() + " requires an IV be set");
+      m_cipher->start(m_iv.bits_of());
       m_cipher->finish(ciphertext);
       }
    else
@@ -20045,11 +20056,9 @@ secure_vector<uint8_t> DLIES_Decryptor::do_decrypt(uint8_t& valid_mask,
             // the decryption can fail:
             // e.g. Invalid_Authentication_Tag is thrown if GCM is used and the message does not have a valid tag
 
-            if(m_iv.size())
-               {
-               m_cipher->start(m_iv.bits_of());
-               }
-
+            if(m_iv.size() == 0 && !m_cipher->valid_nonce_length(m_iv.size()))
+               throw Invalid_Argument("DLIES with " + m_cipher->name() + " requires an IV be set");
+            m_cipher->start(m_iv.bits_of());
             m_cipher->finish(ciphertext);
             }
          catch(...)
@@ -21399,11 +21408,11 @@ EC_Group::EC_Group(const std::string& str)
 
    try
       {
-      OID oid = OIDS::lookup(str);
-      if(oid.empty() == false)
+      const OID oid = OID::from_string(str);
+      if(oid.has_value())
          m_data = ec_group_data().lookup(oid);
       }
-   catch(Invalid_OID&)
+   catch(...)
       {
       }
 
@@ -21904,14 +21913,25 @@ std::shared_ptr<EC_Group_Data> EC_Group::EC_group_info(const OID& oid)
                                 "0xF1FD178C0B3AD58F10126DE8CE42435B53DC67E140D2BF941FFDD459C6D655E1",
                                 oid);
    // gost_256A
-   if(oid == OID{1,2,643,2,2,35,1})
+   if(oid == OID{1,2,643,2,2,35,1} || oid == OID{1,2,643,2,2,36,0} || oid == OID{1,2,643,7,1,2,1,1,1})
       return load_EC_group_info("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD97",
                                 "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD94",
                                 "0xA6",
                                 "0x1",
                                 "0x8D91E471E0989CDA27DF505A453F2B7635294F2DDF23E3B122ACC99C9E9F1E14",
                                 "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF6C611070995AD10045841B09B761B893",
+                                OID{1,2,643,7,1,2,1,1,1});
+
+   // gost_512A
+   if(oid == OID{1,2,643,7,1,2,1,2,1})
+      return load_EC_group_info("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDC7",
+                                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDC4",
+                                "0xE8C2505DEDFC86DDC1BD0B2B6667F1DA34B82574761CB0E879BD081CFD0B6265EE3CB090F30D27614CB4574010DA90DD862EF9D4EBEE4761503190785A71C760",
+                                "3",
+                                "0x7503CFE87A836AE3A61B8816E25450E6CE5E1C93ACF1ABC1778064FDCBEFA921DF1626BE4FD036E93D75E6A50E3A41E98028FE5FC235F5B889A589CB5215F2A4",
+                                "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF27E69532F48D89116FF22B8D4E0560609B4B38ABFAD2B85DCACDB1411F10B275",
                                 oid);
+
    // secp160k1
    if(oid == OID{1,3,132,0,9})
       return load_EC_group_info("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFAC73",
@@ -22071,6 +22091,7 @@ const std::set<std::string>& EC_Group::known_named_groups()
       "x962_p239v2",
       "x962_p239v3",
       "gost_256A",
+      "gost_512A",
       "frp256v1",
       "sm2p256v1"
       };
@@ -22104,9 +22125,9 @@ PointGFp::PointGFp(const CurveGFp& curve, const BigInt& x, const BigInt& y) :
    m_coord_y(y),
    m_coord_z(m_curve.get_1_rep())
    {
-   if(x <= 0 || x >= curve.get_p())
+   if(x < 0 || x >= curve.get_p())
       throw Invalid_Argument("Invalid PointGFp affine x");
-   if(y <= 0 || y >= curve.get_p())
+   if(y < 0 || y >= curve.get_p())
       throw Invalid_Argument("Invalid PointGFp affine y");
 
    secure_vector<word> monty_ws(m_curve.get_ws_size());
@@ -22578,7 +22599,7 @@ BigInt PointGFp::get_affine_x() const
    secure_vector<word> monty_ws;
 
    if(is_affine())
-      return m_curve.from_rep(m_coord_x, monty_ws);
+      return m_curve.from_rep_to_tmp(m_coord_x, monty_ws);
 
    BigInt z2 = m_curve.sqr_to_tmp(m_coord_z, monty_ws);
    z2 = m_curve.invert_element(z2, monty_ws);
@@ -22597,7 +22618,7 @@ BigInt PointGFp::get_affine_y() const
    secure_vector<word> monty_ws;
 
    if(is_affine())
-      return m_curve.from_rep(m_coord_y, monty_ws);
+      return m_curve.from_rep_to_tmp(m_coord_y, monty_ws);
 
    const BigInt z2 = m_curve.sqr_to_tmp(m_coord_z, monty_ws);
    const BigInt z3 = m_curve.mul_to_tmp(m_coord_z, z2, monty_ws);
@@ -22622,14 +22643,14 @@ bool PointGFp::on_the_curve() const
 
    secure_vector<word> monty_ws;
 
-   const BigInt y2 = m_curve.from_rep(m_curve.sqr_to_tmp(m_coord_y, monty_ws), monty_ws);
+   const BigInt y2 = m_curve.from_rep_to_tmp(m_curve.sqr_to_tmp(m_coord_y, monty_ws), monty_ws);
    const BigInt x3 = m_curve.mul_to_tmp(m_coord_x, m_curve.sqr_to_tmp(m_coord_x, monty_ws), monty_ws);
    const BigInt ax = m_curve.mul_to_tmp(m_coord_x, m_curve.get_a_rep(), monty_ws);
    const BigInt z2 = m_curve.sqr_to_tmp(m_coord_z, monty_ws);
 
    if(m_coord_z == z2) // Is z equal to 1 (in Montgomery form)?
       {
-      if(y2 != m_curve.from_rep(x3 + ax + m_curve.get_b_rep(), monty_ws))
+      if(y2 != m_curve.from_rep_to_tmp(x3 + ax + m_curve.get_b_rep(), monty_ws))
          return false;
       }
 
@@ -22637,7 +22658,7 @@ bool PointGFp::on_the_curve() const
    const BigInt ax_z4 = m_curve.mul_to_tmp(ax, m_curve.sqr_to_tmp(z2, monty_ws), monty_ws);
    const BigInt b_z6 = m_curve.mul_to_tmp(m_curve.get_b_rep(), m_curve.sqr_to_tmp(z3, monty_ws), monty_ws);
 
-   if(y2 != m_curve.from_rep(x3 + ax_z4 + b_z6, monty_ws))
+   if(y2 != m_curve.from_rep_to_tmp(x3 + ax_z4 + b_z6, monty_ws))
       return false;
 
    return true;
@@ -22805,6 +22826,12 @@ std::pair<BigInt, BigInt> OS2ECP(const uint8_t data[], size_t data_len,
 
 
 namespace Botan {
+
+namespace {
+
+const size_t PointGFp_SCALAR_BLINDING_BITS = 80;
+
+}
 
 PointGFp multi_exponentiate(const PointGFp& x, const BigInt& z1,
                             const PointGFp& y, const BigInt& z2)
@@ -23494,9 +23521,6 @@ ECDH_PrivateKey::create_key_agreement_op(RandomNumberGenerator& rng,
 #if defined(BOTAN_HAS_RFC6979_GENERATOR)
 #endif
 
-#if defined(BOTAN_HAS_BEARSSL)
-#endif
-
 #if defined(BOTAN_HAS_OPENSSL)
 #endif
 
@@ -23735,21 +23759,6 @@ std::unique_ptr<PK_Ops::Verification>
 ECDSA_PublicKey::create_verification_op(const std::string& params,
                                         const std::string& provider) const
    {
-#if defined(BOTAN_HAS_BEARSSL)
-   if(provider == "bearssl" || provider.empty())
-      {
-      try
-         {
-         return make_bearssl_ecdsa_ver_op(*this, params);
-         }
-      catch(Lookup_Error& e)
-         {
-         if(provider == "bearssl")
-            throw;
-         }
-      }
-#endif
-
 #if defined(BOTAN_HAS_OPENSSL)
    if(provider == "openssl" || provider.empty())
       {
@@ -23776,21 +23785,6 @@ ECDSA_PrivateKey::create_signature_op(RandomNumberGenerator& rng,
                                       const std::string& params,
                                       const std::string& provider) const
    {
-#if defined(BOTAN_HAS_BEARSSL)
-   if(provider == "bearssl" || provider.empty())
-      {
-      try
-         {
-         return make_bearssl_ecdsa_sig_op(*this, params);
-         }
-      catch(Lookup_Error& e)
-         {
-         if(provider == "bearssl")
-            throw;
-         }
-      }
-#endif
-
 #if defined(BOTAN_HAS_OPENSSL)
    if(provider == "openssl" || provider.empty())
       {
@@ -24247,10 +24241,11 @@ std::vector<uint8_t> ECIES_Encryptor::enc(const uint8_t data[], size_t length, R
    // encryption
 
    m_cipher->set_key(SymmetricKey(secret_key.begin(), m_params.dem_keylen()));
-   if(m_iv.size() != 0)
-      {
-      m_cipher->start(m_iv.bits_of());
-      }
+   if(m_iv.size() == 0 && !m_cipher->valid_nonce_length(m_iv.size()))
+      throw Invalid_Argument("ECIES with " + m_cipher->name() + " requires an IV be set");
+
+   m_cipher->start(m_iv.bits_of());
+
    secure_vector<uint8_t> encrypted_data(data, data + length);
    m_cipher->finish(encrypted_data);
 
@@ -24351,10 +24346,9 @@ secure_vector<uint8_t> ECIES_Decryptor::do_decrypt(uint8_t& valid_mask, const ui
       // decrypt data
 
       m_cipher->set_key(SymmetricKey(secret_key.begin(), m_params.dem_keylen()));
-      if(m_iv.size() != 0)
-         {
-         m_cipher->start(m_iv.bits_of());
-         }
+      if(m_iv.size() == 0 && !m_cipher->valid_nonce_length(m_iv.size()))
+         throw Invalid_Argument("ECIES with " + m_cipher->name() + " requires an IV be set");
+      m_cipher->start(m_iv.bits_of());
 
       try
          {
@@ -28258,7 +28252,7 @@ void sc_reduce(uint8_t* s)
 }
 /*
 * ElGamal
-* (C) 1999-2007,2018 Jack Lloyd
+* (C) 1999-2007,2018,2019 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -28315,7 +28309,7 @@ bool ElGamal_PrivateKey::check_key(RandomNumberGenerator& rng,
    if(!strong)
       return true;
 
-   return KeyPair::encryption_consistency_check(rng, *this, "EME1(SHA-256)");
+   return KeyPair::encryption_consistency_check(rng, *this, "OAEP(SHA-256)");
    }
 
 namespace {
@@ -28338,15 +28332,18 @@ class ElGamal_Encryption_Operation final : public PK_Ops::Encryption_with_EME
 
    private:
       const DL_Group m_group;
-      Fixed_Base_Power_Mod m_powermod_y_p;
+      std::shared_ptr<const Montgomery_Exponentation_State> m_monty_y_p;
    };
 
 ElGamal_Encryption_Operation::ElGamal_Encryption_Operation(const ElGamal_PublicKey& key,
                                                            const std::string& eme) :
    PK_Ops::Encryption_with_EME(eme),
-   m_group(key.get_group()),
-   m_powermod_y_p(key.get_y(), m_group.get_p())
+   m_group(key.get_group())
    {
+   const size_t powm_window = 4;
+   m_monty_y_p = monty_precompute(key.get_group().monty_params_p(),
+                                  key.get_y(),
+                                  powm_window);
    }
 
 secure_vector<uint8_t>
@@ -28362,7 +28359,7 @@ ElGamal_Encryption_Operation::raw_encrypt(const uint8_t msg[], size_t msg_len,
    const BigInt k(rng, k_bits);
 
    const BigInt a = m_group.power_g_p(k, k_bits);
-   const BigInt b = m_group.multiply_mod_p(m, m_powermod_y_p(k));
+   const BigInt b = m_group.multiply_mod_p(m, monty_execute(*m_monty_y_p, k, k_bits));
 
    return BigInt::encode_fixed_length_int_pair(a, b, m_group.p_bytes());
    }
@@ -28382,8 +28379,17 @@ class ElGamal_Decryption_Operation final : public PK_Ops::Decryption_with_EME
 
       secure_vector<uint8_t> raw_decrypt(const uint8_t msg[], size_t msg_len) override;
    private:
+      BigInt powermod_x_p(const BigInt& v) const
+         {
+         const size_t powm_window = 4;
+         auto powm_v_p = monty_precompute(m_monty_p, v, powm_window);
+         return monty_execute(*powm_v_p, m_x, m_x_bits);
+         }
+
       const DL_Group m_group;
-      Fixed_Exponent_Power_Mod m_powermod_x_p;
+      const BigInt& m_x;
+      const size_t m_x_bits;
+      std::shared_ptr<const Montgomery_Params> m_monty_p;
       Blinder m_blinder;
    };
 
@@ -28392,11 +28398,13 @@ ElGamal_Decryption_Operation::ElGamal_Decryption_Operation(const ElGamal_Private
                                                            RandomNumberGenerator& rng) :
    PK_Ops::Decryption_with_EME(eme),
    m_group(key.get_group()),
-   m_powermod_x_p(key.get_x(), m_group.get_p()),
+   m_x(key.get_x()),
+   m_x_bits(m_x.bits()),
+   m_monty_p(key.get_group().monty_params_p()),
    m_blinder(m_group.get_p(),
              rng,
              [](const BigInt& k) { return k; },
-             [this](const BigInt& k) { return m_powermod_x_p(k); })
+             [this](const BigInt& k) { return powermod_x_p(k); })
    {
    }
 
@@ -28416,7 +28424,7 @@ ElGamal_Decryption_Operation::raw_decrypt(const uint8_t msg[], size_t msg_len)
 
    a = m_blinder.blind(a);
 
-   const BigInt r = m_group.multiply_mod_p(m_group.inverse_mod_p(m_powermod_x_p(a)), b);
+   const BigInt r = m_group.multiply_mod_p(m_group.inverse_mod_p(powermod_x_p(a)), b);
 
    return BigInt::encode_1363(m_blinder.unblind(r), p_bytes);
    }
@@ -28844,25 +28852,26 @@ AlgorithmIdentifier EMSA1::config_for_x509(const Private_Key& key,
          " not supported for signature algorithm " + key.algo_name());
       }
 
-   AlgorithmIdentifier sig_algo;
-   sig_algo.oid = OIDS::lookup( key.algo_name() + "/" + name() );
+   const OID oid = OID::from_string(key.algo_name() + "/" + name());
 
-   std::string algo_name = key.algo_name();
+   const std::string algo_name = key.algo_name();
+   std::vector<uint8_t> parameters;
    if(algo_name == "DSA" ||
       algo_name == "ECDSA" ||
       algo_name == "ECGDSA" ||
       algo_name == "ECKCDSA" ||
-      algo_name == "GOST-34.10")
+      algo_name == "GOST-34.10" ||
+      algo_name == "GOST-34.10-2012-256" ||
+      algo_name == "GOST-34.10-2012-512")
       {
       // for DSA, ECDSA, GOST parameters "SHALL" be empty
-      sig_algo.parameters = {};
       }
    else
       {
-      sig_algo.parameters = key.algorithm_identifier().parameters;
+      parameters = key.algorithm_identifier().get_parameters();
       }
 
-   return sig_algo;
+   return AlgorithmIdentifier(oid, parameters);
    }
 
 }
@@ -28959,13 +28968,10 @@ AlgorithmIdentifier EMSA_PKCS1v15::config_for_x509(const Private_Key& key,
          " not supported for signature algorithm " + key.algo_name());
       }
 
+   // for RSA PKCSv1.5 parameters "SHALL" be NULL
 
-   AlgorithmIdentifier sig_algo;
-   sig_algo.oid = OIDS::lookup( key.algo_name() + "/" + name() );
-   // for RSA PKCSv1.5 parameters "SHALL" be NULL as configured by
-   // RSA_PublicKey::algorithm_identifier()
-   sig_algo.parameters = key.algorithm_identifier().parameters;
-   return sig_algo;
+   const OID oid = OID::from_string(key.algo_name() + "/" + name());
+   return AlgorithmIdentifier(oid, AlgorithmIdentifier::USE_NULL_PARAM);
    }
 
 EMSA_PKCS1v15::EMSA_PKCS1v15(HashFunction* hash) : m_hash(hash)
@@ -29226,14 +29232,11 @@ AlgorithmIdentifier PSSR::config_for_x509(const Private_Key& key,
          " not supported for signature algorithm " + key.algo_name());
       }
 
-   AlgorithmIdentifier sig_algo;
-   // hardcoded as RSA is the only valid algorithm for EMSA4 at the moment
-   sig_algo.oid = OIDS::lookup( "RSA/EMSA4" );
-
    const AlgorithmIdentifier hash_id(cert_hash_name, AlgorithmIdentifier::USE_NULL_PARAM);
    const AlgorithmIdentifier mgf_id("MGF1", hash_id.BER_encode());
 
-   DER_Encoder(sig_algo.parameters)
+   std::vector<uint8_t> parameters;
+   DER_Encoder(parameters)
       .start_cons(SEQUENCE)
       .start_cons(ASN1_Tag(0), CONTEXT_SPECIFIC).encode(hash_id).end_cons()
       .start_cons(ASN1_Tag(1), CONTEXT_SPECIFIC).encode(mgf_id).end_cons()
@@ -29241,7 +29244,8 @@ AlgorithmIdentifier PSSR::config_for_x509(const Private_Key& key,
       .start_cons(ASN1_Tag(3), CONTEXT_SPECIFIC).encode(size_t(1)).end_cons() // trailer field
       .end_cons();
 
-   return sig_algo;
+   // hardcoded as RSA is the only valid algorithm for EMSA4 at the moment
+   return AlgorithmIdentifier("RSA/EMSA4", parameters);
    }
 
 PSSR_Raw::PSSR_Raw(HashFunction* h) :
@@ -29521,6 +29525,9 @@ EMSA_X931::EMSA_X931(HashFunction* hash) : m_hash(hash)
 #if defined(BOTAN_HAS_ENTROPY_SRC_RDSEED)
 #endif
 
+#if defined(BOTAN_HAS_ENTROPY_SRC_DARN)
+#endif
+
 #if defined(BOTAN_HAS_ENTROPY_SRC_DEV_RANDOM)
 #endif
 
@@ -29576,6 +29583,13 @@ std::unique_ptr<Entropy_Source> Entropy_Source::create(const std::string& name)
    if(name == "rdseed")
       {
       return std::unique_ptr<Entropy_Source>(new Intel_Rdseed);
+      }
+#endif
+
+#if defined(BOTAN_HAS_ENTROPY_SRC_DARN)
+   if(name == "p9_darn")
+      {
+      return std::unique_ptr<Entropy_Source>(new POWER9_DARN);
       }
 #endif
 
@@ -29747,7 +29761,8 @@ namespace Botan_FFI {
 
 int ffi_error_exception_thrown(const char* func_name, const char* exn, int rc)
    {
-   if(Botan::OS::read_env_variable("BOTAN_FFI_PRINT_EXCEPTIONS") != nullptr)
+   std::string val;
+   if(Botan::OS::read_env_variable(val, "BOTAN_FFI_PRINT_EXCEPTIONS") == true && val != "")
       {
       std::fprintf(stderr, "in %s exception '%s' returning %d\n", func_name, exn, rc);
       }
@@ -29805,6 +29820,8 @@ int ffi_map_error_type(Botan::ErrorType err)
          return BOTAN_FFI_ERROR_HTTP_ERROR;
       case Botan::ErrorType::TLSError:
          return BOTAN_FFI_ERROR_TLS_ERROR;
+      case Botan::ErrorType::RoughtimeError:
+         return BOTAN_FFI_ERROR_ROUGHTIME_ERROR;
       }
 
    return BOTAN_FFI_ERROR_UNKNOWN_ERROR;
@@ -29926,6 +29943,10 @@ uint32_t botan_ffi_api_version()
 
 int botan_ffi_supports_api(uint32_t api_version)
    {
+   // This is the API introduced in 2.13
+   if(api_version == 20191214)
+      return BOTAN_FFI_SUCCESS;
+
    // This is the API introduced in 2.8
    if(api_version == 20180713)
       return BOTAN_FFI_SUCCESS;
@@ -30073,8 +30094,8 @@ int botan_block_cipher_set_key(botan_block_cipher_t bc,
 */
 int botan_block_cipher_block_size(botan_block_cipher_t bc)
    {
-   return BOTAN_FFI_DO(Botan::BlockCipher, bc, b,
-                       { return static_cast<int>(b.block_size()); });
+   return BOTAN_FFI_RETURNING(Botan::BlockCipher, bc, b,
+                              { return static_cast<int>(b.block_size()); });
    }
 
 int botan_block_cipher_encrypt_blocks(botan_block_cipher_t bc,
@@ -30253,7 +30274,7 @@ int botan_x509_cert_to_string(botan_x509_cert_t cert, char out[], size_t* out_le
 int botan_x509_cert_allowed_usage(botan_x509_cert_t cert, unsigned int key_usage)
    {
 #if defined(BOTAN_HAS_X509_CERTIFICATES)
-   return BOTAN_FFI_DO(Botan::X509_Certificate, cert, c, {
+   return BOTAN_FFI_RETURNING(Botan::X509_Certificate, cert, c, {
       const Botan::Key_Constraints k = static_cast<Botan::Key_Constraints>(key_usage);
       if(c.allowed_usage(k))
          return BOTAN_FFI_SUCCESS;
@@ -30467,6 +30488,156 @@ const char* botan_x509_cert_validation_status(int code)
 #endif
    }
 
+#if defined(BOTAN_HAS_X509_CERTIFICATES)
+
+BOTAN_FFI_DECLARE_STRUCT(botan_x509_crl_struct, Botan::X509_CRL, 0x2C628910);
+
+#endif
+
+int botan_x509_crl_load_file(botan_x509_crl_t* crl_obj, const char* crl_path)
+   {
+   if(!crl_obj || !crl_path)
+      return BOTAN_FFI_ERROR_NULL_POINTER;
+
+#if defined(BOTAN_HAS_X509_CERTIFICATES) && defined(BOTAN_TARGET_OS_HAS_FILESYSTEM)
+
+   return ffi_guard_thunk(__func__, [=]() -> int {
+      std::unique_ptr<Botan::X509_CRL> c(new Botan::X509_CRL(crl_path));
+      *crl_obj = new botan_x509_crl_struct(c.release());
+      return BOTAN_FFI_SUCCESS;
+      });
+
+#else
+   return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
+#endif
+   }
+
+int botan_x509_crl_load(botan_x509_crl_t* crl_obj, const uint8_t crl_bits[], size_t crl_bits_len)
+   {
+   if(!crl_obj || !crl_bits)
+      return BOTAN_FFI_ERROR_NULL_POINTER;
+
+#if defined(BOTAN_HAS_X509_CERTIFICATES)
+   return ffi_guard_thunk(__func__, [=]() -> int {
+      Botan::DataSource_Memory bits(crl_bits, crl_bits_len);
+      std::unique_ptr<Botan::X509_CRL> c(new Botan::X509_CRL(bits));
+      *crl_obj = new botan_x509_crl_struct(c.release());
+      return BOTAN_FFI_SUCCESS;
+      });
+#else
+   BOTAN_UNUSED(crl_bits_len);
+   return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
+#endif
+   }
+
+int botan_x509_crl_destroy(botan_x509_crl_t crl)
+   {
+#if defined(BOTAN_HAS_X509_CERTIFICATES)
+   return BOTAN_FFI_CHECKED_DELETE(crl);
+#else
+   BOTAN_UNUSED(crl);
+   return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
+#endif
+   }
+
+int botan_x509_is_revoked(botan_x509_crl_t crl, botan_x509_cert_t cert)
+   {
+#if defined(BOTAN_HAS_X509_CERTIFICATES)
+   return BOTAN_FFI_RETURNING(Botan::X509_CRL, crl, c, {
+      return c.is_revoked(safe_get(cert)) ? 0 : -1;
+      });
+#else
+   BOTAN_UNUSED(cert);
+   BOTAN_UNUSED(crl);
+   return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
+#endif
+   }
+
+int botan_x509_cert_verify_with_crl(
+   int* result_code,
+   botan_x509_cert_t cert,
+   const botan_x509_cert_t* intermediates,
+   size_t intermediates_len,
+   const botan_x509_cert_t* trusted,
+   size_t trusted_len,
+   const botan_x509_crl_t* crls,
+   size_t crls_len,
+   const char* trusted_path,
+   size_t required_strength,
+   const char* hostname_cstr,
+   uint64_t reference_time)
+   {
+   if(required_strength == 0)
+      required_strength = 110;
+
+#if defined(BOTAN_HAS_X509_CERTIFICATES)
+   return ffi_guard_thunk(__func__, [=]() -> int {
+      const std::string hostname((hostname_cstr == nullptr) ? "" : hostname_cstr);
+      const Botan::Usage_Type usage = Botan::Usage_Type::UNSPECIFIED;
+      const auto validation_time = reference_time == 0 ?
+         std::chrono::system_clock::now() :
+         std::chrono::system_clock::from_time_t(static_cast<time_t>(reference_time));
+
+      std::vector<Botan::X509_Certificate> end_certs;
+      end_certs.push_back(safe_get(cert));
+      for(size_t i = 0; i != intermediates_len; ++i)
+         end_certs.push_back(safe_get(intermediates[i]));
+
+      std::unique_ptr<Botan::Certificate_Store> trusted_from_path;
+      std::unique_ptr<Botan::Certificate_Store_In_Memory> trusted_extra;
+      std::unique_ptr<Botan::Certificate_Store_In_Memory> trusted_crls;
+      std::vector<Botan::Certificate_Store*> trusted_roots;
+
+      if(trusted_path && *trusted_path)
+         {
+         trusted_from_path.reset(new Botan::Certificate_Store_In_Memory(trusted_path));
+         trusted_roots.push_back(trusted_from_path.get());
+         }
+
+      if(trusted_len > 0)
+         {
+         trusted_extra.reset(new Botan::Certificate_Store_In_Memory);
+         for(size_t i = 0; i != trusted_len; ++i)
+            {
+            trusted_extra->add_certificate(safe_get(trusted[i]));
+            }
+         trusted_roots.push_back(trusted_extra.get());
+         }
+
+      if(crls_len > 0)
+         {
+         trusted_crls.reset(new Botan::Certificate_Store_In_Memory);
+         for(size_t i = 0; i != crls_len; ++i)
+            {
+            trusted_crls->add_crl(safe_get(crls[i]));
+            }
+         trusted_roots.push_back(trusted_crls.get());
+         }
+
+      Botan::Path_Validation_Restrictions restrictions(false, required_strength);
+
+      auto validation_result = Botan::x509_path_validate(end_certs,
+                                                         restrictions,
+                                                         trusted_roots,
+                                                         hostname,
+                                                         usage,
+                                                         validation_time);
+
+      if(result_code)
+         *result_code = static_cast<int>(validation_result.result());
+
+      if(validation_result.successful_validation())
+         return 0;
+      else
+         return 1;
+      });
+#else
+   BOTAN_UNUSED(result_code, cert, intermediates, intermediates_len, trusted);
+   BOTAN_UNUSED(trusted_len, trusted_path, hostname_cstr, reference_time, crls, crls_len);
+   return BOTAN_FFI_ERROR_NOT_IMPLEMENTED;
+#endif
+   }
+
 }
 /*
 * (C) 2015,2017 Jack Lloyd
@@ -30659,7 +30830,7 @@ int botan_cipher_set_associated_data(botan_cipher_t cipher,
                                      const uint8_t* ad,
                                      size_t ad_len)
    {
-   return BOTAN_FFI_DO(Botan::Cipher_Mode, cipher, c, {
+   return BOTAN_FFI_RETURNING(Botan::Cipher_Mode, cipher, c, {
       if(Botan::AEAD_Mode* aead = dynamic_cast<Botan::AEAD_Mode*>(&c))
          {
          aead->set_associated_data(ad, ad_len);
@@ -30671,7 +30842,9 @@ int botan_cipher_set_associated_data(botan_cipher_t cipher,
 
 int botan_cipher_valid_nonce_length(botan_cipher_t cipher, size_t nl)
    {
-   return BOTAN_FFI_DO(Botan::Cipher_Mode, cipher, c, { return c.valid_nonce_length(nl) ? 1 : 0; });
+   return BOTAN_FFI_RETURNING(Botan::Cipher_Mode, cipher, c, {
+      return c.valid_nonce_length(nl) ? 1 : 0;
+      });
    }
 
 int botan_cipher_get_default_nonce_length(botan_cipher_t cipher, size_t* nl)
@@ -30952,7 +31125,7 @@ int botan_hotp_check(botan_hotp_t hotp,
                      size_t resync_range)
    {
 #if defined(BOTAN_HAS_HOTP)
-   return BOTAN_FFI_DO(Botan::HOTP, hotp, h, {
+   return BOTAN_FFI_RETURNING(Botan::HOTP, hotp, h, {
 
       auto resp = h.verify_hotp(hotp_code, hotp_counter, resync_range);
 
@@ -31381,7 +31554,7 @@ int botan_mp_to_hex(const botan_mp_t mp, char* out)
 
 int botan_mp_to_str(const botan_mp_t mp, uint8_t digit_base, char* out, size_t* out_len)
    {
-   return BOTAN_FFI_DO(Botan::BigInt, mp, bn, {
+   return BOTAN_FFI_RETURNING(Botan::BigInt, mp, bn, {
 
       if(digit_base == 0 || digit_base == 10)
          return write_str_output(out, out_len, bn.to_dec_string());
@@ -31474,22 +31647,22 @@ int botan_mp_div(botan_mp_t quotient,
 
 int botan_mp_equal(const botan_mp_t x_w, const botan_mp_t y_w)
    {
-   return BOTAN_FFI_DO(Botan::BigInt, x_w, x, { return x == safe_get(y_w); });
+   return BOTAN_FFI_RETURNING(Botan::BigInt, x_w, x, { return x == safe_get(y_w); });
    }
 
 int botan_mp_is_zero(const botan_mp_t mp)
    {
-   return BOTAN_FFI_DO(Botan::BigInt, mp, bn, { return bn.is_zero(); });
+   return BOTAN_FFI_RETURNING(Botan::BigInt, mp, bn, { return bn.is_zero(); });
    }
 
 int botan_mp_is_odd(const botan_mp_t mp)
    {
-   return BOTAN_FFI_DO(Botan::BigInt, mp, bn, { return bn.is_odd(); });
+   return BOTAN_FFI_RETURNING(Botan::BigInt, mp, bn, { return bn.is_odd(); });
    }
 
 int botan_mp_is_even(const botan_mp_t mp)
    {
-   return BOTAN_FFI_DO(Botan::BigInt, mp, bn, { return bn.is_even(); });
+   return BOTAN_FFI_RETURNING(Botan::BigInt, mp, bn, { return bn.is_even(); });
    }
 
 int botan_mp_cmp(int* result, const botan_mp_t x_w, const botan_mp_t y_w)
@@ -31555,13 +31728,13 @@ int botan_mp_gcd(botan_mp_t out, const botan_mp_t x, const botan_mp_t y)
 
 int botan_mp_is_prime(const botan_mp_t mp, botan_rng_t rng, size_t test_prob)
    {
-   return BOTAN_FFI_DO(Botan::BigInt, mp, n,
+   return BOTAN_FFI_RETURNING(Botan::BigInt, mp, n,
                        { return (Botan::is_prime(n, safe_get(rng), test_prob)) ? 1 : 0; });
    }
 
 int botan_mp_get_bit(const botan_mp_t mp, size_t bit)
    {
-   return BOTAN_FFI_DO(Botan::BigInt, mp, n, { return (n.get_bit(bit)); });
+   return BOTAN_FFI_RETURNING(Botan::BigInt, mp, n, { return (n.get_bit(bit)); });
    }
 
 int botan_mp_set_bit(botan_mp_t mp, size_t bit)
@@ -31767,7 +31940,7 @@ int botan_pk_op_verify_update(botan_pk_op_verify_t op, const uint8_t in[], size_
 
 int botan_pk_op_verify_finish(botan_pk_op_verify_t op, const uint8_t sig[], size_t sig_len)
    {
-   return BOTAN_FFI_DO(Botan::PK_Verifier, op, o, {
+   return BOTAN_FFI_RETURNING(Botan::PK_Verifier, op, o, {
       const bool legit = o.check_signature(sig, sig_len);
 
       if(legit)
@@ -31960,15 +32133,17 @@ int botan_pubkey_check_key(botan_pubkey_t key, botan_rng_t rng, uint32_t flags)
    {
    const bool strong = (flags & BOTAN_CHECK_KEY_EXPENSIVE_TESTS);
 
-   return BOTAN_FFI_DO(Botan::Public_Key, key, k,
-                       { return (k.check_key(safe_get(rng), strong) == true) ? 0 : BOTAN_FFI_ERROR_INVALID_INPUT; });
+   return BOTAN_FFI_RETURNING(Botan::Public_Key, key, k, {
+      return (k.check_key(safe_get(rng), strong) == true) ? 0 : BOTAN_FFI_ERROR_INVALID_INPUT;
+      });
    }
 
 int botan_privkey_check_key(botan_privkey_t key, botan_rng_t rng, uint32_t flags)
    {
    const bool strong = (flags & BOTAN_CHECK_KEY_EXPENSIVE_TESTS);
-   return BOTAN_FFI_DO(Botan::Private_Key, key, k,
-                       { return (k.check_key(safe_get(rng), strong) == true) ? 0 : BOTAN_FFI_ERROR_INVALID_INPUT; });
+   return BOTAN_FFI_RETURNING(Botan::Private_Key, key, k, {
+      return (k.check_key(safe_get(rng), strong) == true) ? 0 : BOTAN_FFI_ERROR_INVALID_INPUT;
+      });
    }
 
 int botan_pubkey_export(botan_pubkey_t key, uint8_t out[], size_t* out_len, uint32_t flags)
@@ -32320,8 +32495,8 @@ int botan_pubkey_get_field(botan_mp_t output,
    }
 
 int botan_privkey_get_field(botan_mp_t output,
-                                      botan_privkey_t key,
-                                      const char* field_name_cstr)
+                            botan_privkey_t key,
+                            const char* field_name_cstr)
    {
    if(field_name_cstr == nullptr)
       return BOTAN_FFI_ERROR_NULL_POINTER;
@@ -33222,7 +33397,7 @@ int botan_totp_check(botan_totp_t totp,
                      size_t acceptable_clock_drift)
    {
 #if defined(BOTAN_HAS_TOTP)
-   return BOTAN_FFI_DO(Botan::TOTP, totp, t, {
+   return BOTAN_FFI_RETURNING(Botan::TOTP, totp, t, {
       const bool ok = t.verify_totp(totp_code, timestamp, acceptable_clock_drift);
       return (ok ? BOTAN_FFI_SUCCESS : BOTAN_FFI_INVALID_VERIFIER);
       });
@@ -35574,24 +35749,25 @@ void GCM_Mode::start_msg(const uint8_t nonce[], size_t nonce_len)
    if(!valid_nonce_length(nonce_len))
       throw Invalid_IV_Length(name(), nonce_len);
 
-   secure_vector<uint8_t> y0(GCM_BS);
+   m_y0.resize(GCM_BS);
 
    if(nonce_len == 12)
       {
-      copy_mem(y0.data(), nonce, nonce_len);
-      y0[15] = 1;
+      copy_mem(m_y0.data(), nonce, nonce_len);
+      m_y0[15] = 1;
       }
    else
       {
-      y0 = m_ghash->nonce_hash(nonce, nonce_len);
+      m_ghash->nonce_hash(m_y0, nonce, nonce_len);
       }
 
-   m_ctr->set_iv(y0.data(), y0.size());
+   m_ctr->set_iv(m_y0.data(), m_y0.size());
 
-   zeroise(y0);
-   m_ctr->encipher(y0);
+   zeroise(m_y0);
+   m_ctr->encipher(m_y0);
 
-   m_ghash->start(y0.data(), y0.size());
+   m_ghash->start(m_y0.data(), m_y0.size());
+   m_y0.clear();
    }
 
 size_t GCM_Encryption::process(uint8_t buf[], size_t sz)
@@ -35610,8 +35786,10 @@ void GCM_Encryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
 
    m_ctr->cipher(buf, buf, sz);
    m_ghash->update(buf, sz);
-   auto mac = m_ghash->final();
-   buffer += std::make_pair(mac.data(), tag_size());
+
+   uint8_t mac[16] = { 0 };
+   m_ghash->final(mac, tag_size());
+   buffer += std::make_pair(mac, tag_size());
    }
 
 size_t GCM_Decryption::process(uint8_t buf[], size_t sz)
@@ -35640,11 +35818,12 @@ void GCM_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
       m_ctr->cipher(buf, buf, remaining);
       }
 
-   auto mac = m_ghash->final();
+   uint8_t mac[16] = { 0 };
+   m_ghash->final(mac, tag_size());
 
    const uint8_t* included_tag = &buffer[remaining+offset];
 
-   if(!constant_time_compare(mac.data(), included_tag, tag_size()))
+   if(!constant_time_compare(mac, included_tag, tag_size()))
       throw Invalid_Authentication_Tag("GCM tag check failed");
 
    buffer.resize(offset + remaining);
@@ -35660,32 +35839,24 @@ void GCM_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
 */
 
 
-#if defined(BOTAN_HAS_GCM_CLMUL)
+#if defined(BOTAN_HAS_GCM_CLMUL_CPU)
 #endif
 
 #if defined(BOTAN_HAS_GCM_CLMUL_SSSE3)
-#endif
-
-#if defined(BOTAN_HAS_GCM_PMULL)
 #endif
 
 namespace Botan {
 
 std::string GHASH::provider() const
    {
-#if defined(BOTAN_HAS_GCM_CLMUL)
-   if(CPUID::has_clmul())
+#if defined(BOTAN_HAS_GCM_CLMUL_CPU)
+   if(CPUID::has_carryless_multiply())
       return "clmul";
 #endif
 
 #if defined(BOTAN_HAS_GCM_CLMUL_SSSE3)
    if(CPUID::has_ssse3())
       return "ssse3";
-#endif
-
-#if defined(BOTAN_HAS_GCM_PMULL)
-   if(CPUID::has_arm_pmull())
-      return "pmull";
 #endif
 
    return "base";
@@ -35695,8 +35866,8 @@ void GHASH::gcm_multiply(secure_vector<uint8_t>& x,
                          const uint8_t input[],
                          size_t blocks)
    {
-#if defined(BOTAN_HAS_GCM_CLMUL)
-   if(CPUID::has_clmul())
+#if defined(BOTAN_HAS_GCM_CLMUL_CPU)
+   if(CPUID::has_carryless_multiply())
       {
       return gcm_multiply_clmul(x.data(), m_H_pow.data(), input, blocks);
       }
@@ -35706,13 +35877,6 @@ void GHASH::gcm_multiply(secure_vector<uint8_t>& x,
    if(CPUID::has_ssse3())
       {
       return gcm_multiply_ssse3(x.data(), m_HM.data(), input, blocks);
-      }
-#endif
-
-#if defined(BOTAN_HAS_GCM_PMULL)
-   if(CPUID::has_arm_pmull())
-      {
-      return gcm_multiply_pmull(x.data(), m_H_pow.data(), input, blocks);
       }
 #endif
 
@@ -35757,7 +35921,7 @@ void GHASH::gcm_multiply(secure_vector<uint8_t>& x,
 void GHASH::ghash_update(secure_vector<uint8_t>& ghash,
                          const uint8_t input[], size_t length)
    {
-   verify_key_set(m_HM.size());
+   verify_key_set(!m_HM.empty());
 
    /*
    This assumes if less than block size input then we're just on the
@@ -35774,9 +35938,10 @@ void GHASH::ghash_update(secure_vector<uint8_t>& ghash,
 
    if(final_bytes)
       {
-      secure_vector<uint8_t> last_block(GCM_BS);
-      copy_mem(last_block.data(), input + full_blocks * GCM_BS, final_bytes);
-      gcm_multiply(ghash, last_block.data(), 1);
+      uint8_t last_block[GCM_BS] = { 0 };
+      copy_mem(last_block, input + full_blocks * GCM_BS, final_bytes);
+      gcm_multiply(ghash, last_block, 1);
+      secure_scrub_memory(last_block, final_bytes);
       }
    }
 
@@ -35813,22 +35978,13 @@ void GHASH::key_schedule(const uint8_t key[], size_t length)
          }
       }
 
-#if defined(BOTAN_HAS_GCM_CLMUL)
-   if(CPUID::has_clmul())
+#if defined(BOTAN_HAS_GCM_CLMUL_CPU)
+   if(CPUID::has_carryless_multiply())
       {
       m_H_pow.resize(8);
       gcm_clmul_precompute(m_H.data(), m_H_pow.data());
       }
 #endif
-
-#if defined(BOTAN_HAS_GCM_PMULL)
-   if(CPUID::has_arm_pmull())
-      {
-      m_H_pow.resize(8);
-      gcm_pmull_precompute(m_H.data(), m_H_pow.data());
-      }
-#endif
-
    }
 
 void GHASH::start(const uint8_t nonce[], size_t len)
@@ -35875,27 +36031,24 @@ void GHASH::add_final_block(secure_vector<uint8_t>& hash,
    ghash_update(hash, final_block, GCM_BS);
    }
 
-secure_vector<uint8_t> GHASH::final()
+void GHASH::final(uint8_t mac[], size_t mac_len)
    {
+   BOTAN_ARG_CHECK(mac_len > 0 && mac_len <= 16, "GHASH output length");
    add_final_block(m_ghash, m_ad_len, m_text_len);
 
-   secure_vector<uint8_t> mac;
-   mac.swap(m_ghash);
+   for(size_t i = 0; i != mac_len; ++i)
+      mac[i] = m_ghash[i] ^ m_nonce[i];
 
-   mac ^= m_nonce;
+   m_ghash.clear();
    m_text_len = 0;
-   return mac;
    }
 
-secure_vector<uint8_t> GHASH::nonce_hash(const uint8_t nonce[], size_t nonce_len)
+void GHASH::nonce_hash(secure_vector<uint8_t>& y0, const uint8_t nonce[], size_t nonce_len)
    {
    BOTAN_ASSERT(m_ghash.size() == 0, "nonce_hash called during wrong time");
-   secure_vector<uint8_t> y0(GCM_BS);
 
    ghash_update(y0, nonce, nonce_len);
    add_final_block(y0, 0, nonce_len);
-
-   return y0;
    }
 
 void GHASH::clear()
@@ -35922,9 +36075,9 @@ void GHASH::reset()
 */
 
 
-#if defined(BOTAN_TARGET_OS_IS_MACOS)
-   #include <sys/random.h>
+#if defined(BOTAN_TARGET_OS_IS_OPENBSD) || defined(BOTAN_TARGET_OS_IS_FREEBSD)
 #else
+   #include <sys/random.h>
 #endif
 
 namespace Botan {
@@ -36067,8 +36220,8 @@ void GMAC::final_result(uint8_t mac[])
        {
        m_ghash->update_associated_data(m_aad_buf.data(), m_aad_buf_pos);
        }
-   secure_vector<uint8_t> result = m_ghash->final();
-   copy_mem(mac, result.data(), result.size());
+
+   m_ghash->final(mac, output_length());
    clear();
    }
 
@@ -36263,7 +36416,7 @@ void GOST_28147_89::clear()
 
 }
 /*
-* GOST 34.10-2001 implemenation
+* GOST 34.10-2012
 * (C) 2007 Falko Strenzke, FlexSecure GmbH
 *          Manuel Hartl, FlexSecure GmbH
 * (C) 2008-2010,2015,2018 Jack Lloyd
@@ -36298,6 +36451,16 @@ std::vector<uint8_t> GOST_3410_PublicKey::public_key_bits() const
    return output;
    }
 
+std::string GOST_3410_PublicKey::algo_name() const
+   {
+   const size_t p_bits = domain().get_p_bits();
+
+   if(p_bits == 256 || p_bits == 512)
+      return "GOST-34.10-2012-" + std::to_string(p_bits);
+   else
+      throw Encoding_Error("GOST-34.10-2012 is not defined for parameters of this size");
+   }
+
 AlgorithmIdentifier GOST_3410_PublicKey::algorithm_identifier() const
    {
    std::vector<uint8_t> params;
@@ -36320,6 +36483,11 @@ GOST_3410_PublicKey::GOST_3410_PublicKey(const AlgorithmIdentifier& alg_id,
 
    m_domain_params = EC_Group(ecc_param_id);
 
+   const size_t p_bits = m_domain_params.get_p_bits();
+   if(p_bits != 256 && p_bits != 512)
+      throw Decoding_Error("GOST-34.10-2012 is not defined for parameters of size " +
+                           std::to_string(p_bits));
+
    secure_vector<uint8_t> bits;
    BER_Decoder(key_bits).decode(bits, OCTET_STRING);
 
@@ -36339,6 +36507,17 @@ GOST_3410_PublicKey::GOST_3410_PublicKey(const AlgorithmIdentifier& alg_id,
 
    BOTAN_ASSERT(m_public_key.on_the_curve(),
                 "Loaded GOST 34.10 public key is on the curve");
+   }
+
+GOST_3410_PrivateKey::GOST_3410_PrivateKey(RandomNumberGenerator& rng,
+                                           const EC_Group& domain,
+                                           const BigInt& x) :
+   EC_PrivateKey(rng, domain, x)
+   {
+   const size_t p_bits = m_domain_params.get_p_bits();
+   if(p_bits != 256 && p_bits != 512)
+      throw Decoding_Error("GOST-34.10-2012 is not defined for parameters of size " +
+                           std::to_string(p_bits));
    }
 
 namespace {
@@ -36800,9 +36979,6 @@ void GOST_34_11::final_result(uint8_t out[])
 #if defined(BOTAN_HAS_BLAKE2B)
 #endif
 
-#if defined(BOTAN_HAS_BEARSSL)
-#endif
-
 #if defined(BOTAN_HAS_OPENSSL)
 #endif
 
@@ -36830,17 +37006,6 @@ std::unique_ptr<HashFunction> HashFunction::create(const std::string& algo_spec,
    if(provider.empty() || provider == "openssl")
       {
       if(auto hash = make_openssl_hash(algo_spec))
-         return hash;
-
-      if(!provider.empty())
-         return nullptr;
-      }
-#endif
-
-#if defined(BOTAN_HAS_BEARSSL)
-   if(provider.empty() || provider == "bearssl")
-      {
-      if(auto hash = make_bearssl_hash(algo_spec))
          return hash;
 
       if(!provider.empty())
@@ -37072,7 +37237,7 @@ HashFunction::create_or_throw(const std::string& algo,
 
 std::vector<std::string> HashFunction::providers(const std::string& algo_spec)
    {
-   return probe_providers_of<HashFunction>(algo_spec, {"base", "bearssl", "openssl", "commoncrypto"});
+   return probe_providers_of<HashFunction>(algo_spec, {"base", "openssl", "commoncrypto"});
    }
 
 }
@@ -37690,6 +37855,26 @@ HMAC::HMAC(HashFunction* hash) :
 
 namespace Botan {
 
+namespace {
+
+void check_limits(size_t reseed_interval,
+                  size_t max_number_of_bytes_per_request)
+   {
+   // SP800-90A permits up to 2^48, but it is not usable on 32 bit
+   // platforms, so we only allow up to 2^24, which is still reasonably high
+   if(reseed_interval == 0 || reseed_interval > static_cast<size_t>(1) << 24)
+      {
+      throw Invalid_Argument("Invalid value for reseed_interval");
+      }
+
+   if(max_number_of_bytes_per_request == 0 || max_number_of_bytes_per_request > 64 * 1024)
+      {
+      throw Invalid_Argument("Invalid value for max_number_of_bytes_per_request");
+      }
+   }
+
+}
+
 HMAC_DRBG::HMAC_DRBG(std::unique_ptr<MessageAuthenticationCode> prf,
                      RandomNumberGenerator& underlying_rng,
                      size_t reseed_interval,
@@ -37700,10 +37885,7 @@ HMAC_DRBG::HMAC_DRBG(std::unique_ptr<MessageAuthenticationCode> prf,
    {
    BOTAN_ASSERT_NONNULL(m_mac);
 
-   if(m_max_number_of_bytes_per_request == 0 || m_max_number_of_bytes_per_request > 64 * 1024)
-      {
-      throw Invalid_Argument("Invalid value for max_number_of_bytes_per_request");
-      }
+   check_limits(reseed_interval, max_number_of_bytes_per_request);
 
    clear();
    }
@@ -37712,17 +37894,14 @@ HMAC_DRBG::HMAC_DRBG(std::unique_ptr<MessageAuthenticationCode> prf,
                      RandomNumberGenerator& underlying_rng,
                      Entropy_Sources& entropy_sources,
                      size_t reseed_interval,
-                     size_t max_number_of_bytes_per_request ) :
+                     size_t max_number_of_bytes_per_request) :
    Stateful_RNG(underlying_rng, entropy_sources, reseed_interval),
    m_mac(std::move(prf)),
    m_max_number_of_bytes_per_request(max_number_of_bytes_per_request)
    {
    BOTAN_ASSERT_NONNULL(m_mac);
 
-   if(m_max_number_of_bytes_per_request == 0 || m_max_number_of_bytes_per_request > 64 * 1024)
-      {
-      throw Invalid_Argument("Invalid value for max_number_of_bytes_per_request");
-      }
+   check_limits(reseed_interval, max_number_of_bytes_per_request);
 
    clear();
    }
@@ -37737,10 +37916,7 @@ HMAC_DRBG::HMAC_DRBG(std::unique_ptr<MessageAuthenticationCode> prf,
    {
    BOTAN_ASSERT_NONNULL(m_mac);
 
-   if(m_max_number_of_bytes_per_request == 0 || m_max_number_of_bytes_per_request > 64 * 1024)
-      {
-      throw Invalid_Argument("Invalid value for max_number_of_bytes_per_request");
-      }
+   check_limits(reseed_interval, max_number_of_bytes_per_request);
 
    clear();
    }
@@ -37758,10 +37934,12 @@ void HMAC_DRBG::clear()
    {
    Stateful_RNG::clear();
 
-   m_V.resize(m_mac->output_length());
+   const size_t output_length = m_mac->output_length();
+
+   m_V.resize(output_length);
    for(size_t i = 0; i != m_V.size(); ++i)
       m_V[i] = 0x01;
-   m_mac->set_key(std::vector<uint8_t>(m_mac->output_length(), 0x00));
+   m_mac->set_key(std::vector<uint8_t>(output_length, 0x00));
    }
 
 std::string HMAC_DRBG::name() const
@@ -37815,10 +37993,12 @@ void HMAC_DRBG::randomize_with_input(uint8_t output[], size_t output_len,
 */
 void HMAC_DRBG::update(const uint8_t input[], size_t input_len)
    {
+   secure_vector<uint8_t> T(m_V.size());
    m_mac->update(m_V);
    m_mac->update(0x00);
    m_mac->update(input, input_len);
-   m_mac->set_key(m_mac->final());
+   m_mac->final(T.data());
+   m_mac->set_key(T);
 
    m_mac->update(m_V.data(), m_V.size());
    m_mac->final(m_V.data());
@@ -37828,7 +38008,8 @@ void HMAC_DRBG::update(const uint8_t input[], size_t input_len)
       m_mac->update(m_V);
       m_mac->update(0x01);
       m_mac->update(input, input_len);
-      m_mac->set_key(m_mac->final());
+      m_mac->final(T.data());
+      m_mac->set_key(T);
 
       m_mac->update(m_V.data(), m_V.size());
       m_mac->final(m_V.data());
@@ -37852,9 +38033,12 @@ size_t HMAC_DRBG::security_level() const
    // SHA-160: 128 bits, SHA-224, SHA-512/224: 192 bits,
    // SHA-256, SHA-512/256, SHA-384, SHA-512: >= 256 bits
    // NIST SP 800-90A only supports up to 256 bits though
-   if(m_mac->output_length() < 32)
+
+   const size_t output_length = m_mac->output_length();
+
+   if(output_length < 32)
       {
-      return (m_mac->output_length() - 4) * 8;
+      return (output_length - 4) * 8;
       }
    else
       {
@@ -38173,7 +38357,8 @@ Response http_sync(http_exch_fn http_transact,
    while(io.good())
       {
       io.read(cast_uint8_ptr_to_char(buf.data()), buf.size());
-      resp_body.insert(resp_body.end(), buf.data(), &buf[io.gcount()]);
+      const size_t got = static_cast<size_t>(io.gcount());
+      resp_body.insert(resp_body.end(), buf.data(), &buf[got]);
       }
 
    const std::string header_size = search_map(headers, std::string("Content-Length"));
@@ -39344,7 +39529,11 @@ std::unique_ptr<KDF> KDF::create(const std::string& algo_spec,
       {
       if(provider.empty() || provider == "base")
          {
-         return std::unique_ptr<KDF>(new TLS_PRF);
+         auto hmac_md5 = MessageAuthenticationCode::create("HMAC(MD5)");
+         auto hmac_sha1 = MessageAuthenticationCode::create("HMAC(SHA-1)");
+
+         if(hmac_md5 && hmac_sha1)
+            return std::unique_ptr<KDF>(new TLS_PRF(std::move(hmac_md5), std::move(hmac_sha1)));
          }
       }
 #endif
@@ -39655,8 +39844,8 @@ bool encryption_consistency_check(RandomNumberGenerator& rng,
    if(encryptor.maximum_input_size() == 0)
       return true;
 
-   std::vector<uint8_t> plaintext =
-      unlock(rng.random_vec(encryptor.maximum_input_size() - 1));
+   std::vector<uint8_t> plaintext;
+   rng.random_vec(plaintext, encryptor.maximum_input_size() - 1);
 
    std::vector<uint8_t> ciphertext = encryptor.encrypt(plaintext, rng);
    if(ciphertext == plaintext)
@@ -40096,7 +40285,7 @@ class binary_matrix final
       binary_matrix(size_t m_rown, size_t m_coln);
 
       void row_xor(size_t a, size_t b);
-      secure_vector<int> row_reduced_echelon_form();
+      secure_vector<size_t> row_reduced_echelon_form();
 
       /**
       * return the coefficient out of F_2
@@ -40146,42 +40335,41 @@ void binary_matrix::row_xor(size_t a, size_t b)
    }
 
 //the matrix is reduced from LSB...(from right)
-secure_vector<int> binary_matrix::row_reduced_echelon_form()
+secure_vector<size_t> binary_matrix::row_reduced_echelon_form()
    {
-   secure_vector<int> perm(m_coln);
+   secure_vector<size_t> perm(m_coln);
    for(size_t i = 0; i != m_coln; i++)
       {
-      perm[i] = i;//initialize permutation.
+      perm[i] = i; // initialize permutation.
       }
 
    uint32_t failcnt = 0;
 
-   uint32_t max = m_coln - 1;
+   size_t max = m_coln - 1;
    for(size_t i = 0; i != m_rown; i++, max--)
       {
-      uint32_t findrow = 0;
-      for(size_t j = i; j != m_rown; j++)
+      bool found_row = false;
+
+      for(size_t j = i; !found_row && j != m_rown; j++)
          {
          if(coef(j, max))
             {
             if(i != j) //not needed as ith row is 0 and jth row is 1.
                {
-               row_xor(i ,j);//xor to the row.(swap)?
+               row_xor(i, j);//xor to the row.(swap)?
                }
 
-            findrow=1;
-            break;
-            } //largest value found (end if)
+            found_row = true;
+            }
          }
 
-      if(!findrow)//if no row with a 1 found then swap last column and the column with no 1 down.
+      //if no row with a 1 found then swap last column and the column with no 1 down.
+      if(!found_row)
          {
-         perm[m_coln - m_rown - 1 - failcnt] = max;
+         perm[m_coln - m_rown - 1 - failcnt] = static_cast<int>(max);
          failcnt++;
-         if (!max)
+         if(!max)
             {
-            //CSEC_FREE_MEM_CHK_SET_NULL(*p_perm);
-            //CSEC_THR_RETURN();
             perm.resize(0);
             }
          i--;
@@ -40191,17 +40379,18 @@ secure_vector<int> binary_matrix::row_reduced_echelon_form()
          perm[i+m_coln - m_rown] = max;
          for(size_t j=i+1;j<m_rown;j++)//fill the column downwards with 0's
             {
-            if(coef(j,(max)))
+            if(coef(j, max))
                {
                row_xor(j,i);//check the arg. order.
                }
             }
 
-         for(int j=i-1;j>=0;j--)//fill the column with 0's upwards too.
+         //fill the column with 0's upwards too.
+         for(size_t j = i; j != 0; --j)
             {
-            if(coef(j,(max)))
+            if(coef(j - 1, max))
                {
-               row_xor(j,i);
+               row_xor(j - 1, i);
                }
             }
          }
@@ -40220,25 +40409,23 @@ void randomize_support(std::vector<gf2m>& L, RandomNumberGenerator& rng)
       }
    }
 
-std::unique_ptr<binary_matrix> generate_R(std::vector<gf2m> &L, polyn_gf2m* g, std::shared_ptr<GF2m_Field> sp_field, uint32_t code_length, uint32_t t )
+std::unique_ptr<binary_matrix> generate_R(std::vector<gf2m> &L, polyn_gf2m* g, std::shared_ptr<GF2m_Field> sp_field, size_t code_length, size_t t)
    {
    //L- Support
    //t- Number of errors
    //n- Length of the Goppa code
    //m- The extension degree of the GF
    //g- The generator polynomial.
-   gf2m x,y;
-   uint32_t r;
-   std::vector<int> Laux(code_length);
-   r=t*sp_field->get_extension_degree();
+
+   const size_t r = t * sp_field->get_extension_degree();
 
    binary_matrix H(r, code_length);
 
    for(size_t i = 0; i != code_length; i++)
       {
-      x = g->eval(lex_to_gray(L[i]));//evaluate the polynomial at the point L[i].
+      gf2m x = g->eval(lex_to_gray(L[i]));//evaluate the polynomial at the point L[i].
       x = sp_field->gf_inv(x);
-      y = x;
+      gf2m y = x;
       for(size_t j=0;j<t;j++)
          {
          for(size_t k=0;k<sp_field->get_extension_degree();k++)
@@ -40253,11 +40440,10 @@ std::unique_ptr<binary_matrix> generate_R(std::vector<gf2m> &L, polyn_gf2m* g, s
          }
       }//The H matrix is fed.
 
-   secure_vector<int> perm = H.row_reduced_echelon_form();
-   if (perm.size() == 0)
+   secure_vector<size_t> perm = H.row_reduced_echelon_form();
+   if(perm.size() == 0)
       {
-      // result still is NULL
-      throw Invalid_State("could not bring matrix in row reduced echelon form");
+      throw Invalid_State("McEliece keygen failed - could not bring matrix to row reduced echelon form");
       }
 
    std::unique_ptr<binary_matrix> result(new binary_matrix(code_length-r, r)) ;
@@ -40265,12 +40451,14 @@ std::unique_ptr<binary_matrix> generate_R(std::vector<gf2m> &L, polyn_gf2m* g, s
       {
       for(size_t j = 0; j < result->columns(); ++j)
          {
-         if (H.coef(j,perm[i]))
+         if(H.coef(j, perm[i]))
             {
             result->toggle_coeff(i,j);
             }
          }
       }
+
+   std::vector<gf2m> Laux(code_length);
    for(size_t i = 0; i < code_length; ++i)
       {
       Laux[i] = L[perm[i]];
@@ -40278,7 +40466,7 @@ std::unique_ptr<binary_matrix> generate_R(std::vector<gf2m> &L, polyn_gf2m* g, s
 
    for(size_t i = 0; i < code_length; ++i)
       {
-      L[i] = static_cast<gf2m>(Laux[i]);
+      L[i] = Laux[i];
       }
    return result;
    }
@@ -40311,7 +40499,7 @@ McEliece_PrivateKey generate_mceliece_key(RandomNumberGenerator & rng, size_t ex
    do
       {
       // create a random irreducible polynomial
-      g = polyn_gf2m (t, rng, sp_field);
+      g = polyn_gf2m(t, rng, sp_field);
 
       try
          {
@@ -40324,14 +40512,13 @@ McEliece_PrivateKey generate_mceliece_key(RandomNumberGenerator & rng, size_t ex
       } while (!success);
 
    std::vector<polyn_gf2m> sqrtmod = polyn_gf2m::sqrt_mod_init( g);
-   std::vector<polyn_gf2m> F = syndrome_init(g, L, code_length);
+   std::vector<polyn_gf2m> F = syndrome_init(g, L, static_cast<int>(code_length));
 
    // Each F[i] is the (precomputed) syndrome of the error vector with
    // a single '1' in i-th position.
    // We do not store the F[i] as polynomials of degree t , but
    // as binary vectors of length ext_deg * t (this will
    // speed up the syndrome computation)
-   //
    //
    std::vector<uint32_t> H(bit_size_to_32bit_size(codimension) * code_length);
    uint32_t* sk = H.data();
@@ -40340,7 +40527,7 @@ McEliece_PrivateKey generate_mceliece_key(RandomNumberGenerator & rng, size_t ex
       for(size_t l = 0; l < t; ++l)
          {
          const size_t k = (l * ext_deg) / 32;
-         const size_t j = (l * ext_deg) % 32;
+         const uint8_t j = (l * ext_deg) % 32;
          sk[k] ^= static_cast<uint32_t>(F[i].get_coef(l)) << j;
          if(j + ext_deg > 32)
             {
@@ -40381,9 +40568,9 @@ namespace Botan {
 
 namespace {
 
-uint32_t patch_root_array(gf2m* res_root_arr,
-                        uint32_t res_root_arr_len,
-                        uint32_t root_pos)
+void patch_root_array(gf2m res_root_arr[],
+                      size_t res_root_arr_len,
+                      size_t root_pos)
    {
    volatile gf2m patch_elem = 0x01;
    volatile gf2m cond_mask = (root_pos == res_root_arr_len);
@@ -40395,21 +40582,21 @@ uint32_t patch_root_array(gf2m* res_root_arr,
       gf2m masked_patch_elem = (patch_elem++) & cond_mask;
       res_root_arr[i] ^= masked_patch_elem++;
       }
-   return res_root_arr_len;
    }
 
 class gf2m_decomp_rootfind_state
    {
    public:
-      gf2m_decomp_rootfind_state(const polyn_gf2m & p_polyn, uint32_t code_length);
+      gf2m_decomp_rootfind_state(const polyn_gf2m & p_polyn, size_t code_length);
 
       void calc_LiK(const polyn_gf2m & sigma);
       gf2m calc_Fxj_j_neq_0( const polyn_gf2m & sigma, gf2m j_gray);
       void calc_next_Aij();
       void calc_Ai_zero(const polyn_gf2m & sigma);
       secure_vector<gf2m> find_roots(const polyn_gf2m & sigma);
-      uint32_t get_code_length() const { return code_length; }
-      uint32_t code_length;
+
+   private:
+      size_t m_code_length;
       secure_vector<gf2m> m_Lik; // size is outer_summands * m
       secure_vector<gf2m> m_Aij; // ...
       uint32_t m_outer_summands;
@@ -40450,8 +40637,8 @@ uint32_t brootf_decomp_calc_sum_limit(uint32_t t)
    return result;
    }
 
-gf2m_decomp_rootfind_state::gf2m_decomp_rootfind_state(const polyn_gf2m & polyn, uint32_t the_code_length) :
-   code_length(the_code_length), m_j(0), m_j_gray(0)
+gf2m_decomp_rootfind_state::gf2m_decomp_rootfind_state(const polyn_gf2m & polyn, size_t code_length) :
+   m_code_length(code_length), m_j(0), m_j_gray(0)
    {
    gf2m coeff_3;
    gf2m coeff_head;
@@ -40638,12 +40825,13 @@ secure_vector<gf2m> gf2m_decomp_rootfind_state::find_roots(const polyn_gf2m & si
 
    this->calc_Ai_zero(sigma);
    this->calc_LiK(sigma);
-   do
+   for(;;)
       {
       gf2m eval_result;
+
       if(this->m_j_gray == 0)
          {
-         eval_result = sigma.get_coef( 0);
+         eval_result = sigma.get_coef(0);
          }
       else
          {
@@ -40652,27 +40840,25 @@ secure_vector<gf2m> gf2m_decomp_rootfind_state::find_roots(const polyn_gf2m & si
 
       if(eval_result == 0)
          {
-
          result[root_pos] = this->m_j_gray;
          root_pos++;
-
          }
-      if(this->m_j + static_cast<uint32_t>(1) == this->get_code_length())
+
+      if(this->m_j + static_cast<uint32_t>(1) == m_code_length)
          {
          break;
          }
       this->calc_next_Aij();
-      }while(1);
+      }
 
    // side channel / fault attack countermeasure:
-   root_pos = patch_root_array(result.data(), result.size(), root_pos);
-   result.resize(root_pos);
+   patch_root_array(result.data(), result.size(), root_pos);
    return result;
    }
 
 } // end anonymous namespace
 
-secure_vector<gf2m> find_roots_gf2m_decomp(const polyn_gf2m & polyn, uint32_t code_length)
+secure_vector<gf2m> find_roots_gf2m_decomp(const polyn_gf2m & polyn, size_t code_length)
    {
    gf2m_decomp_rootfind_state state(polyn, code_length);
    return state.find_roots(polyn);
@@ -40719,13 +40905,13 @@ std::vector<gf2m> gf_exp_table(size_t deg, gf2m prime_poly)
    {
    // construct the table gf_exp[i]=alpha^i
 
-   std::vector<gf2m> tab((1 << deg) + 1);
+   std::vector<gf2m> tab((static_cast<size_t>(1) << deg) + 1);
 
    tab[0] = 1;
    for(size_t i = 1; i < tab.size(); ++i)
       {
-      const bool overflow = tab[i - 1] >> (deg - 1);
-      tab[i] = (tab[i-1] << 1) ^ (overflow ? prime_poly : 0);
+      const gf2m overflow = tab[i-1] >> (deg - 1);
+      tab[i] = (tab[i-1] << 1) ^ (overflow * prime_poly);
       }
 
    return tab;
@@ -40746,9 +40932,9 @@ const std::vector<gf2m>& exp_table(size_t deg)
 
 std::vector<gf2m> gf_log_table(size_t deg, const std::vector<gf2m>& exp)
    {
-   std::vector<gf2m> tab(1 << deg);
+   std::vector<gf2m> tab(static_cast<size_t>(1) << deg);
 
-   tab[0] = (1 << deg) - 1; // log of 0 is the order by convention
+   tab[0] = static_cast<gf2m>((static_cast<gf2m>(1) << deg) - 1); // log of 0 is the order by convention
    for(size_t i = 0; i < tab.size(); ++i)
       {
       tab[exp[i]] = static_cast<gf2m>(i);
@@ -40796,28 +40982,9 @@ GF2m_Field::GF2m_Field(size_t extdeg) : m_gf_extension_degree(extdeg),
 gf2m GF2m_Field::gf_div(gf2m x, gf2m y) const
    {
    const int32_t sub_res = static_cast<int32_t>(gf_log(x) - static_cast<int32_t>(gf_log(y)));
-   const int32_t modq_res = static_cast<int32_t>(_gf_modq_1(sub_res));
+   const gf2m modq_res = _gf_modq_1(sub_res);
    const int32_t div_res = static_cast<int32_t>(x) ? static_cast<int32_t>(gf_exp(modq_res)) : 0;
    return static_cast<gf2m>(div_res);
-   }
-
-// we suppose i >= 0. Par convention 0^0 = 1
-gf2m GF2m_Field::gf_pow(gf2m x, int i) const
-   {
-   if (i == 0)
-      return 1;
-   else if (x == 0)
-      return 0;
-   else
-      {
-      // i mod (q-1)
-      while (i >> get_extension_degree())
-         i = (i & (gf_ord())) + (i >> get_extension_degree());
-      i *= gf_log(x);
-      while (i >> get_extension_degree())
-         i = (i & (gf_ord())) + (i >> get_extension_degree());
-      return gf_exp(i);
-      }
    }
 
 }
@@ -40838,18 +41005,19 @@ namespace Botan {
 namespace {
 
 void matrix_arr_mul(std::vector<uint32_t> matrix,
-                    uint32_t numo_rows,
-                    uint32_t words_per_row,
-                    const uint8_t* input_vec,
-                    uint32_t* output_vec, uint32_t output_vec_len)
+                    size_t numo_rows,
+                    size_t words_per_row,
+                    const uint8_t input_vec[],
+                    uint32_t output_vec[],
+                    size_t output_vec_len)
    {
    for(size_t j = 0; j < numo_rows; j++)
       {
       if((input_vec[j / 8] >> (j % 8)) & 1)
          {
-         for(size_t i = 0; i < output_vec_len; i ++)
+         for(size_t i = 0; i < output_vec_len; i++)
             {
-            output_vec[i] ^= matrix[ j * (words_per_row) + i];
+            output_vec[i] ^= matrix[j * (words_per_row) + i];
             }
          }
       }
@@ -40863,8 +41031,8 @@ secure_vector<gf2m> goppa_decode(const polyn_gf2m & syndrom_polyn,
                                  const std::vector<polyn_gf2m> & sqrtmod,
                                  const std::vector<gf2m> & Linv)
    {
+   const size_t code_length = Linv.size();
    gf2m a;
-   uint32_t code_length = Linv.size();
    uint32_t t = g.get_degree();
 
    std::shared_ptr<GF2m_Field> sp_field = g.get_sp_field();
@@ -40985,13 +41153,13 @@ void mceliece_decrypt(
 * array */
 secure_vector<uint8_t> mceliece_decrypt(
    secure_vector<gf2m> & error_pos,
-   const uint8_t *ciphertext, uint32_t ciphertext_len,
+   const uint8_t *ciphertext, size_t ciphertext_len,
    const McEliece_PrivateKey & key)
    {
 
-   uint32_t dimension = key.get_dimension();
-   uint32_t codimension = key.get_codimension();
-   uint32_t t = key.get_goppa_polyn().get_degree();
+   const size_t dimension = key.get_dimension();
+   const size_t codimension = key.get_codimension();
+   const uint32_t t = key.get_goppa_polyn().get_degree();
    polyn_gf2m syndrome_polyn(key.get_goppa_polyn().get_sp_field()); // init as zero polyn
    const unsigned unused_pt_bits = dimension % 8;
    const uint8_t unused_pt_bits_mask = (1 << unused_pt_bits) - 1;
@@ -41000,7 +41168,7 @@ secure_vector<uint8_t> mceliece_decrypt(
       {
       throw Invalid_Argument("wrong size of McEliece ciphertext");
       }
-   uint32_t cleartext_len = (key.get_message_word_bit_length()+7)/8;
+   const size_t cleartext_len = (key.get_message_word_bit_length()+7)/8;
 
    if(cleartext_len != bit_size_to_byte_size(dimension))
       {
@@ -41015,10 +41183,10 @@ secure_vector<uint8_t> mceliece_decrypt(
                   syndrome_vec.data(), syndrome_vec.size());
 
    secure_vector<uint8_t> syndrome_byte_vec(bit_size_to_byte_size(codimension));
-   uint32_t syndrome_byte_vec_size = syndrome_byte_vec.size();
-   for(uint32_t i = 0; i < syndrome_byte_vec_size; i++)
+   const size_t syndrome_byte_vec_size = syndrome_byte_vec.size();
+   for(size_t i = 0; i < syndrome_byte_vec_size; i++)
       {
-      syndrome_byte_vec[i] = static_cast<uint8_t>(syndrome_vec[i/4] >> (8* (i % 4)));
+      syndrome_byte_vec[i] = static_cast<uint8_t>(syndrome_vec[i/4] >> (8 * (i % 4)));
       }
 
    syndrome_polyn = polyn_gf2m(t-1, syndrome_byte_vec.data(), bit_size_to_byte_size(codimension), key.get_goppa_polyn().get_sp_field());
@@ -41026,12 +41194,12 @@ secure_vector<uint8_t> mceliece_decrypt(
    syndrome_polyn.get_degree();
    error_pos = goppa_decode(syndrome_polyn, key.get_goppa_polyn(), key.get_sqrtmod(), key.get_Linv());
 
-   uint32_t nb_err = error_pos.size();
+   const size_t nb_err = error_pos.size();
 
    secure_vector<uint8_t> cleartext(cleartext_len);
    copy_mem(cleartext.data(), ciphertext, cleartext_len);
 
-   for(uint32_t i = 0; i < nb_err; i++)
+   for(size_t i = 0; i < nb_err; i++)
       {
       gf2m current = error_pos[i];
 
@@ -41178,8 +41346,10 @@ namespace Botan {
 
 namespace {
 
-secure_vector<uint8_t> concat_vectors(const secure_vector<uint8_t>& a, const secure_vector<uint8_t>& b,
-                                   uint32_t dimension, uint32_t codimension)
+secure_vector<uint8_t> concat_vectors(const secure_vector<uint8_t>& a,
+                                      const secure_vector<uint8_t>& b,
+                                      size_t dimension,
+                                      size_t codimension)
    {
    secure_vector<uint8_t> x(bit_size_to_byte_size(dimension) + bit_size_to_byte_size(codimension));
 
@@ -41194,10 +41364,10 @@ secure_vector<uint8_t> concat_vectors(const secure_vector<uint8_t>& a, const sec
    else
       {
       copy_mem(&x[0], a.data(), (dimension / 8));
-      uint32_t l = dimension / 8;
+      size_t l = dimension / 8;
       x[l] = static_cast<uint8_t>(a[l] & ((1 << final_bits) - 1));
 
-      for(uint32_t k = 0; k < codimension / 8; ++k)
+      for(size_t k = 0; k < codimension / 8; ++k)
          {
          x[l] ^= static_cast<uint8_t>(b[k] << final_bits);
          ++l;
@@ -41210,12 +41380,12 @@ secure_vector<uint8_t> concat_vectors(const secure_vector<uint8_t>& a, const sec
    }
 
 secure_vector<uint8_t> mult_by_pubkey(const secure_vector<uint8_t>& cleartext,
-                                   std::vector<uint8_t> const& public_matrix,
-                                   uint32_t code_length, uint32_t t)
+                                      std::vector<uint8_t> const& public_matrix,
+                                      size_t code_length, size_t t)
    {
-   const uint32_t ext_deg = ceil_log2(code_length);
-   const uint32_t codimension = ext_deg * t;
-   const uint32_t dimension = code_length - codimension;
+   const size_t ext_deg = ceil_log2(code_length);
+   const size_t codimension = ext_deg * t;
+   const size_t dimension = code_length - codimension;
    secure_vector<uint8_t> cR(bit_size_to_32bit_size(codimension) * sizeof(uint32_t));
 
    const uint8_t* pt = public_matrix.data();
@@ -41246,9 +41416,9 @@ secure_vector<uint8_t> mult_by_pubkey(const secure_vector<uint8_t>& cleartext,
    return ciphertext;
    }
 
-secure_vector<uint8_t> create_random_error_vector(unsigned code_length,
-                                               unsigned error_weight,
-                                               RandomNumberGenerator& rng)
+secure_vector<uint8_t> create_random_error_vector(size_t code_length,
+                                                  size_t error_weight,
+                                                  RandomNumberGenerator& rng)
    {
    secure_vector<uint8_t> result((code_length+7)/8);
 
@@ -41256,9 +41426,10 @@ secure_vector<uint8_t> create_random_error_vector(unsigned code_length,
 
    while(bits_set < error_weight)
       {
-      gf2m x = random_code_element(code_length, rng);
+      gf2m x = random_code_element(static_cast<uint16_t>(code_length), rng);
 
-      const size_t byte_pos = x / 8, bit_pos = x % 8;
+      const size_t byte_pos = x / 8;
+      const size_t bit_pos = x % 8;
 
       const uint8_t mask = (1 << bit_pos);
 
@@ -41280,10 +41451,12 @@ void mceliece_encrypt(secure_vector<uint8_t>& ciphertext_out,
                       const McEliece_PublicKey& key,
                       RandomNumberGenerator& rng)
    {
-   secure_vector<uint8_t> error_mask = create_random_error_vector(key.get_code_length(), key.get_t(), rng);
+   const uint16_t code_length = static_cast<uint16_t>(key.get_code_length());
+
+   secure_vector<uint8_t> error_mask = create_random_error_vector(code_length, key.get_t(), rng);
 
    secure_vector<uint8_t> ciphertext = mult_by_pubkey(plaintext, key.get_public_matrix(),
-                                                   key.get_code_length(), key.get_t());
+                                                      key.get_code_length(), key.get_t());
 
    ciphertext ^= error_mask;
 
@@ -41317,7 +41490,7 @@ McEliece_PrivateKey::McEliece_PrivateKey(polyn_gf2m const& goppa_polyn,
    m_sqrtmod(square_root_matrix),
    m_Linv(inverse_support),
    m_coeffs(parity_check_matrix_coeffs),
-   m_codimension(ceil_log2(inverse_support.size()) * goppa_polyn.get_degree()),
+   m_codimension(static_cast<size_t>(ceil_log2(inverse_support.size())) * goppa_polyn.get_degree()),
    m_dimension(inverse_support.size() - m_codimension)
    {
    }
@@ -41328,9 +41501,9 @@ McEliece_PrivateKey::McEliece_PrivateKey(RandomNumberGenerator& rng, size_t code
    *this = generate_mceliece_key(rng, ext_deg, code_length, t);
    }
 
-uint32_t McEliece_PublicKey::get_message_word_bit_length() const
+size_t McEliece_PublicKey::get_message_word_bit_length() const
    {
-   uint32_t codimension = ceil_log2(m_code_length) * m_t;
+   size_t codimension = ceil_log2(m_code_length) * m_t;
    return m_code_length - codimension;
    }
 
@@ -41519,7 +41692,7 @@ McEliece_PrivateKey::McEliece_PrivateKey(const secure_vector<uint8_t>& key_bits)
       {
       throw Decoding_Error("encoded parity check matrix has length which is not a multiple of four");
       }
-   if(enc_H.size()/4 != bit_size_to_32bit_size(m_codimension) * m_code_length )
+   if(enc_H.size() / 4 != bit_size_to_32bit_size(m_codimension) * m_code_length)
       {
       throw Decoding_Error("encoded parity check matrix has wrong length");
       }
@@ -41570,7 +41743,7 @@ bool McEliece_PublicKey::operator==(const McEliece_PublicKey& other) const
       {
       return false;
       }
-   if(m_t != other.m_t )
+   if(m_t != other.m_t)
       {
       return false;
       }
@@ -41702,7 +41875,7 @@ unsigned nlz_16bit(uint16_t x)
 
 int polyn_gf2m::calc_degree_secure() const
    {
-   int i = this->coeff.size() - 1;
+   int i = static_cast<int>(this->coeff.size()) - 1;
    int result = 0;
    uint32_t found_mask = 0;
    uint32_t tracker_mask = 0xffff;
@@ -41725,14 +41898,14 @@ gf2m random_gf2m(RandomNumberGenerator& rng)
    return make_uint16(b[1], b[0]);
    }
 
-gf2m random_code_element(unsigned code_length, RandomNumberGenerator& rng)
+gf2m random_code_element(uint16_t code_length, RandomNumberGenerator& rng)
    {
    if(code_length == 0)
       {
       throw Invalid_Argument("random_code_element() was supplied a code length of zero");
       }
    const unsigned nlz = nlz_16bit(code_length-1);
-   const gf2m mask = (1 << (16-nlz)) -1;
+   const gf2m mask = (1 << (16-nlz)) - 1;
 
    gf2m result;
 
@@ -41751,7 +41924,7 @@ polyn_gf2m::polyn_gf2m(polyn_gf2m const& other)
     m_sp_field(other.m_sp_field)
    { }
 
-polyn_gf2m::polyn_gf2m(   int d, std::shared_ptr<GF2m_Field> sp_field)
+polyn_gf2m::polyn_gf2m(int d, std::shared_ptr<GF2m_Field> sp_field)
    :m_deg(-1),
     coeff(d+1),
     m_sp_field(sp_field)
@@ -41785,7 +41958,7 @@ polyn_gf2m::polyn_gf2m(const uint8_t* mem, uint32_t mem_len, std::shared_ptr<GF2
    {
    if(mem_len % sizeof(gf2m))
       {
-      throw Botan::Decoding_Error("illegal length of memory to decode ");
+      throw Decoding_Error("illegal length of memory to decode ");
       }
 
    uint32_t size = (mem_len / sizeof(this->coeff[0])) ;
@@ -41800,7 +41973,7 @@ polyn_gf2m::polyn_gf2m(const uint8_t* mem, uint32_t mem_len, std::shared_ptr<GF2
       {
       if(this->coeff[i] >= (1 << sp_field->get_extension_degree()))
          {
-         throw Botan::Decoding_Error("error decoding polynomial");
+         throw Decoding_Error("error decoding polynomial");
          }
       }
    this->get_degree();
@@ -41811,7 +41984,7 @@ polyn_gf2m::polyn_gf2m( std::shared_ptr<GF2m_Field> sp_field) :
    m_deg(-1), coeff(1), m_sp_field(sp_field)
    {}
 
-polyn_gf2m::polyn_gf2m(int degree, const unsigned  char* mem, uint32_t mem_byte_len, std::shared_ptr<GF2m_Field> sp_field)
+polyn_gf2m::polyn_gf2m(int degree, const uint8_t* mem, size_t mem_byte_len, std::shared_ptr<GF2m_Field> sp_field)
    :m_sp_field(sp_field)
    {
    uint32_t j, k, l;
@@ -41820,10 +41993,10 @@ polyn_gf2m::polyn_gf2m(int degree, const unsigned  char* mem, uint32_t mem_byte_
    polyn_size = degree + 1;
    if(polyn_size * sp_field->get_extension_degree() > 8 * mem_byte_len)
       {
-      throw Botan::Decoding_Error("memory vector for polynomial has wrong size");
+      throw Decoding_Error("memory vector for polynomial has wrong size");
       }
    this->coeff = secure_vector<gf2m>(degree+1);
-   gf2m ext_deg = this->m_sp_field->get_extension_degree();
+   gf2m ext_deg = static_cast<gf2m>(this->m_sp_field->get_extension_degree());
    for (l = 0; l < polyn_size; l++)
       {
       k = (l * ext_deg) / 8;
@@ -41884,7 +42057,7 @@ void polyn_gf2m::set_to_zero()
 
 int polyn_gf2m::get_degree() const
    {
-   int d = this->coeff.size() - 1;
+   int d = static_cast<int>(this->coeff.size()) - 1;
    while ((d >= 0) && (this->coeff[d] == 0))
       --d;
    const_cast<polyn_gf2m*>(this)->m_deg = d;
@@ -42044,7 +42217,7 @@ polyn_gf2m polyn_gf2m::gcd(polyn_gf2m const& p1, polyn_gf2m const& p2)
 
 
 // Returns the degree of the smallest factor
-void polyn_gf2m::degppf(const polyn_gf2m & g, int* p_result)
+size_t polyn_gf2m::degppf(const polyn_gf2m& g)
    {
    polyn_gf2m s(g.get_sp_field());
 
@@ -42056,7 +42229,7 @@ void polyn_gf2m::degppf(const polyn_gf2m & g, int* p_result)
 
    p.set_degree(1);
    (*&p).set_coef(1, 1);
-   (*p_result) = d;
+   size_t result = static_cast<size_t>(d);
    for(size_t i = 1; i <= (d / 2) * ext_deg; ++i)
       {
       polyn_gf2m r = p.sqmod(u, d);
@@ -42068,7 +42241,7 @@ void polyn_gf2m::degppf(const polyn_gf2m & g, int* p_result)
 
          if(s.get_degree() > 0)
             {
-            (*p_result) = i / ext_deg;
+            result = i / ext_deg;
             break;
             }
          r[1] ^= 1;
@@ -42080,7 +42253,7 @@ void polyn_gf2m::degppf(const polyn_gf2m & g, int* p_result)
       r = s;
       }
 
-
+   return result;
    }
 
 void polyn_gf2m::patchup_deg_secure( uint32_t trgt_deg, volatile gf2m patch_elem)
@@ -42293,24 +42466,25 @@ std::pair<polyn_gf2m, polyn_gf2m> polyn_gf2m::eea_with_coefficients( const polyn
    return std::make_pair(u1,r1); // coefficients u,v
    }
 
-polyn_gf2m::polyn_gf2m(int t, Botan::RandomNumberGenerator& rng, std::shared_ptr<GF2m_Field> sp_field)
-   :m_deg(t),
+polyn_gf2m::polyn_gf2m(size_t t, RandomNumberGenerator& rng, std::shared_ptr<GF2m_Field> sp_field)
+   :m_deg(static_cast<int>(t)),
     coeff(t+1),
     m_sp_field(sp_field)
    {
-   (*this).set_coef( t, 1);
-   int degree = 0;
-   do
+   this->set_coef(t, 1);
+   for(;;)
       {
-      for (int i = 0; i < t; ++i)
+      for(size_t i = 0; i < t; ++i)
          {
-         (*this).set_coef( i, random_code_element(sp_field->get_cardinality(), rng));
+         this->set_coef(i, random_code_element(sp_field->get_cardinality(), rng));
          }
-      polyn_gf2m::degppf(*this, &degree);
-      }
-   while (degree < t);
-   }
 
+      const size_t degree = polyn_gf2m::degppf(*this);
+
+      if(degree >= t)
+         break;
+      }
+   }
 
 void polyn_gf2m::poly_shiftmod( const polyn_gf2m & g)
    {
@@ -42862,7 +43036,7 @@ MDx_HashFunction::MDx_HashFunction(size_t block_len,
                                    uint8_t cnt_size) :
    m_pad_char(bit_big_endian == true ? 0x80 : 0x01),
    m_counter_size(cnt_size),
-   m_block_bits(static_cast<uint8_t>(ceil_log2(block_len))),
+   m_block_bits(ceil_log2(block_len)),
    m_count_big_endian(byte_big_endian),
    m_count(0),
    m_buffer(block_len),
@@ -43107,7 +43281,7 @@ class BitMap final
       BitMap(size_t bits) : m_len(bits)
          {
          m_bits.resize((bits + BITMASK_BITS - 1) / BITMASK_BITS);
-         m_main_mask = static_cast<bitmask_type>(0) - 1; // all bits set
+         m_main_mask = static_cast<bitmask_type>(~0);
          m_last_mask = m_main_mask;
 
          if(bits % BITMASK_BITS != 0)
@@ -49489,7 +49663,7 @@ inline uint16_t barrett_reduce(uint16_t a)
    {
    uint32_t u = (static_cast<uint32_t>(a) * 5) >> 16;
    u *= PARAM_Q;
-   a -= u;
+   a = static_cast<uint16_t>(a - u);
    return a;
    }
 
@@ -51031,7 +51205,7 @@ int32_t jacobi(const BigInt& a, const BigInt& n)
 }
 /*
 * Prime Generation
-* (C) 1999-2007,2018 Jack Lloyd
+* (C) 1999-2007,2018,2019 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -51103,9 +51277,14 @@ BigInt random_prime(RandomNumberGenerator& rng,
                     size_t equiv, size_t modulo,
                     size_t prob)
    {
-   if(coprime.is_negative())
+   if(bits <= 1)
       {
-      throw Invalid_Argument("random_prime: coprime must be >= 0");
+      throw Invalid_Argument("random_prime: Can't make a prime of " +
+                             std::to_string(bits) + " bits");
+      }
+   if(coprime.is_negative() || (!coprime.is_zero() && coprime.is_even()) || coprime.bits() >= bits)
+      {
+      throw Invalid_Argument("random_prime: invalid coprime");
       }
    if(modulo == 0)
       {
@@ -51118,35 +51297,37 @@ BigInt random_prime(RandomNumberGenerator& rng,
       throw Invalid_Argument("random_prime Invalid value for equiv/modulo");
 
    // Handle small values:
-   if(bits <= 1)
-      {
-      throw Invalid_Argument("random_prime: Can't make a prime of " +
-                             std::to_string(bits) + " bits");
-      }
-   else if(bits == 2)
-      {
-      return ((rng.next_byte() % 2) ? 2 : 3);
-      }
-   else if(bits == 3)
-      {
-      return ((rng.next_byte() % 2) ? 5 : 7);
-      }
-   else if(bits == 4)
-      {
-      return ((rng.next_byte() % 2) ? 11 : 13);
-      }
-   else if(bits <= 16)
-      {
-      for(;;)
-         {
-         // This is slightly biased, but for small primes it does not seem to matter
-         const uint8_t b0 = rng.next_byte();
-         const uint8_t b1 = rng.next_byte();
-         const size_t idx = make_uint16(b0, b1) % PRIME_TABLE_SIZE;
-         const uint16_t small_prime = PRIMES[idx];
 
-         if(high_bit(small_prime) == bits)
-            return small_prime;
+   if(bits <= 16)
+      {
+      if(equiv != 1 || modulo != 2 || coprime != 0)
+         throw Not_Implemented("random_prime equiv/modulo/coprime options not usable for small primes");
+
+      if(bits == 2)
+         {
+         return ((rng.next_byte() % 2) ? 2 : 3);
+         }
+      else if(bits == 3)
+         {
+         return ((rng.next_byte() % 2) ? 5 : 7);
+         }
+      else if(bits == 4)
+         {
+         return ((rng.next_byte() % 2) ? 11 : 13);
+         }
+      else
+         {
+         for(;;)
+            {
+            // This is slightly biased, but for small primes it does not seem to matter
+            const uint8_t b0 = rng.next_byte();
+            const uint8_t b1 = rng.next_byte();
+            const size_t idx = make_uint16(b0, b1) % PRIME_TABLE_SIZE;
+            const uint16_t small_prime = PRIMES[idx];
+
+            if(high_bit(small_prime) == bits)
+               return small_prime;
+            }
          }
       }
 
@@ -51166,40 +51347,57 @@ BigInt random_prime(RandomNumberGenerator& rng,
 
       Prime_Sieve sieve(p, bits);
 
-      size_t counter = 0;
-      while(true)
+      for(size_t attempt = 0; attempt <= MAX_ATTEMPTS; ++attempt)
          {
-         ++counter;
-
-         if(counter > MAX_ATTEMPTS)
-            {
-            break; // don't try forever, choose a new starting point
-            }
-
          p += modulo;
 
          sieve.step(modulo);
 
-         if(sieve.passes(true) == false)
+         // p can be even if modulo is odd, continue on in that case
+         if(p.is_even() || sieve.passes(true) == false)
+            continue;
+
+         Modular_Reducer mod_p(p);
+
+         /*
+         First do a single M-R iteration to quickly elimate most non-primes,
+         before doing the coprimality check which is expensive
+         */
+         if(is_miller_rabin_probable_prime(p, mod_p, rng, 1) == false)
             continue;
 
          if(coprime > 1)
             {
             /*
-            * Check if gcd(p - 1, coprime) != 1 by computing the inverse. The
-            * gcd algorithm is not constant time, but modular inverse is (for
-            * odd modulus anyway). This avoids a side channel attack against RSA
-            * key generation, though RSA keygen should be using generate_rsa_prime.
+            * Check if gcd(p - 1, coprime) != 1 by attempting to compute a
+            * modular inverse. We are assured coprime is odd (since if it was
+            * even, it would always have a common factor with p - 1), so
+            * take off the factors of 2 from (p-1) then compute the inverse
+            * of coprime modulo that integer.
             */
-            if(inverse_mod(p - 1, coprime).is_zero())
+            BigInt p1 = p - 1;
+            p1 >>= low_zero_bits(p1);
+            if(ct_inverse_mod_odd_modulus(coprime, p1).is_zero())
+               {
+               BOTAN_DEBUG_ASSERT(gcd(p - 1, coprime) > 1);
                continue;
+               }
+
+            BOTAN_DEBUG_ASSERT(gcd(p - 1, coprime) == 1);
             }
 
          if(p.bits() > bits)
             break;
 
-         if(is_prime(p, rng, prob, true))
-            return p;
+         const size_t t = miller_rabin_test_iterations(bits, prob, true);
+
+         if(is_miller_rabin_probable_prime(p, mod_p, rng, t) == false)
+            continue;
+
+         if(prob > 32 && !is_lucas_probable_prime(p, mod_p))
+            continue;
+
+         return p;
          }
       }
    }
@@ -51236,21 +51434,23 @@ BigInt generate_rsa_prime(RandomNumberGenerator& keygen_rng,
 
       const word step = 2;
 
-      size_t counter = 0;
-      while(true)
+      for(size_t attempt = 0; attempt <= MAX_ATTEMPTS; ++attempt)
          {
-         ++counter;
-
-         if(counter > MAX_ATTEMPTS)
-            {
-            break; // don't try forever, choose a new starting point
-            }
-
          p += step;
 
          sieve.step(step);
 
          if(sieve.passes() == false)
+            continue;
+
+         Modular_Reducer mod_p(p);
+
+         /*
+         * Do a single primality test first before checking coprimality, since
+         * currently a single Miller-Rabin test is faster than computing modular
+         * inverse, and this eliminates almost all wasted modular inverses.
+         */
+         if(is_miller_rabin_probable_prime(p, mod_p, prime_test_rng, 1) == false)
             continue;
 
          /*
@@ -51267,18 +51467,20 @@ BigInt generate_rsa_prime(RandomNumberGenerator& keygen_rng,
          */
          BigInt p1 = p - 1;
          p1 >>= low_zero_bits(p1);
-         if(inverse_mod(coprime, p1).is_zero())
+         if(ct_inverse_mod_odd_modulus(coprime, p1).is_zero())
             {
-            BOTAN_DEBUG_ASSERT(gcd(p1, coprime) > 1);
+            BOTAN_DEBUG_ASSERT(gcd(p - 1, coprime) > 1);
             continue;
             }
 
-         BOTAN_DEBUG_ASSERT(gcd(p1, coprime) == 1);
+         BOTAN_DEBUG_ASSERT(gcd(p - 1, coprime) == 1);
 
          if(p.bits() > bits)
             break;
 
-         if(is_prime(p, prime_test_rng, prob, true))
+         const size_t t = miller_rabin_test_iterations(bits, prob, true);
+
+         if(is_miller_rabin_probable_prime(p, mod_p, prime_test_rng, t) == true)
             return p;
          }
       }
@@ -51355,6 +51557,7 @@ Montgomery_Params::Montgomery_Params(const BigInt& p)
 
    const BigInt r = BigInt::power_of_2(m_p_words * BOTAN_MP_WORD_BITS);
 
+   // It might be faster to use ct_modulo here vs setting up Barrett reduction?
    Modular_Reducer mod_p(p);
 
    m_r1 = mod_p.reduce(r);
@@ -51812,11 +52015,9 @@ Montgomery_Exponentation_State::Montgomery_Exponentation_State(std::shared_ptr<c
 
    m_g.push_back(Montgomery_Int(m_params, g));
 
-   const Montgomery_Int& monty_g = m_g[1];
-
    for(size_t i = 2; i != window_size; ++i)
       {
-      m_g.push_back(monty_g * m_g[i - 1]);
+      m_g.push_back(m_g[1] * m_g[i - 1]);
       }
 
    // Resize each element to exactly p words
@@ -52677,13 +52878,28 @@ void redc_p384(BigInt& x, secure_vector<word>& ws)
 }
 /*
 * Number Theory Functions
-* (C) 1999-2011,2016,2018 Jack Lloyd
+* (C) 1999-2011,2016,2018,2019 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
 
 namespace Botan {
+
+namespace {
+
+void sub_abs(BigInt& z, const BigInt& x, const BigInt& y)
+   {
+   const size_t x_sw = x.sig_words();
+   const size_t y_sw = y.sig_words();
+   z.resize(std::max(x_sw, y_sw));
+
+   bigint_sub_abs(z.mutable_data(),
+                  x.data(), x_sw,
+                  y.data(), y_sw);
+   }
+
+}
 
 /*
 * Return the number of 0 bits at the end of n
@@ -52721,27 +52937,48 @@ BigInt gcd(const BigInt& a, const BigInt& b)
    if(a == 1 || b == 1)
       return 1;
 
-   BigInt X[2] = { a, b };
-   X[0].set_sign(BigInt::Positive);
-   X[1].set_sign(BigInt::Positive);
+   BigInt f = a;
+   BigInt g = b;
+   f.set_sign(BigInt::Positive);
+   g.set_sign(BigInt::Positive);
 
-   const size_t shift = std::min(low_zero_bits(X[0]), low_zero_bits(X[1]));
+   const size_t common2s = std::min(low_zero_bits(f), low_zero_bits(g));
 
-   X[0] >>= shift;
-   X[1] >>= shift;
+   f >>= common2s;
+   g >>= common2s;
 
-   while(X[0].is_nonzero())
+   f.ct_cond_swap(f.is_even(), g);
+
+   int32_t delta = 1;
+
+   const size_t loop_cnt = 4 + 3*std::max(f.bits(), g.bits());
+
+   BigInt newg, t;
+   for(size_t i = 0; i != loop_cnt; ++i)
       {
-      X[0] >>= low_zero_bits(X[0]);
-      X[1] >>= low_zero_bits(X[1]);
+      g.shrink_to_fit();
+      f.shrink_to_fit();
+      sub_abs(newg, f, g);
 
-      const uint8_t sel = static_cast<uint8_t>(X[0] >= X[1]);
+      const bool need_swap = (g.is_odd() && delta > 0);
 
-      X[sel^1] -= X[sel];
-      X[sel^1] >>= 1;
+      // if(need_swap) delta *= -1
+      delta *= CT::Mask<uint8_t>::expand(need_swap).select(0, 2) - 1;
+      f.ct_cond_swap(need_swap, g);
+      g.ct_cond_swap(need_swap, newg);
+
+      delta += 1;
+
+      t = g;
+      t += f;
+      g.ct_cond_assign(g.is_odd(), t);
+
+      g >>= 1;
       }
 
-   return (X[1] << shift);
+   f <<= common2s;
+
+   return f;
    }
 
 /*
@@ -53092,29 +53329,34 @@ BigInt power_mod(const BigInt& base, const BigInt& exp, const BigInt& mod)
       return 0;
       }
 
-   Power_Mod pow_mod(mod);
+   Modular_Reducer reduce_mod(mod);
+
+   const size_t exp_bits = exp.bits();
+
+   if(mod.is_odd())
+      {
+      const size_t powm_window = 4;
+
+      auto monty_mod = std::make_shared<Montgomery_Params>(mod, reduce_mod);
+      auto powm_base_mod = monty_precompute(monty_mod, reduce_mod.reduce(base), powm_window);
+      return monty_execute(*powm_base_mod, exp, exp_bits);
+      }
 
    /*
-   * Calling set_base before set_exponent means we end up using a
-   * minimal window. This makes sense given that here we know that any
-   * precomputation is wasted.
+   Support for even modulus is just a convenience and not considered
+   cryptographically important, so this implementation is slow ...
    */
+   BigInt accum = 1;
+   BigInt g = reduce_mod.reduce(base);
+   BigInt t;
 
-   if(base.is_negative())
+   for(size_t i = 0; i != exp_bits; ++i)
       {
-      pow_mod.set_base(-base);
-      pow_mod.set_exponent(exp);
-      if(exp.is_even())
-         return pow_mod.execute();
-      else
-         return (mod - pow_mod.execute());
+      t = reduce_mod.multiply(g, accum);
+      g = reduce_mod.square(g);
+      accum.ct_cond_assign(exp.get_bit(i), t);
       }
-   else
-      {
-      pow_mod.set_base(base);
-      pow_mod.set_exponent(exp);
-      return pow_mod.execute();
-      }
+   return accum;
    }
 
 
@@ -53190,13 +53432,138 @@ bool is_prime(const BigInt& n,
 }
 /*
 * Modular Exponentiation Proxy
-* (C) 1999-2007 Jack Lloyd
+* (C) 1999-2007,2012,2018,2019 Jack Lloyd
+*     2016 Matthias Gierlings
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
 
 namespace Botan {
+
+class Modular_Exponentiator
+   {
+   public:
+      virtual void set_base(const BigInt&) = 0;
+      virtual void set_exponent(const BigInt&) = 0;
+      virtual BigInt execute() const = 0;
+      virtual Modular_Exponentiator* copy() const = 0;
+
+      Modular_Exponentiator() = default;
+      Modular_Exponentiator(const Modular_Exponentiator&) = default;
+      Modular_Exponentiator & operator=(const Modular_Exponentiator&) = default;
+      virtual ~Modular_Exponentiator() = default;
+   };
+
+namespace {
+
+/**
+* Fixed Window Exponentiator
+*/
+class Fixed_Window_Exponentiator final : public Modular_Exponentiator
+   {
+   public:
+      void set_exponent(const BigInt& e) override { m_exp = e; }
+      void set_base(const BigInt&) override;
+      BigInt execute() const override;
+
+      Modular_Exponentiator* copy() const override
+         { return new Fixed_Window_Exponentiator(*this); }
+
+      Fixed_Window_Exponentiator(const BigInt&, Power_Mod::Usage_Hints);
+   private:
+      Modular_Reducer m_reducer;
+      BigInt m_exp;
+      size_t m_window_bits;
+      std::vector<BigInt> m_g;
+      Power_Mod::Usage_Hints m_hints;
+   };
+
+void Fixed_Window_Exponentiator::set_base(const BigInt& base)
+   {
+   m_window_bits = Power_Mod::window_bits(m_exp.bits(), base.bits(), m_hints);
+
+   m_g.resize(static_cast<size_t>(1) << m_window_bits);
+   m_g[0] = 1;
+   m_g[1] = m_reducer.reduce(base);
+
+   for(size_t i = 2; i != m_g.size(); ++i)
+      m_g[i] = m_reducer.multiply(m_g[i-1], m_g[1]);
+   }
+
+BigInt Fixed_Window_Exponentiator::execute() const
+   {
+   const size_t exp_nibbles = (m_exp.bits() + m_window_bits - 1) / m_window_bits;
+
+   BigInt x = 1;
+
+   for(size_t i = exp_nibbles; i > 0; --i)
+      {
+      for(size_t j = 0; j != m_window_bits; ++j)
+         x = m_reducer.square(x);
+
+      const uint32_t nibble = m_exp.get_substring(m_window_bits*(i-1), m_window_bits);
+
+      // not const time:
+      x = m_reducer.multiply(x, m_g[nibble]);
+      }
+   return x;
+   }
+
+/*
+* Fixed_Window_Exponentiator Constructor
+*/
+Fixed_Window_Exponentiator::Fixed_Window_Exponentiator(const BigInt& n,
+                                                       Power_Mod::Usage_Hints hints)
+   : m_reducer{Modular_Reducer(n)}, m_exp{}, m_window_bits{}, m_g{}, m_hints{hints}
+   {}
+
+class Montgomery_Exponentiator final : public Modular_Exponentiator
+   {
+   public:
+      void set_exponent(const BigInt& e) override { m_e = e; }
+      void set_base(const BigInt&) override;
+      BigInt execute() const override;
+
+      Modular_Exponentiator* copy() const override
+         { return new Montgomery_Exponentiator(*this); }
+
+      Montgomery_Exponentiator(const BigInt&, Power_Mod::Usage_Hints);
+   private:
+      BigInt m_p;
+      Modular_Reducer m_mod_p;
+      std::shared_ptr<const Montgomery_Params> m_monty_params;
+      std::shared_ptr<const Montgomery_Exponentation_State> m_monty;
+
+      BigInt m_e;
+      Power_Mod::Usage_Hints m_hints;
+   };
+
+void Montgomery_Exponentiator::set_base(const BigInt& base)
+   {
+   size_t window_bits = Power_Mod::window_bits(m_e.bits(), base.bits(), m_hints);
+   m_monty = monty_precompute(m_monty_params, m_mod_p.reduce(base), window_bits);
+   }
+
+BigInt Montgomery_Exponentiator::execute() const
+   {
+   /*
+   This leaks size of e via loop iterations, not possible to fix without
+   breaking this API. Round up to avoid leaking fine details.
+   */
+   return monty_execute(*m_monty, m_e, round_up(m_e.bits(), 8));
+   }
+
+Montgomery_Exponentiator::Montgomery_Exponentiator(const BigInt& mod,
+                                                   Power_Mod::Usage_Hints hints) :
+   m_p(mod),
+   m_mod_p(mod),
+   m_monty_params(std::make_shared<Montgomery_Params>(m_p, m_mod_p)),
+   m_hints(hints)
+   {
+   }
+
+}
 
 /*
 * Power_Mod Constructor
@@ -53205,6 +53572,8 @@ Power_Mod::Power_Mod(const BigInt& n, Usage_Hints hints, bool disable_monty)
    {
    set_modulus(n, hints, disable_monty);
    }
+
+Power_Mod::~Power_Mod() { /* for ~unique_ptr */ }
 
 /*
 * Power_Mod Copy Constructor
@@ -53383,110 +53752,6 @@ Fixed_Base_Power_Mod::Fixed_Base_Power_Mod(const BigInt& b, const BigInt& n,
 
 }
 /*
-* Fixed Window Exponentiation
-* (C) 1999-2007 Jack Lloyd
-*
-* Botan is released under the Simplified BSD License (see license.txt)
-*/
-
-
-namespace Botan {
-
-/*
-* Set the exponent
-*/
-void Fixed_Window_Exponentiator::set_exponent(const BigInt& e)
-   {
-   m_exp = e;
-   }
-
-/*
-* Set the base
-*/
-void Fixed_Window_Exponentiator::set_base(const BigInt& base)
-   {
-   m_window_bits = Power_Mod::window_bits(m_exp.bits(), base.bits(), m_hints);
-
-   m_g.resize(static_cast<size_t>(1) << m_window_bits);
-   m_g[0] = 1;
-   m_g[1] = m_reducer.reduce(base);
-
-   for(size_t i = 2; i != m_g.size(); ++i)
-      m_g[i] = m_reducer.multiply(m_g[i-1], m_g[1]);
-   }
-
-/*
-* Compute the result
-*/
-BigInt Fixed_Window_Exponentiator::execute() const
-   {
-   const size_t exp_nibbles = (m_exp.bits() + m_window_bits - 1) / m_window_bits;
-
-   BigInt x = 1;
-
-   for(size_t i = exp_nibbles; i > 0; --i)
-      {
-      for(size_t j = 0; j != m_window_bits; ++j)
-         x = m_reducer.square(x);
-
-      const uint32_t nibble = m_exp.get_substring(m_window_bits*(i-1), m_window_bits);
-
-      x = m_reducer.multiply(x, m_g[nibble]);
-      }
-   return x;
-   }
-
-/*
-* Fixed_Window_Exponentiator Constructor
-*/
-Fixed_Window_Exponentiator::Fixed_Window_Exponentiator(const BigInt& n,
-                                                       Power_Mod::Usage_Hints hints)
-      : m_reducer{Modular_Reducer(n)}, m_exp{}, m_window_bits{}, m_g{}, m_hints{hints}
-   {}
-
-}
-/*
-* Montgomery Exponentiation
-* (C) 1999-2010,2012,2018 Jack Lloyd
-*     2016 Matthias Gierlings
-*
-* Botan is released under the Simplified BSD License (see license.txt)
-*/
-
-
-namespace Botan {
-
-void Montgomery_Exponentiator::set_exponent(const BigInt& exp)
-   {
-   m_e = exp;
-   }
-
-void Montgomery_Exponentiator::set_base(const BigInt& base)
-   {
-   size_t window_bits = Power_Mod::window_bits(m_e.bits(), base.bits(), m_hints);
-   m_monty = monty_precompute(m_monty_params, m_mod_p.reduce(base), window_bits);
-   }
-
-BigInt Montgomery_Exponentiator::execute() const
-   {
-   /*
-   This leaks size of e via loop iterations, not possible to fix without
-   breaking this API. Round up to avoid leaking fine details.
-   */
-   return monty_execute(*m_monty, m_e, round_up(m_e.bits(), 8));
-   }
-
-Montgomery_Exponentiator::Montgomery_Exponentiator(const BigInt& mod,
-                                                   Power_Mod::Usage_Hints hints) :
-   m_p(mod),
-   m_mod_p(mod),
-   m_monty_params(std::make_shared<Montgomery_Params>(m_p, m_mod_p)),
-   m_hints(hints)
-   {
-   }
-
-}
-/*
 * (C) 2016,2018 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -53543,7 +53808,7 @@ bool is_lucas_probable_prime(const BigInt& C, const Modular_Reducer& mod_C)
 
    for(size_t i = 0; i != K_bits; ++i)
       {
-      const uint8_t k_bit = K.get_bit(K_bits - 1 - i);
+      const bool k_bit = K.get_bit(K_bits - 1 - i);
 
       Ut = mod_C.multiply(U, V);
 
@@ -54728,7 +54993,7 @@ void OCB_Mode::set_associated_data(const uint8_t ad[], size_t ad_len)
    m_ad_hash = ocb_hash(*m_L, *m_cipher, ad, ad_len);
    }
 
-secure_vector<uint8_t>
+const secure_vector<uint8_t>&
 OCB_Mode::update_nonce(const uint8_t nonce[], size_t nonce_len)
    {
    const size_t BS = block_size();
@@ -54741,23 +55006,24 @@ OCB_Mode::update_nonce(const uint8_t nonce[], size_t nonce_len)
    const uint8_t BOTTOM_MASK =
       static_cast<uint8_t>((static_cast<uint16_t>(1) << MASKLEN) - 1);
 
-   secure_vector<uint8_t> nonce_buf(BS);
+   m_nonce_buf.resize(BS);
+   clear_mem(&m_nonce_buf[0], m_nonce_buf.size());
 
-   copy_mem(&nonce_buf[BS - nonce_len], nonce, nonce_len);
-   nonce_buf[0] = static_cast<uint8_t>(((tag_size()*8) % (BS*8)) << (BS <= 16 ? 1 : 0));
+   copy_mem(&m_nonce_buf[BS - nonce_len], nonce, nonce_len);
+   m_nonce_buf[0] = static_cast<uint8_t>(((tag_size()*8) % (BS*8)) << (BS <= 16 ? 1 : 0));
 
-   nonce_buf[BS - nonce_len - 1] ^= 1;
+   m_nonce_buf[BS - nonce_len - 1] ^= 1;
 
-   const uint8_t bottom = nonce_buf[BS-1] & BOTTOM_MASK;
-   nonce_buf[BS-1] &= ~BOTTOM_MASK;
+   const uint8_t bottom = m_nonce_buf[BS-1] & BOTTOM_MASK;
+   m_nonce_buf[BS-1] &= ~BOTTOM_MASK;
 
-   const bool need_new_stretch = (m_last_nonce != nonce_buf);
+   const bool need_new_stretch = (m_last_nonce != m_nonce_buf);
 
    if(need_new_stretch)
       {
-      m_last_nonce = nonce_buf;
+      m_last_nonce = m_nonce_buf;
 
-      m_cipher->encrypt(nonce_buf);
+      m_cipher->encrypt(m_nonce_buf);
 
       /*
       The loop bounds (BS vs BS/2) are derived from the relation
@@ -54782,25 +55048,25 @@ OCB_Mode::update_nonce(const uint8_t nonce[], size_t nonce_len)
       if(BS == 16)
          {
          for(size_t i = 0; i != BS / 2; ++i)
-            nonce_buf.push_back(nonce_buf[i] ^ nonce_buf[i+1]);
+            m_nonce_buf.push_back(m_nonce_buf[i] ^ m_nonce_buf[i+1]);
          }
       else if(BS == 24)
          {
          for(size_t i = 0; i != 16; ++i)
-            nonce_buf.push_back(nonce_buf[i] ^ nonce_buf[i+5]);
+            m_nonce_buf.push_back(m_nonce_buf[i] ^ m_nonce_buf[i+5]);
          }
       else if(BS == 32)
          {
          for(size_t i = 0; i != BS; ++i)
-            nonce_buf.push_back(nonce_buf[i] ^ (nonce_buf[i] << 1) ^ (nonce_buf[i+1] >> 7));
+            m_nonce_buf.push_back(m_nonce_buf[i] ^ (m_nonce_buf[i] << 1) ^ (m_nonce_buf[i+1] >> 7));
          }
       else if(BS == 64)
          {
          for(size_t i = 0; i != BS / 2; ++i)
-            nonce_buf.push_back(nonce_buf[i] ^ nonce_buf[i+22]);
+            m_nonce_buf.push_back(m_nonce_buf[i] ^ m_nonce_buf[i+22]);
          }
 
-      m_stretch = nonce_buf;
+      m_stretch = m_nonce_buf;
       }
 
    // now set the offset from stretch and bottom
@@ -54809,14 +55075,14 @@ OCB_Mode::update_nonce(const uint8_t nonce[], size_t nonce_len)
 
    BOTAN_ASSERT(m_stretch.size() >= BS + shift_bytes + 1, "Size ok");
 
-   secure_vector<uint8_t> offset(BS);
+   m_offset.resize(BS);
    for(size_t i = 0; i != BS; ++i)
       {
-      offset[i]  = (m_stretch[i+shift_bytes] << shift_bits);
-      offset[i] |= (m_stretch[i+shift_bytes+1] >> (8-shift_bits));
+      m_offset[i]  = (m_stretch[i+shift_bytes] << shift_bits);
+      m_offset[i] |= (m_stretch[i+shift_bytes+1] >> (8-shift_bits));
       }
 
-   return offset;
+   return m_offset;
    }
 
 void OCB_Mode::start_msg(const uint8_t nonce[], size_t nonce_len)
@@ -55357,7 +55623,7 @@ SymmetricKey derive_key(const std::string& passphrase,
                         const AlgorithmIdentifier& kdf_algo,
                         size_t default_key_size)
    {
-   if(kdf_algo.get_oid() == OIDS::lookup("PKCS5.PBKDF2"))
+   if(kdf_algo.get_oid() == OID::from_string("PKCS5.PBKDF2"))
       {
       secure_vector<uint8_t> salt;
       size_t iterations = 0, key_length = 0;
@@ -55379,12 +55645,12 @@ SymmetricKey derive_key(const std::string& passphrase,
       if(key_length == 0)
          key_length = default_key_size;
 
-      const std::string prf = OIDS::lookup(prf_algo.get_oid());
+      const std::string prf = OIDS::oid2str_or_throw(prf_algo.get_oid());
       std::unique_ptr<PBKDF> pbkdf(get_pbkdf("PBKDF2(" + prf + ")"));
       return pbkdf->pbkdf_iterations(key_length, passphrase, salt.data(), salt.size(), iterations);
       }
 #if defined(BOTAN_HAS_SCRYPT)
-   else if(kdf_algo.get_oid() == OIDS::lookup("Scrypt"))
+   else if(kdf_algo.get_oid() == OID::from_string("Scrypt"))
       {
       secure_vector<uint8_t> salt;
       size_t N = 0, r = 0, p = 0;
@@ -55465,7 +55731,7 @@ secure_vector<uint8_t> derive_key(const std::string& passphrase,
             .encode(key_length)
          .end_cons();
 
-      kdf_algo = AlgorithmIdentifier(OIDS::lookup("Scrypt"), scrypt_params);
+      kdf_algo = AlgorithmIdentifier(OID::from_string("Scrypt"), scrypt_params);
       return key;
 #else
       throw Not_Implemented("Scrypt is not available in this build");
@@ -55537,7 +55803,7 @@ pbes2_encrypt_shared(const secure_vector<uint8_t>& key_bits,
    if(!known_pbes_cipher_mode(cipher_spec[1]))
       throw Encoding_Error("PBE-PKCS5 v2.0: Don't know param format for " + cipher);
 
-   const OID cipher_oid = OIDS::lookup(cipher);
+   const OID cipher_oid = OIDS::str2oid_or_empty(cipher);
    if(cipher_oid.empty())
       throw Encoding_Error("PBE-PKCS5 v2.0: No OID assigned for " + cipher);
 
@@ -55562,23 +55828,20 @@ pbes2_encrypt_shared(const secure_vector<uint8_t>& key_bits,
    secure_vector<uint8_t> ctext = key_bits;
    enc->finish(ctext);
 
-   std::vector<uint8_t> pbes2_params;
+   std::vector<uint8_t> encoded_iv;
+   DER_Encoder(encoded_iv).encode(iv, OCTET_STRING);
 
+   std::vector<uint8_t> pbes2_params;
    DER_Encoder(pbes2_params)
       .start_cons(SEQUENCE)
       .encode(kdf_algo)
-      .encode(
-         AlgorithmIdentifier(cipher,
-            DER_Encoder().encode(iv, OCTET_STRING).get_contents_unlocked()
-            )
-         )
+      .encode(AlgorithmIdentifier(cipher, encoded_iv))
       .end_cons();
 
-   AlgorithmIdentifier id(OIDS::lookup("PBE-PKCS5v20"), pbes2_params);
+   AlgorithmIdentifier id(OID::from_string("PBE-PKCS5v20"), pbes2_params);
 
    return std::make_pair(id, unlock(ctext));
    }
-
 
 }
 
@@ -55638,7 +55901,7 @@ pbes2_decrypt(const secure_vector<uint8_t>& key_bits,
          .decode(enc_algo)
       .end_cons();
 
-   const std::string cipher = OIDS::lookup(enc_algo.get_oid());
+   const std::string cipher = OIDS::oid2str_or_throw(enc_algo.get_oid());
    const std::vector<std::string> cipher_spec = split_on(cipher, '/');
    if(cipher_spec.size() != 2)
       throw Decoding_Error("PBE-PKCS5 v2.0: Invalid cipher spec " + cipher);
@@ -56010,6 +56273,9 @@ size_t tune_pbkdf2(MessageAuthenticationCode& prf,
                    size_t output_length,
                    uint32_t msec)
    {
+   if(output_length == 0)
+      output_length = 1;
+
    const size_t prf_sz = prf.output_length();
    BOTAN_ASSERT_NOMSG(prf_sz > 0);
    secure_vector<uint8_t> U(prf_sz);
@@ -56059,6 +56325,9 @@ void pbkdf2(MessageAuthenticationCode& prf,
             size_t salt_len,
             size_t iterations)
    {
+   if(iterations == 0)
+      throw Invalid_Argument("PBKDF2: Invalid iteration count");
+
    clear_mem(out, out_len);
 
    if(out_len == 0)
@@ -56855,6 +57124,8 @@ const std::map<const std::string, std::vector<std::string>> allowed_signature_pa
    { "ECGDSA", {"EMSA1"} },
    { "ECKCDSA", {"EMSA1"} },
    { "GOST-34.10", {"EMSA1"} },
+   { "GOST-34.10-2012-256", {"EMSA1"} },
+   { "GOST-34.10-2012-512", {"EMSA1"} },
    { "RSA", {"EMSA4", "EMSA3"} },
    };
 
@@ -57200,8 +57471,8 @@ void poly_double_n_le(uint8_t out[], const uint8_t in[], size_t n)
 namespace Botan {
 
 TLS_PRF::TLS_PRF() :
-   m_hmac_md5(MessageAuthenticationCode::create_or_throw("HMAC(MD5)")),
-   m_hmac_sha1(MessageAuthenticationCode::create_or_throw("HMAC(SHA-1)"))
+   TLS_PRF(MessageAuthenticationCode::create_or_throw("HMAC(MD5)"),
+           MessageAuthenticationCode::create_or_throw("HMAC(SHA-1)"))
    {
    }
 
@@ -57316,7 +57587,6 @@ size_t X942_PRF::kdf(uint8_t key[], size_t key_len,
                      const uint8_t label[], size_t label_len) const
    {
    std::unique_ptr<HashFunction> hash(HashFunction::create("SHA-160"));
-   const OID kek_algo(m_key_wrap_oid);
 
    secure_vector<uint8_t> h;
    secure_vector<uint8_t> in;
@@ -57335,7 +57605,7 @@ size_t X942_PRF::kdf(uint8_t key[], size_t key_len,
          DER_Encoder().start_cons(SEQUENCE)
 
             .start_cons(SEQUENCE)
-               .encode(kek_algo)
+               .encode(m_key_wrap_oid)
                .raw_bytes(encode_x942_int(counter))
             .end_cons()
 
@@ -57364,15 +57634,9 @@ size_t X942_PRF::kdf(uint8_t key[], size_t key_len,
    return offset;
    }
 
-/*
-* X9.42 Constructor
-*/
-X942_PRF::X942_PRF(const std::string& oid)
+std::string X942_PRF::name() const
    {
-   if(OIDS::have_oid(oid))
-      m_key_wrap_oid = OIDS::lookup(oid).to_string();
-   else
-      m_key_wrap_oid = oid;
+   return "X9.42-PRF(" + m_key_wrap_oid.to_formatted_string() + ")";
    }
 
 }
@@ -57673,11 +57937,8 @@ std::unique_ptr<Public_Key>
 load_public_key(const AlgorithmIdentifier& alg_id,
                 const std::vector<uint8_t>& key_bits)
    {
-   const std::vector<std::string> alg_info = split_on(OIDS::lookup(alg_id.get_oid()), '/');
-
-   if(alg_info.empty())
-      throw Decoding_Error("Unknown algorithm OID: " + alg_id.get_oid().to_string());
-
+   const std::string oid_str = alg_id.get_oid().to_formatted_string();
+   const std::vector<std::string> alg_info = split_on(oid_str, '/');
    const std::string alg_name = alg_info[0];
 
 #if defined(BOTAN_HAS_RSA)
@@ -57736,7 +57997,7 @@ load_public_key(const AlgorithmIdentifier& alg_id,
 #endif
 
 #if defined(BOTAN_HAS_GOST_34_10_2001)
-   if(alg_name == "GOST-34.10")
+   if(alg_name == "GOST-34.10" || alg_name == "GOST-34.10-2012-256" || alg_name == "GOST-34.10-2012-512")
       return std::unique_ptr<Public_Key>(new GOST_3410_PublicKey(alg_id, key_bits));
 #endif
 
@@ -57750,16 +58011,14 @@ load_public_key(const AlgorithmIdentifier& alg_id,
       return std::unique_ptr<Public_Key>(new XMSS_PublicKey(key_bits));
 #endif
 
-   throw Decoding_Error("Unhandled PK algorithm " + alg_name);
+   throw Decoding_Error("Unknown or unavailable public key algorithm " + alg_name);
    }
 
 std::unique_ptr<Private_Key>
 load_private_key(const AlgorithmIdentifier& alg_id,
                  const secure_vector<uint8_t>& key_bits)
    {
-   const std::string alg_name = OIDS::lookup(alg_id.get_oid());
-   if(alg_name == "")
-      throw Decoding_Error("Unknown algorithm OID: " + alg_id.get_oid().to_string());
+   const std::string alg_name = alg_id.get_oid().to_formatted_string();
 
 #if defined(BOTAN_HAS_RSA)
    if(alg_name == "RSA")
@@ -57812,7 +58071,7 @@ load_private_key(const AlgorithmIdentifier& alg_id,
 #endif
 
 #if defined(BOTAN_HAS_GOST_34_10_2001)
-   if(alg_name == "GOST-34.10")
+   if(alg_name == "GOST-34.10" || alg_name == "GOST-34.10-2012-256" || alg_name == "GOST-34.10-2012-512")
       return std::unique_ptr<Private_Key>(new GOST_3410_PrivateKey(alg_id, key_bits));
 #endif
 
@@ -57831,7 +58090,7 @@ load_private_key(const AlgorithmIdentifier& alg_id,
       return std::unique_ptr<Private_Key>(new XMSS_PrivateKey(key_bits));
 #endif
 
-   throw Decoding_Error("Unhandled PK algorithm " + alg_name);
+   throw Decoding_Error("Unknown or unavailable public key algorithm " + alg_name);
    }
 
 #if defined(BOTAN_HAS_ECC_GROUP)
@@ -57842,8 +58101,10 @@ std::string default_ec_group_for(const std::string& alg_name)
    {
    if(alg_name == "SM2" || alg_name == "SM2_Enc" || alg_name == "SM2_Sig")
       return "sm2p256v1";
-   if(alg_name == "GOST-34.10")
+   if(alg_name == "GOST-34.10" || alg_name == "GOST-34.10-2012-256")
       return "gost_256A";
+   if(alg_name == "GOST-34.10-2012-512")
+      return "gost_512A";
    if(alg_name == "ECGDSA")
       return "brainpool256r1";
    return "secp256r1";
@@ -57929,7 +58190,9 @@ create_private_key(const std::string& alg_name,
       alg_name == "SM2" ||
       alg_name == "SM2_Sig" ||
       alg_name == "SM2_Enc" ||
-      alg_name == "GOST-34.10")
+      alg_name == "GOST-34.10" ||
+      alg_name == "GOST-34.10-2012-256" ||
+      alg_name == "GOST-34.10-2012-512")
       {
       const EC_Group ec_group(params.empty() ? default_ec_group_for(alg_name) : params);
 
@@ -57949,7 +58212,7 @@ create_private_key(const std::string& alg_name,
 #endif
 
 #if defined(BOTAN_HAS_GOST_34_10_2001)
-      if(alg_name == "GOST-34.10")
+      if(alg_name == "GOST-34.10" || alg_name == "GOST-34.10-2012-256" || alg_name == "GOST-34.10-2012-512")
          return std::unique_ptr<Private_Key>(new GOST_3410_PrivateKey(rng, ec_group));
 #endif
 
@@ -58064,13 +58327,10 @@ std::vector<uint8_t> Public_Key::subject_public_key() const
 */
 OID Public_Key::get_oid() const
    {
-   try {
-      return OIDS::lookup(algo_name());
-      }
-   catch(Lookup_Error&)
-      {
+   const OID o = OIDS::str2oid_or_empty(algo_name());
+   if(o.empty())
       throw Lookup_Error("PK algo " + algo_name() + " has no defined OIDs");
-      }
+   return o;
    }
 
 secure_vector<uint8_t> Private_Key::private_key_info() const
@@ -58424,7 +58684,7 @@ secure_vector<uint8_t> PKCS8_decode(
       {
       if(is_encrypted)
          {
-         if(OIDS::lookup(pbe_alg_id.get_oid()) != "PBE-PKCS5v20")
+         if(OIDS::oid2str_or_throw(pbe_alg_id.get_oid()) != "PBE-PKCS5v20")
             throw PKCS8_Exception("Unknown PBE type " + pbe_alg_id.get_oid().to_string());
 #if defined(BOTAN_HAS_PKCS5_PBES2)
          key = pbes2_decrypt(key_data, get_passphrase(), pbe_alg_id.get_parameters());
@@ -58670,8 +58930,8 @@ load_key(DataSource& source,
    AlgorithmIdentifier alg_id;
    secure_vector<uint8_t> pkcs8_key = PKCS8_decode(source, get_pass, alg_id, is_encrypted);
 
-   const std::string alg_name = OIDS::lookup(alg_id.get_oid());
-   if(alg_name.empty() || alg_name == alg_id.get_oid().to_string())
+   const std::string alg_name = OIDS::oid2str_or_empty(alg_id.get_oid());
+   if(alg_name.empty())
       throw PKCS8_Exception("Unknown algorithm OID: " +
                             alg_id.get_oid().to_string());
 
@@ -59472,7 +59732,7 @@ void RC4::seek(uint64_t)
 }
 /*
 * Entropy Source Using Intel's rdrand instruction
-* (C) 2012,2015 Jack Lloyd
+* (C) 2012,2015,2019 Jack Lloyd
 * (C) 2015 Daniel Neus
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -59483,12 +59743,29 @@ namespace Botan {
 
 size_t Intel_Rdrand::poll(RandomNumberGenerator& rng)
    {
-   if(BOTAN_ENTROPY_INTEL_RNG_POLLS > 0 && RDRAND_RNG::available())
+   /*
+   * Intel's documentation for RDRAND at
+   * https://software.intel.com/en-us/articles/intel-digital-random-number-generator-drng-software-implementation-guide
+   * claims that software can guarantee a reseed event by polling enough data:
+   * "There is an upper bound of 511 samples per seed in the implementation
+   * where samples are 128 bits in size and can provide two 64-bit random
+   * numbers each."
+   *
+   * By requesting 8192 bytes we are asking for 512 samples and thus are assured
+   * that at some point in producing the output, at least one reseed of the
+   * internal state will occur.
+   *
+   * The alternative approach is to "Iteratively execute 32 RDRAND invocations
+   * with a 10 us wait period per iteration." however in practice this proves to
+   * be about 20x slower, despite producing much less seed material.
+   */
+   const size_t RDRAND_POLL_BYTES = 8*1024;
+
+   if(RDRAND_RNG::available())
       {
       RDRAND_RNG rdrand_rng;
-      secure_vector<uint8_t> buf(4 * BOTAN_ENTROPY_INTEL_RNG_POLLS);
-
-      rdrand_rng.randomize(buf.data(), buf.size());
+      secure_vector<uint8_t> buf(RDRAND_POLL_BYTES);
+      rdrand_rng.randomize(&buf[0], buf.size());
       rng.add_entropy(buf.data(), buf.size());
       }
 
@@ -59499,7 +59776,7 @@ size_t Intel_Rdrand::poll(RandomNumberGenerator& rng)
 }
 /*
 * RDRAND RNG
-* (C) 2016 Jack Lloyd
+* (C) 2016,2019 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -59509,6 +59786,66 @@ size_t Intel_Rdrand::poll(RandomNumberGenerator& rng)
 #endif
 
 namespace Botan {
+
+namespace {
+
+#if defined(BOTAN_TARGET_ARCH_IS_X86_64)
+   typedef uint64_t rdrand_output;
+#else
+   typedef uint32_t rdrand_output;
+#endif
+
+BOTAN_FUNC_ISA("rdrnd")
+rdrand_output read_rdrand()
+   {
+   /*
+   * According to Intel, RDRAND is guaranteed to generate a random
+   * number within 10 retries on a working CPU
+   */
+   const size_t RDRAND_RETRIES = 10;
+
+   for(size_t i = 0; i < RDRAND_RETRIES; ++i)
+      {
+      rdrand_output r = 0;
+      int cf = 0;
+
+#if defined(BOTAN_USE_GCC_INLINE_ASM)
+      // same asm seq works for 32 and 64 bit
+      asm("rdrand %0; adcl $0,%1" :
+          "=r" (r), "=r" (cf) : "0" (r), "1" (cf) : "cc");
+#elif defined(BOTAN_TARGET_ARCH_IS_X86_64)
+      cf = _rdrand64_step(&r);
+#else
+      cf = _rdrand32_step(&r);
+#endif
+      if(1 == cf)
+         {
+         return r;
+         }
+      }
+
+   throw PRNG_Unseeded("RDRAND read failed");
+   }
+
+}
+
+void RDRAND_RNG::randomize(uint8_t out[], size_t out_len)
+   {
+   while(out_len >= sizeof(rdrand_output))
+      {
+      const rdrand_output r = read_rdrand();
+      store_le(r, out);
+      out += sizeof(rdrand_output);
+      out_len -= sizeof(rdrand_output);
+      }
+
+   if(out_len > 0) // at most sizeof(rdrand_output)-1
+      {
+      const rdrand_output r = read_rdrand();
+      for(size_t i = 0; i != out_len; ++i)
+         out[i] = get_byte(i, r);
+      }
+   }
 
 RDRAND_RNG::RDRAND_RNG()
    {
@@ -59525,13 +59862,7 @@ bool RDRAND_RNG::available()
 //static
 uint32_t RDRAND_RNG::rdrand()
    {
-   for(;;)
-      {
-      bool ok = false;
-      uint32_t r = rdrand_status(ok);
-      if(ok)
-         return r;
-      }
+   return static_cast<uint32_t>(read_rdrand());
    }
 
 //static
@@ -59539,91 +59870,109 @@ BOTAN_FUNC_ISA("rdrnd")
 uint32_t RDRAND_RNG::rdrand_status(bool& ok)
    {
    ok = false;
-   uint32_t r = 0;
 
-   for(size_t i = 0; i != BOTAN_ENTROPY_RDRAND_RETRIES; ++i)
+   try
       {
-#if defined(BOTAN_USE_GCC_INLINE_ASM)
-      int cf = 0;
-
-      // Encoding of rdrand %eax
-      asm(".byte 0x0F, 0xC7, 0xF0; adcl $0,%1" :
-          "=a" (r), "=r" (cf) : "0" (r), "1" (cf) : "cc");
-#else
-      int cf = _rdrand32_step(&r);
-#endif
-      if(1 == cf)
-         {
-         ok = true;
-         break;
-         }
+      const uint32_t r = static_cast<uint32_t>(read_rdrand());
+      ok = true;
+      return r;
       }
+   catch(PRNG_Unseeded&) {}
 
-   return r;
-   }
-
-void RDRAND_RNG::randomize(uint8_t out[], size_t out_len)
-   {
-   while(out_len >= 4)
-      {
-      uint32_t r = RDRAND_RNG::rdrand();
-
-      store_le(r, out);
-      out += 4;
-      out_len -= 4;
-      }
-
-   if(out_len) // between 1 and 3 trailing bytes
-      {
-      uint32_t r = RDRAND_RNG::rdrand();
-      for(size_t i = 0; i != out_len; ++i)
-         out[i] = get_byte(i, r);
-      }
+   return 0;
    }
 
 }
 /*
 * Entropy Source Using Intel's rdseed instruction
-* (C) 2015 Jack Lloyd, Daniel Neus
+* (C) 2015 Daniel Neus
+* (C) 2015,2019 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
 
-#if !defined(BOTAN_USE_GCC_INLINE_ASM)
-#endif
 
 namespace Botan {
 
+namespace {
+
 BOTAN_FUNC_ISA("rdseed")
-size_t Intel_Rdseed::poll(RandomNumberGenerator& rng)
+bool read_rdseed(secure_vector<uint32_t>& seed)
    {
-   if(CPUID::has_rdseed())
+   /*
+   * RDSEED is not guaranteed to generate an output within any specific number
+   * of attempts. However in testing on a Skylake system, with all hyperthreads
+   * occupied in tight RDSEED loops, RDSEED will still usually succeed in under
+   * 150 attempts. The maximum ever seen was 230 attempts until success. When
+   * idle, RDSEED usually succeeds in 1 or 2 attempts.
+   *
+   * We set an upper bound of 512 attempts, because it is possible that due
+   * to firmware issue RDSEED is simply broken and never succeeds. We do not
+   * want to loop forever in that case. If we exceed that limit, then we assume
+   * the hardware is actually just broken, and stop the poll.
+   */
+   const size_t RDSEED_RETRIES = 512;
+
+   for(size_t i = 0; i != RDSEED_RETRIES; ++i)
       {
-      for(size_t p = 0; p != BOTAN_ENTROPY_INTEL_RNG_POLLS; ++p)
-         {
-         for(size_t i = 0; i != BOTAN_ENTROPY_RDSEED_RETRIES; ++i)
-            {
-            uint32_t r = 0;
+      uint32_t r = 0;
+      int cf = 0;
 
 #if defined(BOTAN_USE_GCC_INLINE_ASM)
-            int cf = 0;
-
-            // Encoding of rdseed %eax
-            asm(".byte 0x0F, 0xC7, 0xF8; adcl $0,%1" :
-                "=a" (r), "=r" (cf) : "0" (r), "1" (cf) : "cc");
+      asm("rdseed %0; adcl $0,%1" :
+          "=r" (r), "=r" (cf) : "0" (r), "1" (cf) : "cc");
 #else
-            int cf = _rdseed32_step(&r);
+      cf = _rdseed32_step(&r);
 #endif
-            if(1 == cf)
-               {
-               rng.add_entropy_T(r);
-               break;
-               }
-            }
+
+      if(1 == cf)
+         {
+         seed.push_back(r);
+         return true;
+         }
+
+      // Intel suggests pausing if RDSEED fails.
+      _mm_pause();
+      }
+
+   return false; // failed to produce an output after many attempts
+   }
+
+}
+
+size_t Intel_Rdseed::poll(RandomNumberGenerator& rng)
+   {
+   const size_t RDSEED_BYTES = 1024;
+   static_assert(RDSEED_BYTES % 4 == 0, "Bad RDSEED configuration");
+
+   if(CPUID::has_rdseed())
+      {
+      secure_vector<uint32_t> seed;
+      seed.reserve(RDSEED_BYTES / 4);
+
+      for(size_t p = 0; p != RDSEED_BYTES / 4; ++p)
+         {
+         /*
+         If at any point we exceed our retry count, we stop the entire seed
+         gathering process. This situation will only occur in situations of
+         extremely high RDSEED utilization. If RDSEED is currently so highly
+         contended, then the rest of the poll is likely to also face contention and
+         it is better to quit now rather than (presumably) face very high retry
+         times for the rest of the poll.
+         */
+         if(!read_rdseed(seed))
+            break;
+         }
+
+      if(seed.size() > 0)
+         {
+         rng.add_entropy(reinterpret_cast<const uint8_t*>(seed.data()),
+                         seed.size() * sizeof(uint32_t));
          }
       }
 
+   // RDSEED is used but not trusted
    return 0;
    }
 
@@ -60030,8 +60379,465 @@ Serialized_RNG::Serialized_RNG()
 
 }
 /*
+* Roughtime
+* (C) 2019 Nuno Goncalves <nunojpg@gmail.com>
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+
+
+namespace Botan {
+
+namespace {
+
+// This exists to work around a LGTM false positive
+static_assert(Roughtime::request_min_size == 1024, "Expected minimum size");
+
+template< bool B, class T = void >
+using enable_if_t = typename std::enable_if<B,T>::type;
+
+template<class T>
+struct is_array : std::false_type {};
+
+template<class T, std::size_t N>
+struct is_array<std::array<T,N>>:std::true_type{};
+
+template<typename T>
+T impl_from_little_endian(const uint8_t* t, const size_t i)
+   {
+   static_assert(sizeof(T) <= sizeof(int64_t), "");
+   return T(static_cast<int64_t>(t[i]) << i * 8) + (i == 0 ? T(0) : impl_from_little_endian<T>(t, i - 1));
+   }
+
+template<typename T>
+T from_little_endian(const uint8_t* t)
+   {
+   return impl_from_little_endian<T>(t, sizeof(T) - 1);
+   }
+
+template<typename T, enable_if_t<is_array<T>::value>* = nullptr>
+T copy(const uint8_t* t)
+   {
+   return typecast_copy<T>(t); //arrays are endianess indepedent, so we do a memcpy
+   }
+
+template<typename T, enable_if_t<!is_array<T>::value>* = nullptr>
+T copy(const uint8_t* t)
+   {
+   return from_little_endian<T>(t); //other types are arithmetic, so we account that roughtime serializes as little endian
+   }
+
+template<typename T>
+std::map<std::string, std::vector<uint8_t>> unpack_roughtime_packet(T bytes)
+   {
+   if(bytes.size() < 8)
+      { throw Roughtime::Roughtime_Error("Map length is under minimum of 8 bytes"); }
+   const auto buf = bytes.data();
+   const uint32_t num_tags = buf[0];
+   const uint32_t start_content = num_tags * 8;
+   if(start_content > bytes.size())
+      { throw Roughtime::Roughtime_Error("Map length too small to contain all tags"); }
+   uint32_t start = start_content;
+   std::map<std::string, std::vector<uint8_t>> tags;
+   for(uint32_t i=0; i<num_tags; ++i)
+      {
+      const size_t end = ((i+1) == num_tags) ? bytes.size() : start_content + from_little_endian<uint32_t>(buf + 4 + i*4);
+      if(end > bytes.size())
+         { throw Roughtime::Roughtime_Error("Tag end index out of bounds"); }
+      if(end < start)
+         { throw Roughtime::Roughtime_Error("Tag offset must be more than previous tag offset"); }
+      const char* label_ptr = cast_uint8_ptr_to_char(buf) + (num_tags+i)*4;
+      const char label[] = {label_ptr[0], label_ptr[1], label_ptr[2], label_ptr[3], 0};
+      auto ret = tags.emplace(label, std::vector<uint8_t>(buf+start, buf+end));
+      if(!ret.second)
+         { throw Roughtime::Roughtime_Error(std::string("Map has duplicated tag: ") + label); }
+      start = static_cast<uint32_t>(end);
+      }
+   return tags;
+   }
+
+template<typename T>
+T get(const std::map<std::string, std::vector<uint8_t>>& map, const std::string& label)
+   {
+   const auto& tag = map.find(label);
+   if(tag == map.end())
+      { throw Roughtime::Roughtime_Error("Tag " + label + " not found"); }
+   if(tag->second.size() != sizeof(T))
+      { throw Roughtime::Roughtime_Error("Tag " + label + " has unexpected size"); }
+   return copy<T>(tag->second.data());
+   }
+
+const std::vector<uint8_t>& get_v(const std::map<std::string, std::vector<uint8_t>>& map, const std::string& label)
+   {
+   const auto& tag = map.find(label);
+   if(tag == map.end())
+      { throw Roughtime::Roughtime_Error("Tag " + label + " not found"); }
+   return tag->second;
+   }
+
+bool verify_signature(const std::array<uint8_t, 32>& pk, const std::vector<uint8_t>& payload,
+                      const std::array<uint8_t, 64>& signature)
+   {
+   const char context[] = "RoughTime v1 response signature";
+   Ed25519_PublicKey key(std::vector<uint8_t>(pk.data(), pk.data()+pk.size()));
+   PK_Verifier verifier(key, "Pure");
+   verifier.update(cast_char_ptr_to_uint8(context), sizeof(context)); //add context including \0
+   verifier.update(payload);
+   return verifier.check_signature(signature.data(), signature.size());
+   }
+
+std::array<uint8_t, 64> hashLeaf(const std::array<uint8_t, 64>& leaf)
+   {
+   std::array<uint8_t, 64> ret;
+   std::unique_ptr<HashFunction> hash(HashFunction::create_or_throw("SHA-512"));
+   hash->update(0);
+   hash->update(leaf.data(), leaf.size());
+   hash->final(ret.data());
+   return ret;
+   }
+
+void hashNode(std::array<uint8_t, 64>& hash, const std::array<uint8_t, 64>& node, bool reverse)
+   {
+   std::unique_ptr<HashFunction> h(HashFunction::create_or_throw("SHA-512"));
+   h->update(1);
+   if(reverse)
+      {
+      h->update(node.data(), node.size());
+      h->update(hash.data(), hash.size());
+      }
+   else
+      {
+      h->update(hash.data(), hash.size());
+      h->update(node.data(), node.size());
+      }
+   h->final(hash.data());
+   }
+
+template<size_t N, typename T>
+std::array<uint8_t, N> vector_to_array(std::vector<uint8_t,T> vec)
+   {
+   if(vec.size() != N)
+      { throw std::logic_error("Invalid vector size"); }
+   return typecast_copy<std::array<uint8_t, N>>(vec.data());
+   }
+}
+
+namespace Roughtime {
+
+Nonce::Nonce(const std::vector<uint8_t>& nonce)
+   {
+   if(nonce.size() != 64)
+      { throw Invalid_Argument("Nonce lenght must be 64"); }
+   m_nonce = typecast_copy<std::array<uint8_t, 64>>(nonce.data());
+   }
+Nonce::Nonce(RandomNumberGenerator& rng)
+   {
+   rng.randomize(m_nonce.data(), m_nonce.size());
+   }
+
+std::array<uint8_t, request_min_size> encode_request(const Nonce& nonce)
+   {
+   std::array<uint8_t, request_min_size> buf = {{2, 0, 0, 0, 64, 0, 0, 0, 'N', 'O', 'N', 'C', 'P', 'A', 'D', 0xff}};
+   std::memcpy(buf.data() + 16, nonce.get_nonce().data(), nonce.get_nonce().size());
+   std::memset(buf.data() + 16 + nonce.get_nonce().size(), 0, buf.size() - 16 - nonce.get_nonce().size());
+   return buf;
+   }
+
+Response Response::from_bits(const std::vector<uint8_t>& response,
+                             const Nonce& nonce)
+   {
+   const auto response_v = unpack_roughtime_packet(response);
+   const auto cert = unpack_roughtime_packet(get_v(response_v, "CERT"));
+   const auto cert_dele = get<std::array<uint8_t, 72>>(cert, "DELE");
+   const auto cert_sig =  get<std::array<uint8_t, 64>>(cert, "SIG");
+   const auto cert_dele_v = unpack_roughtime_packet(cert_dele);
+   const auto srep = get_v(response_v, "SREP");
+   const auto srep_v = unpack_roughtime_packet(srep);
+
+   const auto cert_dele_pubk = get<std::array<uint8_t, 32>>(cert_dele_v, "PUBK");
+   const auto sig  = get<std::array<uint8_t, 64>>(response_v, "SIG");
+   if(!verify_signature(cert_dele_pubk, srep, sig))
+      { throw Roughtime_Error("Response signature invalid"); }
+
+   const auto indx = get<uint32_t>(response_v, "INDX");
+   const auto path = get_v(response_v, "PATH");
+   const auto srep_root = get<std::array<uint8_t, 64>>(srep_v, "ROOT");
+   const auto size = path.size();
+   const auto levels = size/64;
+
+   if(size % 64)
+      { throw Roughtime_Error("Merkle tree path size must be multiple of 64 bytes"); }
+   if(indx >= (1u << levels))
+      { throw Roughtime_Error("Merkle tree path is too short"); }
+
+   auto hash = hashLeaf(nonce.get_nonce());
+   auto index = indx;
+   auto level = 0u;
+   while(level < levels)
+      {
+      hashNode(hash, typecast_copy<std::array<uint8_t, 64>>(path.data() + level*64), index&1);
+      ++level;
+      index>>=1;
+      }
+
+   if(srep_root != hash)
+      { throw Roughtime_Error("Nonce verification failed"); }
+
+   const auto cert_dele_maxt = sys_microseconds64(get<microseconds64>(cert_dele_v, "MAXT"));
+   const auto cert_dele_mint = sys_microseconds64(get<microseconds64>(cert_dele_v, "MINT"));
+   const auto srep_midp = sys_microseconds64(get<microseconds64>(srep_v, "MIDP"));
+   const auto srep_radi = get<microseconds32>(srep_v, "RADI");
+   if(srep_midp < cert_dele_mint)
+      { throw Roughtime_Error("Midpoint earlier than delegation start"); }
+   if(srep_midp > cert_dele_maxt)
+      { throw Roughtime_Error("Midpoint later than delegation end"); }
+   return {cert_dele, cert_sig, srep_midp, srep_radi};
+   }
+
+bool Response::validate(const Ed25519_PublicKey& pk) const
+   {
+   const char context[] = "RoughTime v1 delegation signature--";
+   PK_Verifier verifier(pk, "Pure");
+   verifier.update(cast_char_ptr_to_uint8(context), sizeof(context)); //add context including \0
+   verifier.update(m_cert_dele.data(), m_cert_dele.size());
+   return verifier.check_signature(m_cert_sig.data(), m_cert_sig.size());
+   }
+
+Nonce nonce_from_blind(const std::vector<uint8_t>& previous_response,
+                       const Nonce& blind)
+   {
+   std::array<uint8_t, 64> ret;
+   const auto blind_arr = blind.get_nonce();
+   std::unique_ptr<Botan::HashFunction> hash(Botan::HashFunction::create_or_throw("SHA-512"));
+   hash->update(previous_response);
+   hash->update(hash->final());
+   hash->update(blind_arr.data(), blind_arr.size());
+   hash->final(ret.data());
+
+   return ret;
+   }
+
+Chain::Chain(const std::string& str)
+   {
+   std::stringstream ss(str);
+   const std::string ERROR_MESSAGE = "Line does not have 4 space separated fields";
+   for(std::string s; std::getline(ss, s);)
+      {
+      size_t start = 0, end = 0;
+      end = s.find(' ', start);
+      if(end == std::string::npos)
+         {
+         throw Decoding_Error(ERROR_MESSAGE);
+         }
+      const auto publicKeyType = s.substr(start, end-start);
+      if(publicKeyType != "ed25519")
+         { throw Not_Implemented("Only ed25519 publicKeyType is implemented"); }
+
+      start = end + 1;
+      end = s.find(' ', start);
+      if(end == std::string::npos)
+         {
+         throw Decoding_Error(ERROR_MESSAGE);
+         }
+      const auto serverPublicKey = Botan::Ed25519_PublicKey(Botan::base64_decode(s.substr(start, end-start)));
+
+      start = end + 1;
+      end = s.find(' ', start);
+      if(end == std::string::npos)
+         {
+         throw Decoding_Error(ERROR_MESSAGE);
+         }
+      if((end - start) != 88)
+         {
+         throw Decoding_Error("Nonce has invalid length");
+         }
+      const auto vec = Botan::base64_decode(s.substr(start, end-start));
+      const auto nonceOrBlind = Nonce(vector_to_array<64>(Botan::base64_decode(s.substr(start, end-start))));
+
+      start = end + 1;
+      end = s.find(' ', start);
+      if(end != std::string::npos)
+         {
+         throw Decoding_Error(ERROR_MESSAGE);
+         }
+      const auto response = Botan::unlock(Botan::base64_decode(s.substr(start)));
+
+      m_links.push_back({response, serverPublicKey, nonceOrBlind});
+      }
+   }
+std::vector<Response> Chain::responses() const
+   {
+   std::vector<Response> responses;
+   for(unsigned i = 0; i < m_links.size(); ++i)
+      {
+      const auto& l = m_links[i];
+      const auto nonce = i ? nonce_from_blind(m_links[i-1].response(), l.nonce_or_blind()) : l.nonce_or_blind();
+      const auto response = Response::from_bits(l.response(), nonce);
+      if(!response.validate(l.public_key()))
+         { throw Roughtime_Error("Invalid signature or public key"); }
+      responses.push_back(response);
+      }
+   return responses;
+   }
+Nonce Chain::next_nonce(const Nonce& blind) const
+   {
+   return m_links.empty()
+          ? blind
+          : nonce_from_blind(m_links.back().response(), blind);
+   }
+void Chain::append(const Link& new_link, size_t max_chain_size)
+   {
+   if(max_chain_size <= 0)
+      { throw Invalid_Argument("Max chain size must be positive"); }
+
+   while(m_links.size() >= max_chain_size)
+      {
+      if(m_links.size() == 1)
+         {
+         auto new_link_updated = new_link;
+         new_link_updated.nonce_or_blind() =
+            nonce_from_blind(m_links[0].response(), new_link.nonce_or_blind()); //we need to convert blind to nonce
+         m_links.clear();
+         m_links.push_back(new_link_updated);
+         return;
+         }
+      if(m_links.size() >= 2)
+         {
+         m_links[1].nonce_or_blind() =
+            nonce_from_blind(m_links[0].response(), m_links[1].nonce_or_blind()); //we need to convert blind to nonce
+         }
+      m_links.erase(m_links.begin());
+      }
+   m_links.push_back(new_link);
+   }
+
+std::string Chain::to_string() const
+   {
+   std::string s;
+   s.reserve((7+1 + 88+1 + 44+1 + 480)*m_links.size());
+   for(const auto& link : m_links)
+      {
+      s += "ed25519";
+      s += ' ';
+      s += Botan::base64_encode(link.public_key().get_public_key());
+      s += ' ';
+      s += Botan::base64_encode(link.nonce_or_blind().get_nonce().data(), link.nonce_or_blind().get_nonce().size());
+      s += ' ';
+      s += Botan::base64_encode(link.response());
+      s += '\n';
+      }
+   return s;
+   }
+
+std::vector<uint8_t> online_request(const std::string& uri,
+                                    const Nonce& nonce,
+                                    std::chrono::milliseconds timeout)
+   {
+   const std::chrono::system_clock::time_point start_time = std::chrono::system_clock::now();
+   auto socket = OS::open_socket_udp(uri, timeout);
+   if(!socket)
+      { throw Not_Implemented("No socket support enabled in build"); }
+
+   const auto encoded = encode_request(nonce);
+   socket->write(encoded.data(), encoded.size());
+
+   if(std::chrono::system_clock::now() - start_time > timeout)
+      { throw System_Error("Timeout during socket write"); }
+
+   std::vector<uint8_t> buffer;
+   buffer.resize(360+64*10+1); //response basic size is 360 bytes + 64 bytes for each level of merkle tree
+                               //add one additional byte to be able to differentiate if datagram got truncated
+   const auto n = socket->read(buffer.data(), buffer.size());
+
+   if(!n || std::chrono::system_clock::now() - start_time > timeout)
+      { throw System_Error("Timeout waiting for response"); }
+
+   if(n == buffer.size())
+      { throw System_Error("Buffer too small"); }
+
+   buffer.resize(n);
+   return buffer;
+   }
+
+std::vector<Server_Information> servers_from_str(const std::string& str)
+   {
+   std::vector<Server_Information> servers;
+   std::stringstream ss(str);
+   const std::string ERROR_MESSAGE = "Line does not have at least 5 space separated fields";
+   for(std::string s; std::getline(ss, s);)
+      {
+      size_t start = 0, end = 0;
+      end = s.find(' ', start);
+      if(end == std::string::npos)
+         {
+         throw Decoding_Error(ERROR_MESSAGE);
+         }
+      const auto name = s.substr(start, end-start);
+
+      start = end + 1;
+      end = s.find(' ', start);
+      if(end == std::string::npos)
+         {
+         throw Decoding_Error(ERROR_MESSAGE);
+         }
+      const auto publicKeyType = s.substr(start, end-start);
+      if(publicKeyType != "ed25519")
+         { throw Not_Implemented("Only ed25519 publicKeyType is implemented"); }
+
+      start = end + 1;
+      end = s.find(' ', start);
+
+      if(end == std::string::npos)
+         {
+         throw Decoding_Error(ERROR_MESSAGE);
+         }
+      const auto publicKeyBase64 = s.substr(start, end-start);
+      const auto publicKey = Botan::Ed25519_PublicKey(Botan::base64_decode(publicKeyBase64));
+
+      start = end + 1;
+      end = s.find(' ', start);
+      if(end == std::string::npos)
+         {
+         throw Decoding_Error(ERROR_MESSAGE);
+         }
+      const auto protocol = s.substr(start, end-start);
+      if(protocol != "udp")
+         { throw Not_Implemented("Only UDP protocol is implemented"); }
+
+      const auto addresses = [&]()
+         {
+         std::vector<std::string> addresses;
+         for(;;)
+            {
+            start = end + 1;
+            end = s.find(' ', start);
+            const auto address = s.substr(start, (end == std::string::npos) ? std::string::npos : end-start);
+            if(address.empty())
+               { return addresses; }
+            addresses.push_back(address);
+            if(end == std::string::npos)
+               { return addresses; }
+            }
+         }
+      ();
+      if(addresses.size() == 0)
+         {
+         throw Decoding_Error(ERROR_MESSAGE);
+         }
+
+      servers.push_back({name, publicKey, std::move(addresses)});
+      }
+   return servers;
+   }
+
+}
+
+}
+/*
 * RSA
-* (C) 1999-2010,2015,2016,2018 Jack Lloyd
+* (C) 1999-2010,2015,2016,2018,2019 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -60045,9 +60851,117 @@ Serialized_RNG::Serialized_RNG()
 
 namespace Botan {
 
+class RSA_Public_Data final
+   {
+   public:
+      RSA_Public_Data(BigInt&& n, BigInt&& e) :
+         m_n(n),
+         m_e(e),
+         m_monty_n(std::make_shared<Montgomery_Params>(m_n)),
+         m_public_modulus_bits(m_n.bits()),
+         m_public_modulus_bytes(m_n.bytes())
+         {}
+
+      BigInt public_op(const BigInt& m) const
+         {
+         const size_t powm_window = 1;
+         auto powm_m_n = monty_precompute(m_monty_n, m, powm_window, false);
+         return monty_execute_vartime(*powm_m_n, m_e);
+         }
+
+      const BigInt& get_n() const { return m_n; }
+      const BigInt& get_e() const { return m_e; }
+      size_t public_modulus_bits() const { return m_public_modulus_bits; }
+      size_t public_modulus_bytes() const { return m_public_modulus_bytes; }
+
+   private:
+      BigInt m_n;
+      BigInt m_e;
+      std::shared_ptr<const Montgomery_Params> m_monty_n;
+      size_t m_public_modulus_bits;
+      size_t m_public_modulus_bytes;
+   };
+
+class RSA_Private_Data final
+   {
+   public:
+      RSA_Private_Data(BigInt&& d, BigInt&& p, BigInt&& q,
+                       BigInt&& d1, BigInt&& d2, BigInt&& c) :
+         m_d(d),
+         m_p(p),
+         m_q(q),
+         m_d1(d1),
+         m_d2(d2),
+         m_c(c),
+         m_mod_p(m_p),
+         m_mod_q(m_q),
+         m_monty_p(std::make_shared<Montgomery_Params>(m_p, m_mod_p)),
+         m_monty_q(std::make_shared<Montgomery_Params>(m_q, m_mod_q)),
+         m_p_bits(m_p.bits()),
+         m_q_bits(m_q.bits())
+         {}
+
+      const BigInt& get_d() const { return m_d; }
+      const BigInt& get_p() const { return m_p; }
+      const BigInt& get_q() const { return m_q; }
+      const BigInt& get_d1() const { return m_d1; }
+      const BigInt& get_d2() const { return m_d2; }
+      const BigInt& get_c() const { return m_c; }
+
+   //private:
+      BigInt m_d;
+      BigInt m_p;
+      BigInt m_q;
+      BigInt m_d1;
+      BigInt m_d2;
+      BigInt m_c;
+
+      Modular_Reducer m_mod_p;
+      Modular_Reducer m_mod_q;
+      std::shared_ptr<const Montgomery_Params> m_monty_p;
+      std::shared_ptr<const Montgomery_Params> m_monty_q;
+      size_t m_p_bits;
+      size_t m_q_bits;
+   };
+
+std::shared_ptr<const RSA_Public_Data> RSA_PublicKey::public_data() const
+   {
+   return m_public;
+   }
+
+const BigInt& RSA_PublicKey::get_n() const { return m_public->get_n(); }
+const BigInt& RSA_PublicKey::get_e() const { return m_public->get_e(); }
+
+void RSA_PublicKey::init(BigInt&& n, BigInt&& e)
+   {
+   if(n.is_negative() || n.is_even() || e.is_negative() || e.is_even())
+      throw Decoding_Error("Invalid RSA public key parameters");
+   m_public = std::make_shared<RSA_Public_Data>(std::move(n), std::move(e));
+   }
+
+RSA_PublicKey::RSA_PublicKey(const AlgorithmIdentifier&,
+                             const std::vector<uint8_t>& key_bits)
+   {
+   BigInt n, e;
+   BER_Decoder(key_bits)
+      .start_cons(SEQUENCE)
+      .decode(n)
+      .decode(e)
+      .end_cons();
+
+   init(std::move(n), std::move(e));
+   }
+
+RSA_PublicKey::RSA_PublicKey(const BigInt& modulus, const BigInt& exponent)
+   {
+   BigInt n = modulus;
+   BigInt e = exponent;
+   init(std::move(n), std::move(e));
+   }
+
 size_t RSA_PublicKey::key_length() const
    {
-   return m_n.bits();
+   return m_public->public_modulus_bits();
    }
 
 size_t RSA_PublicKey::estimated_strength() const
@@ -60057,8 +60971,7 @@ size_t RSA_PublicKey::estimated_strength() const
 
 AlgorithmIdentifier RSA_PublicKey::algorithm_identifier() const
    {
-   return AlgorithmIdentifier(get_oid(),
-                              AlgorithmIdentifier::USE_NULL_PARAM);
+   return AlgorithmIdentifier(get_oid(), AlgorithmIdentifier::USE_NULL_PARAM);
    }
 
 std::vector<uint8_t> RSA_PublicKey::public_key_bits() const
@@ -60066,21 +60979,11 @@ std::vector<uint8_t> RSA_PublicKey::public_key_bits() const
    std::vector<uint8_t> output;
    DER_Encoder der(output);
    der.start_cons(SEQUENCE)
-         .encode(m_n)
-         .encode(m_e)
+         .encode(get_n())
+         .encode(get_e())
       .end_cons();
 
    return output;
-   }
-
-RSA_PublicKey::RSA_PublicKey(const AlgorithmIdentifier&,
-                             const std::vector<uint8_t>& key_bits)
-   {
-   BER_Decoder(key_bits)
-      .start_cons(SEQUENCE)
-        .decode(m_n)
-        .decode(m_e)
-      .end_cons();
    }
 
 /*
@@ -60088,9 +60991,14 @@ RSA_PublicKey::RSA_PublicKey(const AlgorithmIdentifier&,
 */
 bool RSA_PublicKey::check_key(RandomNumberGenerator&, bool) const
    {
-   if(m_n < 35 || m_n.is_even() || m_e < 3 || m_e.is_even())
+   if(get_n() < 35 || get_n().is_even() || get_e() < 3 || get_e().is_even())
       return false;
    return true;
+   }
+
+std::shared_ptr<const RSA_Private_Data> RSA_PrivateKey::private_data() const
+   {
+   return m_private;
    }
 
 secure_vector<uint8_t> RSA_PrivateKey::private_key_bits() const
@@ -60098,53 +61006,89 @@ secure_vector<uint8_t> RSA_PrivateKey::private_key_bits() const
    return DER_Encoder()
       .start_cons(SEQUENCE)
          .encode(static_cast<size_t>(0))
-         .encode(m_n)
-         .encode(m_e)
-         .encode(m_d)
-         .encode(m_p)
-         .encode(m_q)
-         .encode(m_d1)
-         .encode(m_d2)
-         .encode(m_c)
+         .encode(get_n())
+         .encode(get_e())
+         .encode(get_d())
+         .encode(get_p())
+         .encode(get_q())
+         .encode(get_d1())
+         .encode(get_d2())
+         .encode(get_c())
       .end_cons()
    .get_contents();
+   }
+
+const BigInt& RSA_PrivateKey::get_p() const { return m_private->get_p(); }
+const BigInt& RSA_PrivateKey::get_q() const { return m_private->get_q(); }
+const BigInt& RSA_PrivateKey::get_d() const { return m_private->get_d(); }
+const BigInt& RSA_PrivateKey::get_c() const { return m_private->get_c(); }
+const BigInt& RSA_PrivateKey::get_d1() const { return m_private->get_d1(); }
+const BigInt& RSA_PrivateKey::get_d2() const { return m_private->get_d2(); }
+
+void RSA_PrivateKey::init(BigInt&& d, BigInt&& p, BigInt&& q,
+                          BigInt&& d1, BigInt&& d2, BigInt&& c)
+   {
+   m_private = std::make_shared<RSA_Private_Data>(
+      std::move(d), std::move(p), std::move(q), std::move(d1), std::move(d2), std::move(c));
    }
 
 RSA_PrivateKey::RSA_PrivateKey(const AlgorithmIdentifier&,
                                const secure_vector<uint8_t>& key_bits)
    {
+   BigInt n, e, d, p, q, d1, d2, c;
+
    BER_Decoder(key_bits)
       .start_cons(SEQUENCE)
          .decode_and_check<size_t>(0, "Unknown PKCS #1 key format version")
-         .decode(m_n)
-         .decode(m_e)
-         .decode(m_d)
-         .decode(m_p)
-         .decode(m_q)
-         .decode(m_d1)
-         .decode(m_d2)
-         .decode(m_c)
+         .decode(n)
+         .decode(e)
+         .decode(d)
+         .decode(p)
+         .decode(q)
+         .decode(d1)
+         .decode(d2)
+         .decode(c)
       .end_cons();
+
+   RSA_PublicKey::init(std::move(n), std::move(e));
+
+   RSA_PrivateKey::init(std::move(d), std::move(p), std::move(q),
+                        std::move(d1), std::move(d2), std::move(c));
    }
 
 RSA_PrivateKey::RSA_PrivateKey(const BigInt& prime1,
                                const BigInt& prime2,
                                const BigInt& exp,
                                const BigInt& d_exp,
-                               const BigInt& mod) :
-   m_d{ d_exp }, m_p{ prime1 }, m_q{ prime2 }, m_d1{}, m_d2{}, m_c{ inverse_mod( m_q, m_p ) }
+                               const BigInt& mod)
    {
-   m_n = mod.is_nonzero() ? mod : m_p * m_q;
-   m_e = exp;
+   BigInt p = prime1;
+   BigInt q = prime2;
+   BigInt n = mod;
+   if(n.is_zero())
+      n = p * q;
 
-   if(m_d == 0)
+   BigInt e = exp;
+
+   BigInt d = d_exp;
+
+   const BigInt p_minus_1 = p - 1;
+   const BigInt q_minus_1 = q - 1;
+
+   if(d.is_zero())
       {
-      const BigInt phi_n = lcm(m_p - 1, m_q - 1);
-      m_d = inverse_mod(m_e, phi_n);
+      const BigInt phi_n = lcm(p_minus_1, q_minus_1);
+      d = inverse_mod(e, phi_n);
       }
 
-   m_d1 = ct_modulo(m_d, m_p - 1);
-   m_d2 = ct_modulo(m_d, m_q - 1);
+   BigInt d1 = ct_modulo(d, p_minus_1);
+   BigInt d2 = ct_modulo(d, q_minus_1);
+   BigInt c = inverse_mod(q, p);
+
+   RSA_PublicKey::init(std::move(n), std::move(e));
+
+   RSA_PrivateKey::init(std::move(d), std::move(p), std::move(q),
+                        std::move(d1), std::move(d2), std::move(c));
    }
 
 /*
@@ -60159,25 +61103,35 @@ RSA_PrivateKey::RSA_PrivateKey(RandomNumberGenerator& rng,
    if(exp < 3 || exp % 2 == 0)
       throw Invalid_Argument(algo_name() + ": Invalid encryption exponent");
 
-   m_e = exp;
+   BigInt n, e, d, p, q, d1, d2, c;
+
+   e = exp;
 
    const size_t p_bits = (bits + 1) / 2;
    const size_t q_bits = bits - p_bits;
 
    do
       {
-      m_p = generate_rsa_prime(rng, rng, p_bits, m_e);
-      m_q = generate_rsa_prime(rng, rng, q_bits, m_e);
-      m_n = m_p * m_q;
-      } while(m_n.bits() != bits);
+      // TODO could generate primes in thread pool
+      p = generate_rsa_prime(rng, rng, p_bits, e);
+      q = generate_rsa_prime(rng, rng, q_bits, e);
+      n = p * q;
+      } while(n.bits() != bits);
 
-   // FIXME: lcm calls gcd which is not const time
-   const BigInt phi_n = lcm(m_p - 1, m_q - 1);
+   const BigInt p_minus_1 = p - 1;
+   const BigInt q_minus_1 = q - 1;
+
+   const BigInt phi_n = lcm(p_minus_1, q_minus_1);
    // FIXME: this uses binary ext gcd because phi_n is even
-   m_d = inverse_mod(m_e, phi_n);
-   m_d1 = ct_modulo(m_d, m_p - 1);
-   m_d2 = ct_modulo(m_d, m_q - 1);
-   m_c = inverse_mod(m_q, m_p);
+   d = inverse_mod(e, phi_n);
+   d1 = ct_modulo(d, p_minus_1);
+   d2 = ct_modulo(d, q_minus_1);
+   c = inverse_mod(q, p); // p odd, so uses const time algorithm
+
+   RSA_PublicKey::init(std::move(n), std::move(e));
+
+   RSA_PrivateKey::init(std::move(d), std::move(p), std::move(q),
+                        std::move(d1), std::move(d2), std::move(c));
    }
 
 /*
@@ -60185,23 +61139,32 @@ RSA_PrivateKey::RSA_PrivateKey(RandomNumberGenerator& rng,
 */
 bool RSA_PrivateKey::check_key(RandomNumberGenerator& rng, bool strong) const
    {
-   if(m_n < 35 || m_n.is_even() || m_e < 3 || m_e.is_even())
+   if(get_n() < 35 || get_n().is_even() || get_e() < 3 || get_e().is_even())
       return false;
 
-   if(m_d < 2 || m_p < 3 || m_q < 3 || m_p*m_q != m_n)
+   if(get_d() < 2 || get_p() < 3 || get_q() < 3)
       return false;
 
-   if(m_d1 != ct_modulo(m_d, m_p - 1) || m_d2 != ct_modulo(m_d, m_q - 1) || m_c != inverse_mod(m_q, m_p))
+   if(get_p() * get_q() != get_n())
+      return false;
+
+   if(get_d1() != ct_modulo(get_d(), get_p() - 1))
+      return false;
+   if(get_d2() != ct_modulo(get_d(), get_q() - 1))
+      return false;
+   if(get_c() != inverse_mod(get_q(), get_p()))
       return false;
 
    const size_t prob = (strong) ? 128 : 12;
 
-   if(!is_prime(m_p, rng, prob) || !is_prime(m_q, rng, prob))
+   if(!is_prime(get_p(), rng, prob))
+      return false;
+   if(!is_prime(get_q(), rng, prob))
       return false;
 
    if(strong)
       {
-      if(ct_modulo(m_e * m_d, lcm(m_p - 1, m_q - 1)) != 1)
+      if(ct_modulo(get_e() * get_d(), lcm(get_p() - 1, get_q() - 1)) != 1)
          return false;
 
       return KeyPair::signature_consistency_check(rng, *this, "EMSA4(SHA-256)");
@@ -60218,47 +61181,48 @@ namespace {
 class RSA_Private_Operation
    {
    protected:
-      size_t get_max_input_bits() const { return (m_mod_bits - 1); }
-
-      const size_t exp_blinding_bits = 64;
+      size_t public_modulus_bits() const { return m_public->public_modulus_bits(); }
+      size_t public_modulus_bytes() const { return m_public->public_modulus_bytes(); }
 
       explicit RSA_Private_Operation(const RSA_PrivateKey& rsa, RandomNumberGenerator& rng) :
-         m_key(rsa),
-         m_mod_p(m_key.get_p()),
-         m_mod_q(m_key.get_q()),
-         m_monty_p(std::make_shared<Montgomery_Params>(m_key.get_p(), m_mod_p)),
-         m_monty_q(std::make_shared<Montgomery_Params>(m_key.get_q(), m_mod_q)),
-         m_powermod_e_n(m_key.get_e(), m_key.get_n()),
-         m_blinder(m_key.get_n(),
-                   rng,
-                   [this](const BigInt& k) { return m_powermod_e_n(k); },
-                   [this](const BigInt& k) { return inverse_mod(k, m_key.get_n()); }),
+         m_public(rsa.public_data()),
+         m_private(rsa.private_data()),
+         m_blinder(m_public->get_n(), rng,
+                   [this](const BigInt& k) { return m_public->public_op(k); },
+                   [this](const BigInt& k) { return inverse_mod(k, m_public->get_n()); }),
          m_blinding_bits(64),
-         m_mod_bytes(m_key.get_n().bytes()),
-         m_mod_bits(m_key.get_n().bits()),
-         m_max_d1_bits(m_key.get_p().bits() + m_blinding_bits),
-         m_max_d2_bits(m_key.get_q().bits() + m_blinding_bits)
+         m_max_d1_bits(m_private->m_p_bits + m_blinding_bits),
+         m_max_d2_bits(m_private->m_q_bits + m_blinding_bits)
          {
          }
 
-      BigInt blinded_private_op(const BigInt& m) const
+      secure_vector<uint8_t> raw_op(const uint8_t input[], size_t input_len)
          {
-         if(m >= m_key.get_n())
+         const BigInt input_bn(input, input_len);
+         if(input_bn >= m_public->get_n())
             throw Invalid_Argument("RSA private op - input is too large");
 
-         return m_blinder.unblind(private_op(m_blinder.blind(m)));
+         // TODO: This should be a function on blinder
+         // BigInt Blinder::run_blinded_function(std::function<BigInt, BigInt> fn, const BigInt& input);
+
+         const BigInt recovered = m_blinder.unblind(rsa_private_op(m_blinder.blind(input_bn)));
+         BOTAN_ASSERT(input_bn == m_public->public_op(recovered), "RSA consistency check");
+         return BigInt::encode_1363(recovered, m_public->public_modulus_bytes());
          }
 
-      BigInt private_op(const BigInt& m) const
+   private:
+
+      BigInt rsa_private_op(const BigInt& m) const
          {
          /*
          TODO
-           Consider using Montgomery reduction instead of Barrett, using
-           the "Smooth RSA-CRT" method. https://eprint.iacr.org/2007/039.pdf
+         Consider using Montgomery reduction instead of Barrett, using
+         the "Smooth RSA-CRT" method. https://eprint.iacr.org/2007/039.pdf
          */
 
-         const size_t powm_window = 4;
+         static constexpr size_t powm_window = 4;
 
+         // Compute this in main thread to avoid racing on the rng
          const BigInt d1_mask(m_blinder.rng(), m_blinding_bits);
 
 #if defined(BOTAN_TARGET_OS_HAS_THREADS) && !defined(BOTAN_HAS_VALGRIND)
@@ -60273,11 +61237,11 @@ class RSA_Private_Operation
          */
          m.sig_words();
 
-         auto future_j1 = std::async(std::launch::async, [this, &m, &d1_mask, powm_window]() {
+         auto future_j1 = std::async(std::launch::async, [this, &m, &d1_mask]() {
 #endif
-         const BigInt masked_d1 = m_key.get_d1() + (d1_mask * (m_key.get_p() - 1));
-         auto powm_d1_p = monty_precompute(m_monty_p, m_mod_p.reduce(m), powm_window);
-         BigInt j1 = monty_execute(*powm_d1_p, masked_d1, m_max_d1_bits);
+            const BigInt masked_d1 = m_private->get_d1() + (d1_mask * (m_private->get_p() - 1));
+            auto powm_d1_p = monty_precompute(m_private->m_monty_p, m_private->m_mod_p.reduce(m), powm_window);
+            BigInt j1 = monty_execute(*powm_d1_p, masked_d1, m_max_d1_bits);
 
 #if defined(BOTAN_RSA_USE_ASYNC)
          return j1;
@@ -60285,8 +61249,8 @@ class RSA_Private_Operation
 #endif
 
          const BigInt d2_mask(m_blinder.rng(), m_blinding_bits);
-         const BigInt masked_d2 = m_key.get_d2() + (d2_mask * (m_key.get_q() - 1));
-         auto powm_d2_q = monty_precompute(m_monty_q, m_mod_q.reduce(m), powm_window);
+         const BigInt masked_d2 = m_private->get_d2() + (d2_mask * (m_private->get_q() - 1));
+         auto powm_d2_q = monty_precompute(m_private->m_monty_q, m_private->m_mod_q.reduce(m), powm_window);
          const BigInt j2 = monty_execute(*powm_d2_q, masked_d2, m_max_d2_bits);
 
 #if defined(BOTAN_RSA_USE_ASYNC)
@@ -60306,35 +61270,27 @@ class RSA_Private_Operation
          * this may still underflow if p and q are imbalanced in size.
          */
 
-         j1 = m_mod_p.multiply(m_mod_p.reduce((m_key.get_p() + j1) - j2), m_key.get_c());
-         return mul_add(j1, m_key.get_q(), j2);
+         j1 = m_private->m_mod_p.multiply(m_private->m_mod_p.reduce((m_private->get_p() + j1) - j2), m_private->get_c());
+         return mul_add(j1, m_private->get_q(), j2);
          }
 
-      const RSA_PrivateKey& m_key;
+      std::shared_ptr<const RSA_Public_Data> m_public;
+      std::shared_ptr<const RSA_Private_Data> m_private;
 
-      // TODO these could all be computed once and stored in the key object
-      Modular_Reducer m_mod_p;
-      Modular_Reducer m_mod_q;
-      std::shared_ptr<const Montgomery_Params> m_monty_p;
-      std::shared_ptr<const Montgomery_Params> m_monty_q;
-
-      Fixed_Exponent_Power_Mod m_powermod_e_n;
+      // XXX could the blinder starting pair be shared?
       Blinder m_blinder;
       const size_t m_blinding_bits;
-      const size_t m_mod_bytes;
-      const size_t m_mod_bits;
       const size_t m_max_d1_bits;
       const size_t m_max_d2_bits;
    };
 
 class RSA_Signature_Operation final : public PK_Ops::Signature_with_EMSA,
-                                private RSA_Private_Operation
+                                      private RSA_Private_Operation
    {
    public:
+      size_t max_input_bits() const override { return public_modulus_bits() - 1; }
 
-      size_t max_input_bits() const override { return get_max_input_bits(); }
-
-      size_t signature_length() const override { return m_key.get_n().bytes(); }
+      size_t signature_length() const override { return public_modulus_bytes(); }
 
       RSA_Signature_Operation(const RSA_PrivateKey& rsa, const std::string& emsa, RandomNumberGenerator& rng) :
          PK_Ops::Signature_with_EMSA(emsa),
@@ -60342,19 +61298,15 @@ class RSA_Signature_Operation final : public PK_Ops::Signature_with_EMSA,
          {
          }
 
-      secure_vector<uint8_t> raw_sign(const uint8_t msg[], size_t msg_len,
-                                   RandomNumberGenerator&) override
+      secure_vector<uint8_t> raw_sign(const uint8_t input[], size_t input_len,
+                                      RandomNumberGenerator&) override
          {
-         const BigInt m(msg, msg_len);
-         const BigInt x = blinded_private_op(m);
-         const BigInt c = m_powermod_e_n(x);
-         BOTAN_ASSERT(m == c, "RSA sign consistency check");
-         return BigInt::encode_1363(x, m_mod_bytes);
+         return raw_op(input, input_len);
          }
    };
 
 class RSA_Decryption_Operation final : public PK_Ops::Decryption_with_EME,
-                                 private RSA_Private_Operation
+                                       private RSA_Private_Operation
    {
    public:
 
@@ -60364,20 +61316,16 @@ class RSA_Decryption_Operation final : public PK_Ops::Decryption_with_EME,
          {
          }
 
-      size_t plaintext_length(size_t) const override { return m_mod_bytes; }
+      size_t plaintext_length(size_t) const override { return public_modulus_bytes(); }
 
-      secure_vector<uint8_t> raw_decrypt(const uint8_t msg[], size_t msg_len) override
+      secure_vector<uint8_t> raw_decrypt(const uint8_t input[], size_t input_len) override
          {
-         const BigInt m(msg, msg_len);
-         const BigInt x = blinded_private_op(m);
-         const BigInt c = m_powermod_e_n(x);
-         BOTAN_ASSERT(m == c, "RSA decrypt consistency check");
-         return BigInt::encode_1363(x, m_mod_bytes);
+         return raw_op(input, input_len);
          }
    };
 
 class RSA_KEM_Decryption_Operation final : public PK_Ops::KEM_Decryption_with_KDF,
-                                     private RSA_Private_Operation
+                                           private RSA_Private_Operation
    {
    public:
 
@@ -60391,11 +61339,7 @@ class RSA_KEM_Decryption_Operation final : public PK_Ops::KEM_Decryption_with_KD
       secure_vector<uint8_t>
       raw_kem_decrypt(const uint8_t encap_key[], size_t len) override
          {
-         const BigInt m(encap_key, len);
-         const BigInt x = blinded_private_op(m);
-         const BigInt c = m_powermod_e_n(x);
-         BOTAN_ASSERT(m == c, "RSA KEM consistency check");
-         return BigInt::encode_1363(x, m_mod_bytes);
+         return raw_op(encap_key, len);
          }
    };
 
@@ -60406,14 +61350,13 @@ class RSA_Public_Operation
    {
    public:
       explicit RSA_Public_Operation(const RSA_PublicKey& rsa) :
-         m_n(rsa.get_n()),
-         m_e(rsa.get_e()),
-         m_monty_n(std::make_shared<Montgomery_Params>(m_n))
+         m_public(rsa.public_data())
          {}
 
-      size_t get_max_input_bits() const
+         size_t get_max_input_bits() const
          {
-         const size_t n_bits = m_n.bits();
+         const size_t n_bits = m_public->public_modulus_bits();
+
          /*
          Make Coverity happy that n_bits - 1 won't underflow
 
@@ -60426,20 +61369,17 @@ class RSA_Public_Operation
    protected:
       BigInt public_op(const BigInt& m) const
          {
-         if(m >= m_n)
+         if(m >= m_public->get_n())
             throw Invalid_Argument("RSA public op - input is too large");
 
-         const size_t powm_window = 1;
-
-         auto powm_m_n = monty_precompute(m_monty_n, m, powm_window, false);
-         return monty_execute_vartime(*powm_m_n, m_e);
+         return m_public->public_op(m);
          }
 
-      const BigInt& get_n() const { return m_n; }
+      size_t public_modulus_bytes() const { return m_public->public_modulus_bytes(); }
 
-      const BigInt& m_n;
-      const BigInt& m_e;
-      std::shared_ptr<Montgomery_Params> m_monty_n;
+      const BigInt& get_n() const { return m_public->get_n(); }
+
+      std::shared_ptr<const RSA_Public_Data> m_public;
    };
 
 class RSA_Encryption_Operation final : public PK_Ops::Encryption_with_EME,
@@ -60453,15 +61393,15 @@ class RSA_Encryption_Operation final : public PK_Ops::Encryption_with_EME,
          {
          }
 
-      size_t ciphertext_length(size_t) const override { return m_n.bytes(); }
+      size_t ciphertext_length(size_t) const override { return public_modulus_bytes(); }
 
       size_t max_raw_input_bits() const override { return get_max_input_bits(); }
 
-      secure_vector<uint8_t> raw_encrypt(const uint8_t msg[], size_t msg_len,
+      secure_vector<uint8_t> raw_encrypt(const uint8_t input[], size_t input_len,
                                          RandomNumberGenerator&) override
          {
-         BigInt m(msg, msg_len);
-         return BigInt::encode_1363(public_op(m), m_n.bytes());
+         BigInt input_bn(input, input_len);
+         return BigInt::encode_1363(public_op(input_bn), public_modulus_bytes());
          }
    };
 
@@ -60480,10 +61420,10 @@ class RSA_Verify_Operation final : public PK_Ops::Verification_with_EMSA,
 
       bool with_recovery() const override { return true; }
 
-      secure_vector<uint8_t> verify_mr(const uint8_t msg[], size_t msg_len) override
+      secure_vector<uint8_t> verify_mr(const uint8_t input[], size_t input_len) override
          {
-         BigInt m(msg, msg_len);
-         return BigInt::encode_locked(public_op(m));
+         BigInt input_bn(input, input_len);
+         return BigInt::encode_locked(public_op(input_bn));
          }
    };
 
@@ -62195,7 +63135,8 @@ Session_Manager_SQL::Session_Manager_SQL(std::shared_ptr<SQL_Database> db,
 
       // new database case
 
-      std::vector<uint8_t> salt = unlock(rng.random_vec(16));
+      std::vector<uint8_t> salt;
+      rng.random_vec(salt, 16);
       size_t iterations = 0;
 
       secure_vector<uint8_t> x = pbkdf->pbkdf_timed(32 + 2,
@@ -62845,220 +63786,6 @@ void SHA_160::sse2_compress_n(secure_vector<uint32_t>& digest, const uint8_t inp
 
 }
 /*
-* SHA-1 using Intel SHA intrinsic
-*
-* Based on public domain code by Sean Gulley
-* (https://github.com/mitls/hacl-star/tree/master/experimental/hash)
-* Adapted to Botan by Jeffrey Walton.
-*
-* Further changes
-*
-* (C) 2017 Jack Lloyd
-*
-* Botan is released under the Simplified BSD License (see license.txt)
-*/
-
-
-namespace Botan {
-
-#if defined(BOTAN_HAS_SHA1_X86_SHA_NI)
-BOTAN_FUNC_ISA("sha,ssse3,sse4.1")
-void SHA_160::sha1_compress_x86(secure_vector<uint32_t>& digest,
-                                const uint8_t input[],
-                                size_t blocks)
-   {
-   const __m128i MASK = _mm_set_epi64x(0x0001020304050607ULL, 0x08090a0b0c0d0e0fULL);
-   const __m128i* input_mm = reinterpret_cast<const __m128i*>(input);
-
-   uint32_t* state = digest.data();
-
-   // Load initial values
-   __m128i ABCD = _mm_loadu_si128(reinterpret_cast<__m128i*>(state));
-   __m128i E0 = _mm_set_epi32(state[4], 0, 0, 0);
-   ABCD = _mm_shuffle_epi32(ABCD, 0x1B);
-
-   while (blocks)
-      {
-      // Save current hash
-      const __m128i ABCD_SAVE = ABCD;
-      const __m128i E0_SAVE = E0;
-
-      __m128i MSG0, MSG1, MSG2, MSG3;
-      __m128i E1;
-
-      // Rounds 0-3
-      MSG0 = _mm_loadu_si128(input_mm+0);
-      MSG0 = _mm_shuffle_epi8(MSG0, MASK);
-      E0 = _mm_add_epi32(E0, MSG0);
-      E1 = ABCD;
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E0, 0);
-
-      // Rounds 4-7
-      MSG1 = _mm_loadu_si128(input_mm+1);
-      MSG1 = _mm_shuffle_epi8(MSG1, MASK);
-      E1 = _mm_sha1nexte_epu32(E1, MSG1);
-      E0 = ABCD;
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E1, 0);
-      MSG0 = _mm_sha1msg1_epu32(MSG0, MSG1);
-
-      // Rounds 8-11
-      MSG2 = _mm_loadu_si128(input_mm+2);
-      MSG2 = _mm_shuffle_epi8(MSG2, MASK);
-      E0 = _mm_sha1nexte_epu32(E0, MSG2);
-      E1 = ABCD;
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E0, 0);
-      MSG1 = _mm_sha1msg1_epu32(MSG1, MSG2);
-      MSG0 = _mm_xor_si128(MSG0, MSG2);
-
-      // Rounds 12-15
-      MSG3 = _mm_loadu_si128(input_mm+3);
-      MSG3 = _mm_shuffle_epi8(MSG3, MASK);
-      E1 = _mm_sha1nexte_epu32(E1, MSG3);
-      E0 = ABCD;
-      MSG0 = _mm_sha1msg2_epu32(MSG0, MSG3);
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E1, 0);
-      MSG2 = _mm_sha1msg1_epu32(MSG2, MSG3);
-      MSG1 = _mm_xor_si128(MSG1, MSG3);
-
-      // Rounds 16-19
-      E0 = _mm_sha1nexte_epu32(E0, MSG0);
-      E1 = ABCD;
-      MSG1 = _mm_sha1msg2_epu32(MSG1, MSG0);
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E0, 0);
-      MSG3 = _mm_sha1msg1_epu32(MSG3, MSG0);
-      MSG2 = _mm_xor_si128(MSG2, MSG0);
-
-      // Rounds 20-23
-      E1 = _mm_sha1nexte_epu32(E1, MSG1);
-      E0 = ABCD;
-      MSG2 = _mm_sha1msg2_epu32(MSG2, MSG1);
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E1, 1);
-      MSG0 = _mm_sha1msg1_epu32(MSG0, MSG1);
-      MSG3 = _mm_xor_si128(MSG3, MSG1);
-
-      // Rounds 24-27
-      E0 = _mm_sha1nexte_epu32(E0, MSG2);
-      E1 = ABCD;
-      MSG3 = _mm_sha1msg2_epu32(MSG3, MSG2);
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E0, 1);
-      MSG1 = _mm_sha1msg1_epu32(MSG1, MSG2);
-      MSG0 = _mm_xor_si128(MSG0, MSG2);
-
-      // Rounds 28-31
-      E1 = _mm_sha1nexte_epu32(E1, MSG3);
-      E0 = ABCD;
-      MSG0 = _mm_sha1msg2_epu32(MSG0, MSG3);
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E1, 1);
-      MSG2 = _mm_sha1msg1_epu32(MSG2, MSG3);
-      MSG1 = _mm_xor_si128(MSG1, MSG3);
-
-      // Rounds 32-35
-      E0 = _mm_sha1nexte_epu32(E0, MSG0);
-      E1 = ABCD;
-      MSG1 = _mm_sha1msg2_epu32(MSG1, MSG0);
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E0, 1);
-      MSG3 = _mm_sha1msg1_epu32(MSG3, MSG0);
-      MSG2 = _mm_xor_si128(MSG2, MSG0);
-
-      // Rounds 36-39
-      E1 = _mm_sha1nexte_epu32(E1, MSG1);
-      E0 = ABCD;
-      MSG2 = _mm_sha1msg2_epu32(MSG2, MSG1);
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E1, 1);
-      MSG0 = _mm_sha1msg1_epu32(MSG0, MSG1);
-      MSG3 = _mm_xor_si128(MSG3, MSG1);
-
-      // Rounds 40-43
-      E0 = _mm_sha1nexte_epu32(E0, MSG2);
-      E1 = ABCD;
-      MSG3 = _mm_sha1msg2_epu32(MSG3, MSG2);
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E0, 2);
-      MSG1 = _mm_sha1msg1_epu32(MSG1, MSG2);
-      MSG0 = _mm_xor_si128(MSG0, MSG2);
-
-      // Rounds 44-47
-      E1 = _mm_sha1nexte_epu32(E1, MSG3);
-      E0 = ABCD;
-      MSG0 = _mm_sha1msg2_epu32(MSG0, MSG3);
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E1, 2);
-      MSG2 = _mm_sha1msg1_epu32(MSG2, MSG3);
-      MSG1 = _mm_xor_si128(MSG1, MSG3);
-
-      // Rounds 48-51
-      E0 = _mm_sha1nexte_epu32(E0, MSG0);
-      E1 = ABCD;
-      MSG1 = _mm_sha1msg2_epu32(MSG1, MSG0);
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E0, 2);
-      MSG3 = _mm_sha1msg1_epu32(MSG3, MSG0);
-      MSG2 = _mm_xor_si128(MSG2, MSG0);
-
-      // Rounds 52-55
-      E1 = _mm_sha1nexte_epu32(E1, MSG1);
-      E0 = ABCD;
-      MSG2 = _mm_sha1msg2_epu32(MSG2, MSG1);
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E1, 2);
-      MSG0 = _mm_sha1msg1_epu32(MSG0, MSG1);
-      MSG3 = _mm_xor_si128(MSG3, MSG1);
-
-      // Rounds 56-59
-      E0 = _mm_sha1nexte_epu32(E0, MSG2);
-      E1 = ABCD;
-      MSG3 = _mm_sha1msg2_epu32(MSG3, MSG2);
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E0, 2);
-      MSG1 = _mm_sha1msg1_epu32(MSG1, MSG2);
-      MSG0 = _mm_xor_si128(MSG0, MSG2);
-
-      // Rounds 60-63
-      E1 = _mm_sha1nexte_epu32(E1, MSG3);
-      E0 = ABCD;
-      MSG0 = _mm_sha1msg2_epu32(MSG0, MSG3);
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E1, 3);
-      MSG2 = _mm_sha1msg1_epu32(MSG2, MSG3);
-      MSG1 = _mm_xor_si128(MSG1, MSG3);
-
-      // Rounds 64-67
-      E0 = _mm_sha1nexte_epu32(E0, MSG0);
-      E1 = ABCD;
-      MSG1 = _mm_sha1msg2_epu32(MSG1, MSG0);
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E0, 3);
-      MSG3 = _mm_sha1msg1_epu32(MSG3, MSG0);
-      MSG2 = _mm_xor_si128(MSG2, MSG0);
-
-      // Rounds 68-71
-      E1 = _mm_sha1nexte_epu32(E1, MSG1);
-      E0 = ABCD;
-      MSG2 = _mm_sha1msg2_epu32(MSG2, MSG1);
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E1, 3);
-      MSG3 = _mm_xor_si128(MSG3, MSG1);
-
-      // Rounds 72-75
-      E0 = _mm_sha1nexte_epu32(E0, MSG2);
-      E1 = ABCD;
-      MSG3 = _mm_sha1msg2_epu32(MSG3, MSG2);
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E0, 3);
-
-      // Rounds 76-79
-      E1 = _mm_sha1nexte_epu32(E1, MSG3);
-      E0 = ABCD;
-      ABCD = _mm_sha1rnds4_epu32(ABCD, E1, 3);
-
-      // Add values back to state
-      E0 = _mm_sha1nexte_epu32(E0, E0_SAVE);
-      ABCD = _mm_add_epi32(ABCD, ABCD_SAVE);
-
-      input_mm += 4;
-      blocks--;
-      }
-
-   // Save state
-   ABCD = _mm_shuffle_epi32(ABCD, 0x1B);
-   _mm_storeu_si128(reinterpret_cast<__m128i*>(state), ABCD);
-   state[4] = _mm_extract_epi32(E0, 3);
-   }
-#endif
-
-}
-/*
 * SHA-{224,256}
 * (C) 1999-2010,2017 Jack Lloyd
 *     2007 FlexSecure GmbH
@@ -63467,219 +64194,6 @@ void SHA_256::compress_digest_x86_bmi2(secure_vector<uint32_t>& digest,
       input += 64;
       }
    }
-
-}
-/*
-* Support for SHA-256 x86 instrinsic
-* Based on public domain code by Sean Gulley
-*    (https://github.com/mitls/hacl-star/tree/master/experimental/hash)
-*
-* Botan is released under the Simplified BSD License (see license.txt)
-*/
-
-
-namespace Botan {
-
-// called from sha2_32.cpp
-#if defined(BOTAN_HAS_SHA2_32_X86)
-BOTAN_FUNC_ISA("sha,sse4.1,ssse3")
-void SHA_256::compress_digest_x86(secure_vector<uint32_t>& digest, const uint8_t input[], size_t blocks)
-   {
-   __m128i STATE0, STATE1;
-   __m128i MSG, TMP, MASK;
-   __m128i TMSG0, TMSG1, TMSG2, TMSG3;
-   __m128i ABEF_SAVE, CDGH_SAVE;
-
-   uint32_t* state = &digest[0];
-
-   const __m128i* input_mm = reinterpret_cast<const __m128i*>(input);
-
-   // Load initial values
-   TMP = _mm_loadu_si128(reinterpret_cast<__m128i*>(&state[0]));
-   STATE1 = _mm_loadu_si128(reinterpret_cast<__m128i*>(&state[4]));
-   MASK = _mm_set_epi64x(0x0c0d0e0f08090a0bULL, 0x0405060700010203ULL);
-
-   TMP = _mm_shuffle_epi32(TMP, 0xB1); // CDAB
-   STATE1 = _mm_shuffle_epi32(STATE1, 0x1B); // EFGH
-   STATE0 = _mm_alignr_epi8(TMP, STATE1, 8); // ABEF
-   STATE1 = _mm_blend_epi16(STATE1, TMP, 0xF0); // CDGH
-
-   while (blocks)
-      {
-      // Save current hash
-      ABEF_SAVE = STATE0;
-      CDGH_SAVE = STATE1;
-
-      // Rounds 0-3
-      MSG = _mm_loadu_si128(input_mm);
-      TMSG0 = _mm_shuffle_epi8(MSG, MASK);
-      MSG = _mm_add_epi32(TMSG0, _mm_set_epi64x(0xE9B5DBA5B5C0FBCFULL, 0x71374491428A2F98ULL));
-      STATE1 = _mm_sha256rnds2_epu32(STATE1, STATE0, MSG);
-      MSG = _mm_shuffle_epi32(MSG, 0x0E);
-      STATE0 = _mm_sha256rnds2_epu32(STATE0, STATE1, MSG);
-
-      // Rounds 4-7
-      TMSG1 = _mm_loadu_si128(input_mm + 1);
-      TMSG1 = _mm_shuffle_epi8(TMSG1, MASK);
-      MSG = _mm_add_epi32(TMSG1, _mm_set_epi64x(0xAB1C5ED5923F82A4ULL, 0x59F111F13956C25BULL));
-      STATE1 = _mm_sha256rnds2_epu32(STATE1, STATE0, MSG);
-      MSG = _mm_shuffle_epi32(MSG, 0x0E);
-      STATE0 = _mm_sha256rnds2_epu32(STATE0, STATE1, MSG);
-      TMSG0 = _mm_sha256msg1_epu32(TMSG0, TMSG1);
-
-      // Rounds 8-11
-      TMSG2 = _mm_loadu_si128(input_mm + 2);
-      TMSG2 = _mm_shuffle_epi8(TMSG2, MASK);
-      MSG = _mm_add_epi32(TMSG2, _mm_set_epi64x(0x550C7DC3243185BEULL, 0x12835B01D807AA98ULL));
-      STATE1 = _mm_sha256rnds2_epu32(STATE1, STATE0, MSG);
-      MSG = _mm_shuffle_epi32(MSG, 0x0E);
-      STATE0 = _mm_sha256rnds2_epu32(STATE0, STATE1, MSG);
-      TMSG1 = _mm_sha256msg1_epu32(TMSG1, TMSG2);
-
-      // Rounds 12-15
-      TMSG3 = _mm_loadu_si128(input_mm + 3);
-      TMSG3 = _mm_shuffle_epi8(TMSG3, MASK);
-      MSG = _mm_add_epi32(TMSG3, _mm_set_epi64x(0xC19BF1749BDC06A7ULL, 0x80DEB1FE72BE5D74ULL));
-      STATE1 = _mm_sha256rnds2_epu32(STATE1, STATE0, MSG);
-      TMP = _mm_alignr_epi8(TMSG3, TMSG2, 4);
-      TMSG0 = _mm_add_epi32(TMSG0, TMP);
-      TMSG0 = _mm_sha256msg2_epu32(TMSG0, TMSG3);
-      MSG = _mm_shuffle_epi32(MSG, 0x0E);
-      STATE0 = _mm_sha256rnds2_epu32(STATE0, STATE1, MSG);
-      TMSG2 = _mm_sha256msg1_epu32(TMSG2, TMSG3);
-
-      // Rounds 16-19
-      MSG = _mm_add_epi32(TMSG0, _mm_set_epi64x(0x240CA1CC0FC19DC6ULL, 0xEFBE4786E49B69C1ULL));
-      STATE1 = _mm_sha256rnds2_epu32(STATE1, STATE0, MSG);
-      TMP = _mm_alignr_epi8(TMSG0, TMSG3, 4);
-      TMSG1 = _mm_add_epi32(TMSG1, TMP);
-      TMSG1 = _mm_sha256msg2_epu32(TMSG1, TMSG0);
-      MSG = _mm_shuffle_epi32(MSG, 0x0E);
-      STATE0 = _mm_sha256rnds2_epu32(STATE0, STATE1, MSG);
-      TMSG3 = _mm_sha256msg1_epu32(TMSG3, TMSG0);
-
-      // Rounds 20-23
-      MSG = _mm_add_epi32(TMSG1, _mm_set_epi64x(0x76F988DA5CB0A9DCULL, 0x4A7484AA2DE92C6FULL));
-      STATE1 = _mm_sha256rnds2_epu32(STATE1, STATE0, MSG);
-      TMP = _mm_alignr_epi8(TMSG1, TMSG0, 4);
-      TMSG2 = _mm_add_epi32(TMSG2, TMP);
-      TMSG2 = _mm_sha256msg2_epu32(TMSG2, TMSG1);
-      MSG = _mm_shuffle_epi32(MSG, 0x0E);
-      STATE0 = _mm_sha256rnds2_epu32(STATE0, STATE1, MSG);
-      TMSG0 = _mm_sha256msg1_epu32(TMSG0, TMSG1);
-
-      // Rounds 24-27
-      MSG = _mm_add_epi32(TMSG2, _mm_set_epi64x(0xBF597FC7B00327C8ULL, 0xA831C66D983E5152ULL));
-      STATE1 = _mm_sha256rnds2_epu32(STATE1, STATE0, MSG);
-      TMP = _mm_alignr_epi8(TMSG2, TMSG1, 4);
-      TMSG3 = _mm_add_epi32(TMSG3, TMP);
-      TMSG3 = _mm_sha256msg2_epu32(TMSG3, TMSG2);
-      MSG = _mm_shuffle_epi32(MSG, 0x0E);
-      STATE0 = _mm_sha256rnds2_epu32(STATE0, STATE1, MSG);
-      TMSG1 = _mm_sha256msg1_epu32(TMSG1, TMSG2);
-
-      // Rounds 28-31
-      MSG = _mm_add_epi32(TMSG3, _mm_set_epi64x(0x1429296706CA6351ULL,  0xD5A79147C6E00BF3ULL));
-      STATE1 = _mm_sha256rnds2_epu32(STATE1, STATE0, MSG);
-      TMP = _mm_alignr_epi8(TMSG3, TMSG2, 4);
-      TMSG0 = _mm_add_epi32(TMSG0, TMP);
-      TMSG0 = _mm_sha256msg2_epu32(TMSG0, TMSG3);
-      MSG = _mm_shuffle_epi32(MSG, 0x0E);
-      STATE0 = _mm_sha256rnds2_epu32(STATE0, STATE1, MSG);
-      TMSG2 = _mm_sha256msg1_epu32(TMSG2, TMSG3);
-
-      // Rounds 32-35
-      MSG = _mm_add_epi32(TMSG0, _mm_set_epi64x(0x53380D134D2C6DFCULL, 0x2E1B213827B70A85ULL));
-      STATE1 = _mm_sha256rnds2_epu32(STATE1, STATE0, MSG);
-      TMP = _mm_alignr_epi8(TMSG0, TMSG3, 4);
-      TMSG1 = _mm_add_epi32(TMSG1, TMP);
-      TMSG1 = _mm_sha256msg2_epu32(TMSG1, TMSG0);
-      MSG = _mm_shuffle_epi32(MSG, 0x0E);
-      STATE0 = _mm_sha256rnds2_epu32(STATE0, STATE1, MSG);
-      TMSG3 = _mm_sha256msg1_epu32(TMSG3, TMSG0);
-
-      // Rounds 36-39
-      MSG = _mm_add_epi32(TMSG1, _mm_set_epi64x(0x92722C8581C2C92EULL, 0x766A0ABB650A7354ULL));
-      STATE1 = _mm_sha256rnds2_epu32(STATE1, STATE0, MSG);
-      TMP = _mm_alignr_epi8(TMSG1, TMSG0, 4);
-      TMSG2 = _mm_add_epi32(TMSG2, TMP);
-      TMSG2 = _mm_sha256msg2_epu32(TMSG2, TMSG1);
-      MSG = _mm_shuffle_epi32(MSG, 0x0E);
-      STATE0 = _mm_sha256rnds2_epu32(STATE0, STATE1, MSG);
-      TMSG0 = _mm_sha256msg1_epu32(TMSG0, TMSG1);
-
-      // Rounds 40-43
-      MSG = _mm_add_epi32(TMSG2, _mm_set_epi64x(0xC76C51A3C24B8B70ULL, 0xA81A664BA2BFE8A1ULL));
-      STATE1 = _mm_sha256rnds2_epu32(STATE1, STATE0, MSG);
-      TMP = _mm_alignr_epi8(TMSG2, TMSG1, 4);
-      TMSG3 = _mm_add_epi32(TMSG3, TMP);
-      TMSG3 = _mm_sha256msg2_epu32(TMSG3, TMSG2);
-      MSG = _mm_shuffle_epi32(MSG, 0x0E);
-      STATE0 = _mm_sha256rnds2_epu32(STATE0, STATE1, MSG);
-      TMSG1 = _mm_sha256msg1_epu32(TMSG1, TMSG2);
-
-      // Rounds 44-47
-      MSG = _mm_add_epi32(TMSG3, _mm_set_epi64x(0x106AA070F40E3585ULL, 0xD6990624D192E819ULL));
-      STATE1 = _mm_sha256rnds2_epu32(STATE1, STATE0, MSG);
-      TMP = _mm_alignr_epi8(TMSG3, TMSG2, 4);
-      TMSG0 = _mm_add_epi32(TMSG0, TMP);
-      TMSG0 = _mm_sha256msg2_epu32(TMSG0, TMSG3);
-      MSG = _mm_shuffle_epi32(MSG, 0x0E);
-      STATE0 = _mm_sha256rnds2_epu32(STATE0, STATE1, MSG);
-      TMSG2 = _mm_sha256msg1_epu32(TMSG2, TMSG3);
-
-      // Rounds 48-51
-      MSG = _mm_add_epi32(TMSG0, _mm_set_epi64x(0x34B0BCB52748774CULL, 0x1E376C0819A4C116ULL));
-      STATE1 = _mm_sha256rnds2_epu32(STATE1, STATE0, MSG);
-      TMP = _mm_alignr_epi8(TMSG0, TMSG3, 4);
-      TMSG1 = _mm_add_epi32(TMSG1, TMP);
-      TMSG1 = _mm_sha256msg2_epu32(TMSG1, TMSG0);
-      MSG = _mm_shuffle_epi32(MSG, 0x0E);
-      STATE0 = _mm_sha256rnds2_epu32(STATE0, STATE1, MSG);
-      TMSG3 = _mm_sha256msg1_epu32(TMSG3, TMSG0);
-
-      // Rounds 52-55
-      MSG = _mm_add_epi32(TMSG1, _mm_set_epi64x(0x682E6FF35B9CCA4FULL, 0x4ED8AA4A391C0CB3ULL));
-      STATE1 = _mm_sha256rnds2_epu32(STATE1, STATE0, MSG);
-      TMP = _mm_alignr_epi8(TMSG1, TMSG0, 4);
-      TMSG2 = _mm_add_epi32(TMSG2, TMP);
-      TMSG2 = _mm_sha256msg2_epu32(TMSG2, TMSG1);
-      MSG = _mm_shuffle_epi32(MSG, 0x0E);
-      STATE0 = _mm_sha256rnds2_epu32(STATE0, STATE1, MSG);
-
-      // Rounds 56-59
-      MSG = _mm_add_epi32(TMSG2, _mm_set_epi64x(0x8CC7020884C87814ULL, 0x78A5636F748F82EEULL));
-      STATE1 = _mm_sha256rnds2_epu32(STATE1, STATE0, MSG);
-      TMP = _mm_alignr_epi8(TMSG2, TMSG1, 4);
-      TMSG3 = _mm_add_epi32(TMSG3, TMP);
-      TMSG3 = _mm_sha256msg2_epu32(TMSG3, TMSG2);
-      MSG = _mm_shuffle_epi32(MSG, 0x0E);
-      STATE0 = _mm_sha256rnds2_epu32(STATE0, STATE1, MSG);
-
-      // Rounds 60-63
-      MSG = _mm_add_epi32(TMSG3, _mm_set_epi64x(0xC67178F2BEF9A3F7ULL, 0xA4506CEB90BEFFFAULL));
-      STATE1 = _mm_sha256rnds2_epu32(STATE1, STATE0, MSG);
-      MSG = _mm_shuffle_epi32(MSG, 0x0E);
-      STATE0 = _mm_sha256rnds2_epu32(STATE0, STATE1, MSG);
-
-      // Add values back to state
-      STATE0 = _mm_add_epi32(STATE0, ABEF_SAVE);
-      STATE1 = _mm_add_epi32(STATE1, CDGH_SAVE);
-
-      input_mm += 4;
-      blocks--;
-      }
-
-   TMP = _mm_shuffle_epi32(STATE0, 0x1B); // FEBA
-   STATE1 = _mm_shuffle_epi32(STATE1, 0xB1); // DCHG
-   STATE0 = _mm_blend_epi16(TMP, STATE1, 0xF0); // DCBA
-   STATE1 = _mm_alignr_epi8(STATE1, TMP, 8); // ABEF
-
-   // Save state
-   _mm_storeu_si128(reinterpret_cast<__m128i*>(&state[0]), STATE0);
-   _mm_storeu_si128(reinterpret_cast<__m128i*>(&state[4]), STATE1);
-   }
-#endif
 
 }
 /*
@@ -64532,6 +65046,19 @@ void SHACAL2::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
       }
 #endif
 
+#if defined(BOTAN_HAS_SHACAL2_AVX2)
+   if(CPUID::has_avx2())
+      {
+      while(blocks >= 8)
+         {
+         avx2_encrypt_8(in, out);
+         in += 8*BLOCK_SIZE;
+         out += 8*BLOCK_SIZE;
+         blocks -= 8;
+         }
+      }
+#endif
+
 #if defined(BOTAN_HAS_SHACAL2_SIMD)
    if(CPUID::has_simd_32())
       {
@@ -64581,6 +65108,19 @@ void SHACAL2::encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
 void SHACAL2::decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const
    {
    verify_key_set(m_RK.empty() == false);
+
+#if defined(BOTAN_HAS_SHACAL2_AVX2)
+   if(CPUID::has_avx2())
+      {
+      while(blocks >= 8)
+         {
+         avx2_decrypt_8(in, out);
+         in += 8*BLOCK_SIZE;
+         out += 8*BLOCK_SIZE;
+         blocks -= 8;
+         }
+      }
+#endif
 
 #if defined(BOTAN_HAS_SHACAL2_SIMD)
    if(CPUID::has_simd_32())
@@ -64678,6 +65218,13 @@ size_t SHACAL2::parallelism() const
       }
 #endif
 
+#if defined(BOTAN_HAS_SHACAL2_AVX2)
+   if(CPUID::has_avx2())
+      {
+      return 8;
+      }
+#endif
+
 #if defined(BOTAN_HAS_SHACAL2_SIMD)
    if(CPUID::has_simd_32())
       {
@@ -64697,6 +65244,13 @@ std::string SHACAL2::provider() const
       }
 #endif
 
+#if defined(BOTAN_HAS_SHACAL2_AVX2)
+   if(CPUID::has_avx2())
+      {
+      return "avx2";
+      }
+#endif
+
 #if defined(BOTAN_HAS_SHACAL2_SIMD)
    if(CPUID::has_simd_32())
       {
@@ -64713,6 +65267,126 @@ std::string SHACAL2::provider() const
 void SHACAL2::clear()
    {
    zap(m_RK);
+   }
+
+}
+/*
+* (C) 2018 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
+
+namespace {
+
+inline
+void SHACAL2_Fwd(const SIMD_8x32& A, const SIMD_8x32& B, const SIMD_8x32& C, SIMD_8x32& D,
+                 const SIMD_8x32& E, const SIMD_8x32& F, const SIMD_8x32& G, SIMD_8x32& H,
+                 uint32_t RK)
+   {
+   H += E.rho<6,11,25>() + ((E & F) ^ (~E & G)) + SIMD_8x32::splat(RK);
+   D += H;
+   H += A.rho<2,13,22>() + ((A & B) | ((A | B) & C));
+   }
+
+inline
+void SHACAL2_Rev(const SIMD_8x32& A, const SIMD_8x32& B, const SIMD_8x32& C, SIMD_8x32& D,
+                 const SIMD_8x32& E, const SIMD_8x32& F, const SIMD_8x32& G, SIMD_8x32& H,
+                 uint32_t RK)
+   {
+   H -= A.rho<2,13,22>() + ((A & B) | ((A | B) & C));
+   D -= H;
+   H -= E.rho<6,11,25>() + ((E & F) ^ (~E & G)) + SIMD_8x32::splat(RK);
+   }
+
+}
+
+void SHACAL2::avx2_encrypt_8(const uint8_t in[], uint8_t out[]) const
+   {
+   SIMD_8x32::reset_registers();
+
+   SIMD_8x32 A = SIMD_8x32::load_be(in);
+   SIMD_8x32 B = SIMD_8x32::load_be(in+32);
+   SIMD_8x32 C = SIMD_8x32::load_be(in+64);
+   SIMD_8x32 D = SIMD_8x32::load_be(in+96);
+
+   SIMD_8x32 E = SIMD_8x32::load_be(in+128);
+   SIMD_8x32 F = SIMD_8x32::load_be(in+160);
+   SIMD_8x32 G = SIMD_8x32::load_be(in+192);
+   SIMD_8x32 H = SIMD_8x32::load_be(in+224);
+
+   SIMD_8x32::transpose(A, B, C, D, E, F, G, H);
+
+   for(size_t r = 0; r != 64; r += 8)
+      {
+      SHACAL2_Fwd(A, B, C, D, E, F, G, H, m_RK[r+0]);
+      SHACAL2_Fwd(H, A, B, C, D, E, F, G, m_RK[r+1]);
+      SHACAL2_Fwd(G, H, A, B, C, D, E, F, m_RK[r+2]);
+      SHACAL2_Fwd(F, G, H, A, B, C, D, E, m_RK[r+3]);
+      SHACAL2_Fwd(E, F, G, H, A, B, C, D, m_RK[r+4]);
+      SHACAL2_Fwd(D, E, F, G, H, A, B, C, m_RK[r+5]);
+      SHACAL2_Fwd(C, D, E, F, G, H, A, B, m_RK[r+6]);
+      SHACAL2_Fwd(B, C, D, E, F, G, H, A, m_RK[r+7]);
+      }
+
+   SIMD_8x32::transpose(A, B, C, D, E, F, G, H);
+
+   A.store_be(out);
+   B.store_be(out+32);
+   C.store_be(out+64);
+   D.store_be(out+96);
+
+   E.store_be(out+128);
+   F.store_be(out+160);
+   G.store_be(out+192);
+   H.store_be(out+224);
+
+   SIMD_8x32::zero_registers();
+   }
+
+void SHACAL2::avx2_decrypt_8(const uint8_t in[], uint8_t out[]) const
+   {
+   SIMD_8x32::reset_registers();
+
+   SIMD_8x32 A = SIMD_8x32::load_be(in);
+   SIMD_8x32 B = SIMD_8x32::load_be(in+32);
+   SIMD_8x32 C = SIMD_8x32::load_be(in+64);
+   SIMD_8x32 D = SIMD_8x32::load_be(in+96);
+
+   SIMD_8x32 E = SIMD_8x32::load_be(in+128);
+   SIMD_8x32 F = SIMD_8x32::load_be(in+160);
+   SIMD_8x32 G = SIMD_8x32::load_be(in+192);
+   SIMD_8x32 H = SIMD_8x32::load_be(in+224);
+
+   SIMD_8x32::transpose(A, B, C, D, E, F, G, H);
+
+   for(size_t r = 0; r != 64; r += 8)
+      {
+      SHACAL2_Rev(B, C, D, E, F, G, H, A, m_RK[63-r]);
+      SHACAL2_Rev(C, D, E, F, G, H, A, B, m_RK[62-r]);
+      SHACAL2_Rev(D, E, F, G, H, A, B, C, m_RK[61-r]);
+      SHACAL2_Rev(E, F, G, H, A, B, C, D, m_RK[60-r]);
+      SHACAL2_Rev(F, G, H, A, B, C, D, E, m_RK[59-r]);
+      SHACAL2_Rev(G, H, A, B, C, D, E, F, m_RK[58-r]);
+      SHACAL2_Rev(H, A, B, C, D, E, F, G, m_RK[57-r]);
+      SHACAL2_Rev(A, B, C, D, E, F, G, H, m_RK[56-r]);
+      }
+
+   SIMD_8x32::transpose(A, B, C, D, E, F, G, H);
+
+   A.store_be(out);
+   B.store_be(out+32);
+   C.store_be(out+64);
+   D.store_be(out+96);
+
+   E.store_be(out+128);
+   F.store_be(out+160);
+   G.store_be(out+192);
+   H.store_be(out+224);
+
+   SIMD_8x32::zero_registers();
    }
 
 }
@@ -64830,122 +65504,6 @@ void SHACAL2::simd_decrypt_4(const uint8_t in[], uint8_t out[]) const
    G.store_be(out+80);
    D.store_be(out+96);
    H.store_be(out+112);
-   }
-
-}
-/*
-* SHACAL-2 using x86 SHA extensions
-* (C) 2017 Jack Lloyd
-*
-* Botan is released under the Simplified BSD License (see license.txt)
-*/
-
-
-namespace Botan {
-
-/*
-Only encryption is supported since the inverse round function would
-require a different instruction
-*/
-
-BOTAN_FUNC_ISA("sha,ssse3")
-void SHACAL2::x86_encrypt_blocks(const uint8_t in[], uint8_t out[], size_t blocks) const
-   {
-   const __m128i MASK1 = _mm_set_epi8(8,9,10,11,12,13,14,15,0,1,2,3,4,5,6,7);
-   const __m128i MASK2 = _mm_set_epi8(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15);
-
-   const __m128i* RK_mm = reinterpret_cast<const __m128i*>(m_RK.data());
-   const __m128i* in_mm = reinterpret_cast<const __m128i*>(in);
-   __m128i* out_mm = reinterpret_cast<__m128i*>(out);
-
-   while(blocks >= 2)
-      {
-      __m128i B0_0 = _mm_loadu_si128(in_mm);
-      __m128i B0_1 = _mm_loadu_si128(in_mm+1);
-      __m128i B1_0 = _mm_loadu_si128(in_mm+2);
-      __m128i B1_1 = _mm_loadu_si128(in_mm+3);
-
-      __m128i TMP = _mm_shuffle_epi8(_mm_unpacklo_epi64(B0_0, B0_1), MASK2);
-      B0_1 = _mm_shuffle_epi8(_mm_unpackhi_epi64(B0_0, B0_1), MASK2);
-      B0_0 = TMP;
-
-      TMP = _mm_shuffle_epi8(_mm_unpacklo_epi64(B1_0, B1_1), MASK2);
-      B1_1 = _mm_shuffle_epi8(_mm_unpackhi_epi64(B1_0, B1_1), MASK2);
-      B1_0 = TMP;
-
-      for(size_t i = 0; i != 8; ++i)
-         {
-         const __m128i RK0 = _mm_loadu_si128(RK_mm + 2*i);
-         const __m128i RK2 = _mm_loadu_si128(RK_mm + 2*i+1);
-         const __m128i RK1 = _mm_srli_si128(RK0, 8);
-         const __m128i RK3 = _mm_srli_si128(RK2, 8);
-
-         B0_1 = _mm_sha256rnds2_epu32(B0_1, B0_0, RK0);
-         B1_1 = _mm_sha256rnds2_epu32(B1_1, B1_0, RK0);
-
-         B0_0 = _mm_sha256rnds2_epu32(B0_0, B0_1, RK1);
-         B1_0 = _mm_sha256rnds2_epu32(B1_0, B1_1, RK1);
-
-         B0_1 = _mm_sha256rnds2_epu32(B0_1, B0_0, RK2);
-         B1_1 = _mm_sha256rnds2_epu32(B1_1, B1_0, RK2);
-
-         B0_0 = _mm_sha256rnds2_epu32(B0_0, B0_1, RK3);
-         B1_0 = _mm_sha256rnds2_epu32(B1_0, B1_1, RK3);
-         }
-
-      TMP = _mm_shuffle_epi8(_mm_unpackhi_epi64(B0_0, B0_1), MASK1);
-      B0_1 = _mm_shuffle_epi8(_mm_unpacklo_epi64(B0_0, B0_1), MASK1);
-      B0_0 = TMP;
-
-      TMP = _mm_shuffle_epi8(_mm_unpackhi_epi64(B1_0, B1_1), MASK1);
-      B1_1 = _mm_shuffle_epi8(_mm_unpacklo_epi64(B1_0, B1_1), MASK1);
-      B1_0 = TMP;
-
-      // Save state
-      _mm_storeu_si128(out_mm + 0, B0_0);
-      _mm_storeu_si128(out_mm + 1, B0_1);
-      _mm_storeu_si128(out_mm + 2, B1_0);
-      _mm_storeu_si128(out_mm + 3, B1_1);
-
-      blocks -= 2;
-      in_mm += 4;
-      out_mm += 4;
-      }
-
-   while(blocks)
-      {
-      __m128i B0 = _mm_loadu_si128(in_mm);
-      __m128i B1 = _mm_loadu_si128(in_mm+1);
-
-      __m128i TMP = _mm_shuffle_epi8(_mm_unpacklo_epi64(B0, B1), MASK2);
-      B1 = _mm_shuffle_epi8(_mm_unpackhi_epi64(B0, B1), MASK2);
-      B0 = TMP;
-
-      for(size_t i = 0; i != 8; ++i)
-         {
-         const __m128i RK0 = _mm_loadu_si128(RK_mm + 2*i);
-         const __m128i RK2 = _mm_loadu_si128(RK_mm + 2*i+1);
-         const __m128i RK1 = _mm_srli_si128(RK0, 8);
-         const __m128i RK3 = _mm_srli_si128(RK2, 8);
-
-         B1 = _mm_sha256rnds2_epu32(B1, B0, RK0);
-         B0 = _mm_sha256rnds2_epu32(B0, B1, RK1);
-         B1 = _mm_sha256rnds2_epu32(B1, B0, RK2);
-         B0 = _mm_sha256rnds2_epu32(B0, B1, RK3);
-         }
-
-      TMP = _mm_shuffle_epi8(_mm_unpackhi_epi64(B0, B1), MASK1);
-      B1 = _mm_shuffle_epi8(_mm_unpacklo_epi64(B0, B1), MASK1);
-      B0 = TMP;
-
-      // Save state
-      _mm_storeu_si128(out_mm, B0);
-      _mm_storeu_si128(out_mm + 1, B1);
-
-      blocks--;
-      in_mm += 2;
-      out_mm += 2;
-      }
    }
 
 }
@@ -66814,10 +67372,7 @@ std::string SM4::provider() const
   #include <string.h>
 
 #elif defined(BOTAN_TARGET_OS_HAS_WINSOCK2)
-  #define NOMINMAX 1
-  #include <winsock2.h>
   #include <ws2tcpip.h>
-  #include <windows.h>
 #endif
 
 namespace Botan {
@@ -66855,7 +67410,7 @@ class Asio_Socket final : public OS::Socket
 
          if(ec)
             throw boost::system::system_error(ec);
-         if(ec || m_tcp.is_open() == false)
+         if(m_tcp.is_open() == false)
             throw System_Error("Connection to host " + hostname + " failed");
          }
 
@@ -66865,8 +67420,8 @@ class Asio_Socket final : public OS::Socket
 
          boost::system::error_code ec = boost::asio::error::would_block;
 
-         boost::asio::async_write(m_tcp, boost::asio::buffer(buf, len),
-                                  [&ec](boost::system::error_code e, size_t) { ec = e; });
+         m_tcp.async_send(boost::asio::buffer(buf, len),
+                           [&ec](boost::system::error_code e, size_t) { ec = e; });
 
          while(ec == boost::asio::error::would_block) { m_io.run_one(); }
 
@@ -66883,11 +67438,8 @@ class Asio_Socket final : public OS::Socket
          boost::system::error_code ec = boost::asio::error::would_block;
          size_t got = 0;
 
-         auto read_cb = [&](const boost::system::error_code cb_ec, size_t cb_got) {
-            ec = cb_ec; got = cb_got;
-         };
-
-         m_tcp.async_read_some(boost::asio::buffer(buf, len), read_cb);
+         m_tcp.async_read_some(boost::asio::buffer(buf, len),
+                               [&](boost::system::error_code cb_ec, size_t cb_got) { ec = cb_ec; got = cb_got; });
 
          while(ec == boost::asio::error::would_block) { m_io.run_one(); }
 
@@ -66928,6 +67480,7 @@ class BSD_Socket final : public OS::Socket
       typedef SOCKET socket_type;
       typedef int socket_op_ret_type;
       typedef int socklen_type;
+      typedef int sendrecv_len_type;
       static socket_type invalid_socket() { return INVALID_SOCKET; }
       static void close_socket(socket_type s) { ::closesocket(s); }
       static std::string get_last_socket_error() { return std::to_string(::WSAGetLastError()); }
@@ -66968,6 +67521,7 @@ class BSD_Socket final : public OS::Socket
       typedef int socket_type;
       typedef ssize_t socket_op_ret_type;
       typedef socklen_t socklen_type;
+      typedef size_t sendrecv_len_type;
       static socket_type invalid_socket() { return -1; }
       static void close_socket(socket_type s) { ::close(s); }
       static std::string get_last_socket_error() { return ::strerror(errno); }
@@ -67032,7 +67586,7 @@ class BSD_Socket final : public OS::Socket
                   // Weirdly, Winsock uses a SOCKET type but wants FD_SET to get an int instead
                   FD_SET(static_cast<int>(m_socket), &write_set);
 
-                  active = ::select(m_socket + 1, nullptr, &write_set, nullptr, &timeout_tv);
+                  active = ::select(static_cast<int>(m_socket + 1), nullptr, &write_set, nullptr, &timeout_tv);
 
                   if(active)
                      {
@@ -67084,13 +67638,13 @@ class BSD_Socket final : public OS::Socket
          while(sent_so_far != len)
             {
             struct timeval timeout = make_timeout_tv();
-            int active = ::select(m_socket + 1, nullptr, &write_set, nullptr, &timeout);
+            int active = ::select(static_cast<int>(m_socket + 1), nullptr, &write_set, nullptr, &timeout);
 
             if(active == 0)
                throw System_Error("Timeout during socket write");
 
             const size_t left = len - sent_so_far;
-            socket_op_ret_type sent = ::send(m_socket, cast_uint8_ptr_to_char(&buf[sent_so_far]), left, 0);
+            socket_op_ret_type sent = ::send(m_socket, cast_uint8_ptr_to_char(&buf[sent_so_far]), static_cast<sendrecv_len_type>(left), 0);
             if(sent < 0)
                throw System_Error("Socket write failed", errno);
             else
@@ -67105,12 +67659,12 @@ class BSD_Socket final : public OS::Socket
          FD_SET(m_socket, &read_set);
 
          struct timeval timeout = make_timeout_tv();
-         int active = ::select(m_socket + 1, &read_set, nullptr, nullptr, &timeout);
+         int active = ::select(static_cast<int>(m_socket + 1), &read_set, nullptr, nullptr, &timeout);
 
          if(active == 0)
             throw System_Error("Timeout during socket read");
 
-         socket_op_ret_type got = ::recv(m_socket, cast_uint8_ptr_to_char(buf), len, 0);
+         socket_op_ret_type got = ::recv(m_socket, cast_uint8_ptr_to_char(buf), static_cast<sendrecv_len_type>(len), 0);
 
          if(got < 0)
             throw System_Error("Socket read failed", errno);
@@ -67122,8 +67676,8 @@ class BSD_Socket final : public OS::Socket
       struct timeval make_timeout_tv() const
          {
          struct timeval tv;
-         tv.tv_sec = static_cast<time_t>(m_timeout.count() / 1000000);
-         tv.tv_usec = static_cast<long>(m_timeout.count() % 1000000);;
+         tv.tv_sec = static_cast<decltype(timeval::tv_sec)>(m_timeout.count() / 1000000);
+         tv.tv_usec = static_cast<decltype(timeval::tv_usec)>(m_timeout.count() % 1000000);;
          return tv;
          }
 
@@ -67147,12 +67701,535 @@ OS::open_socket(const std::string& hostname,
    return std::unique_ptr<OS::Socket>(new BSD_Socket(hostname, service, timeout));
 
 #else
+   BOTAN_UNUSED(hostname);
+   BOTAN_UNUSED(service);
+   BOTAN_UNUSED(timeout);
    // No sockets for you
    return std::unique_ptr<Socket>();
 #endif
    }
 
 }
+/*
+* (C) 2015,2016,2017 Jack Lloyd
+* (C) 2016 Daniel Neus
+* (C) 2019 Nuno Goncalves <nunojpg@gmail.com>
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+#if defined(BOTAN_HAS_BOOST_ASIO)
+   /*
+   * We don't need serial port support anyway, and asking for it
+   * causes macro conflicts with Darwin's termios.h when this
+   * file is included in the amalgamation. GH #350
+   */
+   #define BOOST_ASIO_DISABLE_SERIAL_PORT
+   #include <boost/asio.hpp>
+   #include <boost/asio/system_timer.hpp>
+#elif defined(BOTAN_TARGET_OS_HAS_SOCKETS)
+   #include <sys/socket.h>
+   #include <sys/time.h>
+   #include <netinet/in.h>
+   #include <netdb.h>
+   #include <string.h>
+
+#elif defined(BOTAN_TARGET_OS_HAS_WINSOCK2)
+   #include <ws2tcpip.h>
+#endif
+
+namespace Botan {
+
+namespace {
+
+#if defined(BOTAN_HAS_BOOST_ASIO)
+class Asio_SocketUDP final : public OS::SocketUDP
+   {
+   public:
+      Asio_SocketUDP(const std::string& hostname,
+                     const std::string& service,
+                     std::chrono::microseconds timeout) :
+         m_timeout(timeout), m_timer(m_io), m_udp(m_io)
+         {
+         m_timer.expires_from_now(m_timeout);
+         check_timeout();
+
+         boost::asio::ip::udp::resolver resolver(m_io);
+         boost::asio::ip::udp::resolver::query query(hostname, service);
+         boost::asio::ip::udp::resolver::iterator dns_iter = resolver.resolve(query);
+
+         boost::system::error_code ec = boost::asio::error::would_block;
+
+         auto connect_cb = [&ec](const boost::system::error_code& e,
+         boost::asio::ip::udp::resolver::iterator) { ec = e; };
+
+         boost::asio::async_connect(m_udp, dns_iter, connect_cb);
+
+         while(ec == boost::asio::error::would_block)
+            {
+            m_io.run_one();
+            }
+
+         if(ec)
+            { throw boost::system::system_error(ec); }
+         if(m_udp.is_open() == false)
+            { throw System_Error("Connection to host " + hostname + " failed"); }
+         }
+
+      void write(const uint8_t buf[], size_t len) override
+         {
+         m_timer.expires_from_now(m_timeout);
+
+         boost::system::error_code ec = boost::asio::error::would_block;
+
+         m_udp.async_send(boost::asio::buffer(buf, len),
+         [&ec](boost::system::error_code e, size_t) { ec = e; });
+
+         while(ec == boost::asio::error::would_block)
+            {
+            m_io.run_one();
+            }
+
+         if(ec)
+            {
+            throw boost::system::system_error(ec);
+            }
+         }
+
+      size_t read(uint8_t buf[], size_t len) override
+         {
+         m_timer.expires_from_now(m_timeout);
+
+         boost::system::error_code ec = boost::asio::error::would_block;
+         size_t got = 0;
+
+         m_udp.async_receive(boost::asio::buffer(buf, len),
+         [&](boost::system::error_code cb_ec, size_t cb_got) { ec = cb_ec; got = cb_got; });
+
+         while(ec == boost::asio::error::would_block)
+            {
+            m_io.run_one();
+            }
+
+         if(ec)
+            {
+            if(ec == boost::asio::error::eof)
+               { return 0; }
+            throw boost::system::system_error(ec); // Some other error.
+            }
+
+         return got;
+         }
+
+   private:
+      void check_timeout()
+         {
+         if(m_udp.is_open() && m_timer.expires_at() < std::chrono::system_clock::now())
+            {
+            boost::system::error_code err;
+            m_udp.close(err);
+            }
+
+         m_timer.async_wait(std::bind(&Asio_SocketUDP::check_timeout, this));
+         }
+
+      const std::chrono::microseconds m_timeout;
+      boost::asio::io_service m_io;
+      boost::asio::system_timer m_timer;
+      boost::asio::ip::udp::socket m_udp;
+   };
+#elif defined(BOTAN_TARGET_OS_HAS_SOCKETS) || defined(BOTAN_TARGET_OS_HAS_WINSOCK2)
+class BSD_SocketUDP final : public OS::SocketUDP
+   {
+   public:
+      BSD_SocketUDP(const std::string& hostname,
+                    const std::string& service,
+                    std::chrono::microseconds timeout) : m_timeout(timeout)
+         {
+         socket_init();
+
+         m_socket = invalid_socket();
+
+         addrinfo* res;
+         addrinfo hints;
+         clear_mem(&hints, 1);
+         hints.ai_family = AF_UNSPEC;
+         hints.ai_socktype = SOCK_DGRAM;
+
+         int rc = ::getaddrinfo(hostname.c_str(), service.c_str(), &hints, &res);
+
+         if(rc != 0)
+            {
+            throw System_Error("Name resolution failed for " + hostname, rc);
+            }
+
+         for(addrinfo* rp = res; (m_socket == invalid_socket()) && (rp != nullptr); rp = rp->ai_next)
+            {
+            if(rp->ai_family != AF_INET && rp->ai_family != AF_INET6)
+               { continue; }
+
+            m_socket = ::socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+
+            if(m_socket == invalid_socket())
+               {
+               // unsupported socket type?
+               continue;
+               }
+
+            set_nonblocking(m_socket);
+            memcpy(&sa, res->ai_addr, res->ai_addrlen);
+            salen = static_cast<socklen_t>(res->ai_addrlen);
+            }
+
+         ::freeaddrinfo(res);
+
+         if(m_socket == invalid_socket())
+            {
+            throw System_Error("Connecting to " + hostname +
+                               " for service " + service + " failed", errno);
+            }
+         }
+
+      ~BSD_SocketUDP()
+         {
+         close_socket(m_socket);
+         m_socket = invalid_socket();
+         socket_fini();
+         }
+
+      void write(const uint8_t buf[], size_t len) override
+         {
+         fd_set write_set;
+         FD_ZERO(&write_set);
+         FD_SET(m_socket, &write_set);
+
+         size_t sent_so_far = 0;
+         while(sent_so_far != len)
+            {
+            struct timeval timeout = make_timeout_tv();
+            int active = ::select(static_cast<int>(m_socket + 1), nullptr, &write_set, nullptr, &timeout);
+
+            if(active == 0)
+               { throw System_Error("Timeout during socket write"); }
+
+            const size_t left = len - sent_so_far;
+            socket_op_ret_type sent = ::sendto(m_socket, cast_uint8_ptr_to_char(buf + sent_so_far), static_cast<sendrecv_len_type>(left), 0, (sockaddr*)&sa, salen);
+            if(sent < 0)
+               { throw System_Error("Socket write failed", errno); }
+            else
+               { sent_so_far += static_cast<size_t>(sent); }
+            }
+         }
+
+      size_t read(uint8_t buf[], size_t len) override
+         {
+         fd_set read_set;
+         FD_ZERO(&read_set);
+         FD_SET(m_socket, &read_set);
+
+         struct timeval timeout = make_timeout_tv();
+         int active = ::select(static_cast<int>(m_socket + 1), &read_set, nullptr, nullptr, &timeout);
+
+         if(active == 0)
+            { throw System_Error("Timeout during socket read"); }
+
+         socket_op_ret_type got = ::recvfrom(m_socket, cast_uint8_ptr_to_char(buf), static_cast<sendrecv_len_type>(len), 0, nullptr, nullptr);
+
+         if(got < 0)
+            { throw System_Error("Socket read failed", errno); }
+
+         return static_cast<size_t>(got);
+         }
+
+   private:
+#if defined(BOTAN_TARGET_OS_HAS_WINSOCK2)
+      typedef SOCKET socket_type;
+      typedef int socket_op_ret_type;
+      typedef int sendrecv_len_type;
+      static socket_type invalid_socket() { return INVALID_SOCKET; }
+      static void close_socket(socket_type s) { ::closesocket(s); }
+      static std::string get_last_socket_error() { return std::to_string(::WSAGetLastError()); }
+
+      static bool nonblocking_connect_in_progress()
+         {
+         return (::WSAGetLastError() == WSAEWOULDBLOCK);
+         }
+
+      static void set_nonblocking(socket_type s)
+         {
+         u_long nonblocking = 1;
+         ::ioctlsocket(s, FIONBIO, &nonblocking);
+         }
+
+      static void socket_init()
+         {
+         WSAData wsa_data;
+         WORD wsa_version = MAKEWORD(2, 2);
+
+         if(::WSAStartup(wsa_version, &wsa_data) != 0)
+            {
+            throw System_Error("WSAStartup() failed", WSAGetLastError());
+            }
+
+         if(LOBYTE(wsa_data.wVersion) != 2 || HIBYTE(wsa_data.wVersion) != 2)
+            {
+            ::WSACleanup();
+            throw System_Error("Could not find a usable version of Winsock.dll");
+            }
+         }
+
+      static void socket_fini()
+         {
+         ::WSACleanup();
+         }
+#else
+      typedef int socket_type;
+      typedef ssize_t socket_op_ret_type;
+      typedef size_t sendrecv_len_type;
+      static socket_type invalid_socket() { return -1; }
+      static void close_socket(socket_type s) { ::close(s); }
+      static std::string get_last_socket_error() { return ::strerror(errno); }
+      static bool nonblocking_connect_in_progress() { return (errno == EINPROGRESS); }
+      static void set_nonblocking(socket_type s)
+         {
+         if(::fcntl(s, F_SETFL, O_NONBLOCK) < 0)
+            { throw System_Error("Setting socket to non-blocking state failed", errno); }
+         }
+
+      static void socket_init() {}
+      static void socket_fini() {}
+#endif
+      sockaddr_storage sa;
+      socklen_t salen;
+      struct timeval make_timeout_tv() const
+         {
+         struct timeval tv;
+         tv.tv_sec = static_cast<decltype(timeval::tv_sec)>(m_timeout.count() / 1000000);
+         tv.tv_usec = static_cast<decltype(timeval::tv_usec)>(m_timeout.count() % 1000000);;
+         return tv;
+         }
+
+      const std::chrono::microseconds m_timeout;
+      socket_type m_socket;
+   };
+#endif
+}
+
+std::unique_ptr<OS::SocketUDP>
+OS::open_socket_udp(const std::string& hostname,
+                    const std::string& service,
+                    std::chrono::microseconds timeout)
+   {
+#if defined(BOTAN_HAS_BOOST_ASIO)
+   return std::unique_ptr<OS::SocketUDP>(new Asio_SocketUDP(hostname, service, timeout));
+#elif defined(BOTAN_TARGET_OS_HAS_SOCKETS) || defined(BOTAN_TARGET_OS_HAS_WINSOCK2)
+   return std::unique_ptr<OS::SocketUDP>(new BSD_SocketUDP(hostname, service, timeout));
+#else
+   BOTAN_UNUSED(hostname);
+   BOTAN_UNUSED(service);
+   BOTAN_UNUSED(timeout);
+   return std::unique_ptr<OS::SocketUDP>();
+#endif
+   }
+
+std::unique_ptr<OS::SocketUDP>
+OS::open_socket_udp(const std::string& uri_string,
+                    std::chrono::microseconds timeout)
+   {
+   const auto uri = URI::fromAny(uri_string);
+   if(uri.port == 0)
+      { throw Invalid_Argument("UDP port not specified"); }
+   return open_socket_udp(uri.host, std::to_string(uri.port), timeout);
+   }
+
+}
+/*
+* (C) 2019 Nuno Goncalves <nunojpg@gmail.com>
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+#include <regex>
+
+#if defined(BOTAN_TARGET_OS_HAS_SOCKETS)
+   #include <arpa/inet.h>
+   #include <sys/socket.h>
+   #include <netinet/in.h>
+#elif defined(BOTAN_TARGET_OS_HAS_WINSOCK2)
+   #include <ws2tcpip.h>
+#endif
+
+#if defined(BOTAN_TARGET_OS_HAS_SOCKETS) || defined(BOTAN_TARGET_OS_HAS_WINSOCK2)
+
+namespace {
+
+constexpr bool isdigit(char ch)
+   {
+   return ch >= '0' && ch <= '9';
+   }
+
+bool isDomain(const std::string& domain)
+   {
+#if defined(__GLIBCXX__) && (__GLIBCXX__ < 20160726)
+   // GCC 4.8 does not support regex
+   BOTAN_UNUSED(domain);
+   return true;
+#else
+   std::regex re(
+      R"(^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$)");
+   std::cmatch m;
+   return std::regex_match(domain.c_str(), m, re);
+#endif
+   }
+
+bool isIPv4(const std::string& ip)
+   {
+   sockaddr_storage inaddr;
+   return !!inet_pton(AF_INET, ip.c_str(), &inaddr);
+   }
+
+bool isIPv6(const std::string& ip)
+   {
+   sockaddr_storage in6addr;
+   return !!inet_pton(AF_INET6, ip.c_str(), &in6addr);
+   }
+}
+
+namespace Botan {
+
+URI URI::fromDomain(const std::string& uri)
+   {
+   unsigned port = 0;
+   const auto port_pos = uri.find(':');
+   if(port_pos != std::string::npos)
+      {
+      for(char c : uri.substr(port_pos+1))
+         {
+         if(!isdigit(c))
+            { throw Invalid_Argument("invalid"); }
+         port = port*10 + c - '0';
+         if(port > 65535)
+            { throw Invalid_Argument("invalid"); }
+         }
+      }
+   const auto domain = uri.substr(0, port_pos);
+   if(isIPv4(domain))
+      { throw Invalid_Argument("invalid"); }
+   if(!isDomain(domain))
+      { throw Invalid_Argument("invalid"); }
+   return {Type::Domain, domain, uint16_t(port)};
+   }
+
+URI URI::fromIPv4(const std::string& uri)
+   {
+   unsigned port = 0;
+   const auto port_pos = uri.find(':');
+   if(port_pos != std::string::npos)
+      {
+      for(char c : uri.substr(port_pos+1))
+         {
+         if(!isdigit(c))
+            { throw Invalid_Argument("invalid"); }
+         port = port*10 + c - '0';
+         if(port > 65535)
+            { throw Invalid_Argument("invalid"); }
+         }
+      }
+   const auto ip = uri.substr(0, port_pos);
+   if(!isIPv4(ip))
+      { throw Invalid_Argument("invalid"); }
+   return { Type::IPv4, ip, uint16_t(port) };
+   }
+
+URI URI::fromIPv6(const std::string& uri)
+   {
+   unsigned port = 0;
+   const auto port_pos = uri.find(']');
+   const bool with_braces = (port_pos != std::string::npos);
+   if((uri[0]=='[') != with_braces)
+      { throw Invalid_Argument("invalid"); }
+
+   if(with_braces && (uri.size() > port_pos + 1))
+      {
+      if(uri[port_pos+1]!=':')
+         { throw Invalid_Argument("invalid"); }
+      for(char c : uri.substr(port_pos+2))
+         {
+         if(!isdigit(c))
+            { throw Invalid_Argument("invalid"); }
+         port = port*10 + c - '0';
+         if(port > 65535)
+            { throw Invalid_Argument("invalid"); }
+         }
+      }
+   const auto ip = uri.substr((with_braces ? 1 : 0), port_pos - with_braces);
+   if(!isIPv6(ip))
+      { throw Invalid_Argument("invalid"); }
+   return { Type::IPv6, ip, uint16_t(port) };
+   }
+
+URI URI::fromAny(const std::string& uri)
+   {
+
+   bool colon_seen=false;
+   bool non_number=false;
+   if(uri[0]=='[')
+      { return fromIPv6(uri); }
+   for(auto c : uri)
+      {
+      if(c == ':')
+         {
+         if(colon_seen) //seen two ':'
+            { return fromIPv6(uri); }
+         colon_seen = true;
+         }
+      else if(!isdigit(c) && c !=  '.')
+         {
+         non_number=true;
+         }
+      }
+   if(!non_number)
+      {
+      if(isIPv4(uri.substr(0, uri.find(':'))))
+         {
+         return fromIPv4(uri);
+         }
+      }
+   return fromDomain(uri);
+   }
+
+std::string URI::to_string() const
+   {
+   if(type == Type::NotSet)
+      {
+      throw Invalid_Argument("not set");
+      }
+
+   if(port != 0)
+      {
+      if(type == Type::IPv6)
+         { return "[" + host + "]:" + std::to_string(port); }
+      return host + ":" + std::to_string(port);
+      }
+   return host;
+   }
+
+}
+
+#else
+
+namespace Botan {
+
+URI URI::fromDomain(const std::string&) {throw Not_Implemented("No socket support enabled in build");}
+URI URI::fromIPv4(const std::string&) {throw Not_Implemented("No socket support enabled in build");}
+URI URI::fromIPv6(const std::string&) {throw Not_Implemented("No socket support enabled in build");}
+URI URI::fromAny(const std::string&) {throw Not_Implemented("No socket support enabled in build");}
+
+}
+
+#endif
 /*
 * (C) 2019 Jack Lloyd
 *
@@ -67186,7 +68263,7 @@ int Sodium::crypto_sign_ed25519_detached(uint8_t sig[],
    return 0;
    }
 
-int Sodium::crypto_sign_ed25519_verify_detached(const uint8_t sig[64],
+int Sodium::crypto_sign_ed25519_verify_detached(const uint8_t sig[],
                                                 const uint8_t msg[],
                                                 size_t msg_len,
                                                 const uint8_t pk[32])
@@ -67202,8 +68279,8 @@ int Sodium::crypto_sign_ed25519_keypair(uint8_t pk[32], uint8_t sk[64])
    return crypto_sign_ed25519_seed_keypair(pk, sk, seed.data());
    }
 
-int Sodium::crypto_sign_ed25519_seed_keypair(uint8_t pk[32], uint8_t sk[64],
-                                             const uint8_t seed[32])
+int Sodium::crypto_sign_ed25519_seed_keypair(uint8_t pk[], uint8_t sk[],
+                                             const uint8_t seed[])
    {
    ed25519_gen_keypair(pk, sk, seed);
    return 0;
@@ -67361,7 +68438,7 @@ int Sodium::crypto_aead_chacha20poly1305_ietf_encrypt(uint8_t ctext[],
                                                       size_t ptext_len,
                                                       const uint8_t ad[],
                                                       size_t ad_len,
-                                                      const uint8_t* unused_secret_nonce,
+                                                      const uint8_t unused_secret_nonce[],
                                                       const uint8_t nonce[],
                                                       const uint8_t key[])
    {
@@ -67374,7 +68451,7 @@ int Sodium::crypto_aead_chacha20poly1305_ietf_encrypt(uint8_t ctext[],
 
 int Sodium::crypto_aead_chacha20poly1305_ietf_decrypt(uint8_t ptext[],
                                                       unsigned long long* ptext_len,
-                                                      uint8_t* unused_secret_nonce,
+                                                      uint8_t unused_secret_nonce[],
                                                       const uint8_t ctext[],
                                                       size_t ctext_len,
                                                       const uint8_t ad[],
@@ -68177,17 +69254,17 @@ void Sodium::randombytes_buf_deterministic(void* buf, size_t size, const uint8_t
    chacha.write_keystream(static_cast<uint8_t*>(buf), size);
    }
 
-int Sodium::crypto_verify_16(const uint8_t* x, const uint8_t* y)
+int Sodium::crypto_verify_16(const uint8_t x[16], const uint8_t y[16])
    {
    return same_mem(x, y, 16);
    }
 
-int Sodium::crypto_verify_32(const uint8_t* x, const uint8_t* y)
+int Sodium::crypto_verify_32(const uint8_t x[32], const uint8_t y[32])
    {
    return same_mem(x, y, 32);
    }
 
-int Sodium::crypto_verify_64(const uint8_t* x, const uint8_t* y)
+int Sodium::crypto_verify_64(const uint8_t x[64], const uint8_t y[64])
    {
    return same_mem(x, y, 64);
    }
@@ -68801,17 +69878,18 @@ void Stateful_RNG::randomize_with_ts_input(uint8_t output[], size_t output_len)
    {
    uint8_t additional_input[24] = { 0 };
 
+   store_le(OS::get_high_resolution_clock(), additional_input);
+
 #if defined(BOTAN_HAS_RDRAND_RNG)
    if(RDRAND_RNG::available())
       {
       RDRAND_RNG rdrand;
-      rdrand.randomize(additional_input, sizeof(additional_input));
+      rdrand.randomize(additional_input + 8, sizeof(additional_input) - 8);
       }
    else
 #endif
       {
-      store_le(OS::get_system_timestamp_ns(), additional_input);
-      store_le(OS::get_high_resolution_clock(), additional_input + 8);
+      store_le(OS::get_system_timestamp_ns(), additional_input + 8);
       store_le(m_last_pid, additional_input + 16);
       store_le(static_cast<uint32_t>(m_reseed_counter), additional_input + 20);
       }
@@ -69215,10 +70293,11 @@ void Streebog::compress_64(const uint64_t M[], bool last_block)
          {
          const uint64_t m = force_le(M[i]);
          const uint64_t hi = force_le(m_S[i]);
-         const uint64_t t = hi + m;
+         const uint64_t t = hi + m + carry;
 
-         m_S[i] = force_le(t + carry);
-         carry = (t < hi ? 1 : 0) | (t < m ? 1 : 0);
+         m_S[i] = force_le(t);
+         if(t != m)
+            carry = (t < m);
          }
       }
    }
@@ -70098,18 +71177,18 @@ extern const uint64_t STREEBOG_C[12][8] =
 
 
 #if defined(BOTAN_TARGET_OS_HAS_RTLGENRANDOM)
-#define NOMINMAX 1
-#define _WINSOCKAPI_ // stop windows.h including winsock.h
-#include <windows.h>
+  #define NOMINMAX 1
+  #define _WINSOCKAPI_ // stop windows.h including winsock.h
+  #include <windows.h>
 
 #elif defined(BOTAN_TARGET_OS_HAS_CRYPTO_NG)
-#include <bcrypt.h>
+  #include <bcrypt.h>
 
 #elif defined(BOTAN_TARGET_OS_HAS_ARC4RANDOM)
-#include <stdlib.h>
+  #include <stdlib.h>
 
 #elif defined(BOTAN_TARGET_OS_HAS_GETRANDOM)
-#include <sys/random.h>
+  #include <sys/random.h>
 
 #elif defined(BOTAN_TARGET_OS_HAS_DEV_RANDOM)
 #endif
@@ -70399,6 +71478,63 @@ void Barrier::sync()
         m_cond.notify_all();
         }
     }
+
+}
+/*
+* (C) 2019 Jack Lloyd
+*
+* Botan is released under the Simplified BSD License (see license.txt)
+*/
+
+
+namespace Botan {
+
+RWLock::RWLock() : m_state(0) {}
+
+void RWLock::lock()
+   {
+   std::unique_lock<std::mutex> lock(m_mutex);
+   while(m_state & is_writing)
+      m_gate1.wait(lock);
+   m_state |= is_writing;
+   while(m_state & readers_mask)
+      m_gate2.wait(lock);
+   }
+
+void RWLock::unlock()
+   {
+   std::unique_lock<std::mutex> lock(m_mutex);
+   m_state = 0;
+   m_gate1.notify_all();
+   }
+
+void RWLock::lock_shared()
+   {
+   std::unique_lock<std::mutex> lock(m_mutex);
+   while((m_state & is_writing) || (m_state & readers_mask) == readers_mask)
+      m_gate1.wait(lock);
+   const uint32_t num_readers = (m_state & readers_mask) + 1;
+   m_state &= ~readers_mask;
+   m_state |= num_readers;
+   }
+
+void RWLock::unlock_shared()
+   {
+   std::unique_lock<std::mutex> lock(m_mutex);
+   const uint32_t num_readers = (m_state & readers_mask) - 1;
+   m_state &= ~readers_mask;
+   m_state |= num_readers;
+   if(m_state & is_writing)
+      {
+      if(num_readers == 0)
+         m_gate2.notify_one();
+      }
+   else
+      {
+      if(num_readers == readers_mask - 1)
+         m_gate1.notify_one();
+      }
+   }
 
 }
 /*
@@ -72209,6 +73345,7 @@ bool Certificate_Verify::verify(const X509_Certificate& cert,
                                            state.hash().get_contents(), m_signature);
 
 #if defined(BOTAN_UNSAFE_FUZZER_MODE)
+   BOTAN_UNUSED(signature_valid);
    return true;
 #else
    return signature_valid;
@@ -72960,7 +74097,7 @@ Client_Key_Exchange::Client_Key_Exchange(Handshake_IO& io,
          {
          const Protocol_Version offered_version = state.client_hello()->version();
 
-         m_pre_master = rng.random_vec(48);
+         rng.random_vec(m_pre_master, 48);
          m_pre_master[0] = offered_version.major_version();
          m_pre_master[1] = offered_version.minor_version();
 
@@ -73129,15 +74266,15 @@ Client_Key_Exchange::Client_Key_Exchange(const std::vector<uint8_t>& contents,
             {
             throw TLS_Exception(Alert::ILLEGAL_PARAMETER, e.what());
             }
-         catch(std::exception &)
+         catch(std::exception&)
             {
             /*
-            * Something failed in the DH computation. To avoid possible
-            * timing attacks, randomize the pre-master output and carry
-            * on, allowing the protocol to fail later in the finished
-            * checks.
+            * Something failed in the DH/ECDH computation. To avoid possible
+            * attacks which are based on triggering and detecting some edge
+            * failure condition, randomize the pre-master output and carry on,
+            * allowing the protocol to fail later in the finished checks.
             */
-            m_pre_master = rng.random_vec(ka_key->public_value().size());
+            rng.random_vec(m_pre_master, ka_key->public_value().size());
             }
 
          reader.assert_done();
@@ -73306,7 +74443,7 @@ std::vector<uint8_t> Hello_Verify_Request::serialize() const
 }
 /*
 * TLS Server Hello and Server Hello Done
-* (C) 2004-2011,2015,2016 Jack Lloyd
+* (C) 2004-2011,2015,2016,2019 Jack Lloyd
 *     2016 Matthias Gierlings
 *     2017 Harry Reimann, Rohde & Schwarz Cybersecurity
 *
@@ -73317,6 +74454,35 @@ std::vector<uint8_t> Hello_Verify_Request::serialize() const
 namespace Botan {
 
 namespace TLS {
+
+namespace {
+
+const uint64_t DOWNGRADE_TLS11 = 0x444F574E47524400;
+//const uint64_t DOWNGRADE_TLS12 = 0x444F574E47524401;
+
+std::vector<uint8_t>
+make_server_hello_random(RandomNumberGenerator& rng,
+                         Protocol_Version offered_version,
+                         const Policy& policy)
+   {
+   auto random = make_hello_random(rng, policy);
+
+   if((offered_version == Protocol_Version::TLS_V10 ||
+       offered_version == Protocol_Version::TLS_V11) &&
+      policy.allow_tls12())
+      {
+      store_be(DOWNGRADE_TLS11, &random[24]);
+      }
+
+   if(offered_version == Protocol_Version::DTLS_V10 && policy.allow_dtls12())
+      {
+      store_be(DOWNGRADE_TLS11, &random[24]);
+      }
+
+   return random;
+   }
+
+}
 
 // New session case
 Server_Hello::Server_Hello(Handshake_IO& io,
@@ -73330,7 +74496,7 @@ Server_Hello::Server_Hello(Handshake_IO& io,
                            const std::string next_protocol) :
    m_version(server_settings.protocol_version()),
    m_session_id(server_settings.session_id()),
-   m_random(make_hello_random(rng, policy)),
+   m_random(make_server_hello_random(rng, m_version, policy)),
    m_ciphersuite(server_settings.ciphersuite()),
    m_comp_method(0)
    {
@@ -73481,6 +74647,12 @@ std::vector<uint8_t> Server_Hello::serialize() const
    buf += m_extensions.serialize(Connection_Side::SERVER);
 
    return buf;
+   }
+
+bool Server_Hello::random_signals_downgrade() const
+   {
+   const uint64_t last8 = load_be<uint64_t>(m_random.data(), 3);
+   return (last8 == DOWNGRADE_TLS11);
    }
 
 /*
@@ -73817,6 +74989,7 @@ bool Server_Key_Exchange::verify(const Public_Key& server_key,
                                            buf, m_signature);
 
 #if defined(BOTAN_UNSAFE_FUZZER_MODE)
+   BOTAN_UNUSED(signature_valid);
    return true;
 #else
    return signature_valid;
@@ -74697,7 +75870,7 @@ std::pair<secure_vector<uint8_t>, std::vector<uint8_t>> TLS::Callbacks::tls_ecdh
       }
    else
       {
-      EC_Group group(OIDS::lookup(curve_name));
+      EC_Group group(OID::from_string(curve_name));
       ECDH_PublicKey peer_key(group, group.OS2ECP(peer_public_value));
       policy.check_peer_key_acceptable(peer_key);
       ECDH_PrivateKey priv_key(rng, group);
@@ -74729,13 +75902,16 @@ Channel::Channel(Callbacks& callbacks,
                  Session_Manager& session_manager,
                  RandomNumberGenerator& rng,
                  const Policy& policy,
+                 bool is_server,
                  bool is_datagram,
                  size_t reserved_io_buffer_size) :
+   m_is_server(is_server),
    m_is_datagram(is_datagram),
    m_callbacks(callbacks),
    m_session_manager(session_manager),
    m_policy(policy),
-   m_rng(rng)
+   m_rng(rng),
+   m_has_been_closed(false)
    {
    init(reserved_io_buffer_size);
    }
@@ -74748,8 +75924,10 @@ Channel::Channel(output_fn out,
                  Session_Manager& session_manager,
                  RandomNumberGenerator& rng,
                  const Policy& policy,
+                 bool is_server,
                  bool is_datagram,
                  size_t io_buf_sz) :
+    m_is_server(is_server),
     m_is_datagram(is_datagram),
     m_compat_callbacks(new Compat_Callbacks(
                           /*
@@ -74761,7 +75939,8 @@ Channel::Channel(output_fn out,
     m_callbacks(*m_compat_callbacks.get()),
     m_session_manager(session_manager),
     m_policy(policy),
-    m_rng(rng)
+    m_rng(rng),
+    m_has_been_closed(false)
     {
     init(io_buf_sz);
     }
@@ -74783,6 +75962,21 @@ void Channel::reset_state()
    m_readbuf.clear();
    m_write_cipher_states.clear();
    m_read_cipher_states.clear();
+   }
+
+void Channel::reset_active_association_state()
+   {
+   // This operation only makes sense for DTLS
+   BOTAN_ASSERT_NOMSG(m_is_datagram);
+   m_active_state.reset();
+   m_read_cipher_states.clear();
+   m_write_cipher_states.clear();
+
+   m_write_cipher_states[0] = nullptr;
+   m_read_cipher_states[0] = nullptr;
+
+   if(m_sequence_numbers)
+      m_sequence_numbers->reset();
    }
 
 Channel::~Channel()
@@ -74959,21 +76153,14 @@ void Channel::change_cipher_spec_writer(Connection_Side side)
 
 bool Channel::is_active() const
    {
+   if(is_closed())
+      return false;
    return (active_state() != nullptr);
    }
 
 bool Channel::is_closed() const
    {
-   if(active_state() || pending_state())
-      return false;
-
-   /*
-   * If no active or pending state, then either we had a connection
-   * and it has been closed, or we are a server which has never
-   * received a connection. This case is detectable by also lacking
-   * m_sequence_numbers
-   */
-   return (m_sequence_numbers != nullptr);
+   return m_has_been_closed;
    }
 
 void Channel::activate_session()
@@ -75003,25 +76190,28 @@ size_t Channel::received_data(const std::vector<uint8_t>& buf)
 
 size_t Channel::received_data(const uint8_t input[], size_t input_size)
    {
+   const bool allow_epoch0_restart = m_is_datagram && m_is_server && policy().allow_dtls_epoch0_restart();
+
    try
       {
-      while(!is_closed() && input_size)
+      while(input_size)
          {
-         secure_vector<uint8_t> record_data;
-         uint64_t record_sequence = 0;
-         Record_Type record_type = NO_RECORD;
-         Protocol_Version record_version;
-
          size_t consumed = 0;
 
-         Record_Raw_Input raw_input(input, input_size, consumed, m_is_datagram);
-         Record record(record_data, &record_sequence, &record_version, &record_type);
-         const size_t needed =
-            read_record(m_readbuf,
-                        raw_input,
-                        record,
+         auto get_epoch = [this](uint16_t epoch) { return read_cipher_state_epoch(epoch); };
+
+         const Record_Header record =
+            read_record(m_is_datagram,
+                        m_readbuf,
+                        input,
+                        input_size,
+                        consumed,
+                        m_record_buf,
                         m_sequence_numbers.get(),
-                        [this](uint16_t epoch) { return read_cipher_state_epoch(epoch); });
+                        get_epoch,
+                        allow_epoch0_restart);
+
+         const size_t needed = record.needed();
 
          BOTAN_ASSERT(consumed > 0, "Got to eat something");
 
@@ -75034,61 +76224,79 @@ size_t Channel::received_data(const uint8_t input[], size_t input_size)
          BOTAN_ASSERT(input_size == 0 || needed == 0,
                       "Got a full record or consumed all input");
 
-         // Ignore invalid records in DTLS
-         if(m_is_datagram && *record.get_type() == NO_RECORD)
-            return 0;
-
          if(input_size == 0 && needed != 0)
             return needed; // need more data to complete record
 
-         if(record_data.size() > MAX_PLAINTEXT_SIZE)
+         // Ignore invalid records in DTLS
+         if(m_is_datagram && record.type() == NO_RECORD)
+            {
+            return 0;
+            }
+
+         if(m_record_buf.size() > MAX_PLAINTEXT_SIZE)
             throw TLS_Exception(Alert::RECORD_OVERFLOW,
                                 "TLS plaintext record is larger than allowed maximum");
 
-         if(auto pending = pending_state())
+
+         const bool epoch0_restart = m_is_datagram && record.epoch() == 0 && active_state();
+         BOTAN_ASSERT_IMPLICATION(epoch0_restart, allow_epoch0_restart, "Allowed state");
+
+         const bool initial_record = epoch0_restart || (!pending_state() && !active_state());
+
+         if(record.type() != ALERT)
             {
-            if(pending->server_hello() != nullptr && record_version != pending->version())
+            if(initial_record)
                {
-               throw TLS_Exception(Alert::PROTOCOL_VERSION,
-                                   "Received unexpected record version");
+               // For initial records just check for basic sanity
+               if(record.version().major_version() != 3 &&
+                  record.version().major_version() != 0xFE)
+                  {
+                  throw TLS_Exception(Alert::PROTOCOL_VERSION,
+                                      "Received unexpected record version in initial record");
+                  }
                }
-            }
-         else if(auto active = active_state())
-            {
-            if(record_version != active->version())
+            else if(auto pending = pending_state())
                {
-               throw TLS_Exception(Alert::PROTOCOL_VERSION,
-                                   "Received unexpected record version");
+               if(pending->server_hello() != nullptr && record.version() != pending->version())
+                  {
+                  if(record.version() != pending->version())
+                     {
+                     throw TLS_Exception(Alert::PROTOCOL_VERSION,
+                                         "Received unexpected record version");
+                     }
+                  }
                }
-            }
-         else
-            {
-            // For initial records just check for basic sanity
-            if(record_version.major_version() != 3 &&
-               record_version.major_version() != 0xFE)
+            else if(auto active = active_state())
                {
-               throw TLS_Exception(Alert::PROTOCOL_VERSION,
-                                   "Received unexpected record version in initial record");
+               if(record.version() != active->version())
+                  {
+                  throw TLS_Exception(Alert::PROTOCOL_VERSION,
+                                      "Received unexpected record version");
+                  }
                }
             }
 
-         if(record_type == HANDSHAKE || record_type == CHANGE_CIPHER_SPEC)
+         if(record.type() == HANDSHAKE || record.type() == CHANGE_CIPHER_SPEC)
             {
-            process_handshake_ccs(record_data, record_sequence, record_type, record_version);
+            if(m_has_been_closed)
+               throw TLS_Exception(Alert::UNEXPECTED_MESSAGE, "Received handshake data after connection closure");
+            process_handshake_ccs(m_record_buf, record.sequence(), record.type(), record.version(), epoch0_restart);
             }
-         else if(record_type == APPLICATION_DATA)
+         else if(record.type() == APPLICATION_DATA)
             {
+            if(m_has_been_closed)
+               throw TLS_Exception(Alert::UNEXPECTED_MESSAGE, "Received application data after connection closure");
             if(pending_state() != nullptr)
                throw TLS_Exception(Alert::UNEXPECTED_MESSAGE, "Can't interleave application and handshake data");
-            process_application_data(record_sequence, record_data);
+            process_application_data(record.sequence(), m_record_buf);
             }
-         else if(record_type == ALERT)
+         else if(record.type() == ALERT)
             {
-            process_alert(record_data);
+            process_alert(m_record_buf);
             }
-         else if(record_type != NO_RECORD)
+         else if(record.type() != NO_RECORD)
             throw Unexpected_Message("Unexpected record type " +
-                                     std::to_string(record_type) +
+                                     std::to_string(record.type()) +
                                      " from counterparty");
          }
 
@@ -75119,12 +76327,13 @@ size_t Channel::received_data(const uint8_t input[], size_t input_size)
 void Channel::process_handshake_ccs(const secure_vector<uint8_t>& record,
                                     uint64_t record_sequence,
                                     Record_Type record_type,
-                                    Protocol_Version record_version)
+                                    Protocol_Version record_version,
+                                    bool epoch0_restart)
    {
    if(!m_pending_state)
       {
       // No pending handshake, possibly new:
-      if(record_version.is_datagram_protocol())
+      if(record_version.is_datagram_protocol() && !epoch0_restart)
          {
          if(m_sequence_numbers)
             {
@@ -75176,7 +76385,10 @@ void Channel::process_handshake_ccs(const secure_vector<uint8_t>& record,
             break;
 
          process_handshake_msg(active_state(), *pending,
-                               msg.first, msg.second);
+                               msg.first, msg.second, epoch0_restart);
+
+         if(!m_pending_state)
+            break;
          }
       }
    }
@@ -75209,10 +76421,9 @@ void Channel::process_alert(const secure_vector<uint8_t>& record)
 
     if(alert_msg.type() == Alert::CLOSE_NOTIFY || alert_msg.is_fatal())
        {
-       reset_state();
+       m_has_been_closed = true;
        }
     }
-
 
 void Channel::write_record(Connection_Cipher_State* cipher_state, uint16_t epoch,
                            uint8_t record_type, const uint8_t input[], size_t length)
@@ -75222,12 +76433,12 @@ void Channel::write_record(Connection_Cipher_State* cipher_state, uint16_t epoch
    const Protocol_Version record_version =
       (m_pending_state) ? (m_pending_state->version()) : (m_active_state->version());
 
-   Record_Message record_message(record_type, 0, input, length);
-
    TLS::write_record(m_writebuf,
-                     record_message,
+                     record_type,
                      record_version,
                      sequence_numbers().next_write_sequence(epoch),
+                     input,
+                     length,
                      cipher_state,
                      m_rng);
 
@@ -75326,8 +76537,13 @@ void Channel::send_alert(const Alert& alert)
       if(auto active = active_state())
          m_session_manager.remove_entry(active->server_hello()->session_id());
 
-   if(alert.type() == Alert::CLOSE_NOTIFY || alert.is_fatal())
+   if(alert.is_fatal())
       reset_state();
+
+   if(alert.type() == Alert::CLOSE_NOTIFY || alert.is_fatal())
+      {
+      m_has_been_closed = true;
+      }
    }
 
 void Channel::secure_renegotiation_check(const Client_Hello* client_hello)
@@ -75758,8 +76974,8 @@ Client::Client(Callbacks& callbacks,
                const Protocol_Version& offer_version,
                const std::vector<std::string>& next_protos,
                size_t io_buf_sz) :
-   Channel(callbacks, session_manager, rng, policy, offer_version.is_datagram_protocol(),
-           io_buf_sz),
+   Channel(callbacks, session_manager, rng, policy,
+           false, offer_version.is_datagram_protocol(), io_buf_sz),
    m_creds(creds),
    m_info(info)
    {
@@ -75779,7 +76995,7 @@ Client::Client(output_fn data_output_fn,
                const std::vector<std::string>& next_protos,
                size_t io_buf_sz) :
    Channel(data_output_fn, proc_cb, recv_alert_cb, hs_cb, Channel::handshake_msg_cb(),
-           session_manager, rng, policy, offer_version.is_datagram_protocol(), io_buf_sz),
+           session_manager, rng, policy, false, offer_version.is_datagram_protocol(), io_buf_sz),
    m_creds(creds),
    m_info(info)
    {
@@ -75799,7 +77015,7 @@ Client::Client(output_fn data_output_fn,
                const Protocol_Version& offer_version,
                const std::vector<std::string>& next_protos) :
    Channel(data_output_fn, proc_cb, recv_alert_cb, hs_cb, hs_msg_cb,
-           session_manager, rng, policy, offer_version.is_datagram_protocol()),
+           session_manager, rng, policy, false, offer_version.is_datagram_protocol()),
    m_creds(creds),
    m_info(info)
    {
@@ -75915,8 +77131,11 @@ void Client::send_client_hello(Handshake_State& state_base,
 void Client::process_handshake_msg(const Handshake_State* active_state,
                                    Handshake_State& state_base,
                                    Handshake_Type type,
-                                   const std::vector<uint8_t>& contents)
+                                   const std::vector<uint8_t>& contents,
+                                   bool epoch0_restart)
    {
+   BOTAN_ASSERT_NOMSG(epoch0_restart == false); // only happens on server side
+
    Client_Handshake_State& state = dynamic_cast<Client_Handshake_State&>(state_base);
 
    if(type == HELLO_REQUEST && active_state)
@@ -75995,6 +77214,12 @@ void Client::process_handshake_msg(const Handshake_State* active_state,
          {
          throw TLS_Exception(Alert::ILLEGAL_PARAMETER,
                              "Server replied with non-null compression method");
+         }
+
+      if(state.client_hello()->version() > state.server_hello()->version())
+         {
+         if(state.server_hello()->random_signals_downgrade())
+            throw TLS_Exception(Alert::ILLEGAL_PARAMETER, "Downgrade attack detected");
          }
 
       auto client_extn = state.client_hello()->extension_types();
@@ -76796,7 +78021,9 @@ Supported_Groups::Supported_Groups(TLS_Data_Reader& reader,
    if(len % 2 == 1)
       throw Decoding_Error("Supported groups list of strange size");
 
-   for(size_t i = 0; i != len / 2; ++i)
+   const size_t elems = len / 2;
+
+   for(size_t i = 0; i != elems; ++i)
       {
       const uint16_t id = reader.get_uint16_t();
       m_groups.push_back(static_cast<Group_Params>(id));
@@ -77036,17 +78263,21 @@ Supported_Versions::Supported_Versions(Protocol_Version offer, const Policy& pol
       {
       if(offer >= Protocol_Version::DTLS_V12 && policy.allow_dtls12())
          m_versions.push_back(Protocol_Version::DTLS_V12);
+#if defined(BOTAN_HAS_TLS_V10)
       if(offer >= Protocol_Version::DTLS_V10 && policy.allow_dtls10())
          m_versions.push_back(Protocol_Version::DTLS_V10);
+#endif
       }
    else
       {
       if(offer >= Protocol_Version::TLS_V12 && policy.allow_tls12())
          m_versions.push_back(Protocol_Version::TLS_V12);
+#if defined(BOTAN_HAS_TLS_V10)
       if(offer >= Protocol_Version::TLS_V11 && policy.allow_tls11())
          m_versions.push_back(Protocol_Version::TLS_V11);
       if(offer >= Protocol_Version::TLS_V10 && policy.allow_tls10())
          m_versions.push_back(Protocol_Version::TLS_V10);
+#endif
       }
    }
 
@@ -77224,6 +78455,11 @@ Stream_Handshake_IO::format(const std::vector<uint8_t>& msg,
    return send_buf;
    }
 
+std::vector<uint8_t> Stream_Handshake_IO::send_under_epoch(const Handshake_Message& /*msg*/, uint16_t /*epoch*/)
+   {
+   throw Invalid_State("Not possible to send under arbitrary epoch with stream based TLS");
+   }
+
 std::vector<uint8_t> Stream_Handshake_IO::send(const Handshake_Message& msg)
    {
    const std::vector<uint8_t> msg_bits = msg.serialize();
@@ -77372,7 +78608,9 @@ Datagram_Handshake_IO::get_next_record(bool expecting_ccs)
    auto i = m_messages.find(m_in_message_seq);
 
    if(i == m_messages.end() || !i->second.complete())
+      {
       return std::make_pair(HANDSHAKE_NONE, std::vector<uint8_t>());
+      }
 
    m_in_message_seq += 1;
 
@@ -77490,11 +78728,15 @@ Datagram_Handshake_IO::format(const std::vector<uint8_t>& msg,
    return format_w_seq(msg, type, m_in_message_seq - 1);
    }
 
+std::vector<uint8_t> Datagram_Handshake_IO::send(const Handshake_Message& msg)
+   {
+   return this->send_under_epoch(msg, m_seqs.current_write_epoch());
+   }
+
 std::vector<uint8_t>
-Datagram_Handshake_IO::send(const Handshake_Message& msg)
+Datagram_Handshake_IO::send_under_epoch(const Handshake_Message& msg, uint16_t epoch)
    {
    const std::vector<uint8_t> msg_bits = msg.serialize();
-   const uint16_t epoch = m_seqs.current_write_epoch();
    const Handshake_Type msg_type = msg.type();
 
    if(msg_type == HANDSHAKE_CCS)
@@ -77526,6 +78768,8 @@ std::vector<uint8_t> Datagram_Handshake_IO::send_message(uint16_t msg_seq,
                                                       Handshake_Type msg_type,
                                                       const std::vector<uint8_t>& msg_bits)
    {
+   const size_t DTLS_HANDSHAKE_HEADER_LEN = 12;
+
    const std::vector<uint8_t> no_fragment =
       format_w_seq(msg_bits, msg_type, msg_seq);
 
@@ -77537,22 +78781,34 @@ std::vector<uint8_t> Datagram_Handshake_IO::send_message(uint16_t msg_seq,
       {
       size_t frag_offset = 0;
 
-      const size_t DTLS_HANDSHAKE_HEADERS = 32;
-      const size_t ciphersuite_overhead = (epoch > 0) ? 32 : 0;
-      const size_t max_rec_size = m_mtu - DTLS_HANDSHAKE_HEADERS - ciphersuite_overhead;
+      /**
+      * Largest possible overhead is for SHA-384 CBC ciphers, with 16 byte IV,
+      * 16+ for padding and 48 bytes for MAC. 128 is probably a strict
+      * over-estimate here. When CBC ciphers are removed this can be reduced
+      * since AEAD modes have no padding, at most 16 byte mac, and smaller
+      * per-record nonce.
+      */
+      const size_t ciphersuite_overhead = (epoch > 0) ? 128 : 0;
+      const size_t header_overhead = DTLS_HEADER_SIZE + DTLS_HANDSHAKE_HEADER_LEN;
+
+      if(m_mtu <= (header_overhead + ciphersuite_overhead))
+         throw Invalid_Argument("DTLS MTU is too small to send headers");
+
+      const size_t max_rec_size = m_mtu - (header_overhead + ciphersuite_overhead);
 
       while(frag_offset != msg_bits.size())
          {
          const size_t frag_len = std::min<size_t>(msg_bits.size() - frag_offset, max_rec_size);
 
-         m_send_hs(epoch,
-                   HANDSHAKE,
-                   format_fragment(&msg_bits[frag_offset],
-                                   frag_len,
-                                   static_cast<uint16_t>(frag_offset),
-                                   static_cast<uint16_t>(msg_bits.size()),
-                                   msg_type,
-                                   msg_seq));
+         const std::vector<uint8_t> frag =
+            format_fragment(&msg_bits[frag_offset],
+                            frag_len,
+                            static_cast<uint16_t>(frag_offset),
+                            static_cast<uint16_t>(msg_bits.size()),
+                            msg_type,
+                            msg_seq);
+
+         m_send_hs(epoch, HANDSHAKE, frag);
 
          frag_offset += frag_len;
          }
@@ -77704,6 +78960,7 @@ std::string handshake_mask_to_string(uint32_t mask, char combiner)
       HELLO_VERIFY_REQUEST,
       HELLO_REQUEST,
       CLIENT_HELLO,
+      SERVER_HELLO,
       CERTIFICATE,
       CERTIFICATE_URL,
       CERTIFICATE_STATUS,
@@ -77873,9 +79130,21 @@ void Handshake_State::confirm_transition_to(Handshake_Type handshake_msg)
 
    if(!ok)
       {
-      throw Unexpected_Message("Unexpected state transition in handshake, expected " +
-                               handshake_mask_to_string(m_hand_expecting_mask, '|') +
-                               " received " + handshake_mask_to_string(m_hand_received_mask, '+'));
+      const uint32_t seen_so_far = m_hand_received_mask & ~mask;
+
+      std::ostringstream msg;
+
+      msg << "Unexpected state transition in handshake got a " << handshake_type_to_string(handshake_msg);
+
+      if(m_hand_expecting_mask == 0)
+         msg << " not expecting messages";
+      else
+         msg << " expected " << handshake_mask_to_string(m_hand_expecting_mask, '|');
+
+      if(seen_so_far != 0)
+         msg << " seen " << handshake_mask_to_string(seen_so_far, '+');
+
+      throw Unexpected_Message(msg.str());
       }
 
    /* We don't know what to expect next, so force a call to
@@ -78397,17 +79666,24 @@ bool Policy::send_fallback_scsv(Protocol_Version version) const
 
 bool Policy::acceptable_protocol_version(Protocol_Version version) const
    {
-   // Uses boolean optimization:
-   // First check the current version (left part), then if it is allowed
-   // (right part)
-   // checks are ordered according to their probability
-   return (
-           ( ( version == Protocol_Version::TLS_V12)  && allow_tls12()  ) ||
-           ( ( version == Protocol_Version::TLS_V10)  && allow_tls10()  ) ||
-           ( ( version == Protocol_Version::TLS_V11)  && allow_tls11()  ) ||
-           ( ( version == Protocol_Version::DTLS_V12) && allow_dtls12() ) ||
-           ( ( version == Protocol_Version::DTLS_V10) && allow_dtls10() )
-        );
+   if(version == Protocol_Version::TLS_V12 && allow_tls12())
+      return true;
+
+   if(version == Protocol_Version::DTLS_V12 && allow_dtls12())
+      return true;
+
+#if defined(BOTAN_HAS_TLS_V10)
+
+   if(version == Protocol_Version::TLS_V11 && allow_tls11())
+      return true;
+   if(version == Protocol_Version::TLS_V10 && allow_tls10())
+      return true;
+   if(version == Protocol_Version::DTLS_V10 && allow_dtls10())
+      return true;
+
+#endif
+
+   return false;
    }
 
 Protocol_Version Policy::latest_supported_version(bool datagram) const
@@ -78416,18 +79692,22 @@ Protocol_Version Policy::latest_supported_version(bool datagram) const
       {
       if(acceptable_protocol_version(Protocol_Version::DTLS_V12))
          return Protocol_Version::DTLS_V12;
+#if defined(BOTAN_HAS_TLS_V10)
       if(acceptable_protocol_version(Protocol_Version::DTLS_V10))
          return Protocol_Version::DTLS_V10;
+#endif
       throw Invalid_State("Policy forbids all available DTLS version");
       }
    else
       {
       if(acceptable_protocol_version(Protocol_Version::TLS_V12))
          return Protocol_Version::TLS_V12;
+#if defined(BOTAN_HAS_TLS_V10)
       if(acceptable_protocol_version(Protocol_Version::TLS_V11))
          return Protocol_Version::TLS_V11;
       if(acceptable_protocol_version(Protocol_Version::TLS_V10))
          return Protocol_Version::TLS_V10;
+#endif
       throw Invalid_State("Policy forbids all available TLS version");
       }
    }
@@ -78456,6 +79736,7 @@ bool Policy::only_resume_with_exact_version() const { return true; }
 bool Policy::require_client_certificate_authentication() const { return false; }
 bool Policy::request_client_certificate_authentication() const { return require_client_certificate_authentication(); }
 bool Policy::abort_connection_on_undesired_renegotiation() const { return false; }
+bool Policy::allow_dtls_epoch0_restart() const { return false; }
 
 size_t Policy::maximum_certificate_chain_size() const { return 0; }
 
@@ -78785,6 +80066,7 @@ Connection_Cipher_State::Connection_Cipher_State(Protocol_Version version,
          }
 
 #else
+      BOTAN_UNUSED(uses_encrypt_then_mac);
       throw Internal_Error("Negotiated disabled TLS CBC+HMAC ciphersuite");
 #endif
       }
@@ -78903,41 +80185,43 @@ inline void append_u16_len(secure_vector<uint8_t>& output, size_t len_field)
 }
 
 void write_record(secure_vector<uint8_t>& output,
-                  Record_Message msg,
+                  uint8_t record_type,
                   Protocol_Version version,
-                  uint64_t seq,
+                  uint64_t record_sequence,
+                  const uint8_t* message,
+                  size_t message_len,
                   Connection_Cipher_State* cs,
                   RandomNumberGenerator& rng)
    {
    output.clear();
 
-   output.push_back(msg.get_type());
+   output.push_back(record_type);
    output.push_back(version.major_version());
    output.push_back(version.minor_version());
 
    if(version.is_datagram_protocol())
       {
       for(size_t i = 0; i != 8; ++i)
-         output.push_back(get_byte(i, seq));
+         output.push_back(get_byte(i, record_sequence));
       }
 
    if(!cs) // initial unencrypted handshake records
       {
-      append_u16_len(output, msg.get_size());
-      output.insert(output.end(), msg.get_data(), msg.get_data() + msg.get_size());
+      append_u16_len(output, message_len);
+      output.insert(output.end(), message, message + message_len);
       return;
       }
 
    AEAD_Mode& aead = cs->aead();
-   std::vector<uint8_t> aad = cs->format_ad(seq, msg.get_type(), version, static_cast<uint16_t>(msg.get_size()));
+   std::vector<uint8_t> aad = cs->format_ad(record_sequence, record_type, version, static_cast<uint16_t>(message_len));
 
-   const size_t ctext_size = aead.output_length(msg.get_size());
+   const size_t ctext_size = aead.output_length(message_len);
 
    const size_t rec_size = ctext_size + cs->nonce_bytes_from_record();
 
    aead.set_ad(aad);
 
-   const std::vector<uint8_t> nonce = cs->aead_nonce(seq, rng);
+   const std::vector<uint8_t> nonce = cs->aead_nonce(record_sequence, rng);
 
    append_u16_len(output, rec_size);
 
@@ -78950,7 +80234,7 @@ void write_record(secure_vector<uint8_t>& output,
       }
 
    const size_t header_size = output.size();
-   output += std::make_pair(msg.get_data(), msg.get_size());
+   output += std::make_pair(message, message_len);
 
    aead.start(nonce);
    aead.finish(output, header_size);
@@ -79014,35 +80298,36 @@ void decrypt_record(secure_vector<uint8_t>& output,
 
    aead.start(nonce);
 
-   const size_t offset = output.size();
-   output += std::make_pair(msg, msg_length);
-   aead.finish(output, offset);
+   output.assign(msg, msg + msg_length);
+   aead.finish(output, 0);
    }
 
-size_t read_tls_record(secure_vector<uint8_t>& readbuf,
-                       Record_Raw_Input& raw_input,
-                       Record& rec,
-                       Connection_Sequence_Numbers* sequence_numbers,
-                       get_cipherstate_fn get_cipherstate)
+Record_Header read_tls_record(secure_vector<uint8_t>& readbuf,
+                              const uint8_t input[],
+                              size_t input_len,
+                              size_t& consumed,
+                              secure_vector<uint8_t>& recbuf,
+                              Connection_Sequence_Numbers* sequence_numbers,
+                              get_cipherstate_fn get_cipherstate)
    {
    if(readbuf.size() < TLS_HEADER_SIZE) // header incomplete?
       {
-      if(size_t needed = fill_buffer_to(readbuf,
-                                        raw_input.get_data(), raw_input.get_size(), raw_input.get_consumed(),
-                                        TLS_HEADER_SIZE))
-         return needed;
+      if(size_t needed = fill_buffer_to(readbuf, input, input_len, consumed, TLS_HEADER_SIZE))
+         {
+         return Record_Header(needed);
+         }
 
       BOTAN_ASSERT_EQUAL(readbuf.size(), TLS_HEADER_SIZE, "Have an entire header");
       }
 
-   *rec.get_protocol_version() = Protocol_Version(readbuf[1], readbuf[2]);
+   const Protocol_Version version(readbuf[1], readbuf[2]);
 
-   if(rec.get_protocol_version()->is_datagram_protocol())
+   if(version.is_datagram_protocol())
       throw TLS_Exception(Alert::PROTOCOL_VERSION,
                           "Expected TLS but got a record with DTLS version");
 
    const size_t record_size = make_uint16(readbuf[TLS_HEADER_SIZE-2],
-                                         readbuf[TLS_HEADER_SIZE-1]);
+                                          readbuf[TLS_HEADER_SIZE-1]);
 
    if(record_size > MAX_CIPHERTEXT_SIZE)
       throw TLS_Exception(Alert::RECORD_OVERFLOW,
@@ -79052,38 +80337,36 @@ size_t read_tls_record(secure_vector<uint8_t>& readbuf,
       throw TLS_Exception(Alert::DECODE_ERROR,
                           "Received a completely empty record");
 
-   if(size_t needed = fill_buffer_to(readbuf,
-                                     raw_input.get_data(), raw_input.get_size(), raw_input.get_consumed(),
-                                     TLS_HEADER_SIZE + record_size))
-      return needed;
+   if(size_t needed = fill_buffer_to(readbuf, input, input_len, consumed, TLS_HEADER_SIZE + record_size))
+      {
+      return Record_Header(needed);
+      }
 
    BOTAN_ASSERT_EQUAL(static_cast<size_t>(TLS_HEADER_SIZE) + record_size,
                       readbuf.size(),
                       "Have the full record");
 
-   *rec.get_type() = static_cast<Record_Type>(readbuf[0]);
+   const Record_Type type = static_cast<Record_Type>(readbuf[0]);
 
    uint16_t epoch = 0;
 
+   uint64_t sequence = 0;
    if(sequence_numbers)
       {
-      *rec.get_sequence() = sequence_numbers->next_read_sequence();
+      sequence = sequence_numbers->next_read_sequence();
       epoch = sequence_numbers->current_read_epoch();
       }
    else
       {
       // server initial handshake case
-      *rec.get_sequence() = 0;
       epoch = 0;
       }
 
-   uint8_t* record_contents = &readbuf[TLS_HEADER_SIZE];
-
    if(epoch == 0) // Unencrypted initial handshake
       {
-      rec.get_data().assign(readbuf.begin() + TLS_HEADER_SIZE, readbuf.begin() + TLS_HEADER_SIZE + record_size);
+      recbuf.assign(readbuf.begin() + TLS_HEADER_SIZE, readbuf.begin() + TLS_HEADER_SIZE + record_size);
       readbuf.clear();
-      return 0; // got a full record
+      return Record_Header(sequence, version, type);
       }
 
    // Otherwise, decrypt, check MAC, return plaintext
@@ -79091,45 +80374,47 @@ size_t read_tls_record(secure_vector<uint8_t>& readbuf,
 
    BOTAN_ASSERT(cs, "Have cipherstate for this epoch");
 
-   decrypt_record(rec.get_data(),
-                  record_contents,
+   decrypt_record(recbuf,
+                  &readbuf[TLS_HEADER_SIZE],
                   record_size,
-                  *rec.get_sequence(),
-                  *rec.get_protocol_version(),
-                  *rec.get_type(),
+                  sequence,
+                  version,
+                  type,
                   *cs);
 
    if(sequence_numbers)
-      sequence_numbers->read_accept(*rec.get_sequence());
+      sequence_numbers->read_accept(sequence);
 
    readbuf.clear();
-   return 0;
+   return Record_Header(sequence, version, type);
    }
 
-size_t read_dtls_record(secure_vector<uint8_t>& readbuf,
-                        Record_Raw_Input& raw_input,
-                        Record& rec,
-                        Connection_Sequence_Numbers* sequence_numbers,
-                        get_cipherstate_fn get_cipherstate)
+Record_Header read_dtls_record(secure_vector<uint8_t>& readbuf,
+                               const uint8_t input[],
+                               size_t input_len,
+                               size_t& consumed,
+                               secure_vector<uint8_t>& recbuf,
+                               Connection_Sequence_Numbers* sequence_numbers,
+                               get_cipherstate_fn get_cipherstate,
+                               bool allow_epoch0_restart)
    {
    if(readbuf.size() < DTLS_HEADER_SIZE) // header incomplete?
       {
-      if(fill_buffer_to(readbuf, raw_input.get_data(), raw_input.get_size(), raw_input.get_consumed(), DTLS_HEADER_SIZE))
+      if(fill_buffer_to(readbuf, input, input_len, consumed, DTLS_HEADER_SIZE))
          {
          readbuf.clear();
-         return 0;
+         return Record_Header(0);
          }
 
       BOTAN_ASSERT_EQUAL(readbuf.size(), DTLS_HEADER_SIZE, "Have an entire header");
       }
 
-   *rec.get_protocol_version() = Protocol_Version(readbuf[1], readbuf[2]);
+   const Protocol_Version version(readbuf[1], readbuf[2]);
 
-   if(rec.get_protocol_version()->is_datagram_protocol() == false)
+   if(version.is_datagram_protocol() == false)
       {
       readbuf.clear();
-      *rec.get_type() = NO_RECORD;
-      return 0;
+      return Record_Header(0);
       }
 
    const size_t record_size = make_uint16(readbuf[DTLS_HEADER_SIZE-2],
@@ -79139,44 +80424,39 @@ size_t read_dtls_record(secure_vector<uint8_t>& readbuf,
       {
       // Too large to be valid, ignore it
       readbuf.clear();
-      *rec.get_type() = NO_RECORD;
-      return 0;
+      return Record_Header(0);
       }
 
-   if(fill_buffer_to(readbuf, raw_input.get_data(), raw_input.get_size(), raw_input.get_consumed(), DTLS_HEADER_SIZE + record_size))
+   if(fill_buffer_to(readbuf, input, input_len, consumed, DTLS_HEADER_SIZE + record_size))
       {
       // Truncated packet?
       readbuf.clear();
-      *rec.get_type() = NO_RECORD;
-      return 0;
+      return Record_Header(0);
       }
 
    BOTAN_ASSERT_EQUAL(static_cast<size_t>(DTLS_HEADER_SIZE) + record_size, readbuf.size(),
                       "Have the full record");
 
-   *rec.get_type() = static_cast<Record_Type>(readbuf[0]);
+   const Record_Type type = static_cast<Record_Type>(readbuf[0]);
 
-   uint16_t epoch = 0;
+   const uint64_t sequence = load_be<uint64_t>(&readbuf[3], 0);
+   const uint16_t epoch = (sequence >> 48);
 
-   *rec.get_sequence() = load_be<uint64_t>(&readbuf[3], 0);
-   epoch = (*rec.get_sequence() >> 48);
+   const bool already_seen = sequence_numbers && sequence_numbers->already_seen(sequence);
 
-   if(sequence_numbers && sequence_numbers->already_seen(*rec.get_sequence()))
+   if(already_seen && !(epoch == 0 && allow_epoch0_restart))
       {
       readbuf.clear();
-      *rec.get_type() = NO_RECORD;
-      return 0;
+      return Record_Header(0);
       }
-
-   uint8_t* record_contents = &readbuf[DTLS_HEADER_SIZE];
 
    if(epoch == 0) // Unencrypted initial handshake
       {
-      rec.get_data().assign(readbuf.begin() + DTLS_HEADER_SIZE, readbuf.begin() + DTLS_HEADER_SIZE + record_size);
+      recbuf.assign(readbuf.begin() + DTLS_HEADER_SIZE, readbuf.begin() + DTLS_HEADER_SIZE + record_size);
       readbuf.clear();
       if(sequence_numbers)
-         sequence_numbers->read_accept(*rec.get_sequence());
-      return 0; // got a full record
+         sequence_numbers->read_accept(sequence);
+      return Record_Header(sequence, version, type);
       }
 
    try
@@ -79186,42 +80466,45 @@ size_t read_dtls_record(secure_vector<uint8_t>& readbuf,
 
       BOTAN_ASSERT(cs, "Have cipherstate for this epoch");
 
-      decrypt_record(rec.get_data(),
-                     record_contents,
+      decrypt_record(recbuf,
+                     &readbuf[DTLS_HEADER_SIZE],
                      record_size,
-                     *rec.get_sequence(),
-                     *rec.get_protocol_version(),
-                     *rec.get_type(),
+                     sequence,
+                     version,
+                     type,
                      *cs);
       }
    catch(std::exception&)
       {
       readbuf.clear();
-      *rec.get_type() = NO_RECORD;
-      return 0;
+      return Record_Header(0);
       }
 
    if(sequence_numbers)
-      sequence_numbers->read_accept(*rec.get_sequence());
+      sequence_numbers->read_accept(sequence);
 
    readbuf.clear();
-   return 0;
+   return Record_Header(sequence, version, type);
    }
 
 }
 
-size_t read_record(secure_vector<uint8_t>& readbuf,
-                   Record_Raw_Input& raw_input,
-                   Record& rec,
-                   Connection_Sequence_Numbers* sequence_numbers,
-                   get_cipherstate_fn get_cipherstate)
+Record_Header read_record(bool is_datagram,
+                          secure_vector<uint8_t>& readbuf,
+                          const uint8_t input[],
+                          size_t input_len,
+                          size_t& consumed,
+                          secure_vector<uint8_t>& recbuf,
+                          Connection_Sequence_Numbers* sequence_numbers,
+                          get_cipherstate_fn get_cipherstate,
+                          bool allow_epoch0_restart)
    {
-   if(raw_input.is_datagram())
-      return read_dtls_record(readbuf, raw_input, rec,
-                              sequence_numbers, get_cipherstate);
+   if(is_datagram)
+      return read_dtls_record(readbuf, input, input_len, consumed,
+                              recbuf, sequence_numbers, get_cipherstate, allow_epoch0_restart);
    else
-      return read_tls_record(readbuf, raw_input, rec,
-                             sequence_numbers, get_cipherstate);
+      return read_tls_record(readbuf, input, input_len, consumed,
+                             recbuf, sequence_numbers, get_cipherstate);
    }
 
 }
@@ -79527,7 +80810,7 @@ Server::Server(Callbacks& callbacks,
                bool is_datagram,
                size_t io_buf_sz) :
    Channel(callbacks, session_manager, rng, policy,
-           is_datagram, io_buf_sz),
+           true, is_datagram, io_buf_sz),
    m_creds(creds)
    {
    }
@@ -79545,7 +80828,7 @@ Server::Server(output_fn output,
                size_t io_buf_sz) :
    Channel(output, got_data_cb, recv_alert_cb, hs_cb,
            Channel::handshake_msg_cb(), session_manager,
-           rng, policy, is_datagram, io_buf_sz),
+           rng, policy, true, is_datagram, io_buf_sz),
    m_creds(creds),
    m_choose_next_protocol(next_proto)
    {
@@ -79563,7 +80846,7 @@ Server::Server(output_fn output,
                next_protocol_fn next_proto,
                bool is_datagram) :
    Channel(output, got_data_cb, recv_alert_cb, hs_cb, hs_msg_cb,
-           session_manager, rng, policy, is_datagram),
+           session_manager, rng, policy, true, is_datagram),
    m_creds(creds),
    m_choose_next_protocol(next_proto)
    {
@@ -79627,18 +80910,22 @@ Protocol_Version select_version(const Botan::TLS::Policy& policy,
          {
          if(policy.allow_dtls12() && value_exists(supported_versions, Protocol_Version(Protocol_Version::DTLS_V12)))
             return Protocol_Version::DTLS_V12;
+#if defined(BOTAN_HAS_TLS_V10)
          if(policy.allow_dtls10() && value_exists(supported_versions, Protocol_Version(Protocol_Version::DTLS_V10)))
             return Protocol_Version::DTLS_V10;
+#endif
          throw TLS_Exception(Alert::PROTOCOL_VERSION, "No shared DTLS version");
          }
       else
          {
          if(policy.allow_tls12() && value_exists(supported_versions, Protocol_Version(Protocol_Version::TLS_V12)))
             return Protocol_Version::TLS_V12;
+#if defined(BOTAN_HAS_TLS_V10)
          if(policy.allow_tls11() && value_exists(supported_versions, Protocol_Version(Protocol_Version::TLS_V11)))
             return Protocol_Version::TLS_V11;
          if(policy.allow_tls10() && value_exists(supported_versions, Protocol_Version(Protocol_Version::TLS_V10)))
             return Protocol_Version::TLS_V10;
+#endif
          throw TLS_Exception(Alert::PROTOCOL_VERSION, "No shared TLS version");
          }
       }
@@ -79695,9 +80982,12 @@ Protocol_Version select_version(const Botan::TLS::Policy& policy,
 */
 void Server::process_client_hello_msg(const Handshake_State* active_state,
                                       Server_Handshake_State& pending_state,
-                                      const std::vector<uint8_t>& contents)
+                                      const std::vector<uint8_t>& contents,
+                                      bool epoch0_restart)
    {
-   const bool initial_handshake = !active_state;
+   BOTAN_ASSERT_IMPLICATION(epoch0_restart, active_state != nullptr, "Can't restart with a dead connection");
+
+   const bool initial_handshake = epoch0_restart || !active_state;
 
    if(initial_handshake == false && policy().allow_client_initiated_renegotiation() == false)
       {
@@ -79771,12 +81061,26 @@ void Server::process_client_hello_msg(const Handshake_State* active_state,
 
          if(pending_state.client_hello()->cookie() != verify.cookie())
             {
-            pending_state.handshake_io().send(verify);
+            if(epoch0_restart)
+               pending_state.handshake_io().send_under_epoch(verify, 0);
+            else
+               pending_state.handshake_io().send(verify);
+
             pending_state.client_hello(nullptr);
             pending_state.set_expected_next(CLIENT_HELLO);
             return;
             }
          }
+      else if(epoch0_restart)
+         {
+         throw TLS_Exception(Alert::HANDSHAKE_FAILURE, "Reuse of DTLS association requires DTLS cookie secret be set");
+         }
+      }
+
+   if(epoch0_restart)
+      {
+      // If we reached here then we were able to verify the cookie
+      reset_active_association_state();
       }
 
    secure_renegotiation_check(pending_state.client_hello());
@@ -79973,7 +81277,8 @@ void Server::process_finished_msg(Server_Handshake_State& pending_state,
 void Server::process_handshake_msg(const Handshake_State* active_state,
                                    Handshake_State& state_base,
                                    Handshake_Type type,
-                                   const std::vector<uint8_t>& contents)
+                                   const std::vector<uint8_t>& contents,
+                                   bool epoch0_restart)
    {
    Server_Handshake_State& state = dynamic_cast<Server_Handshake_State&>(state_base);
    state.confirm_transition_to(type);
@@ -79993,7 +81298,7 @@ void Server::process_handshake_msg(const Handshake_State* active_state,
    switch(type)
       {
       case CLIENT_HELLO:
-         return this->process_client_hello_msg(active_state, state, contents);
+         return this->process_client_hello_msg(active_state, state, contents, epoch0_restart);
 
       case CERTIFICATE:
          return this->process_certificate_msg(state, contents);
@@ -80227,7 +81532,7 @@ void Server::session_create(Server_Handshake_State& pending_state,
 }
 /*
 * TLS Session State
-* (C) 2011-2012,2015 Jack Lloyd
+* (C) 2011-2012,2015,2019 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -80395,48 +81700,114 @@ std::chrono::seconds Session::session_age() const
       std::chrono::system_clock::now() - m_start_time);
    }
 
+namespace {
+
+// The output length of the HMAC must be a valid keylength for the AEAD
+const char* TLS_SESSION_CRYPT_HMAC = "HMAC(SHA-512-256)";
+// SIV would be better, but we can't assume it is available
+const char* TLS_SESSION_CRYPT_AEAD = "AES-256/GCM";
+const char* TLS_SESSION_CRYPT_KEY_NAME = "BOTAN TLS SESSION KEY NAME";
+const uint64_t TLS_SESSION_CRYPT_MAGIC = 0x068B5A9D396C0000;
+const size_t TLS_SESSION_CRYPT_MAGIC_LEN = 8;
+const size_t TLS_SESSION_CRYPT_KEY_NAME_LEN = 4;
+const size_t TLS_SESSION_CRYPT_AEAD_NONCE_LEN = 12;
+const size_t TLS_SESSION_CRYPT_AEAD_KEY_SEED_LEN = 16;
+const size_t TLS_SESSION_CRYPT_AEAD_TAG_SIZE = 16;
+
+const size_t TLS_SESSION_CRYPT_HDR_LEN =
+   TLS_SESSION_CRYPT_MAGIC_LEN +
+   TLS_SESSION_CRYPT_KEY_NAME_LEN +
+   TLS_SESSION_CRYPT_AEAD_NONCE_LEN +
+   TLS_SESSION_CRYPT_AEAD_KEY_SEED_LEN;
+
+const size_t TLS_SESSION_CRYPT_OVERHEAD =
+   TLS_SESSION_CRYPT_HDR_LEN + TLS_SESSION_CRYPT_AEAD_TAG_SIZE;
+
+}
+
 std::vector<uint8_t>
 Session::encrypt(const SymmetricKey& key, RandomNumberGenerator& rng) const
    {
-   std::unique_ptr<AEAD_Mode> aead = AEAD_Mode::create_or_throw("AES-256/GCM", ENCRYPTION);
-   const size_t nonce_len = aead->default_nonce_length();
-
-   const secure_vector<uint8_t> nonce = rng.random_vec(nonce_len);
-   const secure_vector<uint8_t> bits = this->DER_encode();
-
-   // Support any length key for input
-   std::unique_ptr<MessageAuthenticationCode> hmac(MessageAuthenticationCode::create("HMAC(SHA-256)"));
+   auto hmac = MessageAuthenticationCode::create_or_throw(TLS_SESSION_CRYPT_HMAC);
    hmac->set_key(key);
-   hmac->update(nonce);
-   aead->set_key(hmac->final());
 
-   secure_vector<uint8_t> buf = nonce;
+   // First derive the "key name"
+   std::vector<uint8_t> key_name(hmac->output_length());
+   hmac->update(TLS_SESSION_CRYPT_KEY_NAME);
+   hmac->final(key_name.data());
+   key_name.resize(TLS_SESSION_CRYPT_KEY_NAME_LEN);
+
+   std::vector<uint8_t> aead_nonce;
+   std::vector<uint8_t> key_seed;
+
+   rng.random_vec(aead_nonce, TLS_SESSION_CRYPT_AEAD_NONCE_LEN);
+   rng.random_vec(key_seed, TLS_SESSION_CRYPT_AEAD_KEY_SEED_LEN);
+
+   hmac->update(key_seed);
+   const secure_vector<uint8_t> aead_key = hmac->final();
+
+   secure_vector<uint8_t> bits = this->DER_encode();
+
+   // create the header
+   std::vector<uint8_t> buf;
+   buf.reserve(TLS_SESSION_CRYPT_OVERHEAD + bits.size());
+   buf.resize(TLS_SESSION_CRYPT_MAGIC_LEN);
+   store_be(TLS_SESSION_CRYPT_MAGIC, &buf[0]);
+   buf += key_name;
+   buf += key_seed;
+   buf += aead_nonce;
+
+   std::unique_ptr<AEAD_Mode> aead = AEAD_Mode::create_or_throw(TLS_SESSION_CRYPT_AEAD, ENCRYPTION);
+   BOTAN_ASSERT_NOMSG(aead->valid_nonce_length(TLS_SESSION_CRYPT_AEAD_NONCE_LEN));
+   BOTAN_ASSERT_NOMSG(aead->tag_size() == TLS_SESSION_CRYPT_AEAD_TAG_SIZE);
+   aead->set_key(aead_key);
+   aead->set_associated_data_vec(buf);
+   aead->start(aead_nonce);
+   aead->finish(bits, 0);
+
+   // append the ciphertext
    buf += bits;
-   aead->start(buf.data(), nonce_len);
-   aead->finish(buf, nonce_len);
-   return unlock(buf);
+   return buf;
    }
 
 Session Session::decrypt(const uint8_t in[], size_t in_len, const SymmetricKey& key)
    {
    try
       {
-      std::unique_ptr<AEAD_Mode> aead = AEAD_Mode::create_or_throw("AES-256/GCM", DECRYPTION);
-      const size_t nonce_len = aead->default_nonce_length();
-
-      if(in_len < nonce_len + aead->tag_size())
+      const size_t min_session_size = 48 + 4; // serious under-estimate
+      if(in_len < TLS_SESSION_CRYPT_OVERHEAD + min_session_size)
          throw Decoding_Error("Encrypted session too short to be valid");
 
-      // Support any length key for input
-      std::unique_ptr<MessageAuthenticationCode> hmac(MessageAuthenticationCode::create("HMAC(SHA-256)"));
+      const uint8_t* magic = &in[0];
+      const uint8_t* key_name = magic + TLS_SESSION_CRYPT_MAGIC_LEN;
+      const uint8_t* key_seed = key_name + TLS_SESSION_CRYPT_KEY_NAME_LEN;
+      const uint8_t* aead_nonce = key_seed + TLS_SESSION_CRYPT_AEAD_KEY_SEED_LEN;
+      const uint8_t* ctext = aead_nonce + TLS_SESSION_CRYPT_AEAD_NONCE_LEN;
+      const size_t ctext_len = in_len - TLS_SESSION_CRYPT_HDR_LEN; // includes the tag
+
+      if(load_be<uint64_t>(magic, 0) != TLS_SESSION_CRYPT_MAGIC)
+         throw Decoding_Error("Missing expected magic numbers");
+
+      auto hmac = MessageAuthenticationCode::create_or_throw(TLS_SESSION_CRYPT_HMAC);
       hmac->set_key(key);
-      hmac->update(in, nonce_len); // nonce bytes
-      aead->set_key(hmac->final());
 
-      aead->start(in, nonce_len);
-      secure_vector<uint8_t> buf(in + nonce_len, in + in_len);
+      // First derive and check the "key name"
+      std::vector<uint8_t> cmp_key_name(hmac->output_length());
+      hmac->update(TLS_SESSION_CRYPT_KEY_NAME);
+      hmac->final(cmp_key_name.data());
+
+      if(same_mem(cmp_key_name.data(), key_name, TLS_SESSION_CRYPT_KEY_NAME_LEN) == false)
+         throw Decoding_Error("Wrong key name for encrypted session");
+
+      hmac->update(key_seed, TLS_SESSION_CRYPT_AEAD_KEY_SEED_LEN);
+      const secure_vector<uint8_t> aead_key = hmac->final();
+
+      auto aead = AEAD_Mode::create_or_throw(TLS_SESSION_CRYPT_AEAD, DECRYPTION);
+      aead->set_key(aead_key);
+      aead->set_associated_data(in, TLS_SESSION_CRYPT_HDR_LEN);
+      aead->start(aead_nonce, TLS_SESSION_CRYPT_AEAD_NONCE_LEN);
+      secure_vector<uint8_t> buf(ctext, ctext + ctext_len);
       aead->finish(buf, 0);
-
       return Session(buf.data(), buf.size());
       }
    catch(std::exception& e)
@@ -80645,7 +82016,7 @@ size_t Session_Manager_In_Memory::remove_all()
    const size_t removed = m_sessions.size();
    m_info_sessions.clear();
    m_sessions.clear();
-   m_session_key = m_rng.random_vec(32);
+   m_rng.random_vec(m_session_key, 32);
    return removed;
    }
 
@@ -82764,6 +84135,7 @@ void assertion_failure(const char* expr_str,
 */
 
 #include <ctime>
+#include <stdlib.h>
 
 namespace Botan {
 
@@ -83491,6 +84863,8 @@ std::string to_string(ErrorType type)
          return "HttpError";
       case ErrorType::InvalidTag:
          return "InvalidTag";
+      case ErrorType::RoughtimeError:
+         return "RoughtimeError";
       case ErrorType::OpenSSLError :
          return "OpenSSLError";
       case ErrorType::CommonCryptoError:
@@ -83637,6 +85011,7 @@ Not_Implemented::Not_Implemented(const std::string& err) :
 #elif defined(BOTAN_TARGET_OS_HAS_WIN32)
   #define NOMINMAX 1
   #define _WINSOCKAPI_ // stop windows.h including winsock.h
+  #include <windows.h>
 #endif
 
 namespace Botan {
@@ -83774,6 +85149,9 @@ namespace Botan {
 
 BOTAN_MALLOC_FN void* allocate_memory(size_t elems, size_t elem_size)
    {
+   if(elems == 0 || elem_size == 0)
+      return nullptr;
+
 #if defined(BOTAN_HAS_LOCKING_ALLOCATOR)
    if(void* p = mlock_allocator::instance().allocate(elems, elem_size))
       return p;
@@ -83857,11 +85235,17 @@ uint8_t ct_compare_u8(const uint8_t x[],
 
 #if defined(BOTAN_TARGET_OS_HAS_WIN32)
   #define NOMINMAX 1
+  #define _WINSOCKAPI_ // stop windows.h including winsock.h
+  #include <windows.h>
 #endif
 
 #if defined(BOTAN_TARGET_OS_IS_ANDROID)
   #include <elf.h>
   extern "C" char **environ;
+#endif
+
+#if defined(BOTAN_TARGET_OS_IS_IOS) || defined(BOTAN_TARGET_OS_IS_MACOS)
+  #include <mach/vm_statistics.h>
 #endif
 
 namespace Botan {
@@ -83914,19 +85298,22 @@ unsigned long OS::get_auxval(unsigned long id)
    {
 #if defined(BOTAN_TARGET_OS_HAS_GETAUXVAL)
    return ::getauxval(id);
-#elif defined(BOTAN_TARGET_OS_IS_ANDROID)
-   char  **p = environ;
+#elif defined(BOTAN_TARGET_OS_IS_ANDROID) && defined(BOTAN_TARGET_ARCH_IS_ARM32)
 
-   while (*p++!=nullptr);
+   if(id == 0)
+      return 0;
 
-   Elf32_auxv_t *e = reinterpret_cast<Elf32_auxv_t *>(p);
+   char **p = environ;
 
-   while (e!=nullptr)
+   while(*p++ != nullptr)
+      ;
+
+   Elf32_auxv_t *e = reinterpret_cast<Elf32_auxv_t*>(p);
+
+   while(e != nullptr)
       {
-      if (e->a_type == 0)
-        continue;
-      if (e->a_type == id)
-        return e->a_un.a_val;
+      if(e->a_type == id)
+         return e->a_un.a_val;
       e++;
       }
 
@@ -84015,32 +85402,28 @@ uint64_t OS::get_cpu_cycle_counter()
 
 size_t OS::get_cpu_total()
    {
-   size_t tt = 1;
 #if defined(BOTAN_TARGET_OS_HAS_POSIX1) && defined(_SC_NPROCESSORS_CONF)
-   long res;
-   if ((res = ::sysconf(_SC_NPROCESSORS_CONF)) <= 0)
-     {
-          return 1;
-     }
-     tt = static_cast<size_t>(res);
-#elif defined(BOTAN_TARGET_OS_HAS_THREADS)
-     tt = static_cast<size_t>(std::thread::hardware_concurrency());
+   const long res = ::sysconf(_SC_NPROCESSORS_CONF);
+   if(res > 0)
+      return static_cast<size_t>(res);
 #endif
-     return tt;
+
+#if defined(BOTAN_TARGET_OS_HAS_THREADS)
+   return static_cast<size_t>(std::thread::hardware_concurrency());
+#else
+   return 1;
+#endif
    }
 
 size_t OS::get_cpu_available()
    {
 #if defined(BOTAN_TARGET_OS_HAS_POSIX1) && defined(_SC_NPROCESSORS_ONLN)
-   long res;
-   if ((res = ::sysconf(_SC_NPROCESSORS_ONLN)) <= 0)
-     {
-       return 1;
-     }
-   return static_cast<size_t>(res);
-#else
-   return get_cpu_total();
+   const long res = ::sysconf(_SC_NPROCESSORS_ONLN);
+   if(res > 0)
+      return static_cast<size_t>(res);
 #endif
+
+   return OS::get_cpu_total();
    }
 
 uint64_t OS::get_high_resolution_clock()
@@ -84120,6 +85503,7 @@ size_t OS::system_page_size()
    else
       return default_page_size;
 #elif defined(BOTAN_TARGET_OS_HAS_VIRTUAL_LOCK)
+   BOTAN_UNUSED(default_page_size);
    SYSTEM_INFO sys_info;
    ::GetSystemInfo(&sys_info);
    return sys_info.dwPageSize;
@@ -84188,21 +85572,40 @@ size_t OS::get_memory_locking_limit()
    return 0;
    }
 
-const char* OS::read_env_variable(const std::string& name)
+bool OS::read_env_variable(std::string& value_out, const std::string& name)
    {
-   if(running_in_privileged_state())
-      return nullptr;
+   value_out = "";
 
-   return std::getenv(name.c_str());
+   if(running_in_privileged_state())
+      return false;
+
+#if defined(BOTAN_TARGET_OS_HAS_WIN32) && defined(BOTAN_BUILD_COMPILER_IS_MSVC)
+   char val[128] = { 0 };
+   size_t req_size = 0;
+   if(getenv_s(&req_size, val, sizeof(val), name.c_str()) == 0)
+      {
+      value_out = std::string(val, req_size);
+      return true;
+      }
+#else
+   if(const char* val = std::getenv(name.c_str()))
+      {
+      value_out = val;
+      return true;
+      }
+#endif
+
+   return false;
    }
 
 size_t OS::read_env_variable_sz(const std::string& name, size_t def)
    {
-   if(const char* env = read_env_variable(name))
+   std::string value;
+   if(read_env_variable(value, name))
       {
       try
          {
-         const size_t val = std::stoul(env, nullptr);
+         const size_t val = std::stoul(value, nullptr);
          return val;
          }
       catch(std::exception&) { /* ignore it */ }
@@ -84211,8 +85614,42 @@ size_t OS::read_env_variable_sz(const std::string& name, size_t def)
    return def;
    }
 
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1) && defined(BOTAN_TARGET_OS_HAS_POSIX_MLOCK)
+
+namespace {
+
+int get_locked_fd()
+   {
+#if defined(BOTAN_TARGET_OS_IS_IOS) || defined(BOTAN_TARGET_OS_IS_MACOS)
+   // On Darwin, tagging anonymous pages allows vmmap to track these.
+   // Allowed from 240 to 255 for userland applications
+   static constexpr int default_locked_fd = 255;
+   int locked_fd = default_locked_fd;
+
+   if(size_t locked_fdl = OS::read_env_variable_sz("BOTAN_LOCKED_FD", default_locked_fd))
+      {
+      if(locked_fdl < 240 || locked_fdl > 255)
+         {
+         locked_fdl = default_locked_fd;
+         }
+      locked_fd = static_cast<int>(locked_fdl);
+      }
+   return VM_MAKE_TAG(locked_fd);
+#else
+   return -1;
+#endif
+   }
+
+}
+
+#endif
+
 std::vector<void*> OS::allocate_locked_pages(size_t count)
    {
+#if defined(BOTAN_TARGET_OS_HAS_POSIX1) && defined(BOTAN_TARGET_OS_HAS_POSIX_MLOCK)
+   static const int locked_fd = get_locked_fd();
+#endif
+
    std::vector<void*> result;
    result.reserve(count);
 
@@ -84224,6 +85661,10 @@ std::vector<void*> OS::allocate_locked_pages(size_t count)
 
 #if defined(BOTAN_TARGET_OS_HAS_POSIX1) && defined(BOTAN_TARGET_OS_HAS_POSIX_MLOCK)
 
+#if !defined(MAP_ANONYMOUS)
+   #define MAP_ANONYMOUS MAP_ANON
+#endif
+
 #if !defined(MAP_NOCORE)
 #if defined(MAP_CONCEAL)
    #define MAP_NOCORE MAP_CONCEAL
@@ -84231,15 +85672,16 @@ std::vector<void*> OS::allocate_locked_pages(size_t count)
    #define MAP_NOCORE 0
 #endif
 #endif
+
 #if !defined(PROT_MAX)
    #define PROT_MAX(p) 0
 #endif
-      int pflags = PROT_READ | PROT_WRITE;
+      const int pflags = PROT_READ | PROT_WRITE;
 
       ptr = ::mmap(nullptr, 2*page_size,
                    pflags | PROT_MAX(pflags),
                    MAP_ANONYMOUS | MAP_PRIVATE | MAP_NOCORE,
-                   /*fd=*/-1, /*offset=*/0);
+                   /*fd=*/locked_fd, /*offset=*/0);
 
       if(ptr == MAP_FAILED)
          {
@@ -84379,19 +85821,6 @@ int OS::run_cpu_instruction_probe(std::function<int ()> probe_fn)
    if(rc != 0)
       throw System_Error("run_cpu_instruction_probe sigaction restore failed", errno);
 
-#elif defined(BOTAN_TARGET_OS_IS_WINDOWS) && defined(BOTAN_TARGET_COMPILER_IS_MSVC)
-
-   // Windows SEH
-   __try
-      {
-      probe_result = probe_fn();
-      }
-   __except(::GetExceptionCode() == EXCEPTION_ILLEGAL_INSTRUCTION ?
-            EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
-      {
-      probe_result = -1;
-      }
-
 #else
    BOTAN_UNUSED(probe_fn);
 #endif
@@ -84508,6 +85937,9 @@ std::unique_ptr<OS::Echo_Suppression> OS::suppress_echo_on_terminal()
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+
+#if defined(BOTAN_HAS_ASN1)
+#endif
 
 namespace Botan {
 
@@ -84687,32 +86119,12 @@ std::string string_join(const std::vector<std::string>& strs, char delim)
 */
 std::vector<uint32_t> parse_asn1_oid(const std::string& oid)
    {
-   std::string substring;
-   std::vector<uint32_t> oid_elems;
-
-   for(auto i = oid.begin(); i != oid.end(); ++i)
-      {
-      char c = *i;
-
-      if(c == '.')
-         {
-         if(substring.empty())
-            throw Invalid_OID(oid);
-         oid_elems.push_back(to_u32bit(substring));
-         substring.clear();
-         }
-      else
-         substring += c;
-      }
-
-   if(substring.empty())
-      throw Invalid_OID(oid);
-   oid_elems.push_back(to_u32bit(substring));
-
-   if(oid_elems.size() < 2)
-      throw Invalid_OID(oid);
-
-   return oid_elems;
+#if defined(BOTAN_HAS_ASN1)
+   return OID(oid).get_components();
+#else
+   BOTAN_UNUSED(oid);
+   throw Not_Implemented("ASN1 support not available");
+#endif
    }
 
 /*
@@ -86175,10 +87587,14 @@ std::multimap<std::string, std::string> AlternativeName::contents() const
    std::multimap<std::string, std::string> names;
 
    for(auto i = m_alt_info.begin(); i != m_alt_info.end(); ++i)
+      {
       multimap_insert(names, i->first, i->second);
+      }
 
    for(auto i = m_othernames.begin(); i != m_othernames.end(); ++i)
-      multimap_insert(names, OIDS::lookup(i->first), i->second.value());
+      {
+      multimap_insert(names, i->first.to_formatted_string(), i->second.value());
+      }
 
    return names;
    }
@@ -86379,10 +87795,10 @@ const char* to_string(Certificate_Status_Code code)
          return "Certificate serial number is negative";
       case Certificate_Status_Code::DN_TOO_LONG:
          return "Distinguished name too long";
-      case Certificate_Status_Code::OSCP_NO_REVOCATION_URL:
+      case Certificate_Status_Code::OCSP_NO_REVOCATION_URL:
          return "OCSP URL not available";
-      case Certificate_Status_Code::OSCP_SERVER_NOT_AVAILABLE:
-         return "OSCP server not available";
+      case Certificate_Status_Code::OCSP_SERVER_NOT_AVAILABLE:
+         return "OCSP server not available";
 
       case Certificate_Status_Code::NO_REVOCATION_DATA:
          return "No revocation data";
@@ -87088,30 +88504,36 @@ std::string key_constraints_to_string(Key_Constraints constraints)
 * Make sure the given key constraints are permitted for the given key type
 */
 void verify_cert_constraints_valid_for_key_type(const Public_Key& pub_key,
-                                                      Key_Constraints constraints)
+                                                Key_Constraints constraints)
    {
    const std::string name = pub_key.algo_name();
 
    size_t permitted = 0;
 
-   if(name == "DH" || name == "ECDH")
+   const bool can_agree = (name == "DH" || name == "ECDH");
+   const bool can_encrypt = (name == "RSA" || name == "ElGamal");
+
+   const bool can_sign =
+      (name == "RSA" || name == "DSA" ||
+       name == "ECDSA" || name == "ECGDSA" || name == "ECKCDSA" || name == "Ed25519" ||
+       name == "GOST-34.10" || name == "GOST-34.10-2012-256" || name == "GOST-34.10-2012-512");
+
+   if(can_agree)
       {
       permitted |= KEY_AGREEMENT | ENCIPHER_ONLY | DECIPHER_ONLY;
       }
 
-   if(name == "RSA" || name == "ElGamal")
+   if(can_encrypt)
       {
       permitted |= KEY_ENCIPHERMENT | DATA_ENCIPHERMENT;
       }
 
-   if(name == "RSA" || name == "DSA" ||
-      name == "ECDSA" || name == "ECGDSA" || name == "ECKCDSA" || name == "GOST-34.10" ||
-      name == "Ed25519")
+   if(can_sign)
       {
       permitted |= DIGITAL_SIGNATURE | NON_REPUDIATION | KEY_CERT_SIGN | CRL_SIGN;
       }
 
-   if((constraints & permitted) != constraints)
+   if(Key_Constraints(constraints & permitted) != constraints)
       {
       throw Invalid_Argument("Invalid " + name + " constraints " + key_constraints_to_string(constraints));
       }
@@ -87339,14 +88761,14 @@ std::ostream& operator<<(std::ostream& os, const GeneralName& gn)
 GeneralSubtree::GeneralSubtree(const std::string& str) : GeneralSubtree()
    {
    size_t p0, p1;
-   size_t min = std::stoull(str, &p0, 10);
-   size_t max = std::stoull(str.substr(p0 + 1), &p1, 10);
+   const auto min = std::stoull(str, &p0, 10);
+   const auto max = std::stoull(str.substr(p0 + 1), &p1, 10);
    GeneralName gn(str.substr(p0 + p1 + 2));
 
    if(p0 > 0 && p1 > 0)
       {
-      m_minimum = min;
-      m_maximum = max;
+      m_minimum = static_cast<size_t>(min);
+      m_maximum = static_cast<size_t>(max);
       m_base = gn;
       }
    else
@@ -87463,6 +88885,7 @@ std::string Request::base64_encode() const
 
 Response::Response(Certificate_Status_Code status)
    {
+   m_status = Response_Status_Code::Successful;
    m_dummy_response_status = status;
    }
 
@@ -87477,11 +88900,10 @@ Response::Response(const uint8_t response_bits[], size_t response_bits_len) :
 
    response_outer.decode(resp_status, ENUMERATED, UNIVERSAL);
 
-   /*
-   * FIXME: properly decode error responses
-   */
-   if(resp_status != 0)
-      throw Decoding_Error("OCSP response status " + std::to_string(resp_status));
+   m_status = static_cast<Response_Status_Code>(resp_status);
+
+   if(m_status != Response_Status_Code::Successful)
+      { return; }
 
    if(response_outer.more_items())
       {
@@ -87535,13 +88957,13 @@ Certificate_Status_Code Response::verify_signature(const X509_Certificate& issue
       std::unique_ptr<Public_Key> pub_key(issuer.subject_public_key());
 
       const std::vector<std::string> sig_info =
-         split_on(OIDS::lookup(m_sig_algo.get_oid()), '/');
+         split_on(m_sig_algo.get_oid().to_formatted_string(), '/');
 
       if(sig_info.size() != 2 || sig_info[0] != pub_key->algo_name())
          return Certificate_Status_Code::OCSP_RESPONSE_INVALID;
 
       std::string padding = sig_info[1];
-      Signature_Format format = (pub_key->message_parts() >= 2) ? DER_SEQUENCE : IEEE_1363;
+      const Signature_Format format = pub_key->default_x509_signature_format();
 
       PK_Verifier verifier(*pub_key, padding, format);
 
@@ -87767,7 +89189,8 @@ bool CertID::is_id_for(const X509_Certificate& issuer,
       if(BigInt::decode(subject.serial_number()) != m_subject_serial)
          return false;
 
-      std::unique_ptr<HashFunction> hash(HashFunction::create(OIDS::lookup(m_hash_id.get_oid())));
+      const std::string hash_algo = m_hash_id.get_oid().to_formatted_string();
+      std::unique_ptr<HashFunction> hash = HashFunction::create_or_throw(hash_algo);
 
       if(m_issuer_dn_hash != unlock(hash->process(subject.raw_issuer_dn())))
          return false;
@@ -87905,26 +89328,17 @@ PKCS10_Request PKCS10_Request::create(const Private_Key& key,
 
    if(challenge.empty() == false)
       {
-      ASN1_String challenge_str(challenge, DIRECTORY_STRING);
-
-      tbs_req.encode(
-         Attribute("PKCS9.ChallengePassword",
-                   DER_Encoder().encode(challenge_str).get_contents_unlocked()
-            )
-         );
+      std::vector<uint8_t> value;
+      DER_Encoder(value).encode(ASN1_String(challenge, DIRECTORY_STRING));
+      tbs_req.encode(Attribute("PKCS9.ChallengePassword", value));
       }
 
-   tbs_req.encode(
-      Attribute("PKCS9.ExtensionRequest",
-                DER_Encoder()
-                   .start_cons(SEQUENCE)
-                      .encode(extensions)
-                   .end_cons()
-               .get_contents_unlocked()
-         )
-      )
-      .end_explicit()
-      .end_cons();
+   std::vector<uint8_t> extension_req;
+   DER_Encoder(extension_req).start_cons(SEQUENCE).encode(extensions).end_cons();
+   tbs_req.encode(Attribute("PKCS9.ExtensionRequest", extension_req));
+
+   // end the start_explicit above
+   tbs_req.end_explicit().end_cons();
 
    const std::vector<uint8_t> req =
       X509_Object::make_signed(signer.get(), rng, sig_algo,
@@ -87973,19 +89387,19 @@ std::unique_ptr<PKCS10_Data> decode_pkcs10(const std::vector<uint8_t>& body)
          const OID& oid = attr.get_oid();
          BER_Decoder value(attr.get_parameters());
 
-         if(oid == OIDS::lookup("PKCS9.EmailAddress"))
+         if(oid == OID::from_string("PKCS9.EmailAddress"))
             {
             ASN1_String email;
             value.decode(email);
             pkcs9_email.insert(email.value());
             }
-         else if(oid == OIDS::lookup("PKCS9.ChallengePassword"))
+         else if(oid == OID::from_string("PKCS9.ChallengePassword"))
             {
             ASN1_String challenge_password;
             value.decode(challenge_password);
             data->m_challenge = challenge_password.value();
             }
-         else if(oid == OIDS::lookup("PKCS9.ExtensionRequest"))
+         else if(oid == OID::from_string("PKCS9.ExtensionRequest"))
             {
             value.decode(data->m_extensions).verify_end();
             }
@@ -88085,7 +89499,7 @@ const Extensions& PKCS10_Request::extensions() const
 */
 Key_Constraints PKCS10_Request::constraints() const
    {
-   if(auto ext = extensions().get(OIDS::lookup("X509v3.KeyUsage")))
+   if(auto ext = extensions().get(OID::from_string("X509v3.KeyUsage")))
       {
       return dynamic_cast<Cert_Extension::Key_Usage&>(*ext).get_constraints();
       }
@@ -88098,7 +89512,7 @@ Key_Constraints PKCS10_Request::constraints() const
 */
 std::vector<OID> PKCS10_Request::ex_constraints() const
    {
-   if(auto ext = extensions().get(OIDS::lookup("X509v3.ExtendedKeyUsage")))
+   if(auto ext = extensions().get(OID::from_string("X509v3.ExtendedKeyUsage")))
       {
       return dynamic_cast<Cert_Extension::Extended_Key_Usage&>(*ext).get_oids();
       }
@@ -88111,7 +89525,7 @@ std::vector<OID> PKCS10_Request::ex_constraints() const
 */
 bool PKCS10_Request::is_CA() const
    {
-   if(auto ext = extensions().get(OIDS::lookup("X509v3.BasicConstraints")))
+   if(auto ext = extensions().get(OID::from_string("X509v3.BasicConstraints")))
       {
       return dynamic_cast<Cert_Extension::Basic_Constraints&>(*ext).get_is_ca();
       }
@@ -88124,7 +89538,7 @@ bool PKCS10_Request::is_CA() const
 */
 size_t PKCS10_Request::path_limit() const
    {
-   if(auto ext = extensions().get(OIDS::lookup("X509v3.BasicConstraints")))
+   if(auto ext = extensions().get(OID::from_string("X509v3.BasicConstraints")))
       {
       Cert_Extension::Basic_Constraints& basic_constraints = dynamic_cast<Cert_Extension::Basic_Constraints&>(*ext);
       if(basic_constraints.get_is_ca())
@@ -88164,7 +89578,7 @@ X509_CA::X509_CA(const X509_Certificate& c,
    // constructor without additional options: use the padding used in the CA certificate
    // sig_oid_str = <sig_alg>/<padding>, so padding with all its options will look
    // like a cipher mode to the scanner
-   std::string sig_oid_str = OIDS::lookup(c.signature_algorithm().oid);
+   std::string sig_oid_str = OIDS::oid2str_or_throw(c.signature_algorithm().get_oid());
    SCAN_Name scanner(sig_oid_str);
    std::string pad = scanner.cipher_mode();
    if(!pad.empty())
@@ -88739,7 +90153,7 @@ namespace Botan {
 void X509_DN::add_attribute(const std::string& type,
                             const std::string& str)
    {
-   add_attribute(OIDS::lookup(type), str);
+   add_attribute(OID::from_string(type), str);
    }
 
 /*
@@ -88775,18 +90189,18 @@ std::multimap<std::string, std::string> X509_DN::contents() const
 
    for(auto& i : m_rdn)
       {
-      std::string str_value = OIDS::oid2str(i.first);
-
-      if(str_value.empty())
-         str_value = i.first.to_string();
-      multimap_insert(retval, str_value, i.second.value());
+      multimap_insert(retval, i.first.to_formatted_string(), i.second.value());
       }
    return retval;
    }
 
 bool X509_DN::has_field(const std::string& attr) const
    {
-   return has_field(OIDS::lookup(deref_info_field(attr)));
+   const OID o = OIDS::str2oid_or_empty(deref_info_field(attr));
+   if(o.has_value())
+      return has_field(o);
+   else
+      return false;
    }
 
 bool X509_DN::has_field(const OID& oid) const
@@ -88802,7 +90216,7 @@ bool X509_DN::has_field(const OID& oid) const
 
 std::string X509_DN::get_first_attribute(const std::string& attr) const
    {
-   const OID oid = OIDS::lookup(deref_info_field(attr));
+   const OID oid = OID::from_string(deref_info_field(attr));
    return get_first_attribute(oid).value();
    }
 
@@ -88824,7 +90238,7 @@ ASN1_String X509_DN::get_first_attribute(const OID& oid) const
 */
 std::vector<std::string> X509_DN::get_attribute(const std::string& attr) const
    {
-   const OID oid = OIDS::lookup(deref_info_field(attr));
+   const OID oid = OID::from_string(deref_info_field(attr));
 
    std::vector<std::string> values;
 
@@ -89020,10 +90434,7 @@ namespace {
 
 std::string to_short_form(const OID& oid)
    {
-   const std::string long_id = OIDS::oid2str(oid);
-
-   if(long_id.empty())
-      return oid.to_string();
+   const std::string long_id = oid.to_formatted_string();
 
    if(long_id == "X520.CommonName")
       return "CN";
@@ -89148,7 +90559,7 @@ std::istream& operator>>(std::istream& in, X509_DN& dn)
 /*
 * DN_UB maps: Upper bounds on the length of DN strings
 *
-* This file was automatically generated by ./src/scripts/oids.py on 2017-12-23
+* This file was automatically generated by ./src/scripts/oids.py on 2019-10-21
 *
 * All manual edits to this file will be lost. Edit the script
 * then regenerate this source file.
@@ -89158,6 +90569,7 @@ std::istream& operator>>(std::istream& in, X509_DN& dn)
 
 
 namespace {
+
 /**
  * Upper bounds for the length of distinguished name fields as given in RFC 5280, Appendix A.
  * Only OIDS recognized by botan are considered, so far.
@@ -89166,20 +90578,21 @@ namespace {
  */
 static const std::map<Botan::OID, size_t> DN_UB =
    {
-   { Botan::OID("2.5.4.10"), 64 }, // X520.Organization
-   { Botan::OID("2.5.4.11"), 64 }, // X520.OrganizationalUnit
-   { Botan::OID("2.5.4.12"), 64 }, // X520.Title
-   { Botan::OID("2.5.4.3"), 64 }, // X520.CommonName
-   { Botan::OID("2.5.4.4"), 40 }, // X520.Surname
-   { Botan::OID("2.5.4.42"), 32768 }, // X520.GivenName
-   { Botan::OID("2.5.4.43"), 32768 }, // X520.Initials
-   { Botan::OID("2.5.4.44"), 32768 }, // X520.GenerationalQualifier
-   { Botan::OID("2.5.4.46"), 64 }, // X520.DNQualifier
-   { Botan::OID("2.5.4.5"), 64 }, // X520.SerialNumber
-   { Botan::OID("2.5.4.6"), 3 }, // X520.Country
-   { Botan::OID("2.5.4.65"), 128 }, // X520.Pseudonym
-   { Botan::OID("2.5.4.7"), 128 }, // X520.Locality
-   { Botan::OID("2.5.4.8"), 128 } // X520.State
+   { Botan::OID({2,5,4,10}), 64 }, // X520.Organization
+   { Botan::OID({2,5,4,11}), 64 }, // X520.OrganizationalUnit
+   { Botan::OID({2,5,4,12}), 64 }, // X520.Title
+   { Botan::OID({2,5,4,3}), 64 }, // X520.CommonName
+   { Botan::OID({2,5,4,4}), 40 }, // X520.Surname
+   { Botan::OID({2,5,4,42}), 32768 }, // X520.GivenName
+   { Botan::OID({2,5,4,43}), 32768 }, // X520.Initials
+   { Botan::OID({2,5,4,44}), 32768 }, // X520.GenerationalQualifier
+   { Botan::OID({2,5,4,46}), 64 }, // X520.DNQualifier
+   { Botan::OID({2,5,4,5}), 64 }, // X520.SerialNumber
+   { Botan::OID({2,5,4,6}), 3 }, // X520.Country
+   { Botan::OID({2,5,4,65}), 128 }, // X520.Pseudonym
+   { Botan::OID({2,5,4,7}), 128 }, // X520.Locality
+   { Botan::OID({2,5,4,8}), 128 }, // X520.State
+   { Botan::OID({2,5,4,9}), 128 } // X520.StreetAddress
    };
 }
 
@@ -89315,7 +90728,11 @@ void Extensions::add(Certificate_Extension* extn, bool critical)
    {
    // sanity check: we don't want to have the same extension more than once
    if(m_extension_info.count(extn->oid_of()) > 0)
-      throw Invalid_Argument(extn->oid_name() + " extension already present in Extensions::add");
+      {
+      const std::string name = extn->oid_name();
+      delete extn;
+      throw Invalid_Argument("Extension " + name + " already present in Extensions::add");
+      }
 
    const OID oid = extn->oid_of();
    Extensions_Info info(critical, extn);
@@ -89338,10 +90755,22 @@ bool Extensions::add_new(Certificate_Extension* extn, bool critical)
    return true;
    }
 
+bool Extensions::remove(const OID& oid)
+   {
+   const bool erased = m_extension_info.erase(oid) > 0;
+
+   if(erased)
+      {
+      m_extension_oids.erase(std::find(m_extension_oids.begin(), m_extension_oids.end(), oid));
+      }
+
+   return erased;
+   }
+
 void Extensions::replace(Certificate_Extension* extn, bool critical)
    {
    // Remove it if it existed
-   m_extension_info.erase(extn->oid_of());
+   remove(extn->oid_of());
 
    const OID oid = extn->oid_of();
    Extensions_Info info(critical, extn);
@@ -89360,6 +90789,15 @@ bool Extensions::critical_extension_set(const OID& oid) const
    if(i != m_extension_info.end())
       return i->second.is_critical();
    return false;
+   }
+
+std::vector<uint8_t> Extensions::get_extension_bits(const OID& oid) const
+   {
+   auto i = m_extension_info.find(oid);
+   if(i == m_extension_info.end())
+      throw Invalid_Argument("Extensions::get_extension_bits no such extension set");
+
+   return i->second.bits();
    }
 
 const Certificate_Extension* Extensions::get_extension_object(const OID& oid) const
@@ -89977,7 +91415,7 @@ std::vector<uint8_t> Authority_Information_Access::encode_inner() const
    DER_Encoder(output)
       .start_cons(SEQUENCE)
       .start_cons(SEQUENCE)
-      .encode(OIDS::lookup("PKIX.OCSP"))
+      .encode(OID::from_string("PKIX.OCSP"))
       .add_object(ASN1_Tag(6), CONTEXT_SPECIFIC, url.value())
       .end_cons()
       .end_cons();
@@ -89996,7 +91434,7 @@ void Authority_Information_Access::decode_inner(const std::vector<uint8_t>& in)
 
       info.decode(oid);
 
-      if(oid == OIDS::lookup("PKIX.OCSP"))
+      if(oid == OID::from_string("PKIX.OCSP"))
          {
          BER_Object name = info.get_next_object();
 
@@ -90006,7 +91444,7 @@ void Authority_Information_Access::decode_inner(const std::vector<uint8_t>& in)
             }
 
          }
-      if(oid == OIDS::lookup("PKIX.CertificateAuthorityIssuers"))
+      if(oid == OID::from_string("PKIX.CertificateAuthorityIssuers"))
          {
          BER_Object name = info.get_next_object();
 
@@ -90322,7 +91760,7 @@ std::vector<uint8_t> X509_Object::tbs_data() const
 std::string X509_Object::hash_used_for_signature() const
    {
    const OID& oid = m_sig_algo.get_oid();
-   const std::vector<std::string> sig_info = split_on(OIDS::lookup(oid), '/');
+   const std::vector<std::string> sig_info = split_on(oid.to_formatted_string(), '/');
 
    if(sig_info.size() == 1 && sig_info[0] == "Ed25519")
       return "SHA-512";
@@ -90331,7 +91769,8 @@ std::string X509_Object::hash_used_for_signature() const
 
    if(sig_info[1] == "EMSA4")
       {
-      return OIDS::lookup(decode_pss_params(signature_algorithm().get_parameters()).hash_algo.get_oid());
+      const OID hash_oid = decode_pss_params(signature_algorithm().get_parameters()).hash_algo.get_oid();
+      return hash_oid.to_formatted_string();
       }
    else
       {
@@ -90367,7 +91806,7 @@ bool X509_Object::check_signature(const Public_Key& pub_key) const
 Certificate_Status_Code X509_Object::verify_signature(const Public_Key& pub_key) const
    {
    const std::vector<std::string> sig_info =
-      split_on(OIDS::lookup(m_sig_algo.get_oid()), '/');
+      split_on(m_sig_algo.get_oid().to_formatted_string(), '/');
 
    if(sig_info.size() < 1 || sig_info.size() > 2 || sig_info[0] != pub_key.algo_name())
       return Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS;
@@ -90375,26 +91814,25 @@ Certificate_Status_Code X509_Object::verify_signature(const Public_Key& pub_key)
    std::string padding;
    if(sig_info.size() == 2)
       padding = sig_info[1];
-   else if(sig_info[0] == "Ed25519")
+   else if(sig_info[0] == "Ed25519" || sig_info[0] == "XMSS")
       padding = "Pure";
    else
       return Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS;
 
-   const Signature_Format format =
-      (pub_key.message_parts() >= 2) ? DER_SEQUENCE : IEEE_1363;
+   const Signature_Format format = pub_key.default_x509_signature_format();
 
    if(padding == "EMSA4")
       {
       // "MUST contain RSASSA-PSS-params"
-      if(signature_algorithm().parameters.empty())
+      if(signature_algorithm().get_parameters().empty())
          {
          return Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS;
          }
 
-      Pss_params pss_parameter = decode_pss_params(signature_algorithm().parameters);
+      Pss_params pss_parameter = decode_pss_params(signature_algorithm().get_parameters());
 
       // hash_algo must be SHA1, SHA2-224, SHA2-256, SHA2-384 or SHA2-512
-      const std::string hash_algo = OIDS::lookup(pss_parameter.hash_algo.oid);
+      const std::string hash_algo = pss_parameter.hash_algo.get_oid().to_formatted_string();
       if(hash_algo != "SHA-160" &&
          hash_algo != "SHA-224" &&
          hash_algo != "SHA-256" &&
@@ -90404,7 +91842,7 @@ Certificate_Status_Code X509_Object::verify_signature(const Public_Key& pub_key)
          return Certificate_Status_Code::UNTRUSTED_HASH;
          }
 
-      const std::string mgf_algo = OIDS::lookup(pss_parameter.mask_gen_algo.oid);
+      const std::string mgf_algo = pss_parameter.mask_gen_algo.get_oid().to_formatted_string();
       if(mgf_algo != "MGF1")
          {
          return Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS;
@@ -90412,7 +91850,7 @@ Certificate_Status_Code X509_Object::verify_signature(const Public_Key& pub_key)
 
       // For MGF1, it is strongly RECOMMENDED that the underlying hash function be the same as the one identified by hashAlgorithm
       // Must be SHA1, SHA2-224, SHA2-256, SHA2-384 or SHA2-512
-      if(pss_parameter.mask_gen_hash.oid != pss_parameter.hash_algo.oid)
+      if(pss_parameter.mask_gen_hash.get_oid() != pss_parameter.hash_algo.get_oid())
          {
          return Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS;
          }
@@ -90422,7 +91860,6 @@ Certificate_Status_Code X509_Object::verify_signature(const Public_Key& pub_key)
          return Certificate_Status_Code::SIGNATURE_ALGO_BAD_PARAMS;
          }
 
-      // salt_len is actually not used for verification. Length is inferred from the signature
       padding += "(" + hash_algo + "," + mgf_algo + "," + std::to_string(pss_parameter.salt_len) + ")";
       }
 
@@ -90488,13 +91925,25 @@ std::string choose_sig_algo(AlgorithmIdentifier& sig_algo,
            algo_name == "ECDSA" ||
            algo_name == "ECGDSA" ||
            algo_name == "ECKCDSA" ||
-           algo_name == "GOST-34.10")
+           algo_name == "GOST-34.10" ||
+           algo_name == "GOST-34.10-2012-256" ||
+           algo_name == "GOST-34.10-2012-512")
       {
       padding = "EMSA1(" + hash_fn + ")";
       }
    else if(algo_name == "Ed25519")
       {
       padding = "Pure";
+      }
+   else if(algo_name == "XMSS")
+      {
+      if(user_specified.empty() == true)
+         {
+         throw Invalid_Argument("XMSS requires padding scheme");
+         }
+      padding = user_specified;
+      sig_algo = AlgorithmIdentifier(OID::from_string("XMSS"), AlgorithmIdentifier::USE_EMPTY_PARAM);
+      return padding;
       }
    else
       {
@@ -90536,7 +91985,7 @@ std::string choose_sig_algo(AlgorithmIdentifier& sig_algo,
       }
    else
       {
-      sig_algo = AlgorithmIdentifier(OIDS::lookup("Ed25519"), AlgorithmIdentifier::USE_EMPTY_PARAM);
+      sig_algo = AlgorithmIdentifier(OID::from_string("Ed25519"), AlgorithmIdentifier::USE_EMPTY_PARAM);
       return "Pure";
       }
    }
@@ -90552,7 +92001,7 @@ std::unique_ptr<PK_Signer> X509_Object::choose_sig_format(AlgorithmIdentifier& s
                                                           const std::string& hash_fn,
                                                           const std::string& padding_algo)
    {
-   const Signature_Format format = (key.message_parts() > 1) ? DER_SEQUENCE : IEEE_1363;
+   const Signature_Format format = key.default_x509_signature_format();
 
    const std::string emsa = choose_sig_algo(sig_algo, key, hash_fn, padding_algo);
 
@@ -90697,8 +92146,8 @@ std::unique_ptr<X509_Certificate_Data> parse_x509_cert_body(const X509_Object& o
    AlgorithmIdentifier public_key_alg_id;
    BER_Decoder(public_key).decode(public_key_alg_id).discard_remaining();
 
-   std::vector<std::string> public_key_info =
-      split_on(OIDS::oid2str(public_key_alg_id.get_oid()), '/');
+   const std::vector<std::string> public_key_info =
+      split_on(OIDS::oid2str_or_empty(public_key_alg_id.get_oid()), '/');
 
    if(!public_key_info.empty() && public_key_info[0] == "RSA")
       {
@@ -91050,7 +92499,7 @@ bool X509_Certificate::allowed_usage(Key_Constraints usage) const
 
 bool X509_Certificate::allowed_extended_usage(const std::string& usage) const
    {
-   return allowed_extended_usage(OIDS::str2oid(usage));
+   return allowed_extended_usage(OID::from_string(usage));
    }
 
 bool X509_Certificate::allowed_extended_usage(const OID& usage) const
@@ -91085,6 +92534,9 @@ bool X509_Certificate::allowed_usage(Usage_Type usage) const
 
       case Usage_Type::CERTIFICATE_AUTHORITY:
          return is_CA_cert();
+
+      case Usage_Type::ENCRYPTION:
+         return (allowed_usage(KEY_ENCIPHERMENT) || allowed_usage(DATA_ENCIPHERMENT));
       }
 
    return false;
@@ -91102,7 +92554,7 @@ bool X509_Certificate::has_constraints(Key_Constraints constraints) const
 
 bool X509_Certificate::has_ex_constraint(const std::string& ex_constraint) const
    {
-   return has_ex_constraint(OIDS::str2oid(ex_constraint));
+   return has_ex_constraint(OID::from_string(ex_constraint));
    }
 
 bool X509_Certificate::has_ex_constraint(const OID& usage) const
@@ -91116,7 +92568,7 @@ bool X509_Certificate::has_ex_constraint(const OID& usage) const
 */
 bool X509_Certificate::is_critical(const std::string& ex_name) const
    {
-   return v3_extensions().critical_extension_set(OIDS::str2oid(ex_name));
+   return v3_extensions().critical_extension_set(OID::from_string(ex_name));
    }
 
 std::string X509_Certificate::ocsp_responder() const
@@ -91245,7 +92697,7 @@ std::vector<std::string> lookup_oids(const std::vector<OID>& oids)
 
    for(const OID& oid : oids)
       {
-      out.push_back(OIDS::oid2str(oid));
+      out.push_back(oid.to_formatted_string());
       }
    return out;
    }
@@ -91373,12 +92825,7 @@ std::string X509_Certificate::to_string() const
       out << "Extended Constraints:\n";
       for(auto&& oid : ex_constraints)
          {
-         const std::string oid_str = OIDS::oid2str(oid);
-
-         if(oid_str.empty())
-            out << "   " << oid.to_string() << "\n";
-         else
-            out << "   " << oid_str << "\n";
+         out << "   " << oid.to_formatted_string() << "\n";
          }
       }
 
@@ -91423,8 +92870,7 @@ std::string X509_Certificate::to_string() const
    if(!crl_distribution_point().empty())
       out << "CRL " << crl_distribution_point() << "\n";
 
-   out << "Signature algorithm: " <<
-      OIDS::oid2str(this->signature_algorithm().get_oid()) << "\n";
+   out << "Signature algorithm: " << this->signature_algorithm().get_oid().to_formatted_string() << "\n";
 
    out << "Serial number: " << hex_encode(this->serial_number()) << "\n";
 
@@ -91497,7 +92943,7 @@ void X509_Cert_Options::add_ex_constraint(const OID& oid)
 */
 void X509_Cert_Options::add_ex_constraint(const std::string& oid_str)
    {
-   ex_constraints.push_back(OIDS::lookup(oid_str));
+   ex_constraints.push_back(OID::from_string(oid_str));
    }
 
 /*
@@ -91652,14 +93098,14 @@ PKIX::check_chain(const std::vector<std::shared_ptr<const X509_Certificate>>& ce
 
       std::unique_ptr<Public_Key> issuer_key(issuer->subject_public_key());
 
-      // Check the signature algorithm
-      if(OIDS::lookup(subject->signature_algorithm().oid).empty())
+      // Check the signature algorithm is known
+      if(OIDS::oid2str_or_empty(subject->signature_algorithm().get_oid()).empty())
          {
          status.insert(Certificate_Status_Code::SIGNATURE_ALGO_UNKNOWN);
          }
-      // only perform the following checks if the signature algorithm is known
       else
          {
+         // only perform the following checks if the signature algorithm is known
          if(!issuer_key)
             {
             status.insert(Certificate_Status_Code::CERT_PUBKEY_INVALID);
@@ -91755,7 +93201,8 @@ PKIX::check_ocsp(const std::vector<std::shared_ptr<const X509_Certificate>>& cer
       std::shared_ptr<const X509_Certificate> subject = cert_path.at(i);
       std::shared_ptr<const X509_Certificate> ca = cert_path.at(i+1);
 
-      if(i < ocsp_responses.size() && (ocsp_responses.at(i) != nullptr))
+      if(i < ocsp_responses.size() && (ocsp_responses.at(i) != nullptr)
+            && (ocsp_responses.at(i)->status() == OCSP::Response_Status_Code::Successful))
          {
          try
             {
@@ -91834,8 +93281,11 @@ PKIX::check_crl(const std::vector<std::shared_ptr<const X509_Certificate>>& cert
 
          for(const auto& extension : crls[i]->extensions().extensions())
             {
+            // XXX this is wrong - the OID might be defined but the extention not full parsed
+            // for example see #1652
+
             // is the extension critical and unknown?
-            if(extension.second && OIDS::lookup(extension.first->oid_of()) == "")
+            if(extension.second && OIDS::oid2str_or_empty(extension.first->oid_of()) == "")
                {
                /* NIST Certificate Path Valiadation Testing document: "When an implementation does not recognize a critical extension in the
                 * crlExtensions field, it shall assume that identified certificates have been revoked and are no longer valid"
@@ -91910,7 +93360,7 @@ PKIX::check_ocsp_online(const std::vector<std::shared_ptr<const X509_Certificate
       if(subject->ocsp_responder() == "")
          {
          ocsp_response_futures.emplace_back(std::async(std::launch::deferred, [&]() -> std::shared_ptr<const OCSP::Response> {
-                  return std::make_shared<const OCSP::Response>(Certificate_Status_Code::OSCP_NO_REVOCATION_URL);
+                  return std::make_shared<const OCSP::Response>(Certificate_Status_Code::OCSP_NO_REVOCATION_URL);
                   }));
          }
       else
@@ -91932,7 +93382,7 @@ PKIX::check_ocsp_online(const std::vector<std::shared_ptr<const X509_Certificate
                   // log e.what() ?
                   }
                if (http.status_code() != 200)
-                  return std::make_shared<const OCSP::Response>(Certificate_Status_Code::OSCP_SERVER_NOT_AVAILABLE);
+                  return std::make_shared<const OCSP::Response>(Certificate_Status_Code::OCSP_SERVER_NOT_AVAILABLE);
                // Check the MIME type?
 
                return std::make_shared<const OCSP::Response>(http.body());
@@ -92321,8 +93771,8 @@ void PKIX::merge_revocation_status(CertificatePathStatusCodes& chain_status,
          for(auto&& code : ocsp[i])
             {
             if(code == Certificate_Status_Code::OCSP_RESPONSE_GOOD ||
-               code == Certificate_Status_Code::OSCP_NO_REVOCATION_URL ||  // softfail
-               code == Certificate_Status_Code::OSCP_SERVER_NOT_AVAILABLE) // softfail
+               code == Certificate_Status_Code::OCSP_NO_REVOCATION_URL ||  // softfail
+               code == Certificate_Status_Code::OCSP_SERVER_NOT_AVAILABLE) // softfail
                {
                had_ocsp = true;
                }
@@ -92638,7 +94088,7 @@ void load_info(const X509_Cert_Options& opts, X509_DN& subject_dn,
 
    subject_dn.add_attribute("X520.SerialNumber", opts.serial_number);
    subject_alt = AlternativeName(opts.email, opts.uri, opts.dns, opts.ip);
-   subject_alt.add_othername(OIDS::lookup("PKIX.XMPPAddr"),
+   subject_alt.add_othername(OID::from_string("PKIX.XMPPAddr"),
                              opts.xmpp, UTF8_STRING);
 
    for(auto dns : opts.more_dns)
@@ -92665,6 +94115,7 @@ X509_Certificate create_self_signed_cert(const X509_Cert_Options& opts,
 
    const std::vector<uint8_t> pub_key = X509::BER_encode(key);
    std::unique_ptr<PK_Signer> signer(choose_sig_format(key, sig_opts, rng, hash_fn, sig_algo));
+   BOTAN_ASSERT_NOMSG(sig_algo.get_oid().has_value());
    load_info(opts, subject_dn, subject_alt);
 
    Extensions extensions = opts.extensions;
@@ -93256,7 +94707,7 @@ XMSS_Parameters::XMSS_Parameters(xmss_algorithm_t oid)
          m_wots_oid = XMSS_WOTS_Parameters::ots_algorithm_t::WOTSP_SHAKE_512;
          break;
       default:
-         throw Not_Implemented("Algorithm id does not match any known XMSS algorithm id.");
+         throw Not_Implemented("Algorithm id does not match any known XMSS algorithm id:" + std::to_string(oid));
          break;
       }
    }
@@ -93285,8 +94736,27 @@ XMSS_Parameters::XMSS_Parameters(xmss_algorithm_t oid)
 
 namespace Botan {
 
-XMSS_PrivateKey::XMSS_PrivateKey(const secure_vector<uint8_t>& raw_key)
-   : XMSS_PublicKey(unlock(raw_key)),
+namespace {
+
+// fall back to raw decoding for previous versions, which did not encode an OCTET STRING
+secure_vector<uint8_t> extract_raw_key(const secure_vector<uint8_t>& key_bits)
+   {
+   secure_vector<uint8_t> raw_key;
+   try
+      {
+      BER_Decoder(key_bits).decode(raw_key, OCTET_STRING);
+      }
+   catch(Decoding_Error&)
+      {
+      raw_key = key_bits;
+      }
+   return raw_key;
+   }
+
+}
+
+XMSS_PrivateKey::XMSS_PrivateKey(const secure_vector<uint8_t>& key_bits)
+   : XMSS_PublicKey(unlock(key_bits)),
      XMSS_Common_Ops(XMSS_PublicKey::m_xmss_params.oid()),
      m_wots_priv_key(m_wots_params.oid(), m_public_seed),
      m_index_reg(XMSS_Index_Registry::get_instance())
@@ -93301,12 +94771,14 @@ XMSS_PrivateKey::XMSS_PrivateKey(const secure_vector<uint8_t>& raw_key)
    */
    static_assert(sizeof(size_t) >= 4, "size_t is big enough to support leaf index");
 
+   secure_vector<uint8_t> raw_key = extract_raw_key(key_bits);
+
    if(raw_key.size() != XMSS_PrivateKey::size())
       {
-      throw Decoding_Error("Invalid XMSS private key size detected.");
+      throw Decoding_Error("Invalid XMSS private key size");
       }
 
-   // extract & copy unused leaf index from raw_key.
+   // extract & copy unused leaf index from raw_key
    uint64_t unused_leaf = 0;
    auto begin = (raw_key.begin() + XMSS_PublicKey::size());
    auto end = raw_key.begin() + XMSS_PublicKey::size() + sizeof(uint32_t);
@@ -93355,7 +94827,8 @@ XMSS_PrivateKey::tree_hash(size_t start_idx,
                            size_t target_node_height,
                            XMSS_Address& adrs)
    {
-   BOTAN_ASSERT((start_idx % (1 << target_node_height)) == 0,
+   BOTAN_ASSERT_NOMSG(target_node_height <= 30);
+   BOTAN_ASSERT((start_idx % (static_cast<size_t>(1) << target_node_height)) == 0,
                 "Start index must be divisible by 2^{target node height}.");
 
 #if defined(BOTAN_HAS_THREAD_UTILS)
@@ -93376,7 +94849,8 @@ XMSS_PrivateKey::tree_hash(size_t start_idx,
    const size_t subtrees = static_cast<size_t>(1) << split_level;
    const size_t last_idx = (static_cast<size_t>(1) << (target_node_height)) + start_idx;
    const size_t offs = (last_idx - start_idx) / subtrees;
-   uint8_t level = split_level; // current level in the tree
+   // this cast cannot overflow because target_node_height is limited
+   uint8_t level = static_cast<uint8_t>(split_level); // current level in the tree
 
    BOTAN_ASSERT((last_idx - start_idx) % subtrees == 0,
                 "Number of worker threads in tree_hash need to divide range "
@@ -93421,13 +94895,13 @@ XMSS_PrivateKey::tree_hash(size_t start_idx,
    while(level-- > 1)
       {
       std::vector<secure_vector<uint8_t>> ro_nodes(
-         nodes.begin(), nodes.begin() + (1 << (level+1)));
+         nodes.begin(), nodes.begin() + (static_cast<size_t>(1) << (level+1)));
 
-      for(size_t i = 0; i < (1U << level); i++)
+      for(size_t i = 0; i < (static_cast<size_t>(1) << level); i++)
          {
          BOTAN_ASSERT_NOMSG(xmss_hash.size() > i);
 
-         node_addresses[i].set_tree_height(target_node_height - (level + 1));
+         node_addresses[i].set_tree_height(static_cast<uint32_t>(target_node_height - (level + 1)));
          node_addresses[i].set_tree_index(
             (node_addresses[2 * i + 1].get_tree_index() - 1) >> 1);
          using rnd_tree_hash_fn_t =
@@ -93459,7 +94933,7 @@ XMSS_PrivateKey::tree_hash(size_t start_idx,
       }
 
    // Avoid creation an extra thread to calculate root node.
-   node_addresses[0].set_tree_height(target_node_height - 1);
+   node_addresses[0].set_tree_height(static_cast<uint32_t>(target_node_height - 1));
    node_addresses[0].set_tree_index(
       (node_addresses[1].get_tree_index() - 1) >> 1);
    randomize_tree_hash(nodes[0],
@@ -93501,7 +94975,7 @@ XMSS_PrivateKey::tree_hash_subtree(secure_vector<uint8_t>& result,
    for(size_t i = start_idx; i < last_idx; i++)
       {
       adrs.set_type(XMSS_Address::Type::OTS_Hash_Address);
-      adrs.set_ots_address(i);
+      adrs.set_ots_address(static_cast<uint32_t>(i));
       this->wots_private_key().generate_public_key(
          pk,
          // getWOTS_SK(SK, s + i), reference implementation uses adrs
@@ -93510,13 +94984,13 @@ XMSS_PrivateKey::tree_hash_subtree(secure_vector<uint8_t>& result,
          adrs,
          hash);
       adrs.set_type(XMSS_Address::Type::LTree_Address);
-      adrs.set_ltree_address(i);
+      adrs.set_ltree_address(static_cast<uint32_t>(i));
       create_l_tree(nodes[level], pk, adrs, seed, hash);
       node_levels[level] = 0;
 
       adrs.set_type(XMSS_Address::Type::Hash_Tree_Address);
       adrs.set_tree_height(0);
-      adrs.set_tree_index(i);
+      adrs.set_tree_index(static_cast<uint32_t>(i));
 
       while(level > 0 && node_levels[level] ==
             node_levels[level - 1])
@@ -93602,23 +95076,43 @@ XMSS_PrivateKey::create_signature_op(RandomNumberGenerator&,
 
 namespace Botan {
 
-XMSS_PublicKey::XMSS_PublicKey(const std::vector<uint8_t>& raw_key)
-   : m_xmss_params(XMSS_PublicKey::deserialize_xmss_oid(raw_key)),
+namespace {
+
+// fall back to raw decoding for previous versions, which did not encode an OCTET STRING
+std::vector<uint8_t> extract_raw_key(const std::vector<uint8_t>& key_bits)
+   {
+   std::vector<uint8_t> raw_key;
+   try
+      {
+      BER_Decoder(key_bits).decode(raw_key, OCTET_STRING);
+      }
+   catch(Decoding_Error&)
+      {
+      raw_key = key_bits;
+      }
+   return raw_key;
+   }
+
+}
+
+XMSS_PublicKey::XMSS_PublicKey(const std::vector<uint8_t>& key_bits)
+   : m_raw_key(extract_raw_key(key_bits)),
+     m_xmss_params(XMSS_PublicKey::deserialize_xmss_oid(m_raw_key)),
      m_wots_params(m_xmss_params.ots_oid())
    {
-   if(raw_key.size() < XMSS_PublicKey::size())
+   if(m_raw_key.size() < XMSS_PublicKey::size())
       {
-      throw Decoding_Error("Invalid XMSS public key size detected.");
+      throw Decoding_Error("Invalid XMSS public key size detected");
       }
 
-   // extract & copy root from raw key.
+   // extract & copy root from raw key
    m_root.clear();
    m_root.reserve(m_xmss_params.element_size());
-   auto begin = raw_key.begin() + sizeof(uint32_t);
+   auto begin = m_raw_key.begin() + sizeof(uint32_t);
    auto end = begin + m_xmss_params.element_size();
    std::copy(begin, end, std::back_inserter(m_root));
 
-   // extract & copy public seed from raw key.
+   // extract & copy public seed from raw key
    begin = end;
    end = begin + m_xmss_params.element_size();
    m_public_seed.clear();
@@ -93864,7 +95358,7 @@ void XMSS_Signature_Operation::initialize()
    secure_vector<uint8_t> index_bytes;
    // reserve leaf index so it can not be reused in by another signature
    // operation using the same private key.
-   m_leaf_idx = m_priv_key.reserve_unused_leaf_index();
+   m_leaf_idx = static_cast<uint32_t>(m_priv_key.reserve_unused_leaf_index());
 
    // write prefix for message hashing into buffer.
    XMSS_Tools::concat(index_bytes, m_leaf_idx, 32);
@@ -93907,8 +95401,9 @@ XMSS_Verification_Operation::root_from_signature(const XMSS_Signature& sig,
       XMSS_Address& adrs,
       const secure_vector<uint8_t>& seed)
    {
+   const uint32_t next_index = static_cast<uint32_t>(sig.unused_leaf_index());
    adrs.set_type(XMSS_Address::Type::OTS_Hash_Address);
-   adrs.set_ots_address(sig.unused_leaf_index());
+   adrs.set_ots_address(next_index);
 
    XMSS_WOTS_PublicKey pub_key_ots(m_pub_key.wots_parameters().oid(),
                                    msg,
@@ -93917,18 +95412,18 @@ XMSS_Verification_Operation::root_from_signature(const XMSS_Signature& sig,
                                    seed);
 
    adrs.set_type(XMSS_Address::Type::LTree_Address);
-   adrs.set_ltree_address(sig.unused_leaf_index());
+   adrs.set_ltree_address(next_index);
 
    std::array<secure_vector<uint8_t>, 2> node;
    create_l_tree(node[0], pub_key_ots, adrs, seed);
 
    adrs.set_type(XMSS_Address::Type::Hash_Tree_Address);
-   adrs.set_tree_index(sig.unused_leaf_index());
+   adrs.set_tree_index(next_index);
 
    for(size_t k = 0; k < m_xmss_params.tree_height(); k++)
       {
-      adrs.set_tree_height(k);
-      if(((sig.unused_leaf_index() / (1 << k)) & 0x01) == 0)
+      adrs.set_tree_height(static_cast<uint32_t>(k));
+      if(((next_index / (static_cast<size_t>(1) << k)) & 0x01) == 0)
          {
          adrs.set_tree_index(adrs.get_tree_index() >> 1);
          randomize_tree_hash(node[1],
@@ -94191,7 +95686,7 @@ XMSS_WOTS_PrivateKey::generate_public_key(XMSS_WOTS_PublicKey& pub_key,
    pub_key.set_key_data(std::move(in_key_data));
    for(size_t i = 0; i < m_wots_params.len(); i++)
       {
-      adrs.set_chain_address(i);
+      adrs.set_chain_address(static_cast<uint32_t>(i));
       chain(pub_key[i], 0, m_wots_params.wots_parameter() - 1, adrs,
             public_seed(), hash);
       }
@@ -94213,7 +95708,7 @@ XMSS_WOTS_PrivateKey::sign(const secure_vector<uint8_t>& msg,
 
    for(size_t i = 0; i < m_wots_params.len(); i++)
       {
-      adrs.set_chain_address(i);
+      adrs.set_chain_address(static_cast<uint32_t>(i));
       chain(sig[i], 0 , msg_digest[i], adrs, m_public_seed, hash);
       }
 
@@ -94248,7 +95743,7 @@ XMSS_WOTS_PublicKey::chain(secure_vector<uint8_t>& result,
          i < (start_idx + steps) && i < m_wots_params.wots_parameter();
          i++)
       {
-      adrs.set_hash_address(i);
+      adrs.set_hash_address(static_cast<uint32_t>(i));
 
       //Calculate tmp XOR bitmask
       adrs.set_key_mask_mode(XMSS_Address::Key_Mask::Mask_Mode);
@@ -94280,7 +95775,7 @@ XMSS_WOTS_PublicKey::pub_key_from_signature(const secure_vector<uint8_t>& msg,
 
    for(size_t i = 0; i < m_wots_params.len(); i++)
       {
-      adrs.set_chain_address(i);
+      adrs.set_chain_address(static_cast<uint32_t>(i));
       chain(result[i],
             msg_digest[i],
             m_wots_params.wots_parameter() - 1 - msg_digest[i],
@@ -94434,9 +95929,12 @@ void XTEA::clear()
 
 namespace Botan {
 
-XTS_Mode::XTS_Mode(BlockCipher* cipher) : m_cipher(cipher)
+XTS_Mode::XTS_Mode(BlockCipher* cipher) :
+   m_cipher(cipher),
+   m_cipher_block_size(m_cipher->block_size()),
+   m_cipher_parallelism(m_cipher->parallel_bytes())
    {
-   if(poly_double_supported_size(m_cipher->block_size()) == false)
+   if(poly_double_supported_size(m_cipher_block_size) == false)
       {
       throw Invalid_Argument("Cannot use " + cipher->name() + " with XTS");
       }
@@ -94461,14 +95959,9 @@ std::string XTS_Mode::name() const
    return cipher().name() + "/XTS";
    }
 
-size_t XTS_Mode::update_granularity() const
-   {
-   return cipher().parallel_bytes();
-   }
-
 size_t XTS_Mode::minimum_final_size() const
    {
-   return cipher().block_size();
+   return cipher_block_size();
    }
 
 Key_Length_Specification XTS_Mode::key_spec() const
@@ -94478,12 +95971,12 @@ Key_Length_Specification XTS_Mode::key_spec() const
 
 size_t XTS_Mode::default_nonce_length() const
    {
-   return cipher().block_size();
+   return cipher_block_size();
    }
 
 bool XTS_Mode::valid_nonce_length(size_t n) const
    {
-   return cipher().block_size() == n;
+   return cipher_block_size() == n;
    }
 
 void XTS_Mode::key_schedule(const uint8_t key[], size_t length)
@@ -94530,7 +96023,7 @@ size_t XTS_Encryption::output_length(size_t input_length) const
 size_t XTS_Encryption::process(uint8_t buf[], size_t sz)
    {
    BOTAN_STATE_CHECK(tweak_set());
-   const size_t BS = cipher().block_size();
+   const size_t BS = cipher_block_size();
 
    BOTAN_ASSERT(sz % BS == 0, "Input is full blocks");
    size_t blocks = sz / BS;
@@ -94560,7 +96053,7 @@ void XTS_Encryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
 
    BOTAN_ASSERT(sz >= minimum_final_size(), "Have sufficient final input in XTS encrypt");
 
-   const size_t BS = cipher().block_size();
+   const size_t BS = cipher_block_size();
 
    if(sz % BS == 0)
       {
@@ -94604,7 +96097,7 @@ size_t XTS_Decryption::output_length(size_t input_length) const
 size_t XTS_Decryption::process(uint8_t buf[], size_t sz)
    {
    BOTAN_STATE_CHECK(tweak_set());
-   const size_t BS = cipher().block_size();
+   const size_t BS = cipher_block_size();
 
    BOTAN_ASSERT(sz % BS == 0, "Input is full blocks");
    size_t blocks = sz / BS;
@@ -94634,7 +96127,7 @@ void XTS_Decryption::finish(secure_vector<uint8_t>& buffer, size_t offset)
 
    BOTAN_ASSERT(sz >= minimum_final_size(), "Have sufficient final input in XTS decrypt");
 
-   const size_t BS = cipher().block_size();
+   const size_t BS = cipher_block_size();
 
    if(sz % BS == 0)
       {

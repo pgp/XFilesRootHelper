@@ -1,5 +1,5 @@
 /*
-* Botan 2.11.0 Amalgamation
+* Botan 2.13.0 Amalgamation
 * (C) 1999-2018 The Botan Authors
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -9,6 +9,7 @@
 #define BOTAN_AMALGAMATION_H_
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -36,7 +37,7 @@
 
 /*
 * This file was automatically generated running
-* 'configure.py --amalgamation --single-amalgamation-file --disable-modules=pkcs11 --cpu=x86 --os=linux --cc=clang --disable-avx2 --disable-aes-ni --disable-sha-ni'
+* 'configure.py --amalgamation --single-amalgamation-file --disable-modules=pkcs11 --disable-cc-tests --cpu=x86 --os=linux --cc=clang --disable-avx2 --disable-aes-ni --disable-sha-ni'
 *
 * Target
 *  - Compiler: clang++ -fstack-protector -pthread -std=c++11 -D_REENTRANT -O3
@@ -45,13 +46,13 @@
 */
 
 #define BOTAN_VERSION_MAJOR 2
-#define BOTAN_VERSION_MINOR 11
+#define BOTAN_VERSION_MINOR 13
 #define BOTAN_VERSION_PATCH 0
-#define BOTAN_VERSION_DATESTAMP 20190701
+#define BOTAN_VERSION_DATESTAMP 20200106
 
 #define BOTAN_VERSION_RELEASE_TYPE "release"
 
-#define BOTAN_VERSION_VC_REVISION "git:16a726c3ad10316bd8d37b6118a5cc52894e8e8f"
+#define BOTAN_VERSION_VC_REVISION "git:ed360ab268544fd801b8ea68ff08b07610680052"
 
 #define BOTAN_DISTRIBUTION_INFO "unspecified"
 
@@ -60,8 +61,8 @@
 
 
 #define BOTAN_INSTALL_PREFIX R"(/usr/local)"
-#define BOTAN_INSTALL_HEADER_DIR "include/botan-2"
-#define BOTAN_INSTALL_LIB_DIR "lib"
+#define BOTAN_INSTALL_HEADER_DIR R"(include/botan-2)"
+#define BOTAN_INSTALL_LIB_DIR R"(/usr/local/lib)"
 #define BOTAN_LIB_LINK "-lrt"
 #define BOTAN_LINK_FLAGS "-fstack-protector -pthread"
 
@@ -83,6 +84,7 @@
 #define BOTAN_TARGET_OS_HAS_POSIX_MLOCK
 #define BOTAN_TARGET_OS_HAS_PROC_FS
 #define BOTAN_TARGET_OS_HAS_SOCKETS
+#define BOTAN_TARGET_OS_HAS_THREAD_LOCAL
 #define BOTAN_TARGET_OS_HAS_THREADS
 
 
@@ -121,9 +123,9 @@
 #define BOTAN_HAS_AEAD_OCB 20131128
 #define BOTAN_HAS_AEAD_SIV 20131202
 #define BOTAN_HAS_AES 20131128
-#define BOTAN_HAS_AES_SSSE3 20131128
+#define BOTAN_HAS_AES_VPERM 20190901
 #define BOTAN_HAS_ANSI_X919_MAC 20131128
-#define BOTAN_HAS_ARGON2 20190527
+#define BOTAN_HAS_ARGON2 20190824
 #define BOTAN_HAS_ARIA 20170415
 #define BOTAN_HAS_ASN1 20171109
 #define BOTAN_HAS_AUTO_RNG 20161126
@@ -168,6 +170,7 @@
 #define BOTAN_HAS_DL_PUBLIC_KEY_FAMILY 20131128
 #define BOTAN_HAS_DSA 20131128
 #define BOTAN_HAS_ECC_GROUP 20170225
+#define BOTAN_HAS_ECC_KEY 20190801
 #define BOTAN_HAS_ECC_PUBLIC_KEY_CRYPTO 20131128
 #define BOTAN_HAS_ECDH 20131128
 #define BOTAN_HAS_ECDSA 20131128
@@ -191,13 +194,14 @@
 #define BOTAN_HAS_ENTROPY_SRC_PROC_WALKER 20131128
 #define BOTAN_HAS_ENTROPY_SRC_RDRAND 20131128
 #define BOTAN_HAS_ENTROPY_SRC_RDSEED 20151218
-#define BOTAN_HAS_FFI 20180713
+#define BOTAN_HAS_FFI 20191214
 #define BOTAN_HAS_FILTERS 20160415
 #define BOTAN_HAS_FPE_FE1 20131128
 #define BOTAN_HAS_GCM_CLMUL_SSSE3 20171020
 #define BOTAN_HAS_GMAC 20160207
 #define BOTAN_HAS_GOST_28147_89 20131128
 #define BOTAN_HAS_GOST_34_10_2001 20131128
+#define BOTAN_HAS_GOST_34_10_2012 20190801
 #define BOTAN_HAS_GOST_34_11 20131128
 #define BOTAN_HAS_HASH 20180112
 #define BOTAN_HAS_HASH_ID 20131128
@@ -260,6 +264,7 @@
 #define BOTAN_HAS_RFC3394_KEYWRAP 20131128
 #define BOTAN_HAS_RFC6979_GENERATOR 20140321
 #define BOTAN_HAS_RIPEMD_160 20131128
+#define BOTAN_HAS_ROUGHTIME 20190220
 #define BOTAN_HAS_RSA 20160730
 #define BOTAN_HAS_SALSA20 20171114
 #define BOTAN_HAS_SCRYPT 20180902
@@ -268,15 +273,12 @@
 #define BOTAN_HAS_SERPENT_SIMD 20160903
 #define BOTAN_HAS_SHA1 20131128
 #define BOTAN_HAS_SHA1_SSE2 20160803
-#define BOTAN_HAS_SHA1_X86_SHA_NI 20170518
 #define BOTAN_HAS_SHA2_32 20131128
-#define BOTAN_HAS_SHA2_32_X86 20170518
 #define BOTAN_HAS_SHA2_32_X86_BMI2 20180526
 #define BOTAN_HAS_SHA2_64 20131128
 #define BOTAN_HAS_SHA3 20161018
 #define BOTAN_HAS_SHACAL2 20170813
 #define BOTAN_HAS_SHACAL2_SIMD 20170813
-#define BOTAN_HAS_SHACAL2_X86 20170814
 #define BOTAN_HAS_SHAKE 20161009
 #define BOTAN_HAS_SHAKE_CIPHER 20161018
 #define BOTAN_HAS_SIMD_32 20131128
@@ -295,13 +297,14 @@
 #define BOTAN_HAS_STREAM_CIPHER 20131128
 #define BOTAN_HAS_STREEBOG 20170623
 #define BOTAN_HAS_SYSTEM_RNG 20141202
-#define BOTAN_HAS_THREAD_UTILS 20190122
+#define BOTAN_HAS_THREAD_UTILS 20190922
 #define BOTAN_HAS_THREEFISH_512 20131224
 #define BOTAN_HAS_THRESHOLD_SECRET_SHARING 20131128
 #define BOTAN_HAS_TIGER 20131128
-#define BOTAN_HAS_TLS 20150319
+#define BOTAN_HAS_TLS 20191210
 #define BOTAN_HAS_TLS_CBC 20161008
 #define BOTAN_HAS_TLS_SESSION_MANAGER_SQL_DB 20141219
+#define BOTAN_HAS_TLS_V10 20191109
 #define BOTAN_HAS_TLS_V10_PRF 20131128
 #define BOTAN_HAS_TLS_V12_PRF 20131128
 #define BOTAN_HAS_TOTP 20180816
@@ -396,7 +399,7 @@
 * broken system RNG.
 */
 #define BOTAN_ENTROPY_DEFAULT_SOURCES \
-   { "rdseed", "rdrand", "getentropy", "dev_random", \
+   { "rdseed", "rdrand", "p9_darn", "getentropy", "dev_random", \
      "system_rng", "proc_walk", "system_stats" }
 
 /* Multiplier on a block cipher's native parallelism */
@@ -423,24 +426,6 @@
 */
 #define BOTAN_SYSTEM_RNG_POLL_REQUEST 64
 #define BOTAN_SYSTEM_RNG_POLL_TIMEOUT_MS 20
-
-/*
-How many times to read from the RDRAND/RDSEED RNGs.
-Each read generates 32 bits of output
-*/
-#define BOTAN_ENTROPY_INTEL_RNG_POLLS 32
-
-/*
-According to Intel, RDRAND is guaranteed to generate a random
-number within 10 retries on a working CPU
-*/
-#define BOTAN_ENTROPY_RDRAND_RETRIES 10
-
-/*
-* RdSeed is not guaranteed to generate a random number within a specific number of retries
-* Define the number of retries here
-*/
-#define BOTAN_ENTROPY_RDSEED_RETRIES 20
 
 /*
 * When a PBKDF is self-tuning parameters, it will attempt to take about this
@@ -545,7 +530,7 @@ number within 10 retries on a working CPU
 /*
 * Define BOTAN_FUNC_ISA
 */
-#if (defined(__GNUG__) && !defined(__clang__)) || (BOTAN_CLANG_VERSION > 38)
+#if (defined(__GNUC__) && !defined(__clang__)) || (BOTAN_CLANG_VERSION > 38)
   #define BOTAN_FUNC_ISA(isa) __attribute__ ((target(isa)))
 #else
   #define BOTAN_FUNC_ISA(isa)
@@ -554,7 +539,7 @@ number within 10 retries on a working CPU
 /*
 * Define BOTAN_WARN_UNUSED_RESULT
 */
-#if defined(__GNUG__) || defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__)
   #define BOTAN_WARN_UNUSED_RESULT __attribute__ ((warn_unused_result))
 #else
   #define BOTAN_WARN_UNUSED_RESULT
@@ -566,9 +551,7 @@ number within 10 retries on a working CPU
 #if defined(__ibmxl__)
   // XLC pretends to be both Clang and GCC, but is neither
   #define BOTAN_MALLOC_FN __attribute__ ((malloc))
-#elif defined(__clang__) || (BOTAN_GCC_VERSION >= 500)
-  #define BOTAN_MALLOC_FN __attribute__ ((malloc, returns_nonnull, alloc_size(1,2)))
-#elif defined(__GNUG__)
+#elif defined(__GNUC__)
   #define BOTAN_MALLOC_FN __attribute__ ((malloc, alloc_size(1,2)))
 #elif defined(_MSC_VER)
   #define BOTAN_MALLOC_FN __declspec(restrict)
@@ -582,17 +565,29 @@ number within 10 retries on a working CPU
 #if !defined(BOTAN_NO_DEPRECATED_WARNINGS)
 
   #if defined(__clang__)
-    #define BOTAN_DEPRECATED(msg) __attribute__ ((deprecated))
+    #define BOTAN_DEPRECATED(msg) __attribute__ ((deprecated(msg)))
     #define BOTAN_DEPRECATED_HEADER(hdr) _Pragma("message \"this header is deprecated\"")
+
+    #if !defined(BOTAN_IS_BEING_BUILT)
+      #define BOTAN_FUTURE_INTERNAL_HEADER(hdr) _Pragma("message \"this header will be made internal in the future\"")
+    #endif
 
   #elif defined(_MSC_VER)
     #define BOTAN_DEPRECATED(msg) __declspec(deprecated(msg))
-    #define BOTAN_DEPRECATED_HEADER(hdr) __pragma("message \"this header is deprecated\"")
+    #define BOTAN_DEPRECATED_HEADER(hdr) __pragma(message("this header is deprecated"))
 
-  #elif defined(__GNUG__)
+    #if !defined(BOTAN_IS_BEING_BUILT)
+      #define BOTAN_FUTURE_INTERNAL_HEADER(hdr) __pragma(message("this header will be made internal in the future"))
+    #endif
+
+  #elif defined(__GNUC__)
     /* msg supported since GCC 4.5, earliest we support is 4.8 */
     #define BOTAN_DEPRECATED(msg) __attribute__ ((deprecated(msg)))
     #define BOTAN_DEPRECATED_HEADER(hdr) _Pragma("GCC warning \"this header is deprecated\"")
+
+    #if !defined(BOTAN_IS_BEING_BUILT)
+      #define BOTAN_FUTURE_INTERNAL_HEADER(hdr) _Pragma("GCC warning \"this header will be made internal in the future\"")
+    #endif
   #endif
 
 #endif
@@ -605,12 +600,16 @@ number within 10 retries on a working CPU
   #define BOTAN_DEPRECATED_HEADER(hdr)
 #endif
 
+#if !defined(BOTAN_FUTURE_INTERNAL_HEADER)
+  #define BOTAN_FUTURE_INTERNAL_HEADER(hdr)
+#endif
+
 /*
 * Define BOTAN_NORETURN
 */
 #if !defined(BOTAN_NORETURN)
 
-  #if defined (__clang__) || defined (__GNUG__)
+  #if defined (__clang__) || defined (__GNUC__)
     #define BOTAN_NORETURN __attribute__ ((__noreturn__))
 
   #elif defined (_MSC_VER)
@@ -625,17 +624,21 @@ number within 10 retries on a working CPU
 /*
 * Define BOTAN_THREAD_LOCAL
 */
-#if defined(BOTAN_TARGET_OS_HAS_THREADS)
-   #define BOTAN_THREAD_LOCAL thread_local
-#else
-   #define BOTAN_THREAD_LOCAL /**/
+#if !defined(BOTAN_THREAD_LOCAL)
+
+  #if defined(BOTAN_TARGET_OS_HAS_THREADS) && defined(BOTAN_TARGET_OS_HAS_THREAD_LOCAL)
+    #define BOTAN_THREAD_LOCAL thread_local
+  #else
+    #define BOTAN_THREAD_LOCAL /**/
+  #endif
+
 #endif
 
 /*
 * Define BOTAN_IF_CONSTEXPR
 */
 #if !defined(BOTAN_IF_CONSTEXPR)
-   #if __cplusplus > 201402
+   #if __cplusplus >= 201703
       #define BOTAN_IF_CONSTEXPR if constexpr
    #else
       #define BOTAN_IF_CONSTEXPR if
@@ -652,6 +655,23 @@ number within 10 retries on a working CPU
 #else
   #define BOTAN_PARALLEL_FOR for
 #endif
+
+#endif
+
+/*
+* Define BOTAN_FORCE_INLINE
+*/
+#if !defined(BOTAN_FORCE_INLINE)
+
+  #if defined (__clang__) || defined (__GNUC__)
+    #define BOTAN_FORCE_INLINE __attribute__ ((__always_inline__)) inline
+
+  #elif defined (_MSC_VER)
+    #define BOTAN_FORCE_INLINE __forceinline
+
+  #else
+    #define BOTAN_FORCE_INLINE inline
+  #endif
 
 #endif
 
@@ -834,7 +854,7 @@ namespace Botan {
 * <dt>Stream Ciphers<dd>
 *        ChaCha, @ref CTR_BE "CTR", OFB, RC4, Salsa20
 * <dt>Hash Functions<dd>
-*        Blake2b, @ref GOST_34_11 "GOST 34.11", @ref Keccak_1600 "Keccak", MD4, MD5, @ref RIPEMD_160 "RIPEMD-160",
+*        BLAKE2b, @ref GOST_34_11 "GOST 34.11", @ref Keccak_1600 "Keccak", MD4, MD5, @ref RIPEMD_160 "RIPEMD-160",
 *        @ref SHA_160 "SHA-1", @ref SHA_224 "SHA-224", @ref SHA_256 "SHA-256", @ref SHA_384 "SHA-384",
 *        @ref SHA_512 "SHA-512", @ref Skein_512 "Skein-512", SM3, Streebog, Tiger, Whirlpool
 * <dt>Non-Cryptographic Checksums<dd>
@@ -848,7 +868,7 @@ namespace Botan {
 *        @ref sp800_108.h "SP800-108", @ref SP800_56C "SP800-56C", @ref PKCS5_PBKDF1 "PBKDF1 (PKCS#5),
 *        @ref PKCS5_PBKDF2 "PBKDF2 (PKCS#5)"
 * <dt>Password Hashing<dd>
-*        @ref bcrypt.h "bcrypt", @ref passhash9.h "passhash9"
+*        @ref argon2.h "Argon2", @ref scrypt.h "scrypt", @ref bcrypt.h "bcrypt", @ref passhash9.h "passhash9"
 * <dt>Public Key Cryptosystems<dd>
 *        @ref dlies.h "DLIES", @ref ecies.h "ECIES", @ref elgamal.h "ElGamal"
 *        @ref rsa.h "RSA", @ref newhope.h "NewHope", @ref mceliece.h "McEliece" and @ref mceies.h "MCEIES",
@@ -999,6 +1019,15 @@ template<typename T> inline void clear_mem(T* ptr, size_t n)
    clear_bytes(ptr, sizeof(T)*n);
    }
 
+
+
+// is_trivially_copyable is missing in g++ < 5.0
+#if !__clang__ && __GNUG__ && __GNUC__ < 5
+#define BOTAN_IS_TRIVIALLY_COPYABLE(T) true
+#else
+#define BOTAN_IS_TRIVIALLY_COPYABLE(T) std::is_trivially_copyable<T>::value
+#endif
+
 /**
 * Copy memory
 * @param out the destination array
@@ -1007,25 +1036,45 @@ template<typename T> inline void clear_mem(T* ptr, size_t n)
 */
 template<typename T> inline void copy_mem(T* out, const T* in, size_t n)
    {
-   if(n > 0)
+   static_assert(std::is_trivial<typename std::decay<T>::type>::value, "");
+   BOTAN_ASSERT_IMPLICATION(n > 0, in != nullptr && out != nullptr,
+                            "If n > 0 then args are not null");
+
+   if(in != nullptr && out != nullptr && n > 0)
       {
       std::memmove(out, in, sizeof(T)*n);
       }
    }
 
-template<typename T> inline void typecast_copy(uint8_t out[], T in)
+template<typename T> inline void typecast_copy(uint8_t out[], T in[], size_t N)
    {
-   std::memcpy(out, &in, sizeof(T));
-   }
-
-template<typename T> inline void typecast_copy(T& out, const uint8_t in[])
-   {
-   std::memcpy(&out, in, sizeof(T));
+   static_assert(BOTAN_IS_TRIVIALLY_COPYABLE(T), "");
+   std::memcpy(out, in, sizeof(T)*N);
    }
 
 template<typename T> inline void typecast_copy(T out[], const uint8_t in[], size_t N)
    {
+   static_assert(std::is_trivial<T>::value, "");
    std::memcpy(out, in, sizeof(T)*N);
+   }
+
+template<typename T> inline void typecast_copy(uint8_t out[], T in)
+   {
+   typecast_copy(out, &in, 1);
+   }
+
+template<typename T> inline void typecast_copy(T& out, const uint8_t in[])
+   {
+   static_assert(std::is_trivial<typename std::decay<T>::type>::value, "");
+   typecast_copy(&out, in, 1);
+   }
+
+template <class To, class From> inline To typecast_copy(const From *src) noexcept
+   {
+   static_assert(BOTAN_IS_TRIVIALLY_COPYABLE(From) && std::is_trivial<To>::value, "");
+   To dst;
+   std::memcpy(&dst, src, sizeof(To));
+   return dst;
    }
 
 /**
@@ -1089,28 +1138,27 @@ inline void xor_buf(uint8_t out[],
                     const uint8_t in[],
                     size_t length)
    {
-   while(length >= 16)
+   const size_t blocks = length - (length % 32);
+
+   for(size_t i = 0; i != blocks; i += 32)
       {
-      uint64_t x0, x1, y0, y1;
+      uint64_t x[4];
+      uint64_t y[4];
 
-      typecast_copy(x0, in);
-      typecast_copy(x1, in + 8);
-      typecast_copy(y0, out);
-      typecast_copy(y1, out + 8);
+      typecast_copy(x, out + i, 4);
+      typecast_copy(y, in + i, 4);
 
-      y0 ^= x0;
-      y1 ^= x1;
-      typecast_copy(out, y0);
-      typecast_copy(out + 8, y1);
-      out += 16; in += 16; length -= 16;
+      x[0] ^= y[0];
+      x[1] ^= y[1];
+      x[2] ^= y[2];
+      x[3] ^= y[3];
+
+      typecast_copy(out + i, x, 4);
       }
 
-   while(length > 0)
+   for(size_t i = blocks; i != length; ++i)
       {
-      out[0] ^= in[0];
-      out += 1;
-      in += 1;
-      length -= 1;
+      out[i] ^= in[i];
       }
    }
 
@@ -1126,23 +1174,28 @@ inline void xor_buf(uint8_t out[],
                     const uint8_t in2[],
                     size_t length)
    {
-   while(length >= 16)
-      {
-      uint64_t x0, x1, y0, y1;
-      typecast_copy(x0, in);
-      typecast_copy(x1, in + 8);
-      typecast_copy(y0, in2);
-      typecast_copy(y1, in2 + 8);
+   const size_t blocks = length - (length % 32);
 
-      x0 ^= y0;
-      x1 ^= y1;
-      typecast_copy(out, x0);
-      typecast_copy(out + 8, x1);
-      out += 16; in += 16; in2 += 16; length -= 16;
+   for(size_t i = 0; i != blocks; i += 32)
+      {
+      uint64_t x[4];
+      uint64_t y[4];
+
+      typecast_copy(x, in + i, 4);
+      typecast_copy(y, in2 + i, 4);
+
+      x[0] ^= y[0];
+      x[1] ^= y[1];
+      x[2] ^= y[2];
+      x[3] ^= y[3];
+
+      typecast_copy(out + i, x, 4);
       }
 
-   for(size_t i = 0; i != length; ++i)
+   for(size_t i = blocks; i != length; ++i)
+      {
       out[i] = in[i] ^ in2[i];
+      }
    }
 
 template<typename Alloc, typename Alloc2>
@@ -1345,780 +1398,6 @@ void zap(std::vector<T, Alloc>& vec)
 
 }
 
-#if defined(BOTAN_BUILD_COMPILER_IS_MSVC)
-  #include <stdlib.h>
-#endif
-
-namespace Botan {
-
-/**
-* Swap a 16 bit integer
-*/
-inline uint16_t reverse_bytes(uint16_t val)
-   {
-#if defined(BOTAN_BUILD_COMPILER_IS_GCC) || defined(BOTAN_BUILD_COMPILER_IS_CLANG) || defined(BOTAN_BUILD_COMPILER_IS_XLC)
-   return __builtin_bswap16(val);
-#else
-   return static_cast<uint16_t>((val << 8) | (val >> 8));
-#endif
-   }
-
-/**
-* Swap a 32 bit integer
-*/
-inline uint32_t reverse_bytes(uint32_t val)
-   {
-#if defined(BOTAN_BUILD_COMPILER_IS_GCC) || defined(BOTAN_BUILD_COMPILER_IS_CLANG) || defined(BOTAN_BUILD_COMPILER_IS_XLC)
-   return __builtin_bswap32(val);
-
-#elif defined(BOTAN_BUILD_COMPILER_IS_MSVC)
-   return _byteswap_ulong(val);
-
-#elif defined(BOTAN_USE_GCC_INLINE_ASM) && defined(BOTAN_TARGET_CPU_IS_X86_FAMILY)
-
-   // GCC-style inline assembly for x86 or x86-64
-   asm("bswapl %0" : "=r" (val) : "0" (val));
-   return val;
-
-#else
-   // Generic implementation
-   uint16_t hi = static_cast<uint16_t>(val >> 16);
-   uint16_t lo = static_cast<uint16_t>(val);
-
-   hi = reverse_bytes(hi);
-   lo = reverse_bytes(lo);
-
-   return (static_cast<uint32_t>(lo) << 16) | hi;
-#endif
-   }
-
-/**
-* Swap a 64 bit integer
-*/
-inline uint64_t reverse_bytes(uint64_t val)
-   {
-#if defined(BOTAN_BUILD_COMPILER_IS_GCC) || defined(BOTAN_BUILD_COMPILER_IS_CLANG) || defined(BOTAN_BUILD_COMPILER_IS_XLC)
-   return __builtin_bswap64(val);
-
-#elif defined(BOTAN_BUILD_COMPILER_IS_MSVC)
-   return _byteswap_uint64(val);
-
-#elif defined(BOTAN_USE_GCC_INLINE_ASM) && defined(BOTAN_TARGET_ARCH_IS_X86_64)
-   // GCC-style inline assembly for x86-64
-   asm("bswapq %0" : "=r" (val) : "0" (val));
-   return val;
-
-#else
-   /* Generic implementation. Defined in terms of 32-bit bswap so any
-    * optimizations in that version can help.
-    */
-
-   uint32_t hi = static_cast<uint32_t>(val >> 32);
-   uint32_t lo = static_cast<uint32_t>(val);
-
-   hi = reverse_bytes(hi);
-   lo = reverse_bytes(lo);
-
-   return (static_cast<uint64_t>(lo) << 32) | hi;
-#endif
-   }
-
-/**
-* Swap 4 Ts in an array
-*/
-template<typename T>
-inline void bswap_4(T x[4])
-   {
-   x[0] = reverse_bytes(x[0]);
-   x[1] = reverse_bytes(x[1]);
-   x[2] = reverse_bytes(x[2]);
-   x[3] = reverse_bytes(x[3]);
-   }
-
-}
-
-#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
-   #define BOTAN_ENDIAN_N2L(x) reverse_bytes(x)
-   #define BOTAN_ENDIAN_L2N(x) reverse_bytes(x)
-   #define BOTAN_ENDIAN_N2B(x) (x)
-   #define BOTAN_ENDIAN_B2N(x) (x)
-
-#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
-   #define BOTAN_ENDIAN_N2L(x) (x)
-   #define BOTAN_ENDIAN_L2N(x) (x)
-   #define BOTAN_ENDIAN_N2B(x) reverse_bytes(x)
-   #define BOTAN_ENDIAN_B2N(x) reverse_bytes(x)
-
-#endif
-
-namespace Botan {
-
-/**
-* Byte extraction
-* @param byte_num which byte to extract, 0 == highest byte
-* @param input the value to extract from
-* @return byte byte_num of input
-*/
-template<typename T> inline constexpr uint8_t get_byte(size_t byte_num, T input)
-   {
-   return static_cast<uint8_t>(
-      input >> (((~byte_num)&(sizeof(T)-1)) << 3)
-      );
-   }
-
-/**
-* Make a uint16_t from two bytes
-* @param i0 the first byte
-* @param i1 the second byte
-* @return i0 || i1
-*/
-inline constexpr uint16_t make_uint16(uint8_t i0, uint8_t i1)
-   {
-   return static_cast<uint16_t>((static_cast<uint16_t>(i0) << 8) | i1);
-   }
-
-/**
-* Make a uint32_t from four bytes
-* @param i0 the first byte
-* @param i1 the second byte
-* @param i2 the third byte
-* @param i3 the fourth byte
-* @return i0 || i1 || i2 || i3
-*/
-inline constexpr uint32_t make_uint32(uint8_t i0, uint8_t i1, uint8_t i2, uint8_t i3)
-   {
-   return ((static_cast<uint32_t>(i0) << 24) |
-           (static_cast<uint32_t>(i1) << 16) |
-           (static_cast<uint32_t>(i2) <<  8) |
-           (static_cast<uint32_t>(i3)));
-   }
-
-/**
-* Make a uint64_t from eight bytes
-* @param i0 the first byte
-* @param i1 the second byte
-* @param i2 the third byte
-* @param i3 the fourth byte
-* @param i4 the fifth byte
-* @param i5 the sixth byte
-* @param i6 the seventh byte
-* @param i7 the eighth byte
-* @return i0 || i1 || i2 || i3 || i4 || i5 || i6 || i7
-*/
-inline constexpr uint64_t make_uint64(uint8_t i0, uint8_t i1, uint8_t i2, uint8_t i3,
-                                      uint8_t i4, uint8_t i5, uint8_t i6, uint8_t i7)
-    {
-   return ((static_cast<uint64_t>(i0) << 56) |
-           (static_cast<uint64_t>(i1) << 48) |
-           (static_cast<uint64_t>(i2) << 40) |
-           (static_cast<uint64_t>(i3) << 32) |
-           (static_cast<uint64_t>(i4) << 24) |
-           (static_cast<uint64_t>(i5) << 16) |
-           (static_cast<uint64_t>(i6) <<  8) |
-           (static_cast<uint64_t>(i7)));
-    }
-
-/**
-* Load a big-endian word
-* @param in a pointer to some bytes
-* @param off an offset into the array
-* @return off'th T of in, as a big-endian value
-*/
-template<typename T>
-inline T load_be(const uint8_t in[], size_t off)
-   {
-   in += off * sizeof(T);
-   T out = 0;
-   for(size_t i = 0; i != sizeof(T); ++i)
-      out = static_cast<T>((out << 8) | in[i]);
-   return out;
-   }
-
-/**
-* Load a little-endian word
-* @param in a pointer to some bytes
-* @param off an offset into the array
-* @return off'th T of in, as a litte-endian value
-*/
-template<typename T>
-inline T load_le(const uint8_t in[], size_t off)
-   {
-   in += off * sizeof(T);
-   T out = 0;
-   for(size_t i = 0; i != sizeof(T); ++i)
-      out = (out << 8) | in[sizeof(T)-1-i];
-   return out;
-   }
-
-/**
-* Load a big-endian uint16_t
-* @param in a pointer to some bytes
-* @param off an offset into the array
-* @return off'th uint16_t of in, as a big-endian value
-*/
-template<>
-inline uint16_t load_be<uint16_t>(const uint8_t in[], size_t off)
-   {
-   in += off * sizeof(uint16_t);
-
-#if defined(BOTAN_ENDIAN_N2B)
-   uint16_t x;
-   typecast_copy(x, in);
-   return BOTAN_ENDIAN_N2B(x);
-#else
-   return make_uint16(in[0], in[1]);
-#endif
-   }
-
-/**
-* Load a little-endian uint16_t
-* @param in a pointer to some bytes
-* @param off an offset into the array
-* @return off'th uint16_t of in, as a little-endian value
-*/
-template<>
-inline uint16_t load_le<uint16_t>(const uint8_t in[], size_t off)
-   {
-   in += off * sizeof(uint16_t);
-
-#if defined(BOTAN_ENDIAN_N2L)
-   uint16_t x;
-   typecast_copy(x, in);
-   return BOTAN_ENDIAN_N2L(x);
-#else
-   return make_uint16(in[1], in[0]);
-#endif
-   }
-
-/**
-* Load a big-endian uint32_t
-* @param in a pointer to some bytes
-* @param off an offset into the array
-* @return off'th uint32_t of in, as a big-endian value
-*/
-template<>
-inline uint32_t load_be<uint32_t>(const uint8_t in[], size_t off)
-   {
-   in += off * sizeof(uint32_t);
-#if defined(BOTAN_ENDIAN_N2B)
-   uint32_t x;
-   typecast_copy(x, in);
-   return BOTAN_ENDIAN_N2B(x);
-#else
-   return make_uint32(in[0], in[1], in[2], in[3]);
-#endif
-   }
-
-/**
-* Load a little-endian uint32_t
-* @param in a pointer to some bytes
-* @param off an offset into the array
-* @return off'th uint32_t of in, as a little-endian value
-*/
-template<>
-inline uint32_t load_le<uint32_t>(const uint8_t in[], size_t off)
-   {
-   in += off * sizeof(uint32_t);
-#if defined(BOTAN_ENDIAN_N2L)
-   uint32_t x;
-   typecast_copy(x, in);
-   return BOTAN_ENDIAN_N2L(x);
-#else
-   return make_uint32(in[3], in[2], in[1], in[0]);
-#endif
-   }
-
-/**
-* Load a big-endian uint64_t
-* @param in a pointer to some bytes
-* @param off an offset into the array
-* @return off'th uint64_t of in, as a big-endian value
-*/
-template<>
-inline uint64_t load_be<uint64_t>(const uint8_t in[], size_t off)
-   {
-   in += off * sizeof(uint64_t);
-#if defined(BOTAN_ENDIAN_N2B)
-   uint64_t x;
-   typecast_copy(x, in);
-   return BOTAN_ENDIAN_N2B(x);
-#else
-   return make_uint64(in[0], in[1], in[2], in[3],
-                      in[4], in[5], in[6], in[7]);
-#endif
-   }
-
-/**
-* Load a little-endian uint64_t
-* @param in a pointer to some bytes
-* @param off an offset into the array
-* @return off'th uint64_t of in, as a little-endian value
-*/
-template<>
-inline uint64_t load_le<uint64_t>(const uint8_t in[], size_t off)
-   {
-   in += off * sizeof(uint64_t);
-#if defined(BOTAN_ENDIAN_N2L)
-   uint64_t x;
-   typecast_copy(x, in);
-   return BOTAN_ENDIAN_N2L(x);
-#else
-   return make_uint64(in[7], in[6], in[5], in[4],
-                      in[3], in[2], in[1], in[0]);
-#endif
-   }
-
-/**
-* Load two little-endian words
-* @param in a pointer to some bytes
-* @param x0 where the first word will be written
-* @param x1 where the second word will be written
-*/
-template<typename T>
-inline void load_le(const uint8_t in[], T& x0, T& x1)
-   {
-   x0 = load_le<T>(in, 0);
-   x1 = load_le<T>(in, 1);
-   }
-
-/**
-* Load four little-endian words
-* @param in a pointer to some bytes
-* @param x0 where the first word will be written
-* @param x1 where the second word will be written
-* @param x2 where the third word will be written
-* @param x3 where the fourth word will be written
-*/
-template<typename T>
-inline void load_le(const uint8_t in[],
-                    T& x0, T& x1, T& x2, T& x3)
-   {
-   x0 = load_le<T>(in, 0);
-   x1 = load_le<T>(in, 1);
-   x2 = load_le<T>(in, 2);
-   x3 = load_le<T>(in, 3);
-   }
-
-/**
-* Load eight little-endian words
-* @param in a pointer to some bytes
-* @param x0 where the first word will be written
-* @param x1 where the second word will be written
-* @param x2 where the third word will be written
-* @param x3 where the fourth word will be written
-* @param x4 where the fifth word will be written
-* @param x5 where the sixth word will be written
-* @param x6 where the seventh word will be written
-* @param x7 where the eighth word will be written
-*/
-template<typename T>
-inline void load_le(const uint8_t in[],
-                    T& x0, T& x1, T& x2, T& x3,
-                    T& x4, T& x5, T& x6, T& x7)
-   {
-   x0 = load_le<T>(in, 0);
-   x1 = load_le<T>(in, 1);
-   x2 = load_le<T>(in, 2);
-   x3 = load_le<T>(in, 3);
-   x4 = load_le<T>(in, 4);
-   x5 = load_le<T>(in, 5);
-   x6 = load_le<T>(in, 6);
-   x7 = load_le<T>(in, 7);
-   }
-
-/**
-* Load a variable number of little-endian words
-* @param out the output array of words
-* @param in the input array of bytes
-* @param count how many words are in in
-*/
-template<typename T>
-inline void load_le(T out[],
-                    const uint8_t in[],
-                    size_t count)
-   {
-   if(count > 0)
-      {
-#if defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
-      typecast_copy(out, in, count);
-
-#elif defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
-      typecast_copy(out, in, count);
-
-      const size_t blocks = count - (count % 4);
-      const size_t left = count - blocks;
-
-      for(size_t i = 0; i != blocks; i += 4)
-         bswap_4(out + i);
-
-      for(size_t i = 0; i != left; ++i)
-         out[blocks+i] = reverse_bytes(out[blocks+i]);
-#else
-      for(size_t i = 0; i != count; ++i)
-         out[i] = load_le<T>(in, i);
-#endif
-      }
-   }
-
-/**
-* Load two big-endian words
-* @param in a pointer to some bytes
-* @param x0 where the first word will be written
-* @param x1 where the second word will be written
-*/
-template<typename T>
-inline void load_be(const uint8_t in[], T& x0, T& x1)
-   {
-   x0 = load_be<T>(in, 0);
-   x1 = load_be<T>(in, 1);
-   }
-
-/**
-* Load four big-endian words
-* @param in a pointer to some bytes
-* @param x0 where the first word will be written
-* @param x1 where the second word will be written
-* @param x2 where the third word will be written
-* @param x3 where the fourth word will be written
-*/
-template<typename T>
-inline void load_be(const uint8_t in[],
-                    T& x0, T& x1, T& x2, T& x3)
-   {
-   x0 = load_be<T>(in, 0);
-   x1 = load_be<T>(in, 1);
-   x2 = load_be<T>(in, 2);
-   x3 = load_be<T>(in, 3);
-   }
-
-/**
-* Load eight big-endian words
-* @param in a pointer to some bytes
-* @param x0 where the first word will be written
-* @param x1 where the second word will be written
-* @param x2 where the third word will be written
-* @param x3 where the fourth word will be written
-* @param x4 where the fifth word will be written
-* @param x5 where the sixth word will be written
-* @param x6 where the seventh word will be written
-* @param x7 where the eighth word will be written
-*/
-template<typename T>
-inline void load_be(const uint8_t in[],
-                    T& x0, T& x1, T& x2, T& x3,
-                    T& x4, T& x5, T& x6, T& x7)
-   {
-   x0 = load_be<T>(in, 0);
-   x1 = load_be<T>(in, 1);
-   x2 = load_be<T>(in, 2);
-   x3 = load_be<T>(in, 3);
-   x4 = load_be<T>(in, 4);
-   x5 = load_be<T>(in, 5);
-   x6 = load_be<T>(in, 6);
-   x7 = load_be<T>(in, 7);
-   }
-
-/**
-* Load a variable number of big-endian words
-* @param out the output array of words
-* @param in the input array of bytes
-* @param count how many words are in in
-*/
-template<typename T>
-inline void load_be(T out[],
-                    const uint8_t in[],
-                    size_t count)
-   {
-   if(count > 0)
-      {
-#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
-      typecast_copy(out, in, count);
-
-#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
-      typecast_copy(out, in, count);
-      const size_t blocks = count - (count % 4);
-      const size_t left = count - blocks;
-
-      for(size_t i = 0; i != blocks; i += 4)
-         bswap_4(out + i);
-
-      for(size_t i = 0; i != left; ++i)
-         out[blocks+i] = reverse_bytes(out[blocks+i]);
-#else
-      for(size_t i = 0; i != count; ++i)
-         out[i] = load_be<T>(in, i);
-#endif
-      }
-   }
-
-/**
-* Store a big-endian uint16_t
-* @param in the input uint16_t
-* @param out the byte array to write to
-*/
-inline void store_be(uint16_t in, uint8_t out[2])
-   {
-#if defined(BOTAN_ENDIAN_N2B)
-   uint16_t o = BOTAN_ENDIAN_N2B(in);
-   typecast_copy(out, o);
-#else
-   out[0] = get_byte(0, in);
-   out[1] = get_byte(1, in);
-#endif
-   }
-
-/**
-* Store a little-endian uint16_t
-* @param in the input uint16_t
-* @param out the byte array to write to
-*/
-inline void store_le(uint16_t in, uint8_t out[2])
-   {
-#if defined(BOTAN_ENDIAN_N2L)
-   uint16_t o = BOTAN_ENDIAN_N2L(in);
-   typecast_copy(out, o);
-#else
-   out[0] = get_byte(1, in);
-   out[1] = get_byte(0, in);
-#endif
-   }
-
-/**
-* Store a big-endian uint32_t
-* @param in the input uint32_t
-* @param out the byte array to write to
-*/
-inline void store_be(uint32_t in, uint8_t out[4])
-   {
-#if defined(BOTAN_ENDIAN_B2N)
-   uint32_t o = BOTAN_ENDIAN_B2N(in);
-   typecast_copy(out, o);
-#else
-   out[0] = get_byte(0, in);
-   out[1] = get_byte(1, in);
-   out[2] = get_byte(2, in);
-   out[3] = get_byte(3, in);
-#endif
-   }
-
-/**
-* Store a little-endian uint32_t
-* @param in the input uint32_t
-* @param out the byte array to write to
-*/
-inline void store_le(uint32_t in, uint8_t out[4])
-   {
-#if defined(BOTAN_ENDIAN_L2N)
-   uint32_t o = BOTAN_ENDIAN_L2N(in);
-   typecast_copy(out, o);
-#else
-   out[0] = get_byte(3, in);
-   out[1] = get_byte(2, in);
-   out[2] = get_byte(1, in);
-   out[3] = get_byte(0, in);
-#endif
-   }
-
-/**
-* Store a big-endian uint64_t
-* @param in the input uint64_t
-* @param out the byte array to write to
-*/
-inline void store_be(uint64_t in, uint8_t out[8])
-   {
-#if defined(BOTAN_ENDIAN_B2N)
-   uint64_t o = BOTAN_ENDIAN_B2N(in);
-   typecast_copy(out, o);
-#else
-   out[0] = get_byte(0, in);
-   out[1] = get_byte(1, in);
-   out[2] = get_byte(2, in);
-   out[3] = get_byte(3, in);
-   out[4] = get_byte(4, in);
-   out[5] = get_byte(5, in);
-   out[6] = get_byte(6, in);
-   out[7] = get_byte(7, in);
-#endif
-   }
-
-/**
-* Store a little-endian uint64_t
-* @param in the input uint64_t
-* @param out the byte array to write to
-*/
-inline void store_le(uint64_t in, uint8_t out[8])
-   {
-#if defined(BOTAN_ENDIAN_L2N)
-   uint64_t o = BOTAN_ENDIAN_L2N(in);
-   typecast_copy(out, o);
-#else
-   out[0] = get_byte(7, in);
-   out[1] = get_byte(6, in);
-   out[2] = get_byte(5, in);
-   out[3] = get_byte(4, in);
-   out[4] = get_byte(3, in);
-   out[5] = get_byte(2, in);
-   out[6] = get_byte(1, in);
-   out[7] = get_byte(0, in);
-#endif
-   }
-
-/**
-* Store two little-endian words
-* @param out the output byte array
-* @param x0 the first word
-* @param x1 the second word
-*/
-template<typename T>
-inline void store_le(uint8_t out[], T x0, T x1)
-   {
-   store_le(x0, out + (0 * sizeof(T)));
-   store_le(x1, out + (1 * sizeof(T)));
-   }
-
-/**
-* Store two big-endian words
-* @param out the output byte array
-* @param x0 the first word
-* @param x1 the second word
-*/
-template<typename T>
-inline void store_be(uint8_t out[], T x0, T x1)
-   {
-   store_be(x0, out + (0 * sizeof(T)));
-   store_be(x1, out + (1 * sizeof(T)));
-   }
-
-/**
-* Store four little-endian words
-* @param out the output byte array
-* @param x0 the first word
-* @param x1 the second word
-* @param x2 the third word
-* @param x3 the fourth word
-*/
-template<typename T>
-inline void store_le(uint8_t out[], T x0, T x1, T x2, T x3)
-   {
-   store_le(x0, out + (0 * sizeof(T)));
-   store_le(x1, out + (1 * sizeof(T)));
-   store_le(x2, out + (2 * sizeof(T)));
-   store_le(x3, out + (3 * sizeof(T)));
-   }
-
-/**
-* Store four big-endian words
-* @param out the output byte array
-* @param x0 the first word
-* @param x1 the second word
-* @param x2 the third word
-* @param x3 the fourth word
-*/
-template<typename T>
-inline void store_be(uint8_t out[], T x0, T x1, T x2, T x3)
-   {
-   store_be(x0, out + (0 * sizeof(T)));
-   store_be(x1, out + (1 * sizeof(T)));
-   store_be(x2, out + (2 * sizeof(T)));
-   store_be(x3, out + (3 * sizeof(T)));
-   }
-
-/**
-* Store eight little-endian words
-* @param out the output byte array
-* @param x0 the first word
-* @param x1 the second word
-* @param x2 the third word
-* @param x3 the fourth word
-* @param x4 the fifth word
-* @param x5 the sixth word
-* @param x6 the seventh word
-* @param x7 the eighth word
-*/
-template<typename T>
-inline void store_le(uint8_t out[], T x0, T x1, T x2, T x3,
-                                 T x4, T x5, T x6, T x7)
-   {
-   store_le(x0, out + (0 * sizeof(T)));
-   store_le(x1, out + (1 * sizeof(T)));
-   store_le(x2, out + (2 * sizeof(T)));
-   store_le(x3, out + (3 * sizeof(T)));
-   store_le(x4, out + (4 * sizeof(T)));
-   store_le(x5, out + (5 * sizeof(T)));
-   store_le(x6, out + (6 * sizeof(T)));
-   store_le(x7, out + (7 * sizeof(T)));
-   }
-
-/**
-* Store eight big-endian words
-* @param out the output byte array
-* @param x0 the first word
-* @param x1 the second word
-* @param x2 the third word
-* @param x3 the fourth word
-* @param x4 the fifth word
-* @param x5 the sixth word
-* @param x6 the seventh word
-* @param x7 the eighth word
-*/
-template<typename T>
-inline void store_be(uint8_t out[], T x0, T x1, T x2, T x3,
-                                 T x4, T x5, T x6, T x7)
-   {
-   store_be(x0, out + (0 * sizeof(T)));
-   store_be(x1, out + (1 * sizeof(T)));
-   store_be(x2, out + (2 * sizeof(T)));
-   store_be(x3, out + (3 * sizeof(T)));
-   store_be(x4, out + (4 * sizeof(T)));
-   store_be(x5, out + (5 * sizeof(T)));
-   store_be(x6, out + (6 * sizeof(T)));
-   store_be(x7, out + (7 * sizeof(T)));
-   }
-
-template<typename T>
-void copy_out_be(uint8_t out[], size_t out_bytes, const T in[])
-   {
-   while(out_bytes >= sizeof(T))
-      {
-      store_be(in[0], out);
-      out += sizeof(T);
-      out_bytes -= sizeof(T);
-      in += 1;
-   }
-
-   for(size_t i = 0; i != out_bytes; ++i)
-      out[i] = get_byte(i%8, in[0]);
-   }
-
-template<typename T, typename Alloc>
-void copy_out_vec_be(uint8_t out[], size_t out_bytes, const std::vector<T, Alloc>& in)
-   {
-   copy_out_be(out, out_bytes, in.data());
-   }
-
-template<typename T>
-void copy_out_le(uint8_t out[], size_t out_bytes, const T in[])
-   {
-   while(out_bytes >= sizeof(T))
-      {
-      store_le(in[0], out);
-      out += sizeof(T);
-      out_bytes -= sizeof(T);
-      in += 1;
-   }
-
-   for(size_t i = 0; i != out_bytes; ++i)
-      out[i] = get_byte(sizeof(T) - 1 - (i % 8), in[0]);
-   }
-
-template<typename T, typename Alloc>
-void copy_out_vec_le(uint8_t out[], size_t out_bytes, const std::vector<T, Alloc>& in)
-   {
-   copy_out_le(out, out_bytes, in.data());
-   }
-
-}
-
 namespace Botan {
 
 /**
@@ -2158,27 +1437,13 @@ class BOTAN_PUBLIC_API(2,0) Buffered_Computation
          add_data(in.data(), in.size());
          }
 
-      /**
-      * Add an integer in big-endian order
-      * @param in the value
-      */
-      template<typename T> void update_be(const T in)
-         {
-         uint8_t inb[sizeof(T)];
-         store_be(in, inb);
-         add_data(inb, sizeof(inb));
-         }
+      void update_be(uint16_t val);
+      void update_be(uint32_t val);
+      void update_be(uint64_t val);
 
-      /**
-      * Add an integer in little-endian order
-      * @param in the value
-      */
-      template<typename T> void update_le(const T in)
-         {
-         uint8_t inb[sizeof(T)];
-         store_le(in, inb);
-         add_data(inb, sizeof(inb));
-         }
+      void update_le(uint16_t val);
+      void update_le(uint32_t val);
+      void update_le(uint64_t val);
 
       /**
       * Add new input to process.
@@ -2372,6 +1637,8 @@ class BOTAN_PUBLIC_API(2,0) HashFunction : public Buffered_Computation
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(adler32.h)
 
 namespace Botan {
 
@@ -2755,6 +2022,8 @@ enum class ErrorType {
    HttpError,
    /** A message with an invalid authentication tag was detected */
    InvalidTag,
+   /** An error during Roughtime validation */
+   RoughtimeError,
 
    /** An error when calling OpenSSL */
    OpenSSLError = 200,
@@ -3062,7 +2331,8 @@ class BOTAN_PUBLIC_API(2,0) Not_Implemented final : public Exception
 
 /*
    The following exception types are still in use for compatability reasons,
-   but are deprecated and will be removed in a future major release
+   but are deprecated and will be removed in a future major release.
+   Instead catch the base class.
 */
 
 /**
@@ -3664,6 +2934,8 @@ class Block_Cipher_Fixed_Params : public BaseClass
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(aes.h)
+
 namespace Botan {
 
 /**
@@ -3685,10 +2957,10 @@ class BOTAN_PUBLIC_API(2,0) AES_128 final : public Block_Cipher_Fixed_Params<16,
    private:
       void key_schedule(const uint8_t key[], size_t length) override;
 
-#if defined(BOTAN_HAS_AES_SSSE3)
-      void ssse3_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-      void ssse3_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-      void ssse3_key_schedule(const uint8_t key[], size_t length);
+#if defined(BOTAN_HAS_AES_VPERM)
+      void vperm_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
+      void vperm_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
+      void vperm_key_schedule(const uint8_t key[], size_t length);
 #endif
 
 #if defined(BOTAN_HAS_AES_NI)
@@ -3728,10 +3000,10 @@ class BOTAN_PUBLIC_API(2,0) AES_192 final : public Block_Cipher_Fixed_Params<16,
       size_t parallelism() const override;
 
    private:
-#if defined(BOTAN_HAS_AES_SSSE3)
-      void ssse3_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-      void ssse3_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-      void ssse3_key_schedule(const uint8_t key[], size_t length);
+#if defined(BOTAN_HAS_AES_VPERM)
+      void vperm_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
+      void vperm_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
+      void vperm_key_schedule(const uint8_t key[], size_t length);
 #endif
 
 #if defined(BOTAN_HAS_AES_NI)
@@ -3774,10 +3046,10 @@ class BOTAN_PUBLIC_API(2,0) AES_256 final : public Block_Cipher_Fixed_Params<16,
       size_t parallelism() const override;
 
    private:
-#if defined(BOTAN_HAS_AES_SSSE3)
-      void ssse3_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-      void ssse3_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-      void ssse3_key_schedule(const uint8_t key[], size_t length);
+#if defined(BOTAN_HAS_AES_VPERM)
+      void vperm_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
+      void vperm_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
+      void vperm_key_schedule(const uint8_t key[], size_t length);
 #endif
 
 #if defined(BOTAN_HAS_AES_NI)
@@ -3988,6 +3260,35 @@ namespace Botan {
 class BOTAN_PUBLIC_API(2,0) OID final : public ASN1_Object
    {
    public:
+
+      /**
+      * Create an uninitialied OID object
+      */
+      explicit OID() {}
+
+      /**
+      * Construct an OID from a string.
+      * @param str a string in the form "a.b.c" etc., where a,b,c are numbers
+      */
+      explicit OID(const std::string& str);
+
+      /**
+      * Initialize an OID from a sequence of integer values
+      */
+      explicit OID(std::initializer_list<uint32_t> init) : m_id(init) {}
+
+      /**
+      * Initialize an OID from a vector of integer values
+      */
+      explicit OID(std::vector<uint32_t>&& init) : m_id(init) {}
+
+      /**
+      * Construct an OID from a string.
+      * @param str a string in the form "a.b.c" etc., where a,b,c are numbers
+      *        or any known OID name (for example "RSA" or "X509v3.SubjectKeyIdentifier")
+      */
+      static OID from_string(const std::string& str);
+
       void encode_into(class DER_Encoder&) const override;
       void decode_from(class BER_Decoder&) override;
 
@@ -4007,7 +3308,9 @@ class BOTAN_PUBLIC_API(2,0) OID final : public ASN1_Object
       * Get this OID as list (vector) of its components.
       * @return vector representing this OID
       */
-      const std::vector<uint32_t>& get_id() const { return m_id; }
+      const std::vector<uint32_t>& get_components() const { return m_id; }
+
+      const std::vector<uint32_t>& get_id() const { return get_components(); }
 
       /**
       * Get this OID as a string
@@ -4019,36 +3322,42 @@ class BOTAN_PUBLIC_API(2,0) OID final : public ASN1_Object
          }
 
       /**
-      * Get this OID as a string
+      * Get this OID as a dotted-decimal string
       * @return string representing this OID
       */
       std::string to_string() const;
 
       /**
+      * If there is a known name associated with this OID, return that.
+      * Otherwise return the result of to_string
+      */
+      std::string to_formatted_string() const;
+
+      /**
       * Compare two OIDs.
       * @return true if they are equal, false otherwise
       */
-      bool operator==(const OID&) const;
+      bool operator==(const OID& other) const
+         {
+         return m_id == other.m_id;
+         }
 
       /**
       * Reset this instance to an empty OID.
       */
-      void clear();
+      void BOTAN_DEPRECATED("Avoid mutation of OIDs") clear() { m_id.clear(); }
 
       /**
       * Add a component to this OID.
       * @param new_comp the new component to add to the end of this OID
       * @return reference to *this
       */
-      OID& operator+=(uint32_t new_comp);
+      BOTAN_DEPRECATED("Avoid mutation of OIDs") OID& operator+=(uint32_t new_comp)
+         {
+         m_id.push_back(new_comp);
+         return (*this);
+         }
 
-      /**
-      * Construct an OID from a string.
-      * @param str a string in the form "a.b.c" etc., where a,b,c are numbers
-      */
-      explicit OID(const std::string& str = "");
-
-      explicit OID(std::initializer_list<uint32_t> init) : m_id(init) {}
    private:
       std::vector<uint32_t> m_id;
    };
@@ -4066,7 +3375,10 @@ OID BOTAN_PUBLIC_API(2,0) operator+(const OID& oid, uint32_t new_comp);
 * @param b the second OID
 * @return true if a is not equal to b
 */
-bool BOTAN_PUBLIC_API(2,0) operator!=(const OID& a, const OID& b);
+inline bool operator!=(const OID& a, const OID& b)
+   {
+   return !(a == b);
+   }
 
 /**
 * Compare two OIDs.
@@ -4269,6 +3581,8 @@ class BOTAN_PUBLIC_API(2,8) PasswordHashFamily
 
 namespace Botan {
 
+BOTAN_FUTURE_INTERNAL_HEADER(argon2.h)
+
 class RandomNumberGenerator;
 
 /**
@@ -4335,8 +3649,13 @@ class BOTAN_PUBLIC_API(2,11) Argon2_Family final : public PasswordHashFamily
 * @param output the output will be placed here
 * @param output_len length of output
 * @param password the user password
+* @param password_len the length of password
 * @param salt the salt
 * @param salt_len length of salt
+* @param key an optional secret key
+* @param key_len the length of key
+* @param ad an optional additional input
+* @param ad_len the length of ad
 * @param y the Argon2 variant (0 = Argon2d, 1 = Argon2i, 2 = Argon2id)
 * @param p the parallelization parameter
 * @param M the amount of memory to use in Kb
@@ -4358,12 +3677,15 @@ std::string BOTAN_PUBLIC_API(2,11)
 /**
 * Check a previously created password hash
 * @param password the password to check against
+* @param password_len the length of password
 * @param hash the stored hash to check against
 */
 bool BOTAN_PUBLIC_API(2,11) argon2_check_pwhash(const char* password, size_t password_len,
                                                 const std::string& hash);
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(aria.h)
 
 namespace Botan {
 
@@ -4720,6 +4042,8 @@ typedef X509_Time ASN1_Time;
 
 }
 
+//BOTAN_FUTURE_INTERNAL_HEADER(atomic.h)
+
 namespace Botan {
 
 template <typename T>
@@ -4929,9 +4253,16 @@ class BOTAN_PUBLIC_API(2,0) RandomNumberGenerator
       */
       secure_vector<uint8_t> random_vec(size_t bytes)
          {
-         secure_vector<uint8_t> output(bytes);
-         this->randomize(output.data(), output.size());
+         secure_vector<uint8_t> output;
+         random_vec(output, bytes);
          return output;
+         }
+
+      template<typename Alloc>
+         void random_vec(std::vector<uint8_t, Alloc>& v, size_t bytes)
+         {
+         v.resize(bytes);
+         this->randomize(v.data(), v.size());
          }
 
       /**
@@ -5498,6 +4829,8 @@ bool BOTAN_PUBLIC_API(2,0) check_bcrypt(const std::string& password,
                                         const std::string& hash);
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(bcrypt_pbkdf.h)
 
 namespace Botan {
 
@@ -6613,11 +5946,7 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
      * @param n the offset to get a byte from
      * @result byte at offset n
      */
-     uint8_t byte_at(size_t n) const
-        {
-        return get_byte(sizeof(word) - (n % sizeof(word)) - 1,
-                        word_at(n / sizeof(word)));
-        }
+     uint8_t byte_at(size_t n) const;
 
      /**
      * Return the word at a specified position of the internal register
@@ -7064,7 +6393,11 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
               {
               invalidate_sig_words();
               if(i >= m_reg.size())
+                 {
+                 if(w == 0)
+                    return;
                  grow_to(i + 1);
+                 }
               m_reg[i] = w;
               }
 
@@ -7258,6 +6591,8 @@ inline void swap<Botan::BigInt>(Botan::BigInt& x, Botan::BigInt& y)
    }
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(blake2b.h)
 
 namespace Botan {
 
@@ -7611,6 +6946,12 @@ class BOTAN_PUBLIC_API(2,0) Modular_Reducer
       BigInt cube(const BigInt& x) const
          { return multiply(x, this->square(x)); }
 
+      /**
+      * Low level reduction function. Mostly for internal use.
+      * Sometimes useful for performance by reducing temporaries
+      * Reduce x mod p and place the output in out. ** X and out must not reference each other **
+      * ws is a temporary workspace.
+      */
       void reduce(BigInt& out, const BigInt& x, secure_vector<word>& ws) const;
 
       bool initialized() const { return (m_mod_words != 0); }
@@ -7623,6 +6964,8 @@ class BOTAN_PUBLIC_API(2,0) Modular_Reducer
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(blinding.h)
 
 namespace Botan {
 
@@ -7687,6 +7030,8 @@ class BOTAN_PUBLIC_API(2,0) Blinder final
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(blowfish.h)
+
 namespace Botan {
 
 /**
@@ -7731,6 +7076,100 @@ class BOTAN_PUBLIC_API(2,0) Blowfish final : public Block_Cipher_Fixed_Params<8,
 
       secure_vector<uint32_t> m_S, m_P;
    };
+
+}
+
+#if defined(BOTAN_BUILD_COMPILER_IS_MSVC)
+  #include <stdlib.h>
+#endif
+
+BOTAN_FUTURE_INTERNAL_HEADER(bswap.h)
+
+namespace Botan {
+
+/**
+* Swap a 16 bit integer
+*/
+inline uint16_t reverse_bytes(uint16_t val)
+   {
+#if defined(BOTAN_BUILD_COMPILER_IS_GCC) || defined(BOTAN_BUILD_COMPILER_IS_CLANG) || defined(BOTAN_BUILD_COMPILER_IS_XLC)
+   return __builtin_bswap16(val);
+#else
+   return static_cast<uint16_t>((val << 8) | (val >> 8));
+#endif
+   }
+
+/**
+* Swap a 32 bit integer
+*/
+inline uint32_t reverse_bytes(uint32_t val)
+   {
+#if defined(BOTAN_BUILD_COMPILER_IS_GCC) || defined(BOTAN_BUILD_COMPILER_IS_CLANG) || defined(BOTAN_BUILD_COMPILER_IS_XLC)
+   return __builtin_bswap32(val);
+
+#elif defined(BOTAN_BUILD_COMPILER_IS_MSVC)
+   return _byteswap_ulong(val);
+
+#elif defined(BOTAN_USE_GCC_INLINE_ASM) && defined(BOTAN_TARGET_CPU_IS_X86_FAMILY)
+
+   // GCC-style inline assembly for x86 or x86-64
+   asm("bswapl %0" : "=r" (val) : "0" (val));
+   return val;
+
+#else
+   // Generic implementation
+   uint16_t hi = static_cast<uint16_t>(val >> 16);
+   uint16_t lo = static_cast<uint16_t>(val);
+
+   hi = reverse_bytes(hi);
+   lo = reverse_bytes(lo);
+
+   return (static_cast<uint32_t>(lo) << 16) | hi;
+#endif
+   }
+
+/**
+* Swap a 64 bit integer
+*/
+inline uint64_t reverse_bytes(uint64_t val)
+   {
+#if defined(BOTAN_BUILD_COMPILER_IS_GCC) || defined(BOTAN_BUILD_COMPILER_IS_CLANG) || defined(BOTAN_BUILD_COMPILER_IS_XLC)
+   return __builtin_bswap64(val);
+
+#elif defined(BOTAN_BUILD_COMPILER_IS_MSVC)
+   return _byteswap_uint64(val);
+
+#elif defined(BOTAN_USE_GCC_INLINE_ASM) && defined(BOTAN_TARGET_ARCH_IS_X86_64)
+   // GCC-style inline assembly for x86-64
+   asm("bswapq %0" : "=r" (val) : "0" (val));
+   return val;
+
+#else
+   /* Generic implementation. Defined in terms of 32-bit bswap so any
+    * optimizations in that version can help.
+    */
+
+   uint32_t hi = static_cast<uint32_t>(val >> 32);
+   uint32_t lo = static_cast<uint32_t>(val);
+
+   hi = reverse_bytes(hi);
+   lo = reverse_bytes(lo);
+
+   return (static_cast<uint64_t>(lo) << 32) | hi;
+#endif
+   }
+
+/**
+* Swap 4 Ts in an array
+*/
+template<typename T>
+inline void bswap_4(T x[4])
+   {
+   x[0] = reverse_bytes(x[0]);
+   x[1] = reverse_bytes(x[1]);
+   x[2] = reverse_bytes(x[2]);
+   x[3] = reverse_bytes(x[3]);
+   }
 
 }
 
@@ -7809,6 +7248,8 @@ BOTAN_PUBLIC_API(2,0) calendar_point calendar_value(
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(camellia.h)
+
 namespace Botan {
 
 /**
@@ -7867,6 +7308,8 @@ class BOTAN_PUBLIC_API(2,0) Camellia_256 final : public Block_Cipher_Fixed_Param
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(cascade.h)
+
 namespace Botan {
 
 /**
@@ -7909,6 +7352,8 @@ class BOTAN_PUBLIC_API(2,0) Cascade_Cipher final : public BlockCipher
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(cast128.h)
+
 namespace Botan {
 
 /**
@@ -7936,6 +7381,8 @@ class BOTAN_PUBLIC_API(2,0) CAST_128 final : public Block_Cipher_Fixed_Params<8,
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(cast256.h)
+
 namespace Botan {
 
 /**
@@ -7958,6 +7405,8 @@ class BOTAN_PUBLIC_API(2,0) CAST_256 final : public Block_Cipher_Fixed_Params<16
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(mode_pad.h)
 
 namespace Botan {
 
@@ -8101,6 +7550,8 @@ class BOTAN_PUBLIC_API(2,0) Null_Padding final : public BlockCipherModePaddingMe
 BOTAN_PUBLIC_API(2,0) BlockCipherModePaddingMethod* get_bc_pad(const std::string& algo_spec);
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(cbc.h)
 
 namespace Botan {
 
@@ -8368,6 +7819,8 @@ typedef MessageAuthenticationCode MAC;
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(cbc_mac.h)
+
 namespace Botan {
 
 /**
@@ -8401,6 +7854,8 @@ class BOTAN_PUBLIC_API(2,0) CBC_MAC final : public MessageAuthenticationCode
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(ccm.h)
 
 namespace Botan {
 
@@ -8627,6 +8082,10 @@ enum class Certificate_Status_Code {
    FIRST_WARNING_STATUS = 500,
    CERT_SERIAL_NEGATIVE = 500,
    DN_TOO_LONG = 501,
+   OCSP_NO_REVOCATION_URL = 502,
+   OCSP_SERVER_NOT_AVAILABLE = 503,
+
+   // Typo versions of above - will be removed in future major release
    OSCP_NO_REVOCATION_URL = 502,
    OSCP_SERVER_NOT_AVAILABLE = 503,
 
@@ -8844,6 +8303,11 @@ namespace Botan {
 class RandomNumberGenerator;
 
 /**
+* The two types of signature format supported by Botan.
+*/
+enum Signature_Format { IEEE_1363, DER_SEQUENCE };
+
+/**
 * Public Key Base Class.
 */
 class BOTAN_PUBLIC_API(2,0) Public_Key
@@ -8943,6 +8407,11 @@ class BOTAN_PUBLIC_API(2,0) Public_Key
       */
       virtual size_t message_part_size() const { return 0; }
 
+      virtual Signature_Format default_x509_signature_format() const
+         {
+         return (this->message_parts() >= 2) ? DER_SEQUENCE : IEEE_1363;
+         }
+
       /**
       * This is an internal library function exposed on key types.
       * In almost all cases applications should use wrappers in pubkey.h
@@ -9000,6 +8469,8 @@ class BOTAN_PUBLIC_API(2,0) Private_Key : public virtual Public_Key
       Private_Key(const Private_Key& other) = default;
       Private_Key& operator=(const Private_Key& other) = default;
       virtual ~Private_Key() = default;
+
+      virtual bool stateful_operation() const { return false; }
 
       /**
       * @return BER encoded private key bits
@@ -9418,7 +8889,8 @@ enum class Usage_Type
    TLS_SERVER_AUTH,
    TLS_CLIENT_AUTH,
    CERTIFICATE_AUTHORITY,
-   OCSP_RESPONDER
+   OCSP_RESPONDER,
+   ENCRYPTION
    };
 
 struct X509_Certificate_Data;
@@ -10578,6 +10050,8 @@ class BOTAN_PUBLIC_API(2,11) System_Certificate_Store final : public Certificate
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(cfb.h)
+
 namespace Botan {
 
 /**
@@ -10798,6 +10272,8 @@ class BOTAN_PUBLIC_API(2,0) StreamCipher : public SymmetricAlgorithm
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(chacha.h)
+
 namespace Botan {
 
 /**
@@ -10864,6 +10340,8 @@ class BOTAN_PUBLIC_API(2,0) ChaCha final : public StreamCipher
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(chacha20poly1305.h)
 
 namespace Botan {
 
@@ -11206,6 +10684,8 @@ class BOTAN_PUBLIC_API(2,3) ChaCha_RNG final : public Stateful_RNG
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(charset.h)
+
 namespace Botan {
 
 /**
@@ -11270,6 +10750,8 @@ char BOTAN_PUBLIC_API(2,0) digit2char(uint8_t b);
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(cmac.h)
+
 namespace Botan {
 
 /**
@@ -11321,6 +10803,8 @@ class BOTAN_PUBLIC_API(2,0) CMAC final : public MessageAuthenticationCode
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(comb4p.h)
+
 namespace Botan {
 
 /**
@@ -11366,6 +10850,8 @@ class BOTAN_PUBLIC_API(2,0) Comb4P final : public HashFunction
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(cpuid.h)
 
 namespace Botan {
 
@@ -11424,12 +10910,24 @@ class BOTAN_PUBLIC_API(2,1) CPUID final
 
       static bool is_little_endian()
          {
+#if defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+         return true;
+#elif defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+         return false;
+#else
          return state().endian_status() == Endian_Status::Little;
+#endif
          }
 
       static bool is_big_endian()
          {
+#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+         return true;
+#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+         return false;
+#else
          return state().endian_status() == Endian_Status::Big;
+#endif
          }
 
       enum CPUID_bits : uint64_t {
@@ -11460,7 +10958,8 @@ class BOTAN_PUBLIC_API(2,1) CPUID final
 
 #if defined(BOTAN_TARGET_CPU_IS_PPC_FAMILY)
          CPUID_ALTIVEC_BIT    = (1ULL << 0),
-         CPUID_PPC_CRYPTO_BIT = (1ULL << 1),
+         CPUID_POWER_CRYPTO_BIT = (1ULL << 1),
+         CPUID_DARN_BIT       = (1ULL << 2),
 #endif
 
 #if defined(BOTAN_TARGET_CPU_IS_ARM_FAMILY)
@@ -11489,8 +10988,14 @@ class BOTAN_PUBLIC_API(2,1) CPUID final
       /**
       * Check if the processor supports POWER8 crypto extensions
       */
-      static bool has_ppc_crypto()
-         { return has_cpuid_bit(CPUID_PPC_CRYPTO_BIT); }
+      static bool has_power_crypto()
+         { return has_cpuid_bit(CPUID_POWER_CRYPTO_BIT); }
+
+      /**
+      * Check if the processor supports POWER9 DARN RNG
+      */
+      static bool has_darn_rng()
+         { return has_cpuid_bit(CPUID_DARN_BIT); }
 
 #endif
 
@@ -11650,6 +11155,38 @@ class BOTAN_PUBLIC_API(2,1) CPUID final
          { return has_cpuid_bit(CPUID_RDSEED_BIT); }
 #endif
 
+      /**
+      * Check if the processor supports byte-level vector permutes
+      * (SSSE3, NEON, Altivec)
+      */
+      static bool has_vperm()
+         {
+#if defined(BOTAN_TARGET_CPU_IS_X86_FAMILY)
+         return has_ssse3();
+#elif defined(BOTAN_TARGET_CPU_IS_ARM_FAMILY)
+         return has_neon();
+#elif defined(BOTAN_TARGET_CPU_IS_PPC_FAMILY)
+         return has_altivec();
+#else
+         return false;
+#endif
+         }
+
+      /**
+      * Check if the processor supports carryless multiply
+      * (CLMUL, PMULL)
+      */
+      static bool has_carryless_multiply()
+         {
+#if defined(BOTAN_TARGET_CPU_IS_X86_FAMILY)
+         return has_clmul();
+#elif defined(BOTAN_TARGET_CPU_IS_ARM_FAMILY)
+         return has_arm_pmull();
+#else
+         return false;
+#endif
+         }
+
       /*
       * Clear a CPUID bit
       * Call CPUID::initialize to reset
@@ -11717,10 +11254,16 @@ class BOTAN_PUBLIC_API(2,1) CPUID final
             Endian_Status m_endian_status;
          };
 
-      static CPUID_Data& state();
+      static CPUID_Data& state()
+         {
+         static CPUID::CPUID_Data g_cpuid;
+         return g_cpuid;
+         }
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(crc24.h)
 
 namespace Botan {
 
@@ -11746,6 +11289,8 @@ class BOTAN_PUBLIC_API(2,0) CRC24 final : public HashFunction
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(crc32.h)
 
 namespace Botan {
 
@@ -12016,6 +11561,8 @@ std::string decrypt(const std::string& input,
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(ctr.h)
+
 namespace Botan {
 
 /**
@@ -12175,6 +11722,9 @@ void BOTAN_PUBLIC_API(2,0) curve25519_basepoint(uint8_t mypublic[32],
 
 }
 
+// Currently exposed in PointGFp
+//BOTAN_FUTURE_INTERNAL_HEADER(curve_gfp.h)
+
 namespace Botan {
 
 class BOTAN_UNSTABLE_API CurveGFp_Repr
@@ -12322,7 +11872,7 @@ class BOTAN_UNSTABLE_API CurveGFp final
          m_repr->from_curve_rep(x, ws);
          }
 
-      BigInt from_rep(const BigInt& x, secure_vector<word>& ws) const
+      BigInt from_rep_to_tmp(const BigInt& x, secure_vector<word>& ws) const
          {
          BigInt xt(x);
          m_repr->from_curve_rep(xt, ws);
@@ -12420,6 +11970,8 @@ void swap<Botan::CurveGFp>(Botan::CurveGFp& curve1,
    }
 
 } // namespace std
+
+BOTAN_FUTURE_INTERNAL_HEADER(curve_nistp.h)
 
 namespace Botan {
 
@@ -12674,6 +12226,8 @@ class BOTAN_PUBLIC_API(2,0) DataSink_Stream final : public DataSink
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(datastor.h)
+
 namespace Botan {
 
 /**
@@ -12780,7 +12334,14 @@ class BOTAN_PUBLIC_API(2,0) DER_Encoder final
 
       secure_vector<uint8_t> get_contents();
 
-      std::vector<uint8_t> get_contents_unlocked();
+      /**
+      * Return the encoded contents as a std::vector
+      *
+      * If using this function, instead pass a std::vector to the
+      * contructor of DER_Encoder where the output will be placed. This
+      * avoids several unecessary copies.
+      */
+      std::vector<uint8_t> BOTAN_DEPRECATED("Use DER_Encoder(vector) instead") get_contents_unlocked();
 
       DER_Encoder& start_cons(ASN1_Tag type_tag,
                               ASN1_Tag class_tag = UNIVERSAL);
@@ -12946,6 +12507,8 @@ class BOTAN_PUBLIC_API(2,0) DER_Encoder final
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(des.h)
+
 namespace Botan {
 
 /**
@@ -12997,6 +12560,8 @@ extern const uint32_t DES_SPBOX7[256];
 extern const uint32_t DES_SPBOX8[256];
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(desx.h)
 
 namespace Botan {
 
@@ -13540,6 +13105,8 @@ class BOTAN_PUBLIC_API(2,0) DH_PrivateKey final : public DH_PublicKey,
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(divide.h)
+
 namespace Botan {
 
 /**
@@ -13655,11 +13222,6 @@ class BOTAN_PUBLIC_API(2,0) System_RNG final : public RandomNumberGenerator
 namespace Botan {
 
 class RandomNumberGenerator;
-
-/**
-* The two types of signature format supported by Botan.
-*/
-enum Signature_Format { IEEE_1363, DER_SEQUENCE };
 
 /**
 * Public Key Encryptor
@@ -14836,6 +14398,8 @@ class BOTAN_PUBLIC_API(2,0) DSA_PrivateKey final : public DSA_PublicKey,
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(eax.h)
+
 namespace Botan {
 
 /**
@@ -15018,6 +14582,7 @@ class BOTAN_PUBLIC_API(2,0) PointGFp final
 
       /**
       * Construct a point from its affine coordinates
+      * Prefer EC_Group::point(x,y) for this operation.
       * @param curve the base curve
       * @param x affine x coordinate
       * @param y affine y coordinate
@@ -16702,6 +16267,8 @@ class BOTAN_PUBLIC_API(2,0) ElGamal_PrivateKey final : public ElGamal_PublicKey,
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(eme.h)
+
 namespace Botan {
 
 class RandomNumberGenerator;
@@ -16780,6 +16347,8 @@ BOTAN_PUBLIC_API(2,0) EME*  get_eme(const std::string& algo_spec);
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(eme_pkcs.h)
+
 namespace Botan {
 
 /**
@@ -16800,6 +16369,8 @@ class BOTAN_PUBLIC_API(2,0) EME_PKCS1v15 final : public EME
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(eme_raw.h)
+
 namespace Botan {
 
 class BOTAN_PUBLIC_API(2,0) EME_Raw final : public EME
@@ -16818,6 +16389,8 @@ class BOTAN_PUBLIC_API(2,0) EME_Raw final : public EME
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(emsa.h)
 
 namespace Botan {
 
@@ -16909,6 +16482,8 @@ BOTAN_PUBLIC_API(2,0) std::string hash_for_emsa(const std::string& algo_spec);
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(emsa1.h)
+
 namespace Botan {
 
 /**
@@ -16947,6 +16522,8 @@ class BOTAN_PUBLIC_API(2,0) EMSA1 final : public EMSA
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(emsa_pkcs1.h)
 
 namespace Botan {
 
@@ -17026,6 +16603,8 @@ class BOTAN_PUBLIC_API(2,0) EMSA_PKCS1v15_Raw final : public EMSA
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(emsa_raw.h)
+
 namespace Botan {
 
 /**
@@ -17057,6 +16636,8 @@ class BOTAN_PUBLIC_API(2,0) EMSA_Raw final : public EMSA
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(emsa_x931.h)
 
 namespace Botan {
 
@@ -17258,6 +16839,7 @@ enum BOTAN_FFI_ERROR {
 
    BOTAN_FFI_ERROR_TLS_ERROR = -75,
    BOTAN_FFI_ERROR_HTTP_ERROR = -76,
+   BOTAN_FFI_ERROR_ROUGHTIME_ERROR = -77,
 
    BOTAN_FFI_ERROR_UNKNOWN_ERROR = -100,
 };
@@ -17712,12 +17294,18 @@ BOTAN_PUBLIC_API(2,0) int botan_cipher_destroy(botan_cipher_t cipher);
 * @param salt_len length of salt in bytes
 * @param iterations the number of iterations to use (use 10K or more)
 * @return 0 on success, a negative value on failure
+*
+* Deprecated: use
+*  botan_pwdhash(pbkdf_algo, iterations, 0, 0, out, out_len,
+*                passphrase, 0, salt, salt_len);
 */
-BOTAN_PUBLIC_API(2,0) int botan_pbkdf(const char* pbkdf_algo,
-                          uint8_t out[], size_t out_len,
-                          const char* passphrase,
-                          const uint8_t salt[], size_t salt_len,
-                          size_t iterations);
+BOTAN_PUBLIC_API(2,0) int
+BOTAN_DEPRECATED("Use botan_pwdhash")
+botan_pbkdf(const char* pbkdf_algo,
+            uint8_t out[], size_t out_len,
+            const char* passphrase,
+            const uint8_t salt[], size_t salt_len,
+            size_t iterations);
 
 /**
 * Derive a key from a passphrase, running until msec time has elapsed.
@@ -17731,6 +17319,17 @@ BOTAN_PUBLIC_API(2,0) int botan_pbkdf(const char* pbkdf_algo,
 *        run until milliseconds_to_run milliseconds has passed
 * @param out_iterations_used set to the number iterations executed
 * @return 0 on success, a negative value on failure
+*
+* Deprecated: use
+*
+* botan_pwdhash_timed(pbkdf_algo,
+*                     static_cast<uint32_t>(ms_to_run),
+*                     iterations_used,
+*                     nullptr,
+*                     nullptr,
+*                     out, out_len,
+*                     password, 0,
+*                     salt, salt_len);
 */
 BOTAN_PUBLIC_API(2,0) int botan_pbkdf_timed(const char* pbkdf_algo,
                                 uint8_t out[], size_t out_len,
@@ -17798,11 +17397,15 @@ int BOTAN_PUBLIC_API(2,8) botan_pwdhash_timed(
 
 /**
 * Derive a key using scrypt
+* Deprecated; use
+* botan_pwdhash("Scrypt", N, r, p, out, out_len, password, 0, salt, salt_len);
 */
-BOTAN_PUBLIC_API(2,8) int botan_scrypt(uint8_t out[], size_t out_len,
-                                       const char* passphrase,
-                                       const uint8_t salt[], size_t salt_len,
-                                       size_t N, size_t r, size_t p);
+BOTAN_PUBLIC_API(2,8) int
+BOTAN_DEPRECATED("Use botan_pwdhash")
+botan_scrypt(uint8_t out[], size_t out_len,
+             const char* passphrase,
+             const uint8_t salt[], size_t salt_len,
+             size_t N, size_t r, size_t p);
 
 /**
 * Derive a key
@@ -18741,6 +18344,41 @@ BOTAN_PUBLIC_API(2,8) int botan_x509_cert_verify(
 * or else NULL if unknown.
 */
 BOTAN_PUBLIC_API(2,8) const char* botan_x509_cert_validation_status(int code);
+
+/*
+* X.509 CRL
+**************************/
+
+typedef struct botan_x509_crl_struct* botan_x509_crl_t;
+
+BOTAN_PUBLIC_API(2,13) int botan_x509_crl_load_file(botan_x509_crl_t* crl_obj, const char* crl_path);
+BOTAN_PUBLIC_API(2,13) int botan_x509_crl_load(botan_x509_crl_t* crl_obj, const uint8_t crl_bits[], size_t crl_bits_len);
+
+BOTAN_PUBLIC_API(2,13) int botan_x509_crl_destroy(botan_x509_crl_t crl);
+
+/**
+ * Given a CRL and a certificate, 
+ * check if the certificate is revoked on that particular CRL
+ */
+BOTAN_PUBLIC_API(2,13) int botan_x509_is_revoked(botan_x509_crl_t crl, botan_x509_cert_t cert);
+
+/**
+ * Different flavor of `botan_x509_cert_verify`, supports revocation lists.
+ * CRLs are passed as an array, same as intermediates and trusted CAs 
+ */
+BOTAN_PUBLIC_API(2,13) int botan_x509_cert_verify_with_crl(
+   int* validation_result,
+   botan_x509_cert_t cert,
+   const botan_x509_cert_t* intermediates,
+   size_t intermediates_len,
+   const botan_x509_cert_t* trusted,
+   size_t trusted_len,
+   const botan_x509_crl_t* crls,
+   size_t crls_len,
+   const char* trusted_path,
+   size_t required_strength,
+   const char* hostname,
+   uint64_t reference_time);
 
 /**
  * Key wrapping as per RFC 3394
@@ -20064,6 +19702,8 @@ BigInt BOTAN_PUBLIC_API(2,0) fe1_decrypt(const BigInt& n, const BigInt& X,
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(gcm.h)
+
 namespace Botan {
 
 class BlockCipher;
@@ -20109,6 +19749,8 @@ class BOTAN_PUBLIC_API(2,0) GCM_Mode : public AEAD_Mode
       void start_msg(const uint8_t nonce[], size_t nonce_len) override;
 
       void key_schedule(const uint8_t key[], size_t length) override;
+
+      secure_vector<uint8_t> m_y0;
    };
 
 /**
@@ -20161,6 +19803,9 @@ class BOTAN_PUBLIC_API(2,0) GCM_Decryption final : public GCM_Mode
    };
 
 }
+
+// fixme - still used in mceliece.h
+//BOTAN_FUTURE_INTERNAL_HEADER(gf2m_small_m.h)
 
 namespace Botan {
 
@@ -20315,8 +19960,6 @@ class BOTAN_PUBLIC_API(2,0) GF2m_Field
 
       gf2m gf_div(gf2m x, gf2m y) const;
 
-      gf2m gf_pow(gf2m x, int i) const;
-
       gf2m gf_exp(gf2m i) const
          {
          return m_gf_exp_table.at(i); /* alpha^i */
@@ -20365,6 +20008,8 @@ gf2m decode_gf2m(const uint8_t* mem);
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(ghash.h)
+
 namespace Botan {
 
 /**
@@ -20377,7 +20022,15 @@ class BOTAN_PUBLIC_API(2,0) GHASH final : public SymmetricAlgorithm
    public:
       void set_associated_data(const uint8_t ad[], size_t ad_len);
 
-      secure_vector<uint8_t> nonce_hash(const uint8_t nonce[], size_t len);
+      secure_vector<uint8_t> BOTAN_DEPRECATED("Use other impl")
+         nonce_hash(const uint8_t nonce[], size_t nonce_len)
+         {
+         secure_vector<uint8_t> y0(GCM_BS);
+         nonce_hash(y0, nonce, nonce_len);
+         return y0;
+         }
+
+      void nonce_hash(secure_vector<uint8_t>& y0, const uint8_t nonce[], size_t len);
 
       void start(const uint8_t nonce[], size_t len);
 
@@ -20391,7 +20044,14 @@ class BOTAN_PUBLIC_API(2,0) GHASH final : public SymmetricAlgorithm
       */
       void update_associated_data(const uint8_t ad[], size_t len);
 
-      secure_vector<uint8_t> final();
+      secure_vector<uint8_t> BOTAN_DEPRECATED("Use version taking output params") final()
+         {
+         secure_vector<uint8_t> mac(GCM_BS);
+         final(mac.data(), mac.size());
+         return mac;
+         }
+
+      void final(uint8_t out[], size_t out_len);
 
       Key_Length_Specification key_spec() const override
          { return Key_Length_Specification(16); }
@@ -20429,6 +20089,8 @@ class BOTAN_PUBLIC_API(2,0) GHASH final : public SymmetricAlgorithm
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(gmac.h)
 
 namespace Botan {
 
@@ -20478,6 +20140,8 @@ class BOTAN_PUBLIC_API(2,0) GMAC final : public MessageAuthenticationCode
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(gost_28147.h)
 
 namespace Botan {
 
@@ -20589,7 +20253,7 @@ class BOTAN_PUBLIC_API(2,0) GOST_3410_PublicKey : public virtual EC_PublicKey
       * Get this keys algorithm name.
       * @result this keys algorithm name
       */
-      std::string algo_name() const override { return "GOST-34.10"; }
+      std::string algo_name() const override;
 
       AlgorithmIdentifier algorithm_identifier() const override;
 
@@ -20599,6 +20263,9 @@ class BOTAN_PUBLIC_API(2,0) GOST_3410_PublicKey : public virtual EC_PublicKey
 
       size_t message_part_size() const override
          { return domain().get_order().bytes(); }
+
+      Signature_Format default_x509_signature_format() const override
+         { return IEEE_1363; }
 
       std::unique_ptr<PK_Ops::Verification>
          create_verification_op(const std::string& params,
@@ -20611,8 +20278,8 @@ class BOTAN_PUBLIC_API(2,0) GOST_3410_PublicKey : public virtual EC_PublicKey
 /**
 * GOST-34.10 Private Key
 */
-class BOTAN_PUBLIC_API(2,0) GOST_3410_PrivateKey final : public GOST_3410_PublicKey,
-                                       public EC_PrivateKey
+class BOTAN_PUBLIC_API(2,0) GOST_3410_PrivateKey final :
+   public GOST_3410_PublicKey, public EC_PrivateKey
    {
    public:
       /**
@@ -20632,8 +20299,7 @@ class BOTAN_PUBLIC_API(2,0) GOST_3410_PrivateKey final : public GOST_3410_Public
       */
       GOST_3410_PrivateKey(RandomNumberGenerator& rng,
                            const EC_Group& domain,
-                           const BigInt& x = 0) :
-         EC_PrivateKey(rng, domain, x) {}
+                           const BigInt& x = 0);
 
       AlgorithmIdentifier pkcs8_algorithm_identifier() const override
          { return EC_PublicKey::algorithm_identifier(); }
@@ -20645,6 +20311,8 @@ class BOTAN_PUBLIC_API(2,0) GOST_3410_PrivateKey final : public GOST_3410_Public
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(gost_3411.h)
 
 namespace Botan {
 
@@ -20676,6 +20344,8 @@ class BOTAN_PUBLIC_API(2,0) GOST_34_11 final : public HashFunction
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(hash_id)
 
 namespace Botan {
 
@@ -20831,6 +20501,12 @@ hex_decode_locked(const std::string& input,
 
 }
 
+/*
+* The definitions of HKDF, HKDF_Extract, HKDF_Expand will be made internal
+* in the future. However the function hkdf_expand_label will still be defined.
+*/
+//BOTAN_FUTURE_INTERNAL_HEADER(hkdf.h)
+
 namespace Botan {
 
 /**
@@ -20927,6 +20603,8 @@ BOTAN_PUBLIC_API(2,3) hkdf_expand_label(
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(hmac.h)
+
 namespace Botan {
 
 /**
@@ -20995,7 +20673,7 @@ class BOTAN_PUBLIC_API(2,0) HMAC_DRBG final : public Stateful_RNG
       * @param underlying_rng is a reference to some RNG which will be used
       * to perform the periodic reseeding
       * @param reseed_interval specifies a limit of how many times
-      * the RNG will be called before automatic reseeding is performed
+      * the RNG will be called before automatic reseeding is performed (max. 2^24)
       * @param max_number_of_bytes_per_request requests that are in size higher
       * than max_number_of_bytes_per_request are treated as if multiple single
       * requests of max_number_of_bytes_per_request size had been made.
@@ -21022,7 +20700,7 @@ class BOTAN_PUBLIC_API(2,0) HMAC_DRBG final : public Stateful_RNG
       * @param prf MAC to use as a PRF
       * @param entropy_sources will be polled to perform reseeding periodically
       * @param reseed_interval specifies a limit of how many times
-      * the RNG will be called before automatic reseeding is performed.
+      * the RNG will be called before automatic reseeding is performed (max. 2^24)
       * @param max_number_of_bytes_per_request requests that are in size higher
       * than max_number_of_bytes_per_request are treated as if multiple single
       * requests of max_number_of_bytes_per_request size had been made.
@@ -21052,7 +20730,7 @@ class BOTAN_PUBLIC_API(2,0) HMAC_DRBG final : public Stateful_RNG
       * to perform the periodic reseeding
       * @param entropy_sources will be polled to perform reseeding periodically
       * @param reseed_interval specifies a limit of how many times
-      * the RNG will be called before automatic reseeding is performed.
+      * the RNG will be called before automatic reseeding is performed (max. 2^24)
       * @param max_number_of_bytes_per_request requests that are in size higher
       * than max_number_of_bytes_per_request are treated as if multiple single
       * requests of max_number_of_bytes_per_request size had been made.
@@ -21158,6 +20836,8 @@ class BOTAN_PUBLIC_API(2,2) HOTP final
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(http_util.h)
+
 namespace Botan {
 
 namespace HTTP {
@@ -21244,6 +20924,8 @@ BOTAN_PUBLIC_API(2,0) std::string url_encode(const std::string& url);
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(idea.h)
+
 namespace Botan {
 
 /**
@@ -21273,6 +20955,8 @@ class BOTAN_PUBLIC_API(2,0) IDEA final : public Block_Cipher_Fixed_Params<8, 16>
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(iso9796.h)
 
 namespace Botan {
 
@@ -21355,6 +21039,8 @@ class BOTAN_PUBLIC_API(2,0) ISO_9796_DS3 final : public EMSA
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(kasumi.h)
+
 namespace Botan {
 
 /**
@@ -21376,6 +21062,8 @@ class BOTAN_PUBLIC_API(2,0) KASUMI final : public Block_Cipher_Fixed_Params<8, 1
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(kdf1.h)
 
 namespace Botan {
 
@@ -21404,6 +21092,8 @@ class BOTAN_PUBLIC_API(2,0) KDF1 final : public KDF
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(kdf1_iso18033.h)
+
 namespace Botan {
 
 /**
@@ -21430,6 +21120,8 @@ class BOTAN_PUBLIC_API(2,0) KDF1_18033 final : public KDF
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(kdf2.h)
 
 namespace Botan {
 
@@ -21459,6 +21151,8 @@ class BOTAN_PUBLIC_API(2,0) KDF2 final : public KDF
 }
 
 namespace Botan {
+
+BOTAN_FUTURE_INTERNAL_HEADER(keccak.h)
 
 /**
 * Keccak[1600], a SHA-3 candidate
@@ -21491,6 +21185,8 @@ class BOTAN_PUBLIC_API(2,0) Keccak_1600 final : public HashFunction
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(keypair.h)
 
 namespace Botan {
 
@@ -21562,6 +21258,8 @@ signature_consistency_check(RandomNumberGenerator& rng,
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(lion.h)
+
 namespace Botan {
 
 /**
@@ -21610,6 +21308,692 @@ class BOTAN_PUBLIC_API(2,0) Lion final : public BlockCipher
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(loadstor.h)
+
+#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+   #define BOTAN_ENDIAN_N2L(x) reverse_bytes(x)
+   #define BOTAN_ENDIAN_L2N(x) reverse_bytes(x)
+   #define BOTAN_ENDIAN_N2B(x) (x)
+   #define BOTAN_ENDIAN_B2N(x) (x)
+
+#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+   #define BOTAN_ENDIAN_N2L(x) (x)
+   #define BOTAN_ENDIAN_L2N(x) (x)
+   #define BOTAN_ENDIAN_N2B(x) reverse_bytes(x)
+   #define BOTAN_ENDIAN_B2N(x) reverse_bytes(x)
+
+#endif
+
+namespace Botan {
+
+/**
+* Byte extraction
+* @param byte_num which byte to extract, 0 == highest byte
+* @param input the value to extract from
+* @return byte byte_num of input
+*/
+template<typename T> inline constexpr uint8_t get_byte(size_t byte_num, T input)
+   {
+   return static_cast<uint8_t>(
+      input >> (((~byte_num)&(sizeof(T)-1)) << 3)
+      );
+   }
+
+/**
+* Make a uint16_t from two bytes
+* @param i0 the first byte
+* @param i1 the second byte
+* @return i0 || i1
+*/
+inline constexpr uint16_t make_uint16(uint8_t i0, uint8_t i1)
+   {
+   return static_cast<uint16_t>((static_cast<uint16_t>(i0) << 8) | i1);
+   }
+
+/**
+* Make a uint32_t from four bytes
+* @param i0 the first byte
+* @param i1 the second byte
+* @param i2 the third byte
+* @param i3 the fourth byte
+* @return i0 || i1 || i2 || i3
+*/
+inline constexpr uint32_t make_uint32(uint8_t i0, uint8_t i1, uint8_t i2, uint8_t i3)
+   {
+   return ((static_cast<uint32_t>(i0) << 24) |
+           (static_cast<uint32_t>(i1) << 16) |
+           (static_cast<uint32_t>(i2) <<  8) |
+           (static_cast<uint32_t>(i3)));
+   }
+
+/**
+* Make a uint64_t from eight bytes
+* @param i0 the first byte
+* @param i1 the second byte
+* @param i2 the third byte
+* @param i3 the fourth byte
+* @param i4 the fifth byte
+* @param i5 the sixth byte
+* @param i6 the seventh byte
+* @param i7 the eighth byte
+* @return i0 || i1 || i2 || i3 || i4 || i5 || i6 || i7
+*/
+inline constexpr uint64_t make_uint64(uint8_t i0, uint8_t i1, uint8_t i2, uint8_t i3,
+                                      uint8_t i4, uint8_t i5, uint8_t i6, uint8_t i7)
+    {
+   return ((static_cast<uint64_t>(i0) << 56) |
+           (static_cast<uint64_t>(i1) << 48) |
+           (static_cast<uint64_t>(i2) << 40) |
+           (static_cast<uint64_t>(i3) << 32) |
+           (static_cast<uint64_t>(i4) << 24) |
+           (static_cast<uint64_t>(i5) << 16) |
+           (static_cast<uint64_t>(i6) <<  8) |
+           (static_cast<uint64_t>(i7)));
+    }
+
+/**
+* Load a big-endian word
+* @param in a pointer to some bytes
+* @param off an offset into the array
+* @return off'th T of in, as a big-endian value
+*/
+template<typename T>
+inline T load_be(const uint8_t in[], size_t off)
+   {
+   in += off * sizeof(T);
+   T out = 0;
+   for(size_t i = 0; i != sizeof(T); ++i)
+      out = static_cast<T>((out << 8) | in[i]);
+   return out;
+   }
+
+/**
+* Load a little-endian word
+* @param in a pointer to some bytes
+* @param off an offset into the array
+* @return off'th T of in, as a litte-endian value
+*/
+template<typename T>
+inline T load_le(const uint8_t in[], size_t off)
+   {
+   in += off * sizeof(T);
+   T out = 0;
+   for(size_t i = 0; i != sizeof(T); ++i)
+      out = (out << 8) | in[sizeof(T)-1-i];
+   return out;
+   }
+
+/**
+* Load a big-endian uint16_t
+* @param in a pointer to some bytes
+* @param off an offset into the array
+* @return off'th uint16_t of in, as a big-endian value
+*/
+template<>
+inline uint16_t load_be<uint16_t>(const uint8_t in[], size_t off)
+   {
+   in += off * sizeof(uint16_t);
+
+#if defined(BOTAN_ENDIAN_N2B)
+   uint16_t x;
+   typecast_copy(x, in);
+   return BOTAN_ENDIAN_N2B(x);
+#else
+   return make_uint16(in[0], in[1]);
+#endif
+   }
+
+/**
+* Load a little-endian uint16_t
+* @param in a pointer to some bytes
+* @param off an offset into the array
+* @return off'th uint16_t of in, as a little-endian value
+*/
+template<>
+inline uint16_t load_le<uint16_t>(const uint8_t in[], size_t off)
+   {
+   in += off * sizeof(uint16_t);
+
+#if defined(BOTAN_ENDIAN_N2L)
+   uint16_t x;
+   typecast_copy(x, in);
+   return BOTAN_ENDIAN_N2L(x);
+#else
+   return make_uint16(in[1], in[0]);
+#endif
+   }
+
+/**
+* Load a big-endian uint32_t
+* @param in a pointer to some bytes
+* @param off an offset into the array
+* @return off'th uint32_t of in, as a big-endian value
+*/
+template<>
+inline uint32_t load_be<uint32_t>(const uint8_t in[], size_t off)
+   {
+   in += off * sizeof(uint32_t);
+#if defined(BOTAN_ENDIAN_N2B)
+   uint32_t x;
+   typecast_copy(x, in);
+   return BOTAN_ENDIAN_N2B(x);
+#else
+   return make_uint32(in[0], in[1], in[2], in[3]);
+#endif
+   }
+
+/**
+* Load a little-endian uint32_t
+* @param in a pointer to some bytes
+* @param off an offset into the array
+* @return off'th uint32_t of in, as a little-endian value
+*/
+template<>
+inline uint32_t load_le<uint32_t>(const uint8_t in[], size_t off)
+   {
+   in += off * sizeof(uint32_t);
+#if defined(BOTAN_ENDIAN_N2L)
+   uint32_t x;
+   typecast_copy(x, in);
+   return BOTAN_ENDIAN_N2L(x);
+#else
+   return make_uint32(in[3], in[2], in[1], in[0]);
+#endif
+   }
+
+/**
+* Load a big-endian uint64_t
+* @param in a pointer to some bytes
+* @param off an offset into the array
+* @return off'th uint64_t of in, as a big-endian value
+*/
+template<>
+inline uint64_t load_be<uint64_t>(const uint8_t in[], size_t off)
+   {
+   in += off * sizeof(uint64_t);
+#if defined(BOTAN_ENDIAN_N2B)
+   uint64_t x;
+   typecast_copy(x, in);
+   return BOTAN_ENDIAN_N2B(x);
+#else
+   return make_uint64(in[0], in[1], in[2], in[3],
+                      in[4], in[5], in[6], in[7]);
+#endif
+   }
+
+/**
+* Load a little-endian uint64_t
+* @param in a pointer to some bytes
+* @param off an offset into the array
+* @return off'th uint64_t of in, as a little-endian value
+*/
+template<>
+inline uint64_t load_le<uint64_t>(const uint8_t in[], size_t off)
+   {
+   in += off * sizeof(uint64_t);
+#if defined(BOTAN_ENDIAN_N2L)
+   uint64_t x;
+   typecast_copy(x, in);
+   return BOTAN_ENDIAN_N2L(x);
+#else
+   return make_uint64(in[7], in[6], in[5], in[4],
+                      in[3], in[2], in[1], in[0]);
+#endif
+   }
+
+/**
+* Load two little-endian words
+* @param in a pointer to some bytes
+* @param x0 where the first word will be written
+* @param x1 where the second word will be written
+*/
+template<typename T>
+inline void load_le(const uint8_t in[], T& x0, T& x1)
+   {
+   x0 = load_le<T>(in, 0);
+   x1 = load_le<T>(in, 1);
+   }
+
+/**
+* Load four little-endian words
+* @param in a pointer to some bytes
+* @param x0 where the first word will be written
+* @param x1 where the second word will be written
+* @param x2 where the third word will be written
+* @param x3 where the fourth word will be written
+*/
+template<typename T>
+inline void load_le(const uint8_t in[],
+                    T& x0, T& x1, T& x2, T& x3)
+   {
+   x0 = load_le<T>(in, 0);
+   x1 = load_le<T>(in, 1);
+   x2 = load_le<T>(in, 2);
+   x3 = load_le<T>(in, 3);
+   }
+
+/**
+* Load eight little-endian words
+* @param in a pointer to some bytes
+* @param x0 where the first word will be written
+* @param x1 where the second word will be written
+* @param x2 where the third word will be written
+* @param x3 where the fourth word will be written
+* @param x4 where the fifth word will be written
+* @param x5 where the sixth word will be written
+* @param x6 where the seventh word will be written
+* @param x7 where the eighth word will be written
+*/
+template<typename T>
+inline void load_le(const uint8_t in[],
+                    T& x0, T& x1, T& x2, T& x3,
+                    T& x4, T& x5, T& x6, T& x7)
+   {
+   x0 = load_le<T>(in, 0);
+   x1 = load_le<T>(in, 1);
+   x2 = load_le<T>(in, 2);
+   x3 = load_le<T>(in, 3);
+   x4 = load_le<T>(in, 4);
+   x5 = load_le<T>(in, 5);
+   x6 = load_le<T>(in, 6);
+   x7 = load_le<T>(in, 7);
+   }
+
+/**
+* Load a variable number of little-endian words
+* @param out the output array of words
+* @param in the input array of bytes
+* @param count how many words are in in
+*/
+template<typename T>
+inline void load_le(T out[],
+                    const uint8_t in[],
+                    size_t count)
+   {
+   if(count > 0)
+      {
+#if defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+      typecast_copy(out, in, count);
+
+#elif defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+      typecast_copy(out, in, count);
+
+      const size_t blocks = count - (count % 4);
+      const size_t left = count - blocks;
+
+      for(size_t i = 0; i != blocks; i += 4)
+         bswap_4(out + i);
+
+      for(size_t i = 0; i != left; ++i)
+         out[blocks+i] = reverse_bytes(out[blocks+i]);
+#else
+      for(size_t i = 0; i != count; ++i)
+         out[i] = load_le<T>(in, i);
+#endif
+      }
+   }
+
+/**
+* Load two big-endian words
+* @param in a pointer to some bytes
+* @param x0 where the first word will be written
+* @param x1 where the second word will be written
+*/
+template<typename T>
+inline void load_be(const uint8_t in[], T& x0, T& x1)
+   {
+   x0 = load_be<T>(in, 0);
+   x1 = load_be<T>(in, 1);
+   }
+
+/**
+* Load four big-endian words
+* @param in a pointer to some bytes
+* @param x0 where the first word will be written
+* @param x1 where the second word will be written
+* @param x2 where the third word will be written
+* @param x3 where the fourth word will be written
+*/
+template<typename T>
+inline void load_be(const uint8_t in[],
+                    T& x0, T& x1, T& x2, T& x3)
+   {
+   x0 = load_be<T>(in, 0);
+   x1 = load_be<T>(in, 1);
+   x2 = load_be<T>(in, 2);
+   x3 = load_be<T>(in, 3);
+   }
+
+/**
+* Load eight big-endian words
+* @param in a pointer to some bytes
+* @param x0 where the first word will be written
+* @param x1 where the second word will be written
+* @param x2 where the third word will be written
+* @param x3 where the fourth word will be written
+* @param x4 where the fifth word will be written
+* @param x5 where the sixth word will be written
+* @param x6 where the seventh word will be written
+* @param x7 where the eighth word will be written
+*/
+template<typename T>
+inline void load_be(const uint8_t in[],
+                    T& x0, T& x1, T& x2, T& x3,
+                    T& x4, T& x5, T& x6, T& x7)
+   {
+   x0 = load_be<T>(in, 0);
+   x1 = load_be<T>(in, 1);
+   x2 = load_be<T>(in, 2);
+   x3 = load_be<T>(in, 3);
+   x4 = load_be<T>(in, 4);
+   x5 = load_be<T>(in, 5);
+   x6 = load_be<T>(in, 6);
+   x7 = load_be<T>(in, 7);
+   }
+
+/**
+* Load a variable number of big-endian words
+* @param out the output array of words
+* @param in the input array of bytes
+* @param count how many words are in in
+*/
+template<typename T>
+inline void load_be(T out[],
+                    const uint8_t in[],
+                    size_t count)
+   {
+   if(count > 0)
+      {
+#if defined(BOTAN_TARGET_CPU_IS_BIG_ENDIAN)
+      typecast_copy(out, in, count);
+
+#elif defined(BOTAN_TARGET_CPU_IS_LITTLE_ENDIAN)
+      typecast_copy(out, in, count);
+      const size_t blocks = count - (count % 4);
+      const size_t left = count - blocks;
+
+      for(size_t i = 0; i != blocks; i += 4)
+         bswap_4(out + i);
+
+      for(size_t i = 0; i != left; ++i)
+         out[blocks+i] = reverse_bytes(out[blocks+i]);
+#else
+      for(size_t i = 0; i != count; ++i)
+         out[i] = load_be<T>(in, i);
+#endif
+      }
+   }
+
+/**
+* Store a big-endian uint16_t
+* @param in the input uint16_t
+* @param out the byte array to write to
+*/
+inline void store_be(uint16_t in, uint8_t out[2])
+   {
+#if defined(BOTAN_ENDIAN_N2B)
+   uint16_t o = BOTAN_ENDIAN_N2B(in);
+   typecast_copy(out, o);
+#else
+   out[0] = get_byte(0, in);
+   out[1] = get_byte(1, in);
+#endif
+   }
+
+/**
+* Store a little-endian uint16_t
+* @param in the input uint16_t
+* @param out the byte array to write to
+*/
+inline void store_le(uint16_t in, uint8_t out[2])
+   {
+#if defined(BOTAN_ENDIAN_N2L)
+   uint16_t o = BOTAN_ENDIAN_N2L(in);
+   typecast_copy(out, o);
+#else
+   out[0] = get_byte(1, in);
+   out[1] = get_byte(0, in);
+#endif
+   }
+
+/**
+* Store a big-endian uint32_t
+* @param in the input uint32_t
+* @param out the byte array to write to
+*/
+inline void store_be(uint32_t in, uint8_t out[4])
+   {
+#if defined(BOTAN_ENDIAN_B2N)
+   uint32_t o = BOTAN_ENDIAN_B2N(in);
+   typecast_copy(out, o);
+#else
+   out[0] = get_byte(0, in);
+   out[1] = get_byte(1, in);
+   out[2] = get_byte(2, in);
+   out[3] = get_byte(3, in);
+#endif
+   }
+
+/**
+* Store a little-endian uint32_t
+* @param in the input uint32_t
+* @param out the byte array to write to
+*/
+inline void store_le(uint32_t in, uint8_t out[4])
+   {
+#if defined(BOTAN_ENDIAN_L2N)
+   uint32_t o = BOTAN_ENDIAN_L2N(in);
+   typecast_copy(out, o);
+#else
+   out[0] = get_byte(3, in);
+   out[1] = get_byte(2, in);
+   out[2] = get_byte(1, in);
+   out[3] = get_byte(0, in);
+#endif
+   }
+
+/**
+* Store a big-endian uint64_t
+* @param in the input uint64_t
+* @param out the byte array to write to
+*/
+inline void store_be(uint64_t in, uint8_t out[8])
+   {
+#if defined(BOTAN_ENDIAN_B2N)
+   uint64_t o = BOTAN_ENDIAN_B2N(in);
+   typecast_copy(out, o);
+#else
+   out[0] = get_byte(0, in);
+   out[1] = get_byte(1, in);
+   out[2] = get_byte(2, in);
+   out[3] = get_byte(3, in);
+   out[4] = get_byte(4, in);
+   out[5] = get_byte(5, in);
+   out[6] = get_byte(6, in);
+   out[7] = get_byte(7, in);
+#endif
+   }
+
+/**
+* Store a little-endian uint64_t
+* @param in the input uint64_t
+* @param out the byte array to write to
+*/
+inline void store_le(uint64_t in, uint8_t out[8])
+   {
+#if defined(BOTAN_ENDIAN_L2N)
+   uint64_t o = BOTAN_ENDIAN_L2N(in);
+   typecast_copy(out, o);
+#else
+   out[0] = get_byte(7, in);
+   out[1] = get_byte(6, in);
+   out[2] = get_byte(5, in);
+   out[3] = get_byte(4, in);
+   out[4] = get_byte(3, in);
+   out[5] = get_byte(2, in);
+   out[6] = get_byte(1, in);
+   out[7] = get_byte(0, in);
+#endif
+   }
+
+/**
+* Store two little-endian words
+* @param out the output byte array
+* @param x0 the first word
+* @param x1 the second word
+*/
+template<typename T>
+inline void store_le(uint8_t out[], T x0, T x1)
+   {
+   store_le(x0, out + (0 * sizeof(T)));
+   store_le(x1, out + (1 * sizeof(T)));
+   }
+
+/**
+* Store two big-endian words
+* @param out the output byte array
+* @param x0 the first word
+* @param x1 the second word
+*/
+template<typename T>
+inline void store_be(uint8_t out[], T x0, T x1)
+   {
+   store_be(x0, out + (0 * sizeof(T)));
+   store_be(x1, out + (1 * sizeof(T)));
+   }
+
+/**
+* Store four little-endian words
+* @param out the output byte array
+* @param x0 the first word
+* @param x1 the second word
+* @param x2 the third word
+* @param x3 the fourth word
+*/
+template<typename T>
+inline void store_le(uint8_t out[], T x0, T x1, T x2, T x3)
+   {
+   store_le(x0, out + (0 * sizeof(T)));
+   store_le(x1, out + (1 * sizeof(T)));
+   store_le(x2, out + (2 * sizeof(T)));
+   store_le(x3, out + (3 * sizeof(T)));
+   }
+
+/**
+* Store four big-endian words
+* @param out the output byte array
+* @param x0 the first word
+* @param x1 the second word
+* @param x2 the third word
+* @param x3 the fourth word
+*/
+template<typename T>
+inline void store_be(uint8_t out[], T x0, T x1, T x2, T x3)
+   {
+   store_be(x0, out + (0 * sizeof(T)));
+   store_be(x1, out + (1 * sizeof(T)));
+   store_be(x2, out + (2 * sizeof(T)));
+   store_be(x3, out + (3 * sizeof(T)));
+   }
+
+/**
+* Store eight little-endian words
+* @param out the output byte array
+* @param x0 the first word
+* @param x1 the second word
+* @param x2 the third word
+* @param x3 the fourth word
+* @param x4 the fifth word
+* @param x5 the sixth word
+* @param x6 the seventh word
+* @param x7 the eighth word
+*/
+template<typename T>
+inline void store_le(uint8_t out[], T x0, T x1, T x2, T x3,
+                                 T x4, T x5, T x6, T x7)
+   {
+   store_le(x0, out + (0 * sizeof(T)));
+   store_le(x1, out + (1 * sizeof(T)));
+   store_le(x2, out + (2 * sizeof(T)));
+   store_le(x3, out + (3 * sizeof(T)));
+   store_le(x4, out + (4 * sizeof(T)));
+   store_le(x5, out + (5 * sizeof(T)));
+   store_le(x6, out + (6 * sizeof(T)));
+   store_le(x7, out + (7 * sizeof(T)));
+   }
+
+/**
+* Store eight big-endian words
+* @param out the output byte array
+* @param x0 the first word
+* @param x1 the second word
+* @param x2 the third word
+* @param x3 the fourth word
+* @param x4 the fifth word
+* @param x5 the sixth word
+* @param x6 the seventh word
+* @param x7 the eighth word
+*/
+template<typename T>
+inline void store_be(uint8_t out[], T x0, T x1, T x2, T x3,
+                                 T x4, T x5, T x6, T x7)
+   {
+   store_be(x0, out + (0 * sizeof(T)));
+   store_be(x1, out + (1 * sizeof(T)));
+   store_be(x2, out + (2 * sizeof(T)));
+   store_be(x3, out + (3 * sizeof(T)));
+   store_be(x4, out + (4 * sizeof(T)));
+   store_be(x5, out + (5 * sizeof(T)));
+   store_be(x6, out + (6 * sizeof(T)));
+   store_be(x7, out + (7 * sizeof(T)));
+   }
+
+template<typename T>
+void copy_out_be(uint8_t out[], size_t out_bytes, const T in[])
+   {
+   while(out_bytes >= sizeof(T))
+      {
+      store_be(in[0], out);
+      out += sizeof(T);
+      out_bytes -= sizeof(T);
+      in += 1;
+   }
+
+   for(size_t i = 0; i != out_bytes; ++i)
+      out[i] = get_byte(i%8, in[0]);
+   }
+
+template<typename T, typename Alloc>
+void copy_out_vec_be(uint8_t out[], size_t out_bytes, const std::vector<T, Alloc>& in)
+   {
+   copy_out_be(out, out_bytes, in.data());
+   }
+
+template<typename T>
+void copy_out_le(uint8_t out[], size_t out_bytes, const T in[])
+   {
+   while(out_bytes >= sizeof(T))
+      {
+      store_le(in[0], out);
+      out += sizeof(T);
+      out_bytes -= sizeof(T);
+      in += 1;
+   }
+
+   for(size_t i = 0; i != out_bytes; ++i)
+      out[i] = get_byte(sizeof(T) - 1 - (i % 8), in[0]);
+   }
+
+template<typename T, typename Alloc>
+void copy_out_vec_le(uint8_t out[], size_t out_bytes, const std::vector<T, Alloc>& in)
+   {
+   copy_out_le(out, out_bytes, in.data());
+   }
+
+}
+
+BOTAN_FUTURE_INTERNAL_HEADER(locking_allocator.h)
 
 namespace Botan {
 
@@ -21671,6 +22055,8 @@ BOTAN_PUBLIC_API(2,0) mceies_decrypt(const McEliece_PrivateKey& privkey,
 
 }
 
+//BOTAN_FUTURE_INTERNAL_HEADER(polyn_gf2m.h)
+
 namespace Botan {
 
 class RandomNumberGenerator;
@@ -21681,14 +22067,33 @@ class polyn_gf2m
       /**
       * create a zero polynomial:
       */
-      explicit polyn_gf2m( std::shared_ptr<GF2m_Field> sp_field );
+      explicit polyn_gf2m(std::shared_ptr<GF2m_Field> sp_field);
 
-      polyn_gf2m()
-         :m_deg(-1) {}
+      polyn_gf2m() : m_deg(-1) {}
 
-      polyn_gf2m(const secure_vector<uint8_t>& encoded, std::shared_ptr<GF2m_Field> sp_field );
+      polyn_gf2m(const secure_vector<uint8_t>& encoded, std::shared_ptr<GF2m_Field> sp_field);
 
       polyn_gf2m& operator=(const polyn_gf2m&) = default;
+
+      /**
+      * create zero polynomial with reservation of space for a degree d polynomial
+      */
+      polyn_gf2m(int d, std::shared_ptr<GF2m_Field> sp_field);
+
+      polyn_gf2m(polyn_gf2m const& other);
+
+      /**
+      * random irreducible polynomial of degree t
+      */
+      polyn_gf2m(size_t t, RandomNumberGenerator& rng, std::shared_ptr<GF2m_Field> sp_field);
+
+      /** decode a polynomial from memory: **/
+      polyn_gf2m(const uint8_t* mem, uint32_t mem_len, std::shared_ptr<GF2m_Field> sp_field);
+
+      /**
+      *  create a polynomial from memory area (encoded)
+      */
+      polyn_gf2m(int degree, const uint8_t* mem, size_t mem_byte_len, std::shared_ptr<GF2m_Field> sp_field);
 
       bool operator==(const polyn_gf2m & other) const ;
 
@@ -21711,20 +22116,6 @@ class polyn_gf2m
       void swap(polyn_gf2m& other);
 
       secure_vector<uint8_t> encode() const;
-      /**
-      * create zero polynomial with reservation of space for a degree d polynomial
-      */
-      polyn_gf2m(int d, std::shared_ptr<GF2m_Field> sp_field);
-
-      polyn_gf2m(polyn_gf2m const& other);
-      /**
-      * create zero polynomial with allocated size determined by specified degree d:
-      */
-
-      /**
-      * random irreducible polynomial of degree t
-      */
-      polyn_gf2m(int t, RandomNumberGenerator& rng, std::shared_ptr<GF2m_Field> sp_field);
 
       std::shared_ptr<GF2m_Field> get_sp_field() const
          { return m_sp_field; }
@@ -21735,27 +22126,19 @@ class polyn_gf2m
 
       gf2m get_lead_coef() const { return coeff[m_deg]; }
 
-      gf2m get_coef(uint32_t i) const { return coeff[i]; }
+      gf2m get_coef(size_t i) const { return coeff[i]; }
 
-      inline void set_coef(uint32_t i, gf2m v)
+      inline void set_coef(size_t i, gf2m v)
          {
          coeff[i] = v;
          }
 
-      inline void add_to_coef(uint32_t i, gf2m v)
+      inline void add_to_coef(size_t i, gf2m v)
          {
-         coeff[i] = coeff[i] ^ v;
+         coeff[i] ^= v;
          }
 
       std::string to_string() const;
-
-      /** decode a polynomial from memory: **/
-      polyn_gf2m(const uint8_t* mem, uint32_t mem_len, std::shared_ptr<GF2m_Field> sp_field);
-      // remove one! ^v!
-      /**
-      *  create a polynomial from memory area (encoded)
-      */
-      polyn_gf2m(int degree, const unsigned  char* mem, uint32_t mem_byte_len, std::shared_ptr<GF2m_Field> sp_field);
 
       void encode(uint32_t min_numo_coeffs, uint8_t* mem, uint32_t mem_len) const;
 
@@ -21768,7 +22151,7 @@ class polyn_gf2m
       */
       int calc_degree_secure() const;
 
-      void degppf(const polyn_gf2m & g, int* p_result);
+      size_t degppf(const polyn_gf2m& g);
 
       static std::vector<polyn_gf2m> sqmod_init(const polyn_gf2m & g);
 
@@ -21811,15 +22194,14 @@ class polyn_gf2m
    };
 
 gf2m random_gf2m(RandomNumberGenerator& rng);
-gf2m random_code_element(unsigned code_length, RandomNumberGenerator& rng);
+gf2m random_code_element(uint16_t code_length, RandomNumberGenerator& rng);
 
 std::vector<polyn_gf2m> syndrome_init(polyn_gf2m const& generator, std::vector<gf2m> const& support, int n);
 
 /**
-* Find the roots of a polynomial over GF(2^m) using the method by Federenko
-* et al.
+* Find the roots of a polynomial over GF(2^m) using the method by Federenko et al.
 */
-secure_vector<gf2m> find_roots_gf2m_decomp(const polyn_gf2m & polyn, uint32_t code_length);
+secure_vector<gf2m> find_roots_gf2m_decomp(const polyn_gf2m & polyn, size_t code_length);
 
 }
 
@@ -21830,9 +22212,9 @@ class BOTAN_PUBLIC_API(2,0) McEliece_PublicKey : public virtual Public_Key
    public:
       explicit McEliece_PublicKey(const std::vector<uint8_t>& key_bits);
 
-      McEliece_PublicKey(const std::vector<uint8_t>& pub_matrix, uint32_t the_t, uint32_t the_code_length) :
+      McEliece_PublicKey(const std::vector<uint8_t>& pub_matrix, size_t t, size_t the_code_length) :
          m_public_matrix(pub_matrix),
-         m_t(the_t),
+         m_t(t),
          m_code_length(the_code_length){}
 
       McEliece_PublicKey(const McEliece_PublicKey& other) = default;
@@ -21853,9 +22235,9 @@ class BOTAN_PUBLIC_API(2,0) McEliece_PublicKey : public virtual Public_Key
       bool check_key(RandomNumberGenerator&, bool) const override
          { return true; }
 
-      uint32_t get_t() const { return m_t; }
-      uint32_t get_code_length() const { return m_code_length; }
-      uint32_t get_message_word_bit_length() const;
+      size_t get_t() const { return m_t; }
+      size_t get_code_length() const { return m_code_length; }
+      size_t get_message_word_bit_length() const;
       const std::vector<uint8_t>& get_public_matrix() const { return m_public_matrix; }
 
       bool operator==(const McEliece_PublicKey& other) const;
@@ -21870,8 +22252,8 @@ class BOTAN_PUBLIC_API(2,0) McEliece_PublicKey : public virtual Public_Key
       McEliece_PublicKey() : m_t(0), m_code_length(0) {}
 
       std::vector<uint8_t> m_public_matrix;
-      uint32_t m_t;
-      uint32_t m_code_length;
+      size_t m_t;
+      size_t m_code_length;
    };
 
 class BOTAN_PUBLIC_API(2,0) McEliece_PrivateKey final : public virtual McEliece_PublicKey,
@@ -21908,9 +22290,9 @@ class BOTAN_PUBLIC_API(2,0) McEliece_PrivateKey final : public virtual McEliece_
       std::vector<gf2m> const& get_Linv() const { return m_Linv; }
       std::vector<polyn_gf2m> const& get_sqrtmod() const { return m_sqrtmod; }
 
-      inline uint32_t get_dimension() const { return m_dimension; }
+      inline size_t get_dimension() const { return m_dimension; }
 
-      inline uint32_t get_codimension() const { return m_codimension; }
+      inline size_t get_codimension() const { return m_codimension; }
 
       secure_vector<uint8_t> private_key_bits() const override;
 
@@ -21928,8 +22310,8 @@ class BOTAN_PUBLIC_API(2,0) McEliece_PrivateKey final : public virtual McEliece_
       std::vector<gf2m> m_Linv;
       std::vector<uint32_t> m_coeffs;
 
-      uint32_t m_codimension;
-      uint32_t m_dimension;
+      size_t m_codimension;
+      size_t m_dimension;
    };
 
 /**
@@ -21939,6 +22321,8 @@ class BOTAN_PUBLIC_API(2,0) McEliece_PrivateKey final : public virtual McEliece_
 BOTAN_PUBLIC_API(2,0) size_t mceliece_work_factor(size_t code_size, size_t t);
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(mdx_hash.h)
 
 namespace Botan {
 
@@ -21998,6 +22382,8 @@ class BOTAN_PUBLIC_API(2,0) MDx_HashFunction : public HashFunction
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(md4.h)
+
 namespace Botan {
 
 /**
@@ -22027,6 +22413,8 @@ class BOTAN_PUBLIC_API(2,0) MD4 final : public MDx_HashFunction
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(md5.h)
 
 namespace Botan {
 
@@ -22080,6 +22468,8 @@ void BOTAN_PUBLIC_API(2,0) mgf1_mask(HashFunction& hash,
                          uint8_t out[], size_t out_len);
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(misty1.h)
 
 namespace Botan {
 
@@ -22281,6 +22671,8 @@ class BOTAN_UNSTABLE_API Montgomery_Params final
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(mul128.h)
+
 namespace Botan {
 
 #if defined(__SIZEOF_INT128__) && defined(BOTAN_TARGET_CPU_HAS_NATIVE_64BIT)
@@ -22446,6 +22838,8 @@ nist_key_unwrap_padded(const uint8_t input[],
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(noekeon.h)
+
 namespace Botan {
 
 /**
@@ -22479,6 +22873,8 @@ class BOTAN_PUBLIC_API(2,0) Noekeon final : public Block_Cipher_Fixed_Params<16,
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(oaep.h)
 
 namespace Botan {
 
@@ -22525,6 +22921,8 @@ BOTAN_TEST_API oaep_find_delim(uint8_t& valid_mask,
                                const secure_vector<uint8_t>& Phash);
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(ocb.h)
 
 namespace Botan {
 
@@ -22587,13 +22985,15 @@ class BOTAN_PUBLIC_API(2,0) OCB_Mode : public AEAD_Mode
 
       void key_schedule(const uint8_t key[], size_t length) override;
 
-      secure_vector<uint8_t> update_nonce(const uint8_t nonce[], size_t nonce_len);
+      const secure_vector<uint8_t>& update_nonce(const uint8_t nonce[], size_t nonce_len);
 
       const size_t m_tag_size;
       const size_t m_block_size;
       const size_t m_par_blocks;
       secure_vector<uint8_t> m_last_nonce;
       secure_vector<uint8_t> m_stretch;
+      secure_vector<uint8_t> m_nonce_buf;
+      secure_vector<uint8_t> m_offset;
    };
 
 class BOTAN_PUBLIC_API(2,0) OCB_Encryption final : public OCB_Mode
@@ -22749,6 +23149,20 @@ class BOTAN_PUBLIC_API(2,0) Request final
    };
 
 /**
+* OCSP response status.
+*
+* see https://tools.ietf.org/html/rfc6960#section-4.2.1
+*/
+enum class Response_Status_Code {
+   Successful = 0,
+   Malformed_Request = 1,
+   Internal_Error = 2,
+   Try_Later = 3,
+   Sig_Required = 5,
+   Unauthorized = 6
+};
+
+/**
 * OCSP response.
 *
 * Note this class is only usable as an OCSP client
@@ -22803,6 +23217,11 @@ class BOTAN_PUBLIC_API(2,0) Response final
       Certificate_Status_Code verify_signature(const X509_Certificate& issuer) const;
 
       /**
+      * @return the status of the response
+      */
+      Response_Status_Code status() const { return m_status; }
+
+      /**
       * @return the time this OCSP response was supposedly produced at
       */
       const X509_Time& produced_at() const { return m_produced_at; }
@@ -22846,6 +23265,7 @@ class BOTAN_PUBLIC_API(2,0) Response final
       const std::vector<X509_Certificate> &certificates() const { return  m_certs; }
 
    private:
+      Response_Status_Code m_status;
       std::vector<uint8_t> m_response_bits;
       X509_Time m_produced_at;
       X509_DN m_signer_name;
@@ -22897,6 +23317,8 @@ Response online_check(const X509_Certificate& issuer,
 }
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(ofb.h)
 
 namespace Botan {
 
@@ -22960,9 +23382,9 @@ std::unordered_map<std::string, OID> load_str2oid_map();
 /**
 * Resolve an OID
 * @param oid the OID to look up
-* @return name associated with this OID
+* @return name associated with this OID, or an empty string
 */
-BOTAN_PUBLIC_API(2,0) std::string lookup(const OID& oid);
+BOTAN_UNSTABLE_API std::string oid2str_or_empty(const OID& oid);
 
 /**
 * Find the OID to a name. The lookup will be performed in the
@@ -22970,24 +23392,16 @@ BOTAN_PUBLIC_API(2,0) std::string lookup(const OID& oid);
 * @param name the name to resolve
 * @return OID associated with the specified name
 */
-BOTAN_PUBLIC_API(2,0) OID lookup(const std::string& name);
+BOTAN_UNSTABLE_API OID str2oid_or_empty(const std::string& name);
 
-inline std::string oid2str(const OID& oid)
-   {
-   return lookup(oid);
-   }
-
-inline OID str2oid(const std::string& name)
-   {
-   return lookup(name);
-   }
+BOTAN_UNSTABLE_API std::string oid2str_or_throw(const OID& oid);
 
 /**
 * See if an OID exists in the internal table.
 * @param oid the oid to check for
 * @return true if the oid is registered
 */
-BOTAN_UNSTABLE_API bool have_oid(const std::string& oid);
+BOTAN_UNSTABLE_API bool BOTAN_DEPRECATED("Just lookup the value instead") have_oid(const std::string& oid);
 
 /**
 * Tests whether the specified OID stands for the specified name.
@@ -22995,7 +23409,37 @@ BOTAN_UNSTABLE_API bool have_oid(const std::string& oid);
 * @param name the name to check
 * @return true if the specified OID stands for the specified name
 */
-BOTAN_UNSTABLE_API bool name_of(const OID& oid, const std::string& name);
+inline bool BOTAN_DEPRECATED("Use oid == OID::from_string(name)") name_of(const OID& oid, const std::string& name)
+   {
+   return (oid == str2oid_or_empty(name));
+   }
+
+/**
+* Prefer oid2str_or_empty
+*/
+inline std::string lookup(const OID& oid)
+   {
+   return oid2str_or_empty(oid);
+   }
+
+/**
+* Prefer str2oid_or_empty
+*/
+inline OID lookup(const std::string& name)
+   {
+   return str2oid_or_empty(name);
+   }
+
+inline std::string BOTAN_DEPRECATED("Use oid2str_or_empty") oid2str(const OID& oid)
+   {
+   return oid2str_or_empty(oid);
+   }
+
+inline OID BOTAN_DEPRECATED("Use str2oid_or_empty") str2oid(const std::string& name)
+   {
+   return str2oid_or_empty(name);
+   }
+
 }
 
 }
@@ -23036,6 +23480,8 @@ aont_unpackage(BlockCipher* cipher,
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(par_hash.h)
+
 namespace Botan {
 
 /**
@@ -23070,6 +23516,8 @@ class BOTAN_PUBLIC_API(2,0) Parallel final : public HashFunction
 
 }
 
+
+BOTAN_FUTURE_INTERNAL_HEADER(parsing.h)
 
 namespace Botan {
 
@@ -23149,7 +23597,8 @@ std::string string_join(const std::vector<std::string>& strs,
 * @param oid the OID in string form
 * @return OID components
 */
-BOTAN_PUBLIC_API(2,0) std::vector<uint32_t> parse_asn1_oid(const std::string& oid);
+BOTAN_PUBLIC_API(2,0) std::vector<uint32_t>
+BOTAN_DEPRECATED("Use OID::from_string(oid).get_components()") parse_asn1_oid(const std::string& oid);
 
 /**
 * Compare two names using the X.509 comparison algorithm
@@ -23264,6 +23713,8 @@ bool BOTAN_PUBLIC_API(2,0) check_passhash9(const std::string& password,
 bool BOTAN_PUBLIC_API(2,3) is_passhash9_alg_supported(uint8_t alg_id);
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(pbes2.h)
 
 namespace Botan {
 
@@ -23568,6 +24019,8 @@ inline PBKDF* get_s2k(const std::string& algo_spec)
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(pbkdf1.h)
+
 namespace Botan {
 
 /**
@@ -23604,6 +24057,8 @@ class BOTAN_PUBLIC_API(2,0) PKCS5_PBKDF1 final : public PBKDF
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(pbkdf2.h)
 
 namespace Botan {
 
@@ -23780,6 +24235,14 @@ BOTAN_PUBLIC_API(2,0) bool matches(DataSource& source,
 }
 
 }
+
+/*
+This header will not be fully internal - the RFC4880 count
+encoding functions will remain here. But the definition of
+OpenPGP_S2K will be made internal
+*/
+
+//BOTAN_FUTURE_INTERNAL_HEADER(pgp_s2k.h)
 
 namespace Botan {
 
@@ -24499,6 +24962,8 @@ std::unique_ptr<Private_Key> copy_key(const Private_Key& key);
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(poly1305.h)
+
 namespace Botan {
 
 /**
@@ -24533,24 +24998,11 @@ class BOTAN_PUBLIC_API(2,0) Poly1305 final : public MessageAuthenticationCode
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(pow_mod.h)
+
 namespace Botan {
 
-/**
-* Modular Exponentiator Interface
-*/
-class BOTAN_PUBLIC_API(2,0) Modular_Exponentiator
-   {
-   public:
-      virtual void set_base(const BigInt&) = 0;
-      virtual void set_exponent(const BigInt&) = 0;
-      virtual BigInt execute() const = 0;
-      virtual Modular_Exponentiator* copy() const = 0;
-
-      Modular_Exponentiator() = default;
-      Modular_Exponentiator(const Modular_Exponentiator&) = default;
-      Modular_Exponentiator & operator=(const Modular_Exponentiator&) = default;
-      virtual ~Modular_Exponentiator() = default;
-   };
+class Modular_Exponentiator;
 
 /**
 * Modular Exponentiator Proxy
@@ -24616,7 +25068,7 @@ class BOTAN_PUBLIC_API(2,0) Power_Mod
                 Usage_Hints hints = NO_HINTS,
                 bool disable_montgomery_arith = false);
       Power_Mod(const Power_Mod&);
-      virtual ~Power_Mod() = default;
+      virtual ~Power_Mod();
    private:
       mutable std::unique_ptr<Modular_Exponentiator> m_core;
    };
@@ -24655,6 +25107,8 @@ class BOTAN_PUBLIC_API(2,0) Fixed_Base_Power_Mod final : public Power_Mod
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(prf_tls.h)
+
 namespace Botan {
 
 /**
@@ -24671,6 +25125,12 @@ class BOTAN_PUBLIC_API(2,0) TLS_PRF final : public KDF
                  const uint8_t secret[], size_t secret_len,
                  const uint8_t salt[], size_t salt_len,
                  const uint8_t label[], size_t label_len) const override;
+
+      TLS_PRF(std::unique_ptr<MessageAuthenticationCode> hmac_md5,
+              std::unique_ptr<MessageAuthenticationCode> hmac_sha1) :
+         m_hmac_md5(std::move(hmac_md5)),
+         m_hmac_sha1(std::move(hmac_sha1))
+         {}
 
       TLS_PRF();
    private:
@@ -24703,6 +25163,8 @@ class BOTAN_PUBLIC_API(2,0) TLS_12_PRF final : public KDF
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(prf_x942.h)
+
 namespace Botan {
 
 /**
@@ -24711,7 +25173,7 @@ namespace Botan {
 class BOTAN_PUBLIC_API(2,0) X942_PRF final : public KDF
    {
    public:
-      std::string name() const override { return "X9.42-PRF(" + m_key_wrap_oid + ")"; }
+      std::string name() const override;
 
       KDF* clone() const override { return new X942_PRF(m_key_wrap_oid); }
 
@@ -24720,9 +25182,11 @@ class BOTAN_PUBLIC_API(2,0) X942_PRF final : public KDF
                  const uint8_t salt[], size_t salt_len,
                  const uint8_t label[], size_t label_len) const override;
 
-      explicit X942_PRF(const std::string& oid);
+      explicit X942_PRF(const std::string& oid) : m_key_wrap_oid(OID::from_string(oid)) {}
+
+      explicit X942_PRF(const OID& oid) : m_key_wrap_oid(oid) {}
    private:
-      std::string m_key_wrap_oid;
+      OID m_key_wrap_oid;
    };
 
 }
@@ -24879,6 +25343,8 @@ class BOTAN_PUBLIC_API(2,4) Encrypted_PSK_Database_SQL : public Encrypted_PSK_Da
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(pssr.h)
+
 namespace Botan {
 
 /**
@@ -24966,6 +25432,8 @@ class BOTAN_PUBLIC_API(2,3) PSSR_Raw final : public EMSA
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(rc4.h)
+
 namespace Botan {
 
 /**
@@ -25013,18 +25481,9 @@ class BOTAN_PUBLIC_API(2,0) RDRAND_RNG final : public Hardware_RNG
    {
    public:
       /**
-      * On correctly working hardware, RDRAND is always supposed to
-      * succeed within a set number of retries. If after that many
-      * retries RDRAND has still not suceeded, sets ok = false and
-      * returns 0.
+      * Constructor will throw if CPU does not have RDRAND bit set
       */
-      static uint32_t rdrand_status(bool& ok);
-
-      /*
-      * Calls RDRAND until it succeeds, this could hypothetically
-      * loop forever on broken hardware.
-      */
-      static uint32_t rdrand();
+      RDRAND_RNG();
 
       /**
       * Return true if RDRAND is available on the current processor
@@ -25032,11 +25491,6 @@ class BOTAN_PUBLIC_API(2,0) RDRAND_RNG final : public Hardware_RNG
       static bool available();
 
       bool accepts_input() const override { return false; }
-
-      /**
-      * Constructor will throw if CPU does not have RDRAND bit set
-      */
-      RDRAND_RNG();
 
       /**
       * Uses RDRAND to produce output
@@ -25058,6 +25512,20 @@ class BOTAN_PUBLIC_API(2,0) RDRAND_RNG final : public Hardware_RNG
       std::string name() const override { return "RDRAND"; }
 
       bool is_seeded() const override { return true; }
+
+      /**
+      * On correctly working hardware, RDRAND is always supposed to
+      * succeed within a set number of retries. If after that many
+      * retries RDRAND has still not suceeded, sets ok = false and
+      * returns 0.
+      */
+      static uint32_t BOTAN_DEPRECATED("Use RDRAND_RNG::randomize") rdrand_status(bool& ok);
+
+      /*
+      * Calls RDRAND until it succeeds, this could hypothetically
+      * loop forever on broken hardware.
+      */
+      static uint32_t BOTAN_DEPRECATED("Use RDRAND_RNG::randomize") rdrand();
    };
 
 }
@@ -25087,6 +25555,8 @@ secure_vector<uint8_t> BOTAN_PUBLIC_API(2,0) rfc3394_keyunwrap(const secure_vect
                                                                const SymmetricKey& kek);
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(rfc6979.h)
 
 namespace Botan {
 
@@ -25126,6 +25596,8 @@ BigInt BOTAN_PUBLIC_API(2,0) generate_rfc6979_nonce(const BigInt& x,
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(rmd160.h)
+
 namespace Botan {
 
 /**
@@ -25151,6 +25623,8 @@ class BOTAN_PUBLIC_API(2,0) RIPEMD_160 final : public MDx_HashFunction
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(rotate.h)
 
 namespace Botan {
 
@@ -25243,7 +25717,161 @@ inline T rotate_right(T input, size_t rot)
 
 }
 
+
 namespace Botan {
+
+class RandomNumberGenerator;
+
+namespace Roughtime {
+
+const unsigned request_min_size = 1024;
+
+class BOTAN_PUBLIC_API(2, 13) Roughtime_Error final : public Decoding_Error
+   {
+   public:
+      explicit Roughtime_Error(const std::string& s) : Decoding_Error("Roughtime " + s) {}
+      ErrorType error_type() const noexcept override { return ErrorType::RoughtimeError; }
+   };
+
+class BOTAN_PUBLIC_API(2, 13) Nonce final
+   {
+   public:
+      Nonce() = default;
+      Nonce(const std::vector<uint8_t>& nonce);
+      Nonce(RandomNumberGenerator& rng);
+      Nonce(const std::array<uint8_t, 64>& nonce)
+         {
+         m_nonce = nonce;
+         }
+      bool operator==(const Nonce& rhs) const { return m_nonce == rhs.m_nonce; }
+      const std::array<uint8_t, 64>& get_nonce() const { return m_nonce; }
+   private:
+      std::array<uint8_t, 64> m_nonce;
+   };
+
+
+/**
+* An Roughtime request.
+*/
+BOTAN_PUBLIC_API(2, 13)
+std::array<uint8_t, request_min_size> encode_request(const Nonce& nonce);
+
+/**
+* An Roughtime response.
+*/
+class BOTAN_PUBLIC_API(2, 13) Response final
+   {
+   public:
+      using microseconds32 = std::chrono::duration<uint32_t, std::micro>;
+      using microseconds64 = std::chrono::duration<uint64_t, std::micro>;
+      using sys_microseconds64 = std::chrono::time_point<std::chrono::system_clock, microseconds64>;
+
+      static Response from_bits(const std::vector<uint8_t>& response, const Nonce& nonce);
+
+      bool validate(const Ed25519_PublicKey& pk) const;
+
+      sys_microseconds64 utc_midpoint() const { return m_utc_midpoint; }
+
+      microseconds32 utc_radius() const { return m_utc_radius; }
+   private:
+      Response(const std::array<uint8_t, 72>& dele,
+               const std::array<uint8_t, 64>& sig,
+               sys_microseconds64 utc_midp,
+               microseconds32 utc_radius)
+         : m_cert_dele(dele)
+         , m_cert_sig(sig)
+         , m_utc_midpoint {utc_midp}
+         , m_utc_radius {utc_radius}
+         {}
+      const std::array<uint8_t, 72> m_cert_dele;
+      const std::array<uint8_t, 64> m_cert_sig;
+      const sys_microseconds64 m_utc_midpoint;
+      const microseconds32 m_utc_radius;
+   };
+
+class BOTAN_PUBLIC_API(2, 13) Link final
+   {
+   public:
+      Link(const std::vector<uint8_t>& response,
+           const Ed25519_PublicKey& public_key,
+           const Nonce& nonce_or_blind)
+         : m_response{response}
+         , m_public_key{public_key}
+         , m_nonce_or_blind{nonce_or_blind}
+         {}
+      const std::vector<uint8_t>& response() const { return m_response; }
+      const Ed25519_PublicKey& public_key() const { return m_public_key; }
+      const Nonce& nonce_or_blind() const { return m_nonce_or_blind; }
+      Nonce& nonce_or_blind() { return m_nonce_or_blind; }
+
+   private:
+      std::vector<uint8_t> m_response;
+      Ed25519_PublicKey m_public_key;
+      Nonce m_nonce_or_blind;
+   };
+
+class BOTAN_PUBLIC_API(2, 13) Chain final
+   {
+   public:
+      Chain() = default; //empty
+      Chain(const std::string& str);
+      const std::vector<Link>& links() const { return m_links; }
+      std::vector<Response> responses() const;
+      Nonce next_nonce(const Nonce& blind) const;
+      void append(const Link& new_link, size_t max_chain_size);
+      std::string to_string() const;
+   private:
+      std::vector<Link> m_links;
+   };
+
+/**
+*/
+BOTAN_PUBLIC_API(2, 13)
+Nonce nonce_from_blind(const std::vector<uint8_t>& previous_response,
+                       const Nonce& blind);
+
+/**
+* Makes an online Roughtime request via UDP and returns the Roughtime response.
+* @param url Roughtime server UDP endpoint (host:port)
+* @param nonce the nonce to send to the server
+* @param timeout a timeout on the UDP request
+* @return Roughtime response
+*/
+BOTAN_PUBLIC_API(2, 13)
+std::vector<uint8_t> online_request(const std::string& url,
+                                    const Nonce& nonce,
+                                    std::chrono::milliseconds timeout = std::chrono::seconds(3));
+
+struct BOTAN_PUBLIC_API(2, 13) Server_Information final
+   {
+public:
+   Server_Information(const std::string& name,
+                      const Botan::Ed25519_PublicKey& public_key,
+                      const std::vector<std::string>& addresses)
+      : m_name { name }
+      , m_public_key { public_key }
+      , m_addresses { addresses }
+      {}
+   const std::string& name() const {return m_name;}
+   const Botan::Ed25519_PublicKey& public_key() const {return m_public_key;}
+   const std::vector<std::string>& addresses() const {return m_addresses;}
+
+private:
+   std::string m_name;
+   Botan::Ed25519_PublicKey m_public_key;
+   std::vector<std::string> m_addresses;
+   };
+
+BOTAN_PUBLIC_API(2, 13)
+std::vector<Server_Information> servers_from_str(const std::string& str);
+
+}
+}
+
+namespace Botan {
+
+class RSA_Public_Data;
+class RSA_Private_Data;
 
 /**
 * RSA Public Key
@@ -25264,8 +25892,7 @@ class BOTAN_PUBLIC_API(2,0) RSA_PublicKey : public virtual Public_Key
       * @arg n the modulus
       * @arg e the exponent
       */
-      RSA_PublicKey(const BigInt& n, const BigInt& e) :
-         m_n(n), m_e(e) {}
+      RSA_PublicKey(const BigInt& n, const BigInt& e);
 
       std::string algo_name() const override { return "RSA"; }
 
@@ -25278,15 +25905,18 @@ class BOTAN_PUBLIC_API(2,0) RSA_PublicKey : public virtual Public_Key
       /**
       * @return public modulus
       */
-      const BigInt& get_n() const { return m_n; }
+      const BigInt& get_n() const;
 
       /**
       * @return public exponent
       */
-      const BigInt& get_e() const { return m_e; }
+      const BigInt& get_e() const;
 
       size_t key_length() const override;
       size_t estimated_strength() const override;
+
+      // internal functions:
+      std::shared_ptr<const RSA_Public_Data> public_data() const;
 
       std::unique_ptr<PK_Ops::Encryption>
          create_encryption_op(RandomNumberGenerator& rng,
@@ -25305,7 +25935,9 @@ class BOTAN_PUBLIC_API(2,0) RSA_PublicKey : public virtual Public_Key
    protected:
       RSA_PublicKey() = default;
 
-      BigInt m_n, m_e;
+      void init(BigInt&& n, BigInt&& e);
+
+      std::shared_ptr<const RSA_Public_Data> m_public;
    };
 
 /**
@@ -25352,25 +25984,28 @@ class BOTAN_PUBLIC_API(2,0) RSA_PrivateKey final : public Private_Key, public RS
       * Get the first prime p.
       * @return prime p
       */
-      const BigInt& get_p() const { return m_p; }
+      const BigInt& get_p() const;
 
       /**
       * Get the second prime q.
       * @return prime q
       */
-      const BigInt& get_q() const { return m_q; }
+      const BigInt& get_q() const;
 
       /**
       * Get d with exp * d = 1 mod (p - 1, q - 1).
       * @return d
       */
-      const BigInt& get_d() const { return m_d; }
+      const BigInt& get_d() const;
 
-      const BigInt& get_c() const { return m_c; }
-      const BigInt& get_d1() const { return m_d1; }
-      const BigInt& get_d2() const { return m_d2; }
+      const BigInt& get_c() const;
+      const BigInt& get_d1() const;
+      const BigInt& get_d2() const;
 
       secure_vector<uint8_t> private_key_bits() const override;
+
+      // internal functions:
+      std::shared_ptr<const RSA_Private_Data> private_data() const;
 
       std::unique_ptr<PK_Ops::Decryption>
          create_decryption_op(RandomNumberGenerator& rng,
@@ -25388,10 +26023,15 @@ class BOTAN_PUBLIC_API(2,0) RSA_PrivateKey final : public Private_Key, public RS
                              const std::string& provider) const override;
 
    private:
-      BigInt m_d, m_p, m_q, m_d1, m_d2, m_c;
+
+      void init(BigInt&& d, BigInt&& p, BigInt&& q, BigInt&& d1, BigInt&& d2, BigInt&& c);
+
+      std::shared_ptr<const RSA_Private_Data> m_private;
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(salsa20.h)
 
 namespace Botan {
 
@@ -25431,6 +26071,8 @@ class BOTAN_PUBLIC_API(2,0) Salsa20 final : public StreamCipher
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(scan_name.h)
 
 namespace Botan {
 
@@ -25538,6 +26180,8 @@ std::vector<std::string> probe_providers_of(const std::string& algo_spec,
    }
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(scrypt.h)
 
 namespace Botan {
 
@@ -25651,6 +26295,8 @@ inline size_t scrypt_memory_usage(size_t N, size_t r, size_t p)
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(secqueue.h)
+
 namespace Botan {
 
 /**
@@ -25708,6 +26354,8 @@ class BOTAN_PUBLIC_API(2,0) SecureQueue final : public Fanout_Filter, public Dat
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(seed.h)
+
 namespace Botan {
 
 /**
@@ -25729,6 +26377,8 @@ class BOTAN_PUBLIC_API(2,0) SEED final : public Block_Cipher_Fixed_Params<16, 16
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(serpent.h)
 
 namespace Botan {
 
@@ -25767,6 +26417,8 @@ class BOTAN_PUBLIC_API(2,0) Serpent final : public Block_Cipher_Fixed_Params<16,
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(sha160.h)
 
 namespace Botan {
 
@@ -25827,6 +26479,8 @@ class BOTAN_PUBLIC_API(2,0) SHA_160 final : public MDx_HashFunction
 typedef SHA_160 SHA_1;
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(sha2_32.h)
 
 namespace Botan {
 
@@ -25906,6 +26560,8 @@ class BOTAN_PUBLIC_API(2,0) SHA_256 final : public MDx_HashFunction
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(sha2_64.h)
 
 namespace Botan {
 
@@ -25993,6 +26649,8 @@ class BOTAN_PUBLIC_API(2,0) SHA_512_256 final : public MDx_HashFunction
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(sha3.h)
 
 namespace Botan {
 
@@ -26113,6 +26771,8 @@ class BOTAN_PUBLIC_API(2,0) SHA_3_512 final : public SHA_3
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(shacal2.h)
+
 namespace Botan {
 
 /**
@@ -26138,6 +26798,11 @@ class BOTAN_PUBLIC_API(2,3) SHACAL2 final : public Block_Cipher_Fixed_Params<32,
       void simd_decrypt_4(const uint8_t in[], uint8_t out[]) const;
 #endif
 
+#if defined(BOTAN_HAS_SHACAL2_AVX2)
+      void avx2_encrypt_8(const uint8_t in[], uint8_t out[]) const;
+      void avx2_decrypt_8(const uint8_t in[], uint8_t out[]) const;
+#endif
+
 #if defined(BOTAN_HAS_SHACAL2_X86)
       void x86_encrypt_blocks(const uint8_t in[], uint8_t out[], size_t blocks) const;
 #endif
@@ -26146,6 +26811,8 @@ class BOTAN_PUBLIC_API(2,3) SHACAL2 final : public Block_Cipher_Fixed_Params<32,
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(shake.h)
 
 namespace Botan {
 
@@ -26215,6 +26882,8 @@ class BOTAN_PUBLIC_API(2,0) SHAKE_256 final : public HashFunction
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(shake_cipher.h)
+
 namespace Botan {
 
 /**
@@ -26256,6 +26925,8 @@ class BOTAN_PUBLIC_API(2,0) SHAKE_128_Cipher final : public StreamCipher
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(siphash.h)
+
 namespace Botan {
 
 class BOTAN_PUBLIC_API(2,0) SipHash final : public MessageAuthenticationCode
@@ -26287,6 +26958,8 @@ class BOTAN_PUBLIC_API(2,0) SipHash final : public MessageAuthenticationCode
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(siv.h)
 
 namespace Botan {
 
@@ -26398,6 +27071,8 @@ class BOTAN_PUBLIC_API(2,0) SIV_Decryption final : public SIV_Mode
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(threefish_512.h)
+
 namespace Botan {
 
 /**
@@ -26439,6 +27114,8 @@ class BOTAN_PUBLIC_API(2,0) Threefish_512 final :
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(skin_512.h)
 
 namespace Botan {
 
@@ -26605,6 +27282,8 @@ typedef SM2_PrivateKey SM2_Encryption_PrivateKey;
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(sm3.h)
+
 namespace Botan {
 
 enum {
@@ -26638,6 +27317,8 @@ class BOTAN_PUBLIC_API(2,2) SM3 final : public MDx_HashFunction
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(sm4.h)
 
 namespace Botan {
 
@@ -26873,7 +27554,7 @@ void randombytes_buf(void* buf, size_t size);
 
 BOTAN_PUBLIC_API(2,11)
 void randombytes_buf_deterministic(void* buf, size_t size,
-                                   const uint8_t seed[32]);
+                                   const uint8_t seed[randombytes_SEEDBYTES]);
 
 BOTAN_PUBLIC_API(2,11)
 uint32_t randombytes_uniform(uint32_t upper_bound);
@@ -27777,10 +28458,10 @@ inline size_t crypto_scalarmult_curve25519_scalarbytes()
    }
 
 BOTAN_PUBLIC_API(2,11)
-int crypto_scalarmult_curve25519(uint8_t out[], const uint8_t scalar[], const uint8_t basepoint[]);
+int crypto_scalarmult_curve25519(uint8_t out[32], const uint8_t scalar[32], const uint8_t basepoint[32]);
 
 BOTAN_PUBLIC_API(2,11)
-int crypto_scalarmult_curve25519_base(uint8_t out[], const uint8_t scalar[]);
+int crypto_scalarmult_curve25519_base(uint8_t out[32], const uint8_t scalar[32]);
 
 // sodium/crypto_scalarmult.h
 
@@ -28045,7 +28726,7 @@ BOTAN_PUBLIC_API(2,11)
 int crypto_sign_ed25519_keypair(uint8_t pk[32], uint8_t sk[64]);
 
 BOTAN_PUBLIC_API(2,11)
-int crypto_sign_ed25519_seed_keypair(uint8_t pk[32], uint8_t sk[64],
+int crypto_sign_ed25519_seed_keypair(uint8_t pk[], uint8_t sk[],
                                      const uint8_t seed[]);
 
 // sodium/crypto_sign.h
@@ -28109,6 +28790,8 @@ inline int crypto_sign_verify_detached(const uint8_t sig[],
 }
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(sp800_108.h)
 
 namespace Botan {
 
@@ -28229,6 +28912,8 @@ class BOTAN_PUBLIC_API(2,0) SP800_108_Pipeline final : public KDF
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(sp800_56a.h)
+
 namespace Botan {
 
 /**
@@ -28313,6 +28998,8 @@ class BOTAN_PUBLIC_API(2,2) SP800_56A_HMAC final : public KDF
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(sp800_56c.h)
 
 namespace Botan {
 
@@ -28502,6 +29189,8 @@ class BOTAN_PUBLIC_API(2,0) SRP6_Server_Session final
 #if __cplusplus < 201402L
 #endif
 
+BOTAN_FUTURE_INTERNAL_HEADER(stl_compatability.h)
+
 namespace Botan
 {
 /*
@@ -28563,6 +29252,8 @@ typename stlCompatibilityDetails::_Unique_if<T>::_Known_bound make_unique(Args&&
 
 #if defined(BOTAN_HAS_STREAM_CIPHER)
 #endif
+
+BOTAN_FUTURE_INTERNAL_HEADER(stream_mode.h)
 
 namespace Botan {
 
@@ -28629,6 +29320,8 @@ class BOTAN_PUBLIC_API(2,0) Stream_Cipher_Mode final : public Cipher_Mode
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(streebog.h)
+
 namespace Botan {
 
 /**
@@ -28685,6 +29378,8 @@ class BOTAN_PUBLIC_API(2,2) Streebog_512 final : public Streebog
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(tiger.h)
 
 namespace Botan {
 
@@ -28831,6 +29526,8 @@ class BOTAN_PUBLIC_API(2,0) Alert final
 }
 
 }
+
+//BOTAN_FUTURE_INTERNAL_HEADER(tls_algos.h)
 
 namespace Botan {
 
@@ -29052,12 +29749,12 @@ class BOTAN_PUBLIC_API(2,0) Protocol_Version final
       /**
       * @return major version of the protocol version
       */
-      uint8_t major_version() const { return get_byte(0, m_version); }
+      uint8_t major_version() const { return static_cast<uint8_t>(m_version >> 8); }
 
       /**
       * @return minor version of the protocol version
       */
-      uint8_t minor_version() const { return get_byte(1, m_version); }
+      uint8_t minor_version() const { return static_cast<uint8_t>(m_version & 0xFF); }
 
       /**
       * @return the version code
@@ -29299,6 +29996,9 @@ class BOTAN_PUBLIC_API(2,0) Ciphersuite final
 }
 
 }
+
+//BOTAN_FUTURE_INTERNAL_HEADER(tls_magic.h)
+
 namespace Botan {
 
 namespace TLS {
@@ -30276,15 +30976,11 @@ class BOTAN_PUBLIC_API(2,0) Channel
       *
       * @param callbacks contains a set of callback function references
       *        required by the TLS endpoint.
-      *
       * @param session_manager manages session state
-      *
       * @param rng a random number generator
-      *
       * @param policy specifies other connection policy information
-      *
+      * @param is_server whether this is a server session or not
       * @param is_datagram whether this is a DTLS session
-      *
       * @param io_buf_sz This many bytes of memory will
       *        be preallocated for the read and write buffers. Smaller
       *        values just mean reallocations and copies are more likely.
@@ -30293,6 +30989,7 @@ class BOTAN_PUBLIC_API(2,0) Channel
               Session_Manager& session_manager,
               RandomNumberGenerator& rng,
               const Policy& policy,
+              bool is_server,
               bool is_datagram,
               size_t io_buf_sz = IO_BUF_DEFAULT_SIZE);
 
@@ -30310,6 +31007,7 @@ class BOTAN_PUBLIC_API(2,0) Channel
               Session_Manager& session_manager,
               RandomNumberGenerator& rng,
               const Policy& policy,
+              bool is_server,
               bool is_datagram,
               size_t io_buf_sz = IO_BUF_DEFAULT_SIZE);
 
@@ -30387,7 +31085,6 @@ class BOTAN_PUBLIC_API(2,0) Channel
       */
       bool is_closed() const;
 
-
       /**
       * @return certificate chain of the peer (may be empty)
       */
@@ -30432,7 +31129,8 @@ class BOTAN_PUBLIC_API(2,0) Channel
       virtual void process_handshake_msg(const Handshake_State* active_state,
                                          Handshake_State& pending_state,
                                          Handshake_Type type,
-                                         const std::vector<uint8_t>& contents) = 0;
+                                         const std::vector<uint8_t>& contents,
+                                         bool epoch0_restart) = 0;
 
       virtual void initiate_handshake(Handshake_State& state,
                                       bool force_full_renegotiation) = 0;
@@ -30469,6 +31167,9 @@ class BOTAN_PUBLIC_API(2,0) Channel
       bool save_session(const Session& session);
 
       Callbacks& callbacks() const { return m_callbacks; }
+
+      void reset_active_association_state();
+
    private:
       void init(size_t io_buf_sze);
 
@@ -30483,13 +31184,13 @@ class BOTAN_PUBLIC_API(2,0) Channel
       void write_record(Connection_Cipher_State* cipher_state,
                         uint16_t epoch, uint8_t type, const uint8_t input[], size_t length);
 
+      void reset_state();
+
       Connection_Sequence_Numbers& sequence_numbers() const;
 
       std::shared_ptr<Connection_Cipher_State> read_cipher_state_epoch(uint16_t epoch) const;
 
       std::shared_ptr<Connection_Cipher_State> write_cipher_state_epoch(uint16_t epoch) const;
-
-      void reset_state();
 
       const Handshake_State* active_state() const { return m_active_state.get(); }
 
@@ -30499,13 +31200,15 @@ class BOTAN_PUBLIC_API(2,0) Channel
       void process_handshake_ccs(const secure_vector<uint8_t>& record,
                                  uint64_t record_sequence,
                                  Record_Type record_type,
-                                 Protocol_Version record_version);
+                                 Protocol_Version record_version,
+                                 bool epoch0_restart);
 
       void process_application_data(uint64_t req_no, const secure_vector<uint8_t>& record);
 
       void process_alert(const secure_vector<uint8_t>& record);
 
-      bool m_is_datagram;
+      const bool m_is_server;
+      const bool m_is_datagram;
 
       /* callbacks */
       std::unique_ptr<Compat_Callbacks> m_compat_callbacks;
@@ -30530,6 +31233,9 @@ class BOTAN_PUBLIC_API(2,0) Channel
       /* I/O buffers */
       secure_vector<uint8_t> m_writebuf;
       secure_vector<uint8_t> m_readbuf;
+      secure_vector<uint8_t> m_record_buf;
+
+      bool m_has_been_closed;
    };
 
 }
@@ -30813,6 +31519,12 @@ class BOTAN_PUBLIC_API(2,0) Policy
       virtual bool request_client_certificate_authentication() const;
 
       /**
+      * If true, then allow a DTLS client to restart a connection to the
+      * same server association as described in section 4.2.8 of the DTLS RFC
+      */
+      virtual bool allow_dtls_epoch0_restart() const;
+
+      /**
       * Return allowed ciphersuites, in order of preference
       */
       virtual std::vector<uint16_t> ciphersuite_list(Protocol_Version version,
@@ -30935,12 +31647,12 @@ class BOTAN_PUBLIC_API(2,0) BSI_TR_02102_2 : public Policy
    public:
       std::vector<std::string> allowed_ciphers() const override
          {
-         return std::vector<std::string>({"AES-256/GCM", "AES-128/GCM", "AES-256", "AES-128" });
+         return std::vector<std::string>({"AES-256/GCM", "AES-128/GCM", "AES-256/CCM", "AES-128/CCM", "AES-256", "AES-128"});
          }
 
       std::vector<std::string> allowed_signature_hashes() const override
          {
-         return std::vector<std::string>({"SHA-384", "SHA-256"});
+         return std::vector<std::string>({"SHA-512", "SHA-384", "SHA-256"});
          }
 
       std::vector<std::string> allowed_macs() const override
@@ -30950,7 +31662,7 @@ class BOTAN_PUBLIC_API(2,0) BSI_TR_02102_2 : public Policy
 
       std::vector<std::string> allowed_key_exchange_methods() const override
          {
-         return std::vector<std::string>({"ECDH", "DH", "PSK", "ECDHE_PSK", "DHE_PSK"});
+         return std::vector<std::string>({"ECDH", "DH", "ECDHE_PSK", "DHE_PSK"});
          }
 
       std::vector<std::string> allowed_signature_methods() const override
@@ -30966,8 +31678,6 @@ class BOTAN_PUBLIC_API(2,0) BSI_TR_02102_2 : public Policy
             Group_Params::BRAINPOOL256R1,
             Group_Params::SECP384R1,
             Group_Params::SECP256R1,
-            Group_Params::FFDHE_8192,
-            Group_Params::FFDHE_6144,
             Group_Params::FFDHE_4096,
             Group_Params::FFDHE_3072,
             Group_Params::FFDHE_2048
@@ -31268,7 +31978,8 @@ class BOTAN_PUBLIC_API(2,0) Client final : public Channel
       void process_handshake_msg(const Handshake_State* active_state,
                                  Handshake_State& pending_state,
                                  Handshake_Type type,
-                                 const std::vector<uint8_t>& contents) override;
+                                 const std::vector<uint8_t>& contents,
+                                 bool epoch0_restart) override;
 
       Handshake_State* new_handshake_state(Handshake_IO* io) override;
 
@@ -32245,6 +32956,8 @@ class BOTAN_UNSTABLE_API Server_Hello final : public Handshake_Message
          return false;
          }
 
+      bool random_signals_downgrade() const;
+
       Server_Hello(Handshake_IO& io,
                    Handshake_Hash& hash,
                    const Policy& policy,
@@ -32704,11 +33417,13 @@ class BOTAN_PUBLIC_API(2,0) Server final : public Channel
       void process_handshake_msg(const Handshake_State* active_state,
                                  Handshake_State& pending_state,
                                  Handshake_Type type,
-                                 const std::vector<uint8_t>& contents) override;
+                                 const std::vector<uint8_t>& contents,
+                                 bool epoch0_restart) override;
 
       void process_client_hello_msg(const Handshake_State* active_state,
                                     Server_Handshake_State& pending_state,
-                                    const std::vector<uint8_t>& contents);
+                                    const std::vector<uint8_t>& contents,
+                                    bool epoch0_restart);
 
       void process_certificate_msg(Server_Handshake_State& pending_state,
                                    const std::vector<uint8_t>& contents);
@@ -32959,6 +33674,8 @@ class BOTAN_PUBLIC_API(2,0) RTSS_Share final
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(twofish.h)
+
 namespace Botan {
 
 /**
@@ -32990,6 +33707,8 @@ class BOTAN_PUBLIC_API(2,0) Twofish final : public Block_Cipher_Fixed_Params<16,
    };
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(uuid.h)
 
 namespace Botan {
 
@@ -33129,6 +33848,8 @@ runtime_version_check(uint32_t major,
                                                   BOTAN_VERSION_PATCH)
 
 }
+
+BOTAN_FUTURE_INTERNAL_HEADER(whrlpool.h)
 
 namespace Botan {
 
@@ -33465,7 +34186,7 @@ class BOTAN_PUBLIC_API(2,0) Certificate_Extension
       /*
       * @return specific OID name
       * If possible OIDS table should match oid_name to OIDS, ie
-      * OIDS::lookup(ext->oid_name()) == ext->oid_of()
+      * OID::from_string(ext->oid_name()) == ext->oid_of()
       * Should return empty string if OID is not known
       */
       virtual std::string oid_name() const = 0;
@@ -33604,6 +34325,12 @@ class BOTAN_PUBLIC_API(2,0) Extensions final : public ASN1_Object
       * @param critical whether this extension should be marked as critical
       */
       void replace(Certificate_Extension* extn, bool critical = false);
+
+      /**
+      * Remove an extension from the list. Returns true if the
+      * extension had been set, false otherwise.
+      */
+      bool remove(const OID& oid);
 
       /**
       * Searches for an extension by OID and returns the result.
@@ -34882,6 +35609,8 @@ BOTAN_PUBLIC_API(2,0) PKCS10_Request create_cert_req(const X509_Cert_Options& op
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(x919_mac.h)
+
 namespace Botan {
 
 /**
@@ -34916,6 +35645,8 @@ class BOTAN_PUBLIC_API(2,0) ANSI_X919_MAC final : public MessageAuthenticationCo
    };
 
 }
+
+//BOTAN_FUTURE_INTERNAL_HEADER(xmss_tools.h)
 
 namespace Botan {
 
@@ -35224,8 +35955,6 @@ class XMSS_Verification_Operation;
 
 /**
  * An XMSS: Extended Hash-Based Signature public key.
- * The XMSS public key does not support the X509 standard. Instead the
- * raw format described in [1] is used.
  *
  * [1] XMSS: Extended Hash-Based Signatures,
  *     Request for Comments: 8391
@@ -35251,10 +35980,14 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PublicKey : public virtual Public_Key
            m_public_seed(rng.random_vec(m_xmss_params.element_size())) {}
 
       /**
-       * Creates an XMSS public key from a byte sequence produced by
-       * raw_private_key().
-       **/
-      XMSS_PublicKey(const std::vector<uint8_t>& raw_key);
+       * Loads a public key.
+       *
+       * Public key must be encoded as in RFC
+       * draft-vangeest-x509-hash-sigs-03.
+       *
+       * @param key_bits DER encoded public key bits
+       */
+      XMSS_PublicKey(const std::vector<uint8_t>& key_bits);
 
       /**
        * Creates a new XMSS public key for a chosen XMSS signature method as
@@ -35316,7 +36049,7 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PublicKey : public virtual Public_Key
 
       /**
        * Retrieves the Winternitz One Time Signature (WOTS) method,
-       * corrseponding to the chosen XMSS signature method.
+       * corresponding to the chosen XMSS signature method.
        *
        * @return XMSS WOTS signature method identifier.
        **/
@@ -35383,7 +36116,7 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PublicKey : public virtual Public_Key
 
       AlgorithmIdentifier algorithm_identifier() const override
          {
-         return AlgorithmIdentifier(get_oid(), AlgorithmIdentifier::USE_NULL_PARAM);
+         return AlgorithmIdentifier(get_oid(), AlgorithmIdentifier::USE_EMPTY_PARAM);
          }
 
       bool check_key(RandomNumberGenerator&, bool) const override
@@ -35406,14 +36139,16 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PublicKey : public virtual Public_Key
          }
 
       /**
-       * Returns a raw byte sequence as defined in [1].
-       * This method acts as an alias for raw_public_key().
+       * Returns the encoded public key as defined in RFC
+       * draft-vangeest-x509-hash-sigs-03.
        *
-       * @return raw public key bits.
+       * @return encoded public key bits
        **/
       std::vector<uint8_t> public_key_bits() const override
          {
-         return raw_public_key();
+         std::vector<uint8_t> output;
+         DER_Encoder(output).encode(raw_public_key(), OCTET_STRING);
+         return output;
          }
 
       /**
@@ -35428,7 +36163,7 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PublicKey : public virtual Public_Key
          }
 
       /**
-       * Generates a non standardized byte sequence representing the XMSS
+       * Generates a byte sequence representing the XMSS
        * public key, as defined in [1] (p. 23, "XMSS Public Key")
        *
        * @return 4-byte OID, followed by n-byte root node, followed by
@@ -35437,6 +36172,7 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PublicKey : public virtual Public_Key
       virtual std::vector<uint8_t> raw_public_key() const;
 
    protected:
+      std::vector<uint8_t> m_raw_key;
       XMSS_Parameters m_xmss_params;
       XMSS_WOTS_Parameters m_wots_params;
       secure_vector<uint8_t> m_root;
@@ -35841,6 +36577,8 @@ class XMSS_Address final
 
 }
 
+//BOTAN_FUTURE_INTERNAL_HEADER(xmss_hash.h)
+
 namespace Botan {
 
 /**
@@ -35981,6 +36719,8 @@ class XMSS_Hash final
    };
 
 }
+
+//BOTAN_FUTURE_INTERNAL_HEADER(xmss_common_ops.h)
 
 namespace Botan {
 
@@ -36732,6 +37472,8 @@ class XMSS_WOTS_PrivateKey final : public virtual XMSS_WOTS_PublicKey,
 
 }
 
+//BOTAN_FUTURE_INTERNAL_HEADER(xmss_index_registry.h)
+
 namespace Botan {
 
 /**
@@ -36887,6 +37629,8 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PrivateKey final : public virtual XMSS_PublicKe
          set_unused_leaf_index(idx_leaf);
          }
 
+      bool stateful_operation() const override { return true; }
+
       /**
        * Retrieves the last unused leaf index of the private key. Reusing a leaf
        * by utilizing leaf indices lower than the last unused leaf index will
@@ -36996,7 +37740,7 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PrivateKey final : public virtual XMSS_PublicKe
 
       secure_vector<uint8_t> private_key_bits() const override
          {
-         return raw_private_key();
+         return DER_Encoder().encode(raw_private_key(), OCTET_STRING).get_contents();
          }
 
       size_t size() const override
@@ -37063,39 +37807,7 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PrivateKey final : public virtual XMSS_PublicKe
 
 }
 
-namespace Botan {
-
-/**
- * A pair of XMSS public and private key.
- **/
-class BOTAN_PUBLIC_API(2,0) XMSS_Key_Pair
-   {
-   public:
-      XMSS_Key_Pair(XMSS_Parameters::xmss_algorithm_t xmss_oid,
-                    RandomNumberGenerator& rng)
-         : m_priv_key(xmss_oid, rng), m_pub_key(m_priv_key) {}
-
-      XMSS_Key_Pair(const XMSS_PublicKey& pub_key,
-                    const XMSS_PrivateKey& priv_key)
-         : m_priv_key(priv_key), m_pub_key(pub_key)
-         {}
-
-      XMSS_Key_Pair(XMSS_PublicKey&& pub_key,
-                    XMSS_PrivateKey&& priv_key)
-         : m_priv_key(std::move(priv_key)), m_pub_key(std::move(pub_key)) {}
-
-      const XMSS_PublicKey& public_key() const { return m_pub_key; }
-      XMSS_PublicKey& public_key() { return m_pub_key; }
-
-      const XMSS_PrivateKey& private_key() const { return m_priv_key; }
-      XMSS_PrivateKey& private_key() { return m_priv_key; }
-
-   private:
-      XMSS_PrivateKey m_priv_key;
-      XMSS_PublicKey m_pub_key;
-   };
-
-}
+BOTAN_FUTURE_INTERNAL_HEADER(xtea.h)
 
 namespace Botan {
 
@@ -37119,6 +37831,8 @@ class BOTAN_PUBLIC_API(2,0) XTEA final : public Block_Cipher_Fixed_Params<8, 16>
 
 }
 
+BOTAN_FUTURE_INTERNAL_HEADER(xts.h)
+
 namespace Botan {
 
 /**
@@ -37129,7 +37843,7 @@ class BOTAN_PUBLIC_API(2,0) XTS_Mode : public Cipher_Mode
    public:
       std::string name() const override;
 
-      size_t update_granularity() const override;
+      size_t update_granularity() const override { return m_cipher_parallelism; }
 
       size_t minimum_final_size() const override;
 
@@ -37154,12 +37868,17 @@ class BOTAN_PUBLIC_API(2,0) XTS_Mode : public Cipher_Mode
 
       void update_tweak(size_t last_used);
 
+      size_t cipher_block_size() const { return m_cipher_block_size; }
+
    private:
       void start_msg(const uint8_t nonce[], size_t nonce_len) override;
       void key_schedule(const uint8_t key[], size_t length) override;
 
-      std::unique_ptr<BlockCipher> m_cipher, m_tweak_cipher;
+      std::unique_ptr<BlockCipher> m_cipher;
+      std::unique_ptr<BlockCipher> m_tweak_cipher;
       secure_vector<uint8_t> m_tweak;
+      const size_t m_cipher_block_size;
+      const size_t m_cipher_parallelism;
    };
 
 /**

@@ -1,5 +1,5 @@
 /*
-* Botan 2.11.0 Amalgamation
+* Botan 2.13.0 Amalgamation
 * (C) 1999-2018 The Botan Authors
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -50,7 +50,7 @@ class Barrier final
       void sync();
 
    private:
-      int m_value;
+      size_t m_value;
       size_t m_syncs;
       std::mutex m_mutex;
       std::condition_variable m_cond;
@@ -160,12 +160,14 @@ inline size_t ctz(T n)
    }
 
 template<typename T>
-size_t ceil_log2(T x)
+uint8_t ceil_log2(T x)
    {
+   static_assert(sizeof(T) < 32, "Abnormally large scalar");
+
    if(x >> (sizeof(T)*8-1))
       return sizeof(T)*8;
 
-   size_t result = 0;
+   uint8_t result = 0;
    T compare = 1;
 
    while(compare < x)
@@ -403,12 +405,12 @@ inline gf2m lex_to_gray(gf2m lex)
    return (lex >> 1) ^ lex;
    }
 
-inline size_t bit_size_to_byte_size(uint32_t bit_size)
+inline size_t bit_size_to_byte_size(size_t bit_size)
    {
    return (bit_size - 1) / 8 + 1;
    }
 
-inline size_t bit_size_to_32bit_size(uint32_t bit_size)
+inline size_t bit_size_to_32bit_size(size_t bit_size)
    {
    return (bit_size - 1) / 32 + 1;
    }
@@ -993,59 +995,6 @@ inline secure_vector<uint8_t> strip_leading_zeros(const secure_vector<uint8_t>& 
 namespace Botan {
 
 /**
-* Fixed Window Exponentiator
-*/
-class Fixed_Window_Exponentiator final : public Modular_Exponentiator
-   {
-   public:
-      void set_exponent(const BigInt&) override;
-      void set_base(const BigInt&) override;
-      BigInt execute() const override;
-
-      Modular_Exponentiator* copy() const override
-         { return new Fixed_Window_Exponentiator(*this); }
-
-      Fixed_Window_Exponentiator(const BigInt&, Power_Mod::Usage_Hints);
-   private:
-      Modular_Reducer m_reducer;
-      BigInt m_exp;
-      size_t m_window_bits;
-      std::vector<BigInt> m_g;
-      Power_Mod::Usage_Hints m_hints;
-   };
-
-class Montgomery_Params;
-class Montgomery_Exponentation_State;
-
-/**
-* Montgomery Exponentiator
-*/
-class Montgomery_Exponentiator final : public Modular_Exponentiator
-   {
-   public:
-      void set_exponent(const BigInt&) override;
-      void set_base(const BigInt&) override;
-      BigInt execute() const override;
-
-      Modular_Exponentiator* copy() const override
-         { return new Montgomery_Exponentiator(*this); }
-
-      Montgomery_Exponentiator(const BigInt&, Power_Mod::Usage_Hints);
-   private:
-      BigInt m_p;
-      Modular_Reducer m_mod_p;
-      std::shared_ptr<const Montgomery_Params> m_monty_params;
-      std::shared_ptr<const Montgomery_Exponentation_State> m_monty;
-
-      BigInt m_e;
-      Power_Mod::Usage_Hints m_hints;
-   };
-
-}
-
-namespace Botan {
-
-/**
 * Entropy source reading from kernel devices like /dev/random
 */
 class Device_EntropySource final : public Entropy_Source
@@ -1582,9 +1531,18 @@ int apply_fn(botan_struct<T, M>* o, const char* func_name, F func)
    return ffi_guard_thunk(func_name, [&]() { return func(*p); });
    }
 
-#define BOTAN_FFI_DO(T, obj, param, block)                              \
+#define BOTAN_FFI_DO(T, obj, param, block)                \
    apply_fn(obj, __func__,                                \
             [=](T& param) -> int { do { block } while(0); return BOTAN_FFI_SUCCESS; })
+
+/*
+* Like BOTAN_FFI_DO but with no trailing return with the expectation
+* that the block always returns a value. This exists because otherwise
+* MSVC warns about the dead return after the block in FFI_DO.
+*/
+#define BOTAN_FFI_RETURNING(T, obj, param, block)         \
+   apply_fn(obj, __func__,                                \
+            [=](T& param) -> int { do { block } while(0); })
 
 template<typename T, uint32_t M>
 int ffi_delete_object(botan_struct<T, M>* obj, const char* func_name)
@@ -1715,7 +1673,7 @@ void mceliece_decrypt(secure_vector<uint8_t>& plaintext_out,
 
 secure_vector<uint8_t> mceliece_decrypt(
    secure_vector<gf2m> & error_pos,
-   const uint8_t *ciphertext, uint32_t ciphertext_len,
+   const uint8_t *ciphertext, size_t ciphertext_len,
    const McEliece_PrivateKey & key);
 
 void mceliece_encrypt(secure_vector<uint8_t>& ciphertext_out,
@@ -1833,16 +1791,14 @@ namespace Botan {
   #error BOTAN_MP_WORD_BITS must be 32 or 64
 #endif
 
-#if defined(BOTAN_TARGET_ARCH_IS_X86_32) && (BOTAN_MP_WORD_BITS == 32)
+#if defined(BOTAN_USE_GCC_INLINE_ASM)
 
-  #if defined(BOTAN_USE_GCC_INLINE_ASM)
+  #if defined(BOTAN_TARGET_ARCH_IS_X86_32) && (BOTAN_MP_WORD_BITS == 32)
     #define BOTAN_MP_USE_X86_32_ASM
-  #elif defined(BOTAN_BUILD_COMPILER_IS_MSVC)
-    #define BOTAN_MP_USE_X86_32_MSVC_ASM
+  #elif defined(BOTAN_TARGET_ARCH_IS_X86_64) && (BOTAN_MP_WORD_BITS == 64)
+    #define BOTAN_MP_USE_X86_64_ASM
   #endif
 
-#elif defined(BOTAN_TARGET_ARCH_IS_X86_64) && (BOTAN_MP_WORD_BITS == 64) && defined(BOTAN_USE_GCC_INLINE_ASM)
-  #define BOTAN_MP_USE_X86_64_ASM
 #endif
 
 /*
@@ -2091,33 +2047,6 @@ inline word word8_add2(word x[8], const word y[8], word carry)
       : "cc", "memory");
    return carry;
 
-#elif defined(BOTAN_MP_USE_X86_32_MSVC_ASM)
-
-   __asm {
-      mov edx,[x]
-      mov esi,[y]
-      xor eax,eax
-      sub eax,[carry] //force CF=1 iff *carry==1
-      mov eax,[esi]
-      adc [edx],eax
-      mov eax,[esi+4]
-      adc [edx+4],eax
-      mov eax,[esi+8]
-      adc [edx+8],eax
-      mov eax,[esi+12]
-      adc [edx+12],eax
-      mov eax,[esi+16]
-      adc [edx+16],eax
-      mov eax,[esi+20]
-      adc [edx+20],eax
-      mov eax,[esi+24]
-      adc [edx+24],eax
-      mov eax,[esi+28]
-      adc [edx+28],eax
-      sbb eax,eax
-      neg eax
-      }
-
 #else
    x[0] = word_add(x[0], y[0], &carry);
    x[1] = word_add(x[1], y[1], &carry);
@@ -2153,50 +2082,6 @@ inline word word8_add3(word z[8], const word x[8],
       : [x]"r"(x), [y]"r"(y), [z]"r"(z), "0"(carry)
       : "cc", "memory");
    return carry;
-
-#elif defined(BOTAN_MP_USE_X86_32_MSVC_ASM)
-
-    __asm {
-      mov edi,[x]
-      mov esi,[y]
-      mov ebx,[z]
-      xor eax,eax
-      sub eax,[carry] //force CF=1 iff *carry==1
-      mov eax,[edi]
-      adc eax,[esi]
-      mov [ebx],eax
-
-      mov eax,[edi+4]
-      adc eax,[esi+4]
-      mov [ebx+4],eax
-
-      mov eax,[edi+8]
-      adc eax,[esi+8]
-      mov [ebx+8],eax
-
-      mov eax,[edi+12]
-      adc eax,[esi+12]
-      mov [ebx+12],eax
-
-      mov eax,[edi+16]
-      adc eax,[esi+16]
-      mov [ebx+16],eax
-
-      mov eax,[edi+20]
-      adc eax,[esi+20]
-      mov [ebx+20],eax
-
-      mov eax,[edi+24]
-      adc eax,[esi+24]
-      mov [ebx+24],eax
-
-      mov eax,[edi+28]
-      adc eax,[esi+28]
-      mov [ebx+28],eax
-
-      sbb eax,eax
-      neg eax
-      }
 
 #else
    z[0] = word_add(x[0], y[0], &carry);
@@ -2263,41 +2148,6 @@ inline word word8_sub2(word x[8], const word y[8], word carry)
       : [x]"r"(x), [y]"r"(y), "0"(carry)
       : "cc", "memory");
    return carry;
-
-#elif defined(BOTAN_MP_USE_X86_32_MSVC_ASM)
-
-    __asm {
-      mov edi,[x]
-      mov esi,[y]
-      xor eax,eax
-      sub eax,[carry] //force CF=1 iff *carry==1
-      mov eax,[edi]
-      sbb eax,[esi]
-      mov [edi],eax
-      mov eax,[edi+4]
-      sbb eax,[esi+4]
-      mov [edi+4],eax
-      mov eax,[edi+8]
-      sbb eax,[esi+8]
-      mov [edi+8],eax
-      mov eax,[edi+12]
-      sbb eax,[esi+12]
-      mov [edi+12],eax
-      mov eax,[edi+16]
-      sbb eax,[esi+16]
-      mov [edi+16],eax
-      mov eax,[edi+20]
-      sbb eax,[esi+20]
-      mov [edi+20],eax
-      mov eax,[edi+24]
-      sbb eax,[esi+24]
-      mov [edi+24],eax
-      mov eax,[edi+28]
-      sbb eax,[esi+28]
-      mov [edi+28],eax
-      sbb eax,eax
-      neg eax
-      }
 
 #else
    x[0] = word_sub(x[0], y[0], &carry);
@@ -2370,42 +2220,6 @@ inline word word8_sub3(word z[8], const word x[8],
       : "cc", "memory");
    return carry;
 
-#elif defined(BOTAN_MP_USE_X86_32_MSVC_ASM)
-
-   __asm {
-      mov edi,[x]
-      mov esi,[y]
-      xor eax,eax
-      sub eax,[carry] //force CF=1 iff *carry==1
-      mov ebx,[z]
-      mov eax,[edi]
-      sbb eax,[esi]
-      mov [ebx],eax
-      mov eax,[edi+4]
-      sbb eax,[esi+4]
-      mov [ebx+4],eax
-      mov eax,[edi+8]
-      sbb eax,[esi+8]
-      mov [ebx+8],eax
-      mov eax,[edi+12]
-      sbb eax,[esi+12]
-      mov [ebx+12],eax
-      mov eax,[edi+16]
-      sbb eax,[esi+16]
-      mov [ebx+16],eax
-      mov eax,[edi+20]
-      sbb eax,[esi+20]
-      mov [ebx+20],eax
-      mov eax,[edi+24]
-      sbb eax,[esi+24]
-      mov [ebx+24],eax
-      mov eax,[edi+28]
-      sbb eax,[esi+28]
-      mov [ebx+28],eax
-      sbb eax,eax
-      neg eax
-      }
-
 #else
    z[0] = word_sub(x[0], y[0], &carry);
    z[1] = word_sub(x[1], y[1], &carry);
@@ -2441,68 +2255,6 @@ inline word word8_linmul2(word x[8], word y, word carry)
       : "cc", "%rax", "%rdx");
    return carry;
 
-#elif defined(BOTAN_MP_USE_X86_32_MSVC_ASM)
-
-   __asm {
-      mov esi,[x]
-      mov eax,[esi]        //load a
-      mul [y]           //edx(hi):eax(lo)=a*b
-      add eax,[carry]      //sum lo carry
-      adc edx,0          //sum hi carry
-      mov ecx,edx      //store carry
-      mov [esi],eax        //load a
-
-      mov eax,[esi+4]        //load a
-      mul [y]           //edx(hi):eax(lo)=a*b
-      add eax,ecx      //sum lo carry
-      adc edx,0          //sum hi carry
-      mov ecx,edx      //store carry
-      mov [esi+4],eax        //load a
-
-      mov eax,[esi+8]        //load a
-      mul [y]           //edx(hi):eax(lo)=a*b
-      add eax,ecx      //sum lo carry
-      adc edx,0          //sum hi carry
-      mov ecx,edx      //store carry
-      mov [esi+8],eax        //load a
-
-      mov eax,[esi+12]        //load a
-      mul [y]           //edx(hi):eax(lo)=a*b
-      add eax,ecx      //sum lo carry
-      adc edx,0          //sum hi carry
-      mov ecx,edx      //store carry
-      mov [esi+12],eax        //load a
-
-      mov eax,[esi+16]        //load a
-      mul [y]           //edx(hi):eax(lo)=a*b
-      add eax,ecx      //sum lo carry
-      adc edx,0          //sum hi carry
-      mov ecx,edx      //store carry
-      mov [esi+16],eax        //load a
-
-      mov eax,[esi+20]        //load a
-      mul [y]           //edx(hi):eax(lo)=a*b
-      add eax,ecx      //sum lo carry
-      adc edx,0          //sum hi carry
-      mov ecx,edx      //store carry
-      mov [esi+20],eax        //load a
-
-      mov eax,[esi+24]        //load a
-      mul [y]           //edx(hi):eax(lo)=a*b
-      add eax,ecx      //sum lo carry
-      adc edx,0          //sum hi carry
-      mov ecx,edx      //store carry
-      mov [esi+24],eax        //load a
-
-      mov eax,[esi+28]        //load a
-      mul [y]           //edx(hi):eax(lo)=a*b
-      add eax,ecx      //sum lo carry
-      adc edx,0          //sum hi carry
-      mov [esi+28],eax        //load a
-
-      mov eax,edx      //store carry
-      }
-
 #else
    x[0] = word_madd2(x[0], y, &carry);
    x[1] = word_madd2(x[1], y, &carry);
@@ -2536,68 +2288,6 @@ inline word word8_linmul3(word z[8], const word x[8], word y, word carry)
       : [z]"r"(z), [x]"r"(x), [y]"rm"(y), "0"(carry)
       : "cc", "%rax", "%rdx");
    return carry;
-
-#elif defined(BOTAN_MP_USE_X86_32_MSVC_ASM)
-
-   __asm {
-      mov edi,[z]
-      mov esi,[x]
-      mov eax,[esi]        //load a
-      mul [y]           //edx(hi):eax(lo)=a*b
-      add eax,[carry]    //sum lo carry
-      adc edx,0          //sum hi carry
-      mov ecx,edx      //store carry
-      mov [edi],eax        //load a
-
-      mov eax,[esi+4]        //load a
-      mul [y]           //edx(hi):eax(lo)=a*b
-      add eax,ecx      //sum lo carry
-      adc edx,0          //sum hi carry
-      mov ecx,edx      //store carry
-      mov [edi+4],eax        //load a
-
-      mov eax,[esi+8]        //load a
-      mul [y]           //edx(hi):eax(lo)=a*b
-      add eax,ecx      //sum lo carry
-      adc edx,0          //sum hi carry
-      mov ecx,edx      //store carry
-      mov [edi+8],eax        //load a
-
-      mov eax,[esi+12]        //load a
-      mul [y]           //edx(hi):eax(lo)=a*b
-      add eax,ecx      //sum lo carry
-      adc edx,0          //sum hi carry
-      mov ecx,edx      //store carry
-      mov [edi+12],eax        //load a
-
-      mov eax,[esi+16]        //load a
-      mul [y]           //edx(hi):eax(lo)=a*b
-      add eax,ecx      //sum lo carry
-      adc edx,0          //sum hi carry
-      mov ecx,edx      //store carry
-      mov [edi+16],eax        //load a
-
-      mov eax,[esi+20]        //load a
-      mul [y]           //edx(hi):eax(lo)=a*b
-      add eax,ecx      //sum lo carry
-      adc edx,0          //sum hi carry
-      mov ecx,edx      //store carry
-      mov [edi+20],eax        //load a
-
-      mov eax,[esi+24]        //load a
-      mul [y]           //edx(hi):eax(lo)=a*b
-      add eax,ecx      //sum lo carry
-      adc edx,0          //sum hi carry
-      mov ecx,edx      //store carry
-      mov [edi+24],eax        //load a
-
-      mov eax,[esi+28]        //load a
-      mul [y]           //edx(hi):eax(lo)=a*b
-      add eax,ecx      //sum lo carry
-      adc edx,0          //sum hi carry
-      mov [edi+28],eax        //load a
-      mov eax,edx      //store carry
-      }
 
 #else
    z[0] = word_madd2(x[0], y, &carry);
@@ -2813,9 +2503,7 @@ inline void word3_muladd_2(word* w2, word* w1, word* w0, word x, word y)
 
 namespace Botan {
 
-const word MP_WORD_MASK = ~static_cast<word>(0);
-const word MP_WORD_TOP_BIT = static_cast<word>(1) << (8*sizeof(word) - 1);
-const word MP_WORD_MAX = MP_WORD_MASK;
+const word MP_WORD_MAX = ~static_cast<word>(0);
 
 /*
 * If cond == 0, does nothing.
@@ -3278,9 +2966,9 @@ inline void bigint_shr2(word y[], const word x[], size_t x_size,
    }
 
 /*
-* Linear Multiply
+* Linear Multiply - returns the carry
 */
-inline void bigint_linmul2(word x[], size_t x_size, word y)
+inline word BOTAN_WARN_UNUSED_RESULT bigint_linmul2(word x[], size_t x_size, word y)
    {
    const size_t blocks = x_size - (x_size % 8);
 
@@ -3292,7 +2980,7 @@ inline void bigint_linmul2(word x[], size_t x_size, word y)
    for(size_t i = blocks; i != x_size; ++i)
       x[i] = word_madd2(x[i], y, &carry);
 
-   x[x_size] = carry;
+   return carry;
    }
 
 inline void bigint_linmul3(word z[], const word x[], size_t x_size, word y)
@@ -3452,8 +3140,9 @@ bigint_sub_abs(word z[],
    const int32_t relative_size = bigint_cmp(x, x_size, y, y_size);
 
    // Swap if relative_size == -1
-   CT::conditional_swap_ptr(relative_size < 0, x, y);
-   CT::conditional_swap(relative_size < 0, x_size, y_size);
+   const bool need_swap = relative_size < 0;
+   CT::conditional_swap_ptr(need_swap, x, y);
+   CT::conditional_swap(need_swap, x_size, y_size);
 
    /*
    * We know at this point that x >= y so if y_size is larger than
@@ -3525,7 +3214,7 @@ inline word bigint_divop(word n1, word n0, word d)
 
    for(size_t i = 0; i != BOTAN_MP_WORD_BITS; ++i)
       {
-      word high_top_bit = (high & MP_WORD_TOP_BIT);
+      const word high_top_bit = high >> (BOTAN_MP_WORD_BITS-1);
 
       high <<= 1;
       high |= (n0 >> (BOTAN_MP_WORD_BITS-1-i)) & 1;
@@ -3710,12 +3399,12 @@ size_t get_memory_locking_limit();
 size_t system_page_size();
 
 /**
-* Read the value of an environment variable. Return nullptr if
-* no such variable is set. If the process seems to be running in
-* a privileged state (such as setuid) then always returns nullptr,
-* similiar to glibc's secure_getenv.
+* Read the value of an environment variable, setting it to value_out if it
+* exists.  Returns false and sets value_out to empty string if no such variable
+* is set. If the process seems to be running in a privileged state (such as
+* setuid) then always returns false and does not examine the environment.
 */
-const char* read_env_variable(const std::string& var_name);
+bool read_env_variable(std::string& value_out, const std::string& var_name);
 
 /**
 * Read the value of an environment variable and convert it to an
@@ -4081,8 +3770,6 @@ namespace Botan {
 
 class Modular_Reducer;
 
-static const size_t PointGFp_SCALAR_BLINDING_BITS = 80;
-
 class PointGFp_Base_Point_Precompute final
    {
    public:
@@ -4157,7 +3844,7 @@ namespace Botan {
 /**
 * Polynomial doubling in GF(2^n)
 */
-void BOTAN_PUBLIC_API(2,3) poly_double_n(uint8_t out[], const uint8_t in[], size_t n);
+void BOTAN_TEST_API poly_double_n(uint8_t out[], const uint8_t in[], size_t n);
 
 /**
 * Returns true iff poly_double_n is implemented for this size.
@@ -4175,7 +3862,7 @@ inline void poly_double_n(uint8_t buf[], size_t n)
 /*
 * Little endian convention - used for XTS
 */
-void poly_double_n_le(uint8_t out[], const uint8_t in[], size_t n);
+void BOTAN_TEST_API poly_double_n_le(uint8_t out[], const uint8_t in[], size_t n);
 
 }
 
@@ -4363,6 +4050,34 @@ inline size_t clamp(size_t n, size_t lower_bound, size_t upper_bound)
       return upper_bound;
    return n;
    }
+
+}
+
+namespace Botan {
+
+/**
+* A read-write lock. Writers are favored.
+*/
+class BOTAN_TEST_API RWLock final
+   {
+   public:
+      RWLock();
+
+      void lock();
+      void unlock();
+
+      void lock_shared();
+      void unlock_shared();
+   private:
+      std::mutex m_mutex;
+      std::condition_variable m_gate1;
+      std::condition_variable m_gate2;
+      uint32_t m_state;
+
+      // 2**31 concurrent readers should be enough for anyone
+      static const uint32_t is_writing = static_cast<uint32_t>(1) << 31;
+      static const uint32_t readers_mask = ~is_writing;
+   };
 
 }
 
@@ -4841,9 +4556,35 @@ class Semaphore final
   #define BOTAN_SIMD_USE_NEON
 
 #else
+  #error "No SIMD instruction set enabled"
+#endif
+
+#if defined(BOTAN_SIMD_USE_SSE2)
+  #define BOTAN_SIMD_ISA "sse2"
+  #define BOTAN_VPERM_ISA "ssse3"
+  #define BOTAN_CLMUL_ISA "pclmul"
+#elif defined(BOTAN_SIMD_USE_NEON)
+  #if defined(BOTAN_TARGET_ARCH_IS_ARM64)
+    #define BOTAN_SIMD_ISA "+simd"
+    #define BOTAN_CLMUL_ISA "+crypto"
+  #else
+    #define BOTAN_SIMD_ISA "fpu=neon"
+  #endif
+  #define BOTAN_VPERM_ISA BOTAN_SIMD_ISA
+#elif defined(BOTAN_SIMD_USE_ALTIVEC)
+  #define BOTAN_SIMD_ISA "altivec"
+  #define BOTAN_VPERM_ISA "altivec"
 #endif
 
 namespace Botan {
+
+#if defined(BOTAN_SIMD_USE_SSE2)
+   typedef __m128i native_simd_type;
+#elif defined(BOTAN_SIMD_USE_ALTIVEC)
+   typedef __vector unsigned int native_simd_type;
+#elif defined(BOTAN_SIMD_USE_NEON)
+   typedef uint32x4_t native_simd_type;
+#endif
 
 /**
 * 4x32 bit SIMD register
@@ -4871,16 +4612,11 @@ class SIMD_4x32 final
       SIMD_4x32() // zero initialized
          {
 #if defined(BOTAN_SIMD_USE_SSE2)
-         m_sse = _mm_setzero_si128();
+         m_simd = _mm_setzero_si128();
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
-         m_vmx = vec_splat_u32(0);
+         m_simd = vec_splat_u32(0);
 #elif defined(BOTAN_SIMD_USE_NEON)
-         m_neon = vdupq_n_u32(0);
-#else
-         m_scalar[0] = 0;
-         m_scalar[1] = 0;
-         m_scalar[2] = 0;
-         m_scalar[3] = 0;
+         m_simd = vdupq_n_u32(0);
 #endif
          }
 
@@ -4890,16 +4626,12 @@ class SIMD_4x32 final
       explicit SIMD_4x32(const uint32_t B[4])
          {
 #if defined(BOTAN_SIMD_USE_SSE2)
-         m_sse = _mm_loadu_si128(reinterpret_cast<const __m128i*>(B));
+         m_simd = _mm_loadu_si128(reinterpret_cast<const __m128i*>(B));
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
-         m_vmx = (__vector unsigned int){B[0], B[1], B[2], B[3]};
+         __vector unsigned int val = { B[0], B[1], B[2], B[3]};
+         m_simd = val;
 #elif defined(BOTAN_SIMD_USE_NEON)
-         m_neon = vld1q_u32(B);
-#else
-         m_scalar[0] = B[0];
-         m_scalar[1] = B[1];
-         m_scalar[2] = B[2];
-         m_scalar[3] = B[3];
+         m_simd = vld1q_u32(B);
 #endif
          }
 
@@ -4909,18 +4641,14 @@ class SIMD_4x32 final
       SIMD_4x32(uint32_t B0, uint32_t B1, uint32_t B2, uint32_t B3)
          {
 #if defined(BOTAN_SIMD_USE_SSE2)
-         m_sse = _mm_set_epi32(B3, B2, B1, B0);
+         m_simd = _mm_set_epi32(B3, B2, B1, B0);
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
-         m_vmx = (__vector unsigned int){B0, B1, B2, B3};
+         __vector unsigned int val = {B0, B1, B2, B3};
+         m_simd = val;
 #elif defined(BOTAN_SIMD_USE_NEON)
          // Better way to do this?
          const uint32_t B[4] = { B0, B1, B2, B3 };
-         m_neon = vld1q_u32(B);
-#else
-         m_scalar[0] = B0;
-         m_scalar[1] = B1;
-         m_scalar[2] = B2;
-         m_scalar[3] = B3;
+         m_simd = vld1q_u32(B);
 #endif
          }
 
@@ -4931,10 +4659,25 @@ class SIMD_4x32 final
          {
 #if defined(BOTAN_SIMD_USE_SSE2)
          return SIMD_4x32(_mm_set1_epi32(B));
-#elif defined(BOTAN_SIMD_USE_ARM)
+#elif defined(BOTAN_SIMD_USE_NEON)
          return SIMD_4x32(vdupq_n_u32(B));
 #else
          return SIMD_4x32(B, B, B, B);
+#endif
+         }
+
+      /**
+      * Load SIMD register with one 8-bit element repeated
+      */
+      static SIMD_4x32 splat_u8(uint8_t B)
+         {
+#if defined(BOTAN_SIMD_USE_SSE2)
+         return SIMD_4x32(_mm_set1_epi8(B));
+#elif defined(BOTAN_SIMD_USE_NEON)
+         return SIMD_4x32(vreinterpretq_u32_u8(vdupq_n_u8(B)));
+#else
+         const uint32_t B4 = make_uint32(B, B, B, B);
+         return SIMD_4x32(B4, B4, B4, B4);
 #endif
          }
 
@@ -4946,19 +4689,12 @@ class SIMD_4x32 final
 #if defined(BOTAN_SIMD_USE_SSE2)
          return SIMD_4x32(_mm_loadu_si128(reinterpret_cast<const __m128i*>(in)));
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
-
          uint32_t R[4];
          Botan::load_le(R, static_cast<const uint8_t*>(in), 4);
          return SIMD_4x32(R);
-
 #elif defined(BOTAN_SIMD_USE_NEON)
-
          SIMD_4x32 l(vld1q_u32(static_cast<const uint32_t*>(in)));
          return CPUID::is_big_endian() ? l.bswap() : l;
-#else
-         SIMD_4x32 out;
-         Botan::load_le(out.m_scalar, static_cast<const uint8_t*>(in), 4);
-         return out;
 #endif
          }
 
@@ -4968,25 +4704,27 @@ class SIMD_4x32 final
       static SIMD_4x32 load_be(const void* in)
          {
 #if defined(BOTAN_SIMD_USE_SSE2)
-
          return load_le(in).bswap();
 
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
-
          uint32_t R[4];
          Botan::load_be(R, static_cast<const uint8_t*>(in), 4);
          return SIMD_4x32(R);
 
 #elif defined(BOTAN_SIMD_USE_NEON)
-
          SIMD_4x32 l(vld1q_u32(static_cast<const uint32_t*>(in)));
          return CPUID::is_little_endian() ? l.bswap() : l;
-
-#else
-         SIMD_4x32 out;
-         Botan::load_be(out.m_scalar, static_cast<const uint8_t*>(in), 4);
-         return out;
 #endif
+         }
+
+      void store_le(uint32_t out[4]) const
+         {
+         this->store_le(reinterpret_cast<uint8_t*>(out));
+         }
+
+      void store_le(uint64_t out[2]) const
+         {
+         this->store_le(reinterpret_cast<uint8_t*>(out));
          }
 
       /**
@@ -4996,7 +4734,7 @@ class SIMD_4x32 final
          {
 #if defined(BOTAN_SIMD_USE_SSE2)
 
-         _mm_storeu_si128(reinterpret_cast<__m128i*>(out), m_sse);
+         _mm_storeu_si128(reinterpret_cast<__m128i*>(out), raw());
 
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
 
@@ -5004,21 +4742,18 @@ class SIMD_4x32 final
             __vector unsigned int V;
             uint32_t R[4];
             } vec;
-         vec.V = m_vmx;
+         vec.V = raw();
          Botan::store_le(out, vec.R[0], vec.R[1], vec.R[2], vec.R[3]);
 
 #elif defined(BOTAN_SIMD_USE_NEON)
-
-         if(CPUID::is_big_endian())
+         if(CPUID::is_little_endian())
             {
-            bswap().store_le(out);
+            vst1q_u8(out, vreinterpretq_u8_u32(m_simd));
             }
          else
             {
-            vst1q_u8(out, vreinterpretq_u8_u32(m_neon));
+            vst1q_u8(out, vreinterpretq_u8_u32(bswap().m_simd));
             }
-#else
-         Botan::store_le(out, m_scalar[0], m_scalar[1], m_scalar[2], m_scalar[3]);
 #endif
          }
 
@@ -5037,25 +4772,20 @@ class SIMD_4x32 final
             __vector unsigned int V;
             uint32_t R[4];
             } vec;
-         vec.V = m_vmx;
+         vec.V = m_simd;
          Botan::store_be(out, vec.R[0], vec.R[1], vec.R[2], vec.R[3]);
 
 #elif defined(BOTAN_SIMD_USE_NEON)
-
          if(CPUID::is_little_endian())
             {
-            bswap().store_le(out);
+            vst1q_u8(out, vreinterpretq_u8_u32(bswap().m_simd));
             }
          else
             {
-            vst1q_u8(out, vreinterpretq_u8_u32(m_neon));
+            vst1q_u8(out, vreinterpretq_u8_u32(m_simd));
             }
-
-#else
-         Botan::store_be(out, m_scalar[0], m_scalar[1], m_scalar[2], m_scalar[3]);
 #endif
          }
-
 
       /*
       * This is used for SHA-2/SHACAL2
@@ -5080,46 +4810,32 @@ class SIMD_4x32 final
 
 #if defined(BOTAN_SIMD_USE_SSE2)
 
-         return SIMD_4x32(_mm_or_si128(_mm_slli_epi32(m_sse, static_cast<int>(ROT)),
-                                       _mm_srli_epi32(m_sse, static_cast<int>(32-ROT))));
+         return SIMD_4x32(_mm_or_si128(_mm_slli_epi32(m_simd, static_cast<int>(ROT)),
+                                       _mm_srli_epi32(m_simd, static_cast<int>(32-ROT))));
 
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
 
          const unsigned int r = static_cast<unsigned int>(ROT);
-         return SIMD_4x32(vec_rl(m_vmx, (__vector unsigned int){r, r, r, r}));
+         __vector unsigned int rot = {r, r, r, r};
+         return SIMD_4x32(vec_rl(m_simd, rot));
 
 #elif defined(BOTAN_SIMD_USE_NEON)
 
-         #if defined(BOTAN_TARGET_ARCH_IS_ARM32)
-
-         return SIMD_4x32(vorrq_u32(vshlq_n_u32(m_neon, static_cast<int>(ROT)),
-                                    vshrq_n_u32(m_neon, static_cast<int>(32-ROT))));
-
-         #else
+#if defined(BOTAN_TARGET_ARCH_IS_ARM64)
 
          BOTAN_IF_CONSTEXPR(ROT == 8)
             {
             const uint8_t maskb[16] = { 3,0,1,2, 7,4,5,6, 11,8,9,10, 15,12,13,14 };
             const uint8x16_t mask = vld1q_u8(maskb);
-            return SIMD_4x32(vreinterpretq_u32_u8(vqtbl1q_u8(vreinterpretq_u8_u32(m_neon), mask)));
+            return SIMD_4x32(vreinterpretq_u32_u8(vqtbl1q_u8(vreinterpretq_u8_u32(m_simd), mask)));
             }
          else BOTAN_IF_CONSTEXPR(ROT == 16)
             {
-            return SIMD_4x32(vreinterpretq_u32_u16(vrev32q_u16(vreinterpretq_u16_u32(m_neon))));
+            return SIMD_4x32(vreinterpretq_u32_u16(vrev32q_u16(vreinterpretq_u16_u32(m_simd))));
             }
-         else
-            {
-            return SIMD_4x32(vorrq_u32(vshlq_n_u32(m_neon, static_cast<int>(ROT)),
-                                       vshrq_n_u32(m_neon, static_cast<int>(32-ROT))));
-            }
-
-         #endif
-
-#else
-         return SIMD_4x32(Botan::rotl<ROT>(m_scalar[0]),
-                          Botan::rotl<ROT>(m_scalar[1]),
-                          Botan::rotl<ROT>(m_scalar[2]),
-                          Botan::rotl<ROT>(m_scalar[3]));
+#endif
+         return SIMD_4x32(vorrq_u32(vshlq_n_u32(m_simd, static_cast<int>(ROT)),
+                                    vshrq_n_u32(m_simd, static_cast<int>(32-ROT))));
 #endif
          }
 
@@ -5185,130 +4901,98 @@ class SIMD_4x32 final
       void operator+=(const SIMD_4x32& other)
          {
 #if defined(BOTAN_SIMD_USE_SSE2)
-         m_sse = _mm_add_epi32(m_sse, other.m_sse);
+         m_simd = _mm_add_epi32(m_simd, other.m_simd);
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
-         m_vmx = vec_add(m_vmx, other.m_vmx);
+         m_simd = vec_add(m_simd, other.m_simd);
 #elif defined(BOTAN_SIMD_USE_NEON)
-         m_neon = vaddq_u32(m_neon, other.m_neon);
-#else
-         m_scalar[0] += other.m_scalar[0];
-         m_scalar[1] += other.m_scalar[1];
-         m_scalar[2] += other.m_scalar[2];
-         m_scalar[3] += other.m_scalar[3];
+         m_simd = vaddq_u32(m_simd, other.m_simd);
 #endif
          }
 
       void operator-=(const SIMD_4x32& other)
          {
 #if defined(BOTAN_SIMD_USE_SSE2)
-         m_sse = _mm_sub_epi32(m_sse, other.m_sse);
+         m_simd = _mm_sub_epi32(m_simd, other.m_simd);
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
-         m_vmx = vec_sub(m_vmx, other.m_vmx);
+         m_simd = vec_sub(m_simd, other.m_simd);
 #elif defined(BOTAN_SIMD_USE_NEON)
-         m_neon = vsubq_u32(m_neon, other.m_neon);
-#else
-         m_scalar[0] -= other.m_scalar[0];
-         m_scalar[1] -= other.m_scalar[1];
-         m_scalar[2] -= other.m_scalar[2];
-         m_scalar[3] -= other.m_scalar[3];
+         m_simd = vsubq_u32(m_simd, other.m_simd);
 #endif
          }
 
       void operator^=(const SIMD_4x32& other)
          {
 #if defined(BOTAN_SIMD_USE_SSE2)
-         m_sse = _mm_xor_si128(m_sse, other.m_sse);
+         m_simd = _mm_xor_si128(m_simd, other.m_simd);
 
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
-         m_vmx = vec_xor(m_vmx, other.m_vmx);
+         m_simd = vec_xor(m_simd, other.m_simd);
 #elif defined(BOTAN_SIMD_USE_NEON)
-         m_neon = veorq_u32(m_neon, other.m_neon);
-#else
-         m_scalar[0] ^= other.m_scalar[0];
-         m_scalar[1] ^= other.m_scalar[1];
-         m_scalar[2] ^= other.m_scalar[2];
-         m_scalar[3] ^= other.m_scalar[3];
+         m_simd = veorq_u32(m_simd, other.m_simd);
 #endif
          }
 
       void operator|=(const SIMD_4x32& other)
          {
 #if defined(BOTAN_SIMD_USE_SSE2)
-         m_sse = _mm_or_si128(m_sse, other.m_sse);
+         m_simd = _mm_or_si128(m_simd, other.m_simd);
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
-         m_vmx = vec_or(m_vmx, other.m_vmx);
+         m_simd = vec_or(m_simd, other.m_simd);
 #elif defined(BOTAN_SIMD_USE_NEON)
-         m_neon = vorrq_u32(m_neon, other.m_neon);
-#else
-         m_scalar[0] |= other.m_scalar[0];
-         m_scalar[1] |= other.m_scalar[1];
-         m_scalar[2] |= other.m_scalar[2];
-         m_scalar[3] |= other.m_scalar[3];
+         m_simd = vorrq_u32(m_simd, other.m_simd);
 #endif
          }
 
       void operator&=(const SIMD_4x32& other)
          {
 #if defined(BOTAN_SIMD_USE_SSE2)
-         m_sse = _mm_and_si128(m_sse, other.m_sse);
+         m_simd = _mm_and_si128(m_simd, other.m_simd);
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
-         m_vmx = vec_and(m_vmx, other.m_vmx);
+         m_simd = vec_and(m_simd, other.m_simd);
 #elif defined(BOTAN_SIMD_USE_NEON)
-         m_neon = vandq_u32(m_neon, other.m_neon);
-#else
-         m_scalar[0] &= other.m_scalar[0];
-         m_scalar[1] &= other.m_scalar[1];
-         m_scalar[2] &= other.m_scalar[2];
-         m_scalar[3] &= other.m_scalar[3];
+         m_simd = vandq_u32(m_simd, other.m_simd);
 #endif
          }
 
 
       template<int SHIFT> SIMD_4x32 shl() const
          {
+         static_assert(SHIFT > 0 && SHIFT <= 31, "Invalid shift count");
+
 #if defined(BOTAN_SIMD_USE_SSE2)
-         return SIMD_4x32(_mm_slli_epi32(m_sse, SHIFT));
+         return SIMD_4x32(_mm_slli_epi32(m_simd, SHIFT));
 
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
          const unsigned int s = static_cast<unsigned int>(SHIFT);
-         return SIMD_4x32(vec_sl(m_vmx, (__vector unsigned int){s, s, s, s}));
+         const __vector unsigned int shifts = {s, s, s, s};
+         return SIMD_4x32(vec_sl(m_simd, shifts));
 #elif defined(BOTAN_SIMD_USE_NEON)
-         return SIMD_4x32(vshlq_n_u32(m_neon, SHIFT));
-#else
-         return SIMD_4x32(m_scalar[0] << SHIFT,
-                          m_scalar[1] << SHIFT,
-                          m_scalar[2] << SHIFT,
-                          m_scalar[3] << SHIFT);
+         return SIMD_4x32(vshlq_n_u32(m_simd, SHIFT));
 #endif
          }
 
       template<int SHIFT> SIMD_4x32 shr() const
          {
 #if defined(BOTAN_SIMD_USE_SSE2)
-         return SIMD_4x32(_mm_srli_epi32(m_sse, SHIFT));
+         return SIMD_4x32(_mm_srli_epi32(m_simd, SHIFT));
 
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
          const unsigned int s = static_cast<unsigned int>(SHIFT);
-         return SIMD_4x32(vec_sr(m_vmx, (__vector unsigned int){s, s, s, s}));
+         const __vector unsigned int shifts = {s, s, s, s};
+         return SIMD_4x32(vec_sr(m_simd, shifts));
 #elif defined(BOTAN_SIMD_USE_NEON)
-         return SIMD_4x32(vshrq_n_u32(m_neon, SHIFT));
-#else
-         return SIMD_4x32(m_scalar[0] >> SHIFT, m_scalar[1] >> SHIFT,
-                          m_scalar[2] >> SHIFT, m_scalar[3] >> SHIFT);
-
+         return SIMD_4x32(vshrq_n_u32(m_simd, SHIFT));
 #endif
          }
 
       SIMD_4x32 operator~() const
          {
 #if defined(BOTAN_SIMD_USE_SSE2)
-         return SIMD_4x32(_mm_xor_si128(m_sse, _mm_set1_epi32(0xFFFFFFFF)));
+         return SIMD_4x32(_mm_xor_si128(m_simd, _mm_set1_epi32(0xFFFFFFFF)));
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
-         return SIMD_4x32(vec_nor(m_vmx, m_vmx));
+         return SIMD_4x32(vec_nor(m_simd, m_simd));
 #elif defined(BOTAN_SIMD_USE_NEON)
-         return SIMD_4x32(vmvnq_u32(m_neon));
-#else
-         return SIMD_4x32(~m_scalar[0], ~m_scalar[1], ~m_scalar[2], ~m_scalar[3]);
+         return SIMD_4x32(vmvnq_u32(m_simd));
 #endif
          }
 
@@ -5316,21 +5000,16 @@ class SIMD_4x32 final
       SIMD_4x32 andc(const SIMD_4x32& other) const
          {
 #if defined(BOTAN_SIMD_USE_SSE2)
-         return SIMD_4x32(_mm_andnot_si128(m_sse, other.m_sse));
+         return SIMD_4x32(_mm_andnot_si128(m_simd, other.m_simd));
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
          /*
          AltiVec does arg1 & ~arg2 rather than SSE's ~arg1 & arg2
          so swap the arguments
          */
-         return SIMD_4x32(vec_andc(other.m_vmx, m_vmx));
+         return SIMD_4x32(vec_andc(other.m_simd, m_simd));
 #elif defined(BOTAN_SIMD_USE_NEON)
          // NEON is also a & ~b
-         return SIMD_4x32(vbicq_u32(other.m_neon, m_neon));
-#else
-         return SIMD_4x32((~m_scalar[0]) & other.m_scalar[0],
-                          (~m_scalar[1]) & other.m_scalar[1],
-                          (~m_scalar[2]) & other.m_scalar[2],
-                          (~m_scalar[3]) & other.m_scalar[3]);
+         return SIMD_4x32(vbicq_u32(other.m_simd, m_simd));
 #endif
          }
 
@@ -5341,7 +5020,7 @@ class SIMD_4x32 final
          {
 #if defined(BOTAN_SIMD_USE_SSE2)
 
-         __m128i T = m_sse;
+         __m128i T = m_simd;
          T = _mm_shufflehi_epi16(T, _MM_SHUFFLE(2, 3, 0, 1));
          T = _mm_shufflelo_epi16(T, _MM_SHUFFLE(2, 3, 0, 1));
          return SIMD_4x32(_mm_or_si128(_mm_srli_epi16(T, 8), _mm_slli_epi16(T, 8)));
@@ -5353,20 +5032,56 @@ class SIMD_4x32 final
             uint32_t R[4];
             } vec;
 
-         vec.V = m_vmx;
+         vec.V = m_simd;
          bswap_4(vec.R);
          return SIMD_4x32(vec.R[0], vec.R[1], vec.R[2], vec.R[3]);
 
 #elif defined(BOTAN_SIMD_USE_NEON)
+         return SIMD_4x32(vreinterpretq_u32_u8(vrev32q_u8(vreinterpretq_u8_u32(m_simd))));
+#endif
+         }
 
-         return SIMD_4x32(vreinterpretq_u32_u8(vrev32q_u8(vreinterpretq_u8_u32(m_neon))));
+      template<size_t I>
+      SIMD_4x32 shift_elems_left() const
+         {
+         static_assert(I <= 3, "Invalid shift count");
 
-#else
-         // scalar
-         return SIMD_4x32(reverse_bytes(m_scalar[0]),
-                          reverse_bytes(m_scalar[1]),
-                          reverse_bytes(m_scalar[2]),
-                          reverse_bytes(m_scalar[3]));
+#if defined(BOTAN_SIMD_USE_SSE2)
+         return SIMD_4x32(_mm_slli_si128(raw(), 4*I));
+#elif defined(BOTAN_SIMD_USE_NEON)
+         return SIMD_4x32(vextq_u32(vdupq_n_u32(0), raw(), 4-I));
+#elif defined(BOTAN_SIMD_USE_ALTIVEC)
+         const __vector unsigned int zero = vec_splat_u32(0);
+
+         const __vector unsigned char shuf[3] = {
+            { 16, 17, 18, 19, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 },
+            { 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5, 6, 7 },
+            { 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 0, 1, 2, 3 },
+         };
+
+         return SIMD_4x32(vec_perm(raw(), zero, shuf[I-1]));
+#endif
+         }
+
+      template<size_t I>
+      SIMD_4x32 shift_elems_right() const
+         {
+         static_assert(I <= 3, "Invalid shift count");
+
+#if defined(BOTAN_SIMD_USE_SSE2)
+         return SIMD_4x32(_mm_srli_si128(raw(), 4*I));
+#elif defined(BOTAN_SIMD_USE_NEON)
+         return SIMD_4x32(vextq_u32(raw(), vdupq_n_u32(0), I));
+#elif defined(BOTAN_SIMD_USE_ALTIVEC)
+         const __vector unsigned int zero = vec_splat_u32(0);
+
+         const __vector unsigned char shuf[3] = {
+            { 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 },
+            { 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23 },
+            { 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27 },
+         };
+
+         return SIMD_4x32(vec_perm(raw(), zero, shuf[I-1]));
 #endif
          }
 
@@ -5377,86 +5092,55 @@ class SIMD_4x32 final
                             SIMD_4x32& B2, SIMD_4x32& B3)
          {
 #if defined(BOTAN_SIMD_USE_SSE2)
-         const __m128i T0 = _mm_unpacklo_epi32(B0.m_sse, B1.m_sse);
-         const __m128i T1 = _mm_unpacklo_epi32(B2.m_sse, B3.m_sse);
-         const __m128i T2 = _mm_unpackhi_epi32(B0.m_sse, B1.m_sse);
-         const __m128i T3 = _mm_unpackhi_epi32(B2.m_sse, B3.m_sse);
+         const __m128i T0 = _mm_unpacklo_epi32(B0.m_simd, B1.m_simd);
+         const __m128i T1 = _mm_unpacklo_epi32(B2.m_simd, B3.m_simd);
+         const __m128i T2 = _mm_unpackhi_epi32(B0.m_simd, B1.m_simd);
+         const __m128i T3 = _mm_unpackhi_epi32(B2.m_simd, B3.m_simd);
 
-         B0.m_sse = _mm_unpacklo_epi64(T0, T1);
-         B1.m_sse = _mm_unpackhi_epi64(T0, T1);
-         B2.m_sse = _mm_unpacklo_epi64(T2, T3);
-         B3.m_sse = _mm_unpackhi_epi64(T2, T3);
+         B0.m_simd = _mm_unpacklo_epi64(T0, T1);
+         B1.m_simd = _mm_unpackhi_epi64(T0, T1);
+         B2.m_simd = _mm_unpacklo_epi64(T2, T3);
+         B3.m_simd = _mm_unpackhi_epi64(T2, T3);
 #elif defined(BOTAN_SIMD_USE_ALTIVEC)
-         const __vector unsigned int T0 = vec_mergeh(B0.m_vmx, B2.m_vmx);
-         const __vector unsigned int T1 = vec_mergeh(B1.m_vmx, B3.m_vmx);
-         const __vector unsigned int T2 = vec_mergel(B0.m_vmx, B2.m_vmx);
-         const __vector unsigned int T3 = vec_mergel(B1.m_vmx, B3.m_vmx);
+         const __vector unsigned int T0 = vec_mergeh(B0.m_simd, B2.m_simd);
+         const __vector unsigned int T1 = vec_mergeh(B1.m_simd, B3.m_simd);
+         const __vector unsigned int T2 = vec_mergel(B0.m_simd, B2.m_simd);
+         const __vector unsigned int T3 = vec_mergel(B1.m_simd, B3.m_simd);
 
-         B0.m_vmx = vec_mergeh(T0, T1);
-         B1.m_vmx = vec_mergel(T0, T1);
-         B2.m_vmx = vec_mergeh(T2, T3);
-         B3.m_vmx = vec_mergel(T2, T3);
-#elif defined(BOTAN_SIMD_USE_NEON)
+         B0.m_simd = vec_mergeh(T0, T1);
+         B1.m_simd = vec_mergel(T0, T1);
+         B2.m_simd = vec_mergeh(T2, T3);
+         B3.m_simd = vec_mergel(T2, T3);
 
-#if defined(BOTAN_TARGET_ARCH_IS_ARM32)
-
-         const uint32x4x2_t T0 = vzipq_u32(B0.m_neon, B2.m_neon);
-         const uint32x4x2_t T1 = vzipq_u32(B1.m_neon, B3.m_neon);
+#elif defined(BOTAN_SIMD_USE_NEON) && defined(BOTAN_TARGET_ARCH_IS_ARM32)
+         const uint32x4x2_t T0 = vzipq_u32(B0.m_simd, B2.m_simd);
+         const uint32x4x2_t T1 = vzipq_u32(B1.m_simd, B3.m_simd);
          const uint32x4x2_t O0 = vzipq_u32(T0.val[0], T1.val[0]);
          const uint32x4x2_t O1 = vzipq_u32(T0.val[1], T1.val[1]);
 
-         B0.m_neon = O0.val[0];
-         B1.m_neon = O0.val[1];
-         B2.m_neon = O1.val[0];
-         B3.m_neon = O1.val[1];
+         B0.m_simd = O0.val[0];
+         B1.m_simd = O0.val[1];
+         B2.m_simd = O1.val[0];
+         B3.m_simd = O1.val[1];
 
-#elif defined(BOTAN_TARGET_ARCH_IS_ARM64)
-         const uint32x4_t T0 = vzip1q_u32(B0.m_neon, B2.m_neon);
-         const uint32x4_t T2 = vzip2q_u32(B0.m_neon, B2.m_neon);
+#elif defined(BOTAN_SIMD_USE_NEON) && defined(BOTAN_TARGET_ARCH_IS_ARM64)
+         const uint32x4_t T0 = vzip1q_u32(B0.m_simd, B2.m_simd);
+         const uint32x4_t T2 = vzip2q_u32(B0.m_simd, B2.m_simd);
+         const uint32x4_t T1 = vzip1q_u32(B1.m_simd, B3.m_simd);
+         const uint32x4_t T3 = vzip2q_u32(B1.m_simd, B3.m_simd);
 
-         const uint32x4_t T1 = vzip1q_u32(B1.m_neon, B3.m_neon);
-         const uint32x4_t T3 = vzip2q_u32(B1.m_neon, B3.m_neon);
-
-         B0.m_neon = vzip1q_u32(T0, T1);
-         B1.m_neon = vzip2q_u32(T0, T1);
-
-         B2.m_neon = vzip1q_u32(T2, T3);
-         B3.m_neon = vzip2q_u32(T2, T3);
-#endif
-
-#else
-         // scalar
-         SIMD_4x32 T0(B0.m_scalar[0], B1.m_scalar[0], B2.m_scalar[0], B3.m_scalar[0]);
-         SIMD_4x32 T1(B0.m_scalar[1], B1.m_scalar[1], B2.m_scalar[1], B3.m_scalar[1]);
-         SIMD_4x32 T2(B0.m_scalar[2], B1.m_scalar[2], B2.m_scalar[2], B3.m_scalar[2]);
-         SIMD_4x32 T3(B0.m_scalar[3], B1.m_scalar[3], B2.m_scalar[3], B3.m_scalar[3]);
-
-         B0 = T0;
-         B1 = T1;
-         B2 = T2;
-         B3 = T3;
+         B0.m_simd = vzip1q_u32(T0, T1);
+         B1.m_simd = vzip2q_u32(T0, T1);
+         B2.m_simd = vzip1q_u32(T2, T3);
+         B3.m_simd = vzip2q_u32(T2, T3);
 #endif
          }
 
+      native_simd_type raw() const BOTAN_FUNC_ISA(BOTAN_SIMD_ISA) { return m_simd; }
+
+      explicit SIMD_4x32(native_simd_type x) : m_simd(x) {}
    private:
-
-#if defined(BOTAN_SIMD_USE_SSE2)
-      explicit SIMD_4x32(__m128i in) : m_sse(in) {}
-#elif defined(BOTAN_SIMD_USE_ALTIVEC)
-      explicit SIMD_4x32(__vector unsigned int in) : m_vmx(in) {}
-#elif defined(BOTAN_SIMD_USE_NEON)
-      explicit SIMD_4x32(uint32x4_t in) : m_neon(in) {}
-#endif
-
-#if defined(BOTAN_SIMD_USE_SSE2)
-      __m128i m_sse;
-#elif defined(BOTAN_SIMD_USE_ALTIVEC)
-      __vector unsigned int m_vmx;
-#elif defined(BOTAN_SIMD_USE_NEON)
-      uint32x4_t m_neon;
-#else
-      uint32_t m_scalar[4];
-#endif
+      native_simd_type m_simd;
    };
 
 }
@@ -5506,6 +5190,64 @@ std::unique_ptr<Socket>
 BOTAN_TEST_API open_socket(const std::string& hostname,
                            const std::string& service,
                            std::chrono::milliseconds timeout);
+
+} // OS
+} // Botan
+
+namespace Botan {
+
+namespace OS {
+
+/*
+* This header is internal (not installed) and these functions are not
+* intended to be called by applications. However they are given public
+* visibility (using BOTAN_TEST_API macro) for the tests. This also probably
+* allows them to be overridden by the application on ELF systems, but
+* this hasn't been tested.
+*/
+
+
+/**
+* A wrapper around a simple blocking UDP socket
+*/
+class BOTAN_TEST_API SocketUDP
+   {
+   public:
+      /**
+      * The socket will be closed upon destruction
+      */
+      virtual ~SocketUDP() = default;
+
+      /**
+      * Write to the socket. Returns immediately.
+      * Throws on error.
+      */
+      virtual void write(const uint8_t buf[], size_t len) = 0;
+
+      /**
+      * Reads up to len bytes, returns bytes written to buf.
+      * Returns 0 on EOF. Throws on error.
+      */
+      virtual size_t read(uint8_t buf[], size_t len) = 0;
+   };
+
+/**
+* Open up a socket. Will throw on error. Returns null if sockets are
+* not available on this platform.
+*/
+std::unique_ptr<SocketUDP>
+BOTAN_TEST_API open_socket_udp(const std::string& hostname,
+                               const std::string& service,
+                               std::chrono::microseconds timeout);
+
+/**
+* Open up a socket. Will throw on error. Returns null if sockets are
+* not available on this platform.
+*/
+std::unique_ptr<SocketUDP>
+BOTAN_TEST_API open_socket_udp(const std::string& uri,
+                               std::chrono::microseconds timeout);
+
 
 } // OS
 } // Botan
@@ -6047,6 +5789,8 @@ class Handshake_IO
 
       virtual std::vector<uint8_t> send(const Handshake_Message& msg) = 0;
 
+      virtual std::vector<uint8_t> send_under_epoch(const Handshake_Message& msg, uint16_t epoch) = 0;
+
       virtual bool timeout_check() = 0;
 
       virtual std::vector<uint8_t> format(
@@ -6089,6 +5833,8 @@ class Stream_Handshake_IO final : public Handshake_IO
 
       std::vector<uint8_t> send(const Handshake_Message& msg) override;
 
+      std::vector<uint8_t> send_under_epoch(const Handshake_Message& msg, uint16_t epoch) override;
+
       std::vector<uint8_t> format(
          const std::vector<uint8_t>& handshake_msg,
          Handshake_Type handshake_type) const override;
@@ -6129,6 +5875,8 @@ class Datagram_Handshake_IO final : public Handshake_IO
       bool timeout_check() override;
 
       std::vector<uint8_t> send(const Handshake_Message& msg) override;
+
+      std::vector<uint8_t> send_under_epoch(const Handshake_Message& msg, uint16_t epoch) override;
 
       std::vector<uint8_t> format(
          const std::vector<uint8_t>& handshake_msg,
@@ -6748,93 +6496,74 @@ class Connection_Cipher_State final
       size_t m_nonce_bytes_from_record;
    };
 
-class Record final
+class Record_Header final
    {
    public:
-      Record(secure_vector<uint8_t>& data,
-             uint64_t* sequence,
-             Protocol_Version* protocol_version,
-             Record_Type* type)
-         : m_data(data), m_sequence(sequence), m_protocol_version(protocol_version),
-           m_type(type), m_size(data.size()) {}
+      Record_Header(uint64_t sequence,
+                    Protocol_Version version,
+                    Record_Type type) :
+         m_needed(0),
+         m_sequence(sequence),
+         m_version(version),
+         m_type(type)
+         {}
 
-      secure_vector<uint8_t>& get_data() { return m_data; }
+      Record_Header(size_t needed) :
+         m_needed(needed),
+         m_sequence(0),
+         m_version(Protocol_Version()),
+         m_type(NO_RECORD)
+         {}
 
-      Protocol_Version* get_protocol_version() { return m_protocol_version; }
+      size_t needed() const { return m_needed; }
 
-      uint64_t* get_sequence() { return m_sequence; }
+      Protocol_Version version() const
+         {
+         BOTAN_ASSERT_NOMSG(m_needed == 0);
+         return m_version;
+         }
 
-      Record_Type* get_type() { return m_type; }
+      uint64_t sequence() const
+         {
+         BOTAN_ASSERT_NOMSG(m_needed == 0);
+         return m_sequence;
+         }
 
-      size_t& get_size() { return m_size; }
+      uint16_t epoch() const
+         {
+         return static_cast<uint16_t>(sequence() >> 48);
+         }
+
+      Record_Type type() const
+         {
+         BOTAN_ASSERT_NOMSG(m_needed == 0);
+         return m_type;
+         }
 
    private:
-      secure_vector<uint8_t>& m_data;
-      uint64_t* m_sequence;
-      Protocol_Version* m_protocol_version;
-      Record_Type* m_type;
-      size_t m_size;
-   };
-
-class Record_Message final
-   {
-   public:
-      Record_Message(const uint8_t* data, size_t size)
-         : m_type(0), m_sequence(0), m_data(data), m_size(size) {}
-      Record_Message(uint8_t type, uint64_t sequence, const uint8_t* data, size_t size)
-         : m_type(type), m_sequence(sequence), m_data(data),
-           m_size(size) {}
-
-      uint8_t& get_type() { return m_type; }
-      uint64_t& get_sequence() { return m_sequence; }
-      const uint8_t* get_data() { return m_data; }
-      size_t& get_size() { return m_size; }
-
-   private:
-      uint8_t m_type;
+      size_t m_needed;
       uint64_t m_sequence;
-      const uint8_t* m_data;
-      size_t m_size;
-};
-
-class Record_Raw_Input final
-   {
-   public:
-      Record_Raw_Input(const uint8_t* data, size_t size, size_t& consumed,
-                       bool is_datagram)
-         : m_data(data), m_size(size), m_consumed(consumed),
-           m_is_datagram(is_datagram) {}
-
-      const uint8_t*& get_data() { return m_data; }
-
-      size_t& get_size() { return m_size; }
-
-      size_t& get_consumed() { return m_consumed; }
-      void set_consumed(size_t consumed) { m_consumed = consumed; }
-
-      bool is_datagram() { return m_is_datagram; }
-
-   private:
-      const uint8_t* m_data;
-      size_t m_size;
-      size_t& m_consumed;
-      bool m_is_datagram;
+      Protocol_Version m_version;
+      Record_Type m_type;
    };
-
 
 /**
 * Create a TLS record
 * @param write_buffer the output record is placed here
-* @param rec_msg is the plaintext message
-* @param version is the protocol version
-* @param msg_sequence is the sequence number
+* @param record_type the record layer type
+* @param record_version the record layer version
+* @param record_sequence the record layer sequence number
+* @param message the record contents
+* @param message_len is size of message
 * @param cipherstate is the writing cipher state
 * @param rng is a random number generator
 */
 void write_record(secure_vector<uint8_t>& write_buffer,
-                  Record_Message rec_msg,
-                  Protocol_Version version,
-                  uint64_t msg_sequence,
+                  uint8_t record_type,
+                  Protocol_Version record_version,
+                  uint64_t record_sequence,
+                  const uint8_t* message,
+                  size_t message_len,
                   Connection_Cipher_State* cipherstate,
                   RandomNumberGenerator& rng);
 
@@ -6845,11 +6574,15 @@ typedef std::function<std::shared_ptr<Connection_Cipher_State> (uint16_t)> get_c
 * Decode a TLS record
 * @return zero if full message, else number of bytes still needed
 */
-size_t read_record(secure_vector<uint8_t>& read_buffer,
-                   Record_Raw_Input& raw_input,
-                   Record& rec,
-                   Connection_Sequence_Numbers* sequence_numbers,
-                   get_cipherstate_fn get_cipherstate);
+Record_Header read_record(bool is_datagram,
+                          secure_vector<uint8_t>& read_buffer,
+                          const uint8_t input[],
+                          size_t input_len,
+                          size_t& consumed,
+                          secure_vector<uint8_t>& record_buf,
+                          Connection_Sequence_Numbers* sequence_numbers,
+                          get_cipherstate_fn get_cipherstate,
+                          bool allow_epoch0_restart);
 
 }
 
@@ -6875,11 +6608,23 @@ class Connection_Sequence_Numbers
 
       virtual bool already_seen(uint64_t seq) const = 0;
       virtual void read_accept(uint64_t seq) = 0;
+
+      virtual void reset() = 0;
    };
 
 class Stream_Sequence_Numbers final : public Connection_Sequence_Numbers
    {
    public:
+      Stream_Sequence_Numbers() { Stream_Sequence_Numbers::reset(); }
+
+      void reset() override
+         {
+         m_write_seq_no = 0;
+         m_read_seq_no = 0;
+         m_read_epoch = 0;
+         m_write_epoch = 0;
+         }
+
       void new_read_cipher_state() override { m_read_seq_no = 0; m_read_epoch++; }
       void new_write_cipher_state() override { m_write_seq_no = 0; m_write_epoch++; }
 
@@ -6891,17 +6636,28 @@ class Stream_Sequence_Numbers final : public Connection_Sequence_Numbers
 
       bool already_seen(uint64_t) const override { return false; }
       void read_accept(uint64_t) override { m_read_seq_no++; }
+
    private:
-      uint64_t m_write_seq_no = 0;
-      uint64_t m_read_seq_no = 0;
-      uint16_t m_read_epoch = 0;
-      uint16_t m_write_epoch = 0;
+      uint64_t m_write_seq_no;
+      uint64_t m_read_seq_no;
+      uint16_t m_read_epoch;
+      uint16_t m_write_epoch;
    };
 
 class Datagram_Sequence_Numbers final : public Connection_Sequence_Numbers
    {
    public:
-      Datagram_Sequence_Numbers() { m_write_seqs[0] = 0; }
+      Datagram_Sequence_Numbers() { Datagram_Sequence_Numbers::reset(); }
+
+      void reset() override
+         {
+         m_write_seqs.clear();
+         m_write_seqs[0] = 0;
+         m_write_epoch = 0;
+         m_read_epoch = 0;
+         m_window_highest = 0;
+         m_window_bits = 0;
+         }
 
       void new_read_cipher_state() override { m_read_epoch++; }
 
@@ -6977,6 +6733,41 @@ class Datagram_Sequence_Numbers final : public Connection_Sequence_Numbers
    };
 
 }
+
+}
+
+
+namespace Botan {
+
+struct BOTAN_TEST_API URI
+   {
+   enum class Type : uint8_t
+      {
+      NotSet,
+      IPv4,
+      IPv6,
+      Domain,
+      };
+   static URI fromAny(const std::string& uri);
+   static URI fromIPv4(const std::string& uri);
+   static URI fromIPv6(const std::string& uri);
+   static URI fromDomain(const std::string& uri);
+   URI() = default;
+   URI(Type type, const std::string& host, unsigned short port)
+      : type { type }
+      , host { host }
+      , port { port }
+      {}
+   bool operator==(const URI& a) const
+      {
+      return type == a.type && host == a.host && port == a.port;
+      }
+   std::string to_string() const;
+
+   const Type type{Type::NotSet};
+   const std::string host{};
+   const uint16_t port{};
+   };
 
 }
 
@@ -7153,7 +6944,7 @@ class XMSS_Signature_Operation final : public virtual PK_Ops::Signature,
 
       XMSS_PrivateKey m_priv_key;
       secure_vector<uint8_t> m_randomness;
-      size_t m_leaf_idx;
+      uint32_t m_leaf_idx;
       bool m_is_initialized;
    };
 

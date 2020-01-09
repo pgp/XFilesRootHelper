@@ -66,7 +66,7 @@ std::vector<uint8_t> rh_computeHash_dir(
         while(it.next()) {
             if(it.currentEfd == 1) {
                 rh_computeHash(it.getCurrent(),algo,dirHasher);
-                PRINTUNIFIEDERROR("current shared_ptr count: %d\n",dirHasher.use_count()); // TODO check, should be constant, NOT increasing
+                // PRINTUNIFIEDERROR("current shared_ptr count: %d\n",dirHasher.use_count()); // should be constant, NOT increasing
             }
         }
         auto result = dirHasher->final();
@@ -79,7 +79,6 @@ template<typename STR>
 std::vector<uint8_t> rh_computeHash_wrapper(
         const STR& path,
         const std::string& algo) {
-    // TODO in IDirIterator::efdL, add logic for WIN32
     auto efd = IDirIterator<STR>::efdL(path);
     return (efd == 'd' || efd == 'L')?rh_computeHash_dir(path,algo):rh_computeHash(path,algo);
 }
