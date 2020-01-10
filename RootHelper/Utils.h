@@ -5,6 +5,7 @@
 #include "common_win.h"
 #endif
 
+#include "path_utils.h"
 #include "iowrappers_common.h"
 #include <unordered_map>
 #include <stack>
@@ -47,84 +48,6 @@ std::string getExtSeparator() {
 
 #endif
 
-
-// PGP
-std::string wchar_to_UTF8(const std::wstring& in_) {
-    const wchar_t* in = in_.c_str();
-    std::string out;
-    unsigned int codepoint = 0;
-    for (;*in != 0;++in)
-    {
-        if (*in >= 0xd800 && *in <= 0xdbff)
-            codepoint = ((*in - 0xd800) << 10) + 0x10000;
-        else
-        {
-            if (*in >= 0xdc00 && *in <= 0xdfff)
-                codepoint |= *in - 0xdc00;
-            else
-                codepoint = *in;
-
-            if (codepoint <= 0x7f)
-                out.append(1, static_cast<char>(codepoint));
-            else if (codepoint <= 0x7ff)
-            {
-                out.append(1, static_cast<char>(0xc0 | ((codepoint >> 6) & 0x1f)));
-                out.append(1, static_cast<char>(0x80 | (codepoint & 0x3f)));
-            }
-            else if (codepoint <= 0xffff)
-            {
-                out.append(1, static_cast<char>(0xe0 | ((codepoint >> 12) & 0x0f)));
-                out.append(1, static_cast<char>(0x80 | ((codepoint >> 6) & 0x3f)));
-                out.append(1, static_cast<char>(0x80 | (codepoint & 0x3f)));
-            }
-            else
-            {
-                out.append(1, static_cast<char>(0xf0 | ((codepoint >> 18) & 0x07)));
-                out.append(1, static_cast<char>(0x80 | ((codepoint >> 12) & 0x3f)));
-                out.append(1, static_cast<char>(0x80 | ((codepoint >> 6) & 0x3f)));
-                out.append(1, static_cast<char>(0x80 | (codepoint & 0x3f)));
-            }
-            codepoint = 0;
-        }
-    }
-    return out;
-}
-
-std::wstring UTF8_to_wchar(const std::string& in_) {
-    const char* in = in_.c_str();
-    std::wstring out;
-    unsigned int codepoint;
-    while (*in != 0)
-    {
-        auto ch = static_cast<unsigned char>(*in);
-        if (ch <= 0x7f)
-            codepoint = ch;
-        else if (ch <= 0xbf)
-            codepoint = (codepoint << 6) | (ch & 0x3f);
-        else if (ch <= 0xdf)
-            codepoint = ch & 0x1f;
-        else if (ch <= 0xef)
-            codepoint = ch & 0x0f;
-        else
-            codepoint = ch & 0x07;
-        ++in;
-        if (((*in & 0xc0) != 0x80) && (codepoint <= 0x10ffff))
-        {
-            if (sizeof(wchar_t) > 2)
-                out.append(1, static_cast<wchar_t>(codepoint));
-            else if (codepoint > 0xffff)
-            {
-                out.append(1, static_cast<wchar_t>(0xd800 + (codepoint >> 10)));
-                out.append(1, static_cast<wchar_t>(0xdc00 + (codepoint & 0x03ff)));
-            }
-            else if (codepoint < 0xd800 || codepoint >= 0xe000)
-                out.append(1, static_cast<wchar_t>(codepoint));
-        }
-    }
-    return out;
-}
-// PGP
-
 #define TICKS_PER_SECOND 10000000
 #define EPOCH_DIFFERENCE 11644473600LL
 time_t convertWindowsTimeToUnixTime(long long int input){
@@ -134,41 +57,7 @@ time_t convertWindowsTimeToUnixTime(long long int input){
     return (time_t) temp;
 }
 
-/********************* Windows-only ************************/
-#ifdef _WIN32
-std::wstring unixToWindowsPath(std::string s) {
-    if(s.empty()) return L"";
-    if (s[0] != '/') {
-        PRINTUNIFIEDERROR("'/' expected in Unix-to-Windows conversion path\n");
-        exit(-1);
-    }
-    const char* s_ = s.c_str();
-    std::string rpl(s_+1);
-    std::replace(rpl.begin(),rpl.end(),'/','\\');
 
-    return UTF8_to_wchar(rpl);
-}
-
-std::string windowsToUnixPath(const std::wstring& ws) {
-    if(ws.empty()) return "";
-    std::string s = std::string("/") + wchar_to_UTF8(ws);
-    std::replace(s.begin(),s.end(),'\\','/');
-    return s;
-}
-#endif
-/*********************************************/
-
-#ifdef _WIN32
-#define FROMUNIXPATH(s) (unixToWindowsPath((s)))
-#define TOUNIXPATH(s) (windowsToUnixPath((s)))
-#define FROMUTF(s) (UTF8_to_wchar(s))
-#define TOUTF(s) (wchar_to_UTF8(s))
-#else
-#define FROMUNIXPATH(s) (s)
-#define TOUNIXPATH(s) (s)
-#define FROMUTF(s) (s)
-#define TOUTF(s) (s)
-#endif
 
 template<typename T>
 #ifdef _WIN32
@@ -371,13 +260,6 @@ STR getFilenameFromFullPath(const STR& fullPath) {
 }
 
 #ifdef _WIN32
-
-std::wstring pathConcat(const std::wstring& dir, const std::wstring& filename) {
-    wchar_t last = dir[dir.size()-1];
-    if (last == L'\\') return dir + filename;
-    else return dir + std::wstring(L"\\") + filename;
-}
-
 std::wstring getParentDir(std::wstring child) {
     if (!(((child[0] >= L'A' && child[0] <= L'Z') || (child[0] >= L'a' && child[0] <= L'z')) && child[1]==L':')) {
         std::wcerr<<L"[getParentDir] invalid child path: "<<child<<std::endl;
@@ -387,9 +269,7 @@ std::wstring getParentDir(std::wstring child) {
     if (last < 0) return L""; // FIXME ambiguity on windows (PC root path VS error)
     return child.substr(0, last);
 }
-
 #else
-
 std::string getParentDir(const std::string& child) {
     auto sep = getSystemPathSeparator();
     if (child == sep) return "";
@@ -397,13 +277,6 @@ std::string getParentDir(const std::string& child) {
     if (last < 0) return ""; // TODO to be tested (shouldn't give problems where already used anyway, only wrong error code)
     return child.substr(0, last);
 }
-
-std::string pathConcat(const std::string& dir, const std::string& filename) {
-    if (dir.back()=='/') // non-standard path, ending with '/'
-        return dir + filename;
-    else return dir+"/"+filename;
-}
-
 #endif
 
 // 0: file, 1: folder, FF: end of list
@@ -1276,7 +1149,7 @@ int createRandomFile(const STR& path, uint64_t size) {
     const char *algo = "SHA-256";
 
     size_t digestSize = shaParams.at(algo);
-    size_t blockSize = (1048576UL/digestSize)*digestSize; // round to multiple of sha digest size
+    size_t blockSize = (HASH_BLOCK_SIZE/digestSize)*digestSize; // round to multiple of sha digest size
     size_t blocks = size/blockSize;
     size_t lastBlockSize = size % blockSize;
 
@@ -1323,10 +1196,9 @@ int createRandomFile(const STR& path, uint64_t size) {
 template<typename STR>
 int createRandomFile(const STR& path, uint64_t size) {
     size_t written=0,consumed=0;
-    constexpr unsigned blockSize = 1048576;
-    constexpr unsigned halfblockSize = blockSize/2;
+    constexpr unsigned halfblockSize = HASH_BLOCK_SIZE/2;
     constexpr unsigned keySize = 32;
-    std::vector<uint8_t> inout(blockSize,0);
+    std::vector<uint8_t> inout(HASH_BLOCK_SIZE,0);
 
     uint8_t* p1 = &inout[0];
     uint8_t* p2 = p1+halfblockSize;
@@ -1347,8 +1219,8 @@ int createRandomFile(const STR& path, uint64_t size) {
     if(!fd) return fd.error;
 
     /********* quotient + remainder IO loop *********/
-    uint64_t quotient = size / blockSize;
-    uint64_t remainder = size % blockSize;
+    uint64_t quotient = size / HASH_BLOCK_SIZE;
+    uint64_t remainder = size % HASH_BLOCK_SIZE;
 
     PRINTUNIFIED("[Create random file] Chunk info: quotient is %" PRIu64 ", remainder is %" PRIu64 "\n",quotient,remainder);
 
@@ -1361,7 +1233,7 @@ int createRandomFile(const STR& path, uint64_t size) {
         botan_cipher_start(enc, nullptr, 0);
         botan_cipher_update(enc, BOTAN_CIPHER_UPDATE_FLAG_FINAL, p1, halfblockSize, &written, p2, halfblockSize, &consumed);
 
-        fd.writeAllOrExit(p1,blockSize);
+        fd.writeAllOrExit(p1,HASH_BLOCK_SIZE);
     }
 
     if (remainder != 0) { // there can be at most one block encrypted with same key

@@ -1,3 +1,5 @@
+#include <utility>
+
 #ifndef IDIRITERATOR_H
 #define IDIRITERATOR_H
 
@@ -5,6 +7,7 @@
 #include "../common_win.h"
 #endif
 
+#include "../path_utils.h"
 #include <iostream>
 #include <string>
 #include <cstring>
@@ -14,6 +17,7 @@
 #include <sstream>
 #include <stack>
 #include <memory>
+#include <regex>
 
 typedef enum {
     FULL,
@@ -41,6 +45,9 @@ protected:
     //~ const bool recursiveListing;
     const ListingMode recursiveListing;
     const bool sortCurrentLevelByName;
+    const std::regex filter;
+    const bool filterEnabled;
+    std::cmatch filterMatch;
 public:
     int error = 0; // set to errno in case of directory opening error
     char currentEfd;
@@ -79,13 +86,15 @@ public:
                  IterationMode mode_,
                  bool provideFilenames_ = true,
                  ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS,
-                 bool sortCurrentLevelByName_ = false
-                 ) :
+                 bool sortCurrentLevelByName_ = false,
+                 std::string filterPattern_ = "") :
             dir(dir_),
             mode(mode_),
             provideFilenames(provideFilenames_),
             recursiveListing(recursiveListing_),
-            sortCurrentLevelByName(sortCurrentLevelByName_) {}
+            sortCurrentLevelByName(sortCurrentLevelByName_),
+            filter(std::regex(filterPattern_)),
+            filterEnabled(!filterPattern_.empty()) {}
 
     virtual ~IDirIterator() = default; // necessary, otherwise subclasses destructor won't be called (type resolution is on assigned pointer, which is of type IDirIterator)
 

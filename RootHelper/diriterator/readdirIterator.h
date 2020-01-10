@@ -87,6 +87,7 @@ private:
                 std::stringstream ss;
                 ss<<current<<"/"<<d->d_name; // path concat
                 auto cItem_ = ss.str();
+                if(filterEnabled && !std::regex_match(d->d_name,filterMatch,filter)) continue;
                 currentLevel.emplace_back(ss.str(),std::string(d->d_name));
             }
             std::sort(currentLevel.begin(),currentLevel.end(),IDirIterator::defaultPairComparator);
@@ -103,6 +104,7 @@ private:
                 std::stringstream ss;
                 ss<<current<<"/"<<d->d_name; // path concat
                 // PRINTUNIFIED("+ adding to stack: %s\n",ss.str().c_str());
+                if(filterEnabled && !std::regex_match(d->d_name,filterMatch,filter)) continue;
                 S.push(ss.str());
                 if (provideFilenames) NamesOnly->push(std::string(d->d_name));
             }
@@ -116,8 +118,9 @@ public:
                     IterationMode mode_,
                     bool provideFilenames_ = true,
                     ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS,
-                    bool sortCurrentLevelByName_ = false) :
-            IDirIterator(dir_,mode_,provideFilenames_,recursiveListing_,sortCurrentLevelByName_) {
+                    bool sortCurrentLevelByName_ = false,
+                    std::string filterPattern_ = "") :
+            IDirIterator(dir_,mode_,provideFilenames_,recursiveListing_,sortCurrentLevelByName_,std::move(filterPattern_)) {
 
         if(provideFilenames) NamesOnly = new std::stack<std::string>();
 
@@ -209,8 +212,9 @@ public:
                                    IterationMode mode_,
                                    bool provideFilenames_ = true,
                                    ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS,
-                                   bool sortCurrentLevelByName_ = false) {
-        return {dir_,mode_,provideFilenames_,recursiveListing_,sortCurrentLevelByName_};
+                                   bool sortCurrentLevelByName_ = false,
+                                   std::string filterPattern_ = "") {
+        return {dir_,mode_,provideFilenames_,recursiveListing_,sortCurrentLevelByName_,std::move(filterPattern_)};
     }
 };
 

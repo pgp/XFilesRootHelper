@@ -1,11 +1,14 @@
 #ifndef RH_HASHER_H
 #define RH_HASHER_H
 
+#include "path_utils.h"
 #include "botan_all.h"
 #include "desc/FileDescriptorFactory.h"
 #include "diriterator/IdirIterator.h"
 
-#define HASH_BLOCK_SIZE 1048576
+#include <unordered_set>
+
+constexpr uint32_t HASH_BLOCK_SIZE = 1048576;
 
 const std::vector<uint8_t> rh_emptyHash;
 
@@ -56,17 +59,28 @@ std::vector<uint8_t> rh_computeHash_dir(
         bool withNames = false,
         bool ignoreThumbsFiles = true,
         bool ignoreUnixHiddenFiles = true, // filenames starting with '.'
-        bool ignoreEmptyDirs = true // parameter used only if withNames is true
+        bool ignoreEmptyDirs = true // parameter used only if withNames is true // TODO to be implemented
         ) {
-    const std::string thumbsnames[] = {"Thumbs.db", ".DS_Store"};
+    const std::unordered_set<std::string> thumbsnames {"Thumbs.db", ".DS_Store"};
 
     std::shared_ptr<Botan::HashFunction> dirHasher(Botan::HashFunction::create(algo));
-    auto&& it = itf.createIterator(filePath,FULL,true,RECURSIVE,true); // enforce dir ordering on every listing during DFS
+    auto&& it = itf.createIterator(filePath,RELATIVE_WITHOUT_BASE,true,RECURSIVE,true,
+                                   (ignoreUnixHiddenFiles?"^[^.].+":"")); // enforce dir ordering on every listing during DFS // TODO check regex
     if(it) {
         while(it.next()) {
             if(it.currentEfd == 1) {
-                rh_computeHash(it.getCurrent(),algo,dirHasher);
+                if(ignoreThumbsFiles && thumbsnames.count(it.getCurrentFilename()) != 0) continue;
+                if(ignoreUnixHiddenFiles && TOUTF(it.getCurrentFilename())[0] == '.') continue;
+                auto&& currentFile = pathConcat(filePath, it.getCurrent());
+                rh_computeHash(currentFile,algo,dirHasher); // open file using absolute path
                 // PRINTUNIFIEDERROR("current shared_ptr count: %d\n",dirHasher.use_count()); // should be constant, NOT increasing
+
+                if(withNames) {
+                    // allows to compare filenames on windows and unix not by OS encoding (useless) but using UTF-8  as reference encoding
+                    auto&& currentRelPathName = TOUNIXPATH(it.getCurrent()); // accumulate relative pathnames into hash state
+                    dirHasher->update(currentRelPathName);
+                }
+
             }
         }
         auto result = dirHasher->final();

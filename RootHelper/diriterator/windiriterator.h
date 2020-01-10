@@ -51,6 +51,7 @@ private:
                     // Plain, no recursion
                     std::wcout<<L"Current file path: "<<currentFilePath<<L"\tCurrent filename: "<<currentFileName<<std::endl;
 
+                    if(filterEnabled && !std::regex_match(TOUTF(currentFileName),filterMatch,filter)) continue;
                     currentLevel.emplace_back(currentFilePath,currentFileName);
                     // S.push(currentFilePath);
                     // if (provideFilenames) NamesOnly->push(currentFileName);
@@ -77,7 +78,7 @@ private:
 
                     // Plain, no recursion
                     std::wcout<<L"Current file path: "<<currentFilePath<<L"\tCurrent filename: "<<currentFileName<<std::endl;
-
+                    if(filterEnabled && !std::regex_match(TOUTF(currentFileName),filterMatch,filter)) continue;
                     S.push(currentFilePath);
                     if (provideFilenames) NamesOnly->push(currentFileName);
                 }
@@ -94,8 +95,9 @@ public:
                    IterationMode mode_,
                    bool provideFilenames_ = true,
                    ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS,
-                   bool sortCurrentLevelByName_ = false) :
-            IDirIterator(dir_,mode_,provideFilenames_,recursiveListing_,sortCurrentLevelByName_) { // TODO discriminate between RECURSIVE and RECURSIVE_FOLLOW_SYMLINKS
+                   bool sortCurrentLevelByName_ = false,
+                   std::string filterPattern_ = "") :
+            IDirIterator(dir_,mode_,provideFilenames_,recursiveListing_,sortCurrentLevelByName_,std::move(filterPattern_)) { // TODO discriminate between RECURSIVE and RECURSIVE_FOLLOW_SYMLINKS
 
         if(provideFilenames) NamesOnly = new std::stack<std::wstring>();
 
@@ -175,8 +177,9 @@ public:
     windirIterator createIterator(std::wstring dir_,IterationMode mode_,
                                   bool provideFilenames_ = true,
                                   ListingMode recursiveListing_ = RECURSIVE_FOLLOW_SYMLINKS,
-                                  bool sortCurrentLevelByName_ = false) {
-        return {dir_,mode_,provideFilenames_,recursiveListing_,sortCurrentLevelByName_};
+                                  bool sortCurrentLevelByName_ = false,
+                                  std::string filterPattern_ = "") {
+        return {dir_,mode_,provideFilenames_,recursiveListing_,sortCurrentLevelByName_,std::move(filterPattern_)};
     }
 };
 
