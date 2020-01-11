@@ -50,8 +50,11 @@ private:
 
                     // Plain, no recursion
                     std::wcout<<L"Current file path: "<<currentFilePath<<L"\tCurrent filename: "<<currentFileName<<std::endl;
-
-                    if(filterEnabled && !std::regex_match(TOUTF(currentFileName),filterMatch,filter)) continue;
+                    
+                    if(filterEnabled) {
+                        auto&& cf = TOUTF(currentFileName);
+                        if(!std::regex_match(cf.c_str(),filterMatch,filter)) continue;
+                    }
                     currentLevel.emplace_back(currentFilePath,currentFileName);
                     // S.push(currentFilePath);
                     // if (provideFilenames) NamesOnly->push(currentFileName);
@@ -78,7 +81,10 @@ private:
 
                     // Plain, no recursion
                     std::wcout<<L"Current file path: "<<currentFilePath<<L"\tCurrent filename: "<<currentFileName<<std::endl;
-                    if(filterEnabled && !std::regex_match(TOUTF(currentFileName),filterMatch,filter)) continue;
+                    if(filterEnabled) {
+                        auto&& cf = TOUTF(currentFileName);
+                        if(!std::regex_match(cf.c_str(),filterMatch,filter)) continue;
+                    }
                     S.push(currentFilePath);
                     if (provideFilenames) NamesOnly->push(currentFileName);
                 }

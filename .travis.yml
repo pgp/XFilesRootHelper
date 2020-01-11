@@ -13,7 +13,7 @@ matrix:
             - libx11-dev
       env:
          - TARGETTING_ANDROID=false
-         - MATRIX_EVAL="CC=gcc-8 && CXX=g++-8 && cd CMAKE && cmake -H. -Bbuild" 
+         - MATRIX_EVAL="export CC=gcc-8 && export CXX=g++-8 && cd CMAKE && cmake -H. -Bbuild" 
     
     - os: linux
       addons:
