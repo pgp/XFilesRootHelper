@@ -28,42 +28,41 @@ constexpr int MAX_CLIENTS = 20; // 10 short ops, 10 longterm ops sessions
 #include "af_unix_utils.h"
 #endif
 
-// action table // TODO these are to be considered 5-bit indicative codes, choose if 3 bits are MSBs or LSBs
-#define ACTION_LS 0x01 // 1 input string (directory pathname)
-// COPY/MOVE: output directory pathname concatenated to array of input file pathnames TODO to be decided
-#define ACTION_MOVE 0x02
-#define ACTION_COPY 0x03
-#define ACTION_DELETE 0x04 // array of strings as input
-#define ACTION_STATS 0x05
-#define ACTION_COMPRESS 0x06 // output file pathname concatenated to array of input files pathnames
-#define ACTION_EXTRACT 0X07
-#define ACTION_EXISTS 0X08 // exists? / is file ? is directory ? based upon flag bits (3 INDEPENDENT bits - semantically not independent, since is file true means file exists)
-#define ACTION_CREATE 0X09 // create file or directory based upon flag bits
-#define ACTION_HASH 0x0A
-#define ACTION_FIND 0x0B
-#define ACTION_KILL 0x0C
-#define ACTION_GETPID 0X0D
+// action table: 5-bit codes, plus 3 flag bits (MSBs)
+constexpr uint8_t ACTION_LS = 0x01; // 1 input string (directory pathname)
+constexpr uint8_t ACTION_MOVE = 0x02;
+constexpr uint8_t ACTION_COPY = 0x03;
+constexpr uint8_t ACTION_DELETE = 0x04; // array of strings as input
+constexpr uint8_t ACTION_STATS = 0x05;
+constexpr uint8_t ACTION_COMPRESS = 0x06; // output file pathname concatenated to array of input files pathnames
+constexpr uint8_t ACTION_EXTRACT = 0X07;
+constexpr uint8_t ACTION_EXISTS = 0X08; // exists? / is file ? is directory ? based upon flag bits (3 INDEPENDENT bits - semantically not independent, since is file true means file exists)
+constexpr uint8_t ACTION_CREATE = 0X09; // create file or directory based upon flag bits
+constexpr uint8_t ACTION_HASH = 0x0A;
+constexpr uint8_t ACTION_FIND = 0x0B;
+constexpr uint8_t ACTION_KILL = 0x0C;
+constexpr uint8_t ACTION_GETPID = 0X0D;
 //~ #define ACTION_FORK 0x0E
-#define ACTION_FILE_IO 0x0F // flags: 000 - client sends stream (written to file), 111 - client receives stream (read from file)
+constexpr uint8_t ACTION_FILE_IO = 0x0F; // flags: 000 - client sends stream (written to file), 111 - client receives stream (read from file)
 
-#define ACTION_DOWNLOAD 0x10
+constexpr uint8_t ACTION_DOWNLOAD = 0x10;
 constexpr uint8_t ACTION_UPLOAD = 0x11; // flags: 000 - receive list of path pairs, 111 - receive file descriptors over UDS (one by one)
 
-#define REMOTE_SERVER_MANAGEMENT 0x12 // flags: 010 - get status, 111 - start, 101 - start with announce, 000 - stop
+constexpr uint8_t REMOTE_SERVER_MANAGEMENT = 0x12; // flags: 010 - get status, 111 - start, 101 - start with announce, 000 - stop
 
-#define REMOTE_CONNECT 0x14
+constexpr uint8_t REMOTE_CONNECT = 0x14;
 
-#define ACTION_SETATTRIBUTES 0x15 // TODO can be merged into another related action code, eg. ACTION_CREATE
+constexpr uint8_t ACTION_SETATTRIBUTES = 0x15; // TODO can be merged into another related action code, eg. ACTION_CREATE
 
-#define ACTION_SSH_KEYGEN 0x16
+constexpr uint8_t ACTION_SSH_KEYGEN = 0x16;
 
-#define ACTION_LINK 0x17
+constexpr uint8_t ACTION_LINK = 0x17;
 
-#define ACTION_HTTPS_URL_DOWNLOAD 0x18
+constexpr uint8_t ACTION_HTTPS_URL_DOWNLOAD = 0x18;
 
 // use 1-string of 5 bits (0x1F = 31 = 11111b)
 // action: exit or cancel (flags: 000 exit, 111: cancel)
-#define ACTION_EXIT 0x1F // cannot use 0x00 as exit request code, since a client connecting and disconnecting without sending any request will appear as if it has sent 0x00 (FIN byte?)
+constexpr uint8_t ACTION_EXIT = 0x1F; // cannot use 0x00 as exit request code, since a client connecting and disconnecting without sending any request will appear as if it has sent 0x00 (FIN byte?)
 
 #define NULL_OR_WRONG_PASSWORD 0x101010
 #define CRC_FAILED 0x03 // from internal 7-zip error codes
@@ -83,7 +82,7 @@ constexpr uint8_t ACTION_UPLOAD = 0x11; // flags: 000 - receive list of path pai
  * B    FIND IN FILENAMES AND/OR CONTENT
  * C    KILL ANOTHER PROCESS
  * D    GET PID OF THIS PROCESS
- * E	FORK ANOTHER ROOTHELPER PROCESS
+ * E    FORK ANOTHER ROOTHELPER PROCESS
  */
 
 typedef struct {

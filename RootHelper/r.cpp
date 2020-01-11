@@ -1748,13 +1748,12 @@ void client_upload(IDescriptor& cl, IDescriptor& rcl) {
 
 // client DOWNLOADS from server
 void client_download(IDescriptor& cl, IDescriptor& rcl) {
-	static constexpr uint8_t down_rq = ACTION_DOWNLOAD;
 	// receive list of source-destination path pairs from cl
 	std::vector<std::pair<std::string,std::string>> v = receivePathPairsList(cl);
 	
 	// send "client download" request to server
     AutoFlushBufferedWriteDescriptor afrcl(rcl);
-    afrcl.writeAllOrExit(&down_rq, sizeof(uint8_t));
+    afrcl.writeAllOrExit(&ACTION_DOWNLOAD, sizeof(uint8_t));
 	
 	// send list of path pairs (files and maybe-not-empty folders)
 	// receive back items with type flag, file full path, size and content, till list end
