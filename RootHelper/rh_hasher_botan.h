@@ -61,7 +61,7 @@ std::vector<uint8_t> rh_computeHash_dir(
         bool ignoreUnixHiddenFiles = true, // filenames starting with '.'
         bool ignoreEmptyDirs = true // parameter used only if withNames is true // TODO to be implemented
         ) {
-    const std::unordered_set<std::string> thumbsnames {"Thumbs.db", ".DS_Store"};
+    const std::unordered_set<STR> thumbsnames {FROMUTF("Thumbs.db"), FROMUTF(".DS_Store")};
 
     std::shared_ptr<Botan::HashFunction> dirHasher(Botan::HashFunction::create(algo));
     auto&& it = itf.createIterator(filePath,RELATIVE_WITHOUT_BASE,true,RECURSIVE,true,
