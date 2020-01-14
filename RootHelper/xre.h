@@ -101,7 +101,7 @@ void tlsServerSessionEventLoop(RingBuffer& inRb, Botan::TLS::Server& server) {
                     break;
                 case ACTION_DOWNLOAD:
                     // client sends DOWNLOAD action, server has to UPLOAD data
-                    server_download(rcl);
+                    server_download(rcl, STRNAMESPACE());
                     break;
                 case ACTION_UPLOAD:
                     // client sends UPLOAD action, server has to DOWNLOAD data

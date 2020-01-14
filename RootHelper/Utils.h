@@ -1071,19 +1071,15 @@ int genericUploadBasicRecursiveImplWithProgress(const STR& src_path, // local pa
 
 // server handles DOWNLOAD request sent by client, that is: server UPLOADS to client
 // FIXME rhss_checkAccess not performed here, because depends from listDir access on GUI (unauthorized requests can be crafted though)
-void server_download(IDescriptor& rcl) {
+template<typename STR>
+void server_download(IDescriptor& rcl, const STR& strType) {
     // receive list of pathnames (files and maybe-not-empty folders)
     std::vector<std::pair<std::string,std::string>> v = receivePathPairsList(rcl);
 
-    // [cannot deduce template function, no input parameter of template type STR, revert to ifdef]
     // count all files in the selection
-#ifdef _WIN32
-//    std::unordered_map<std::wstring,sts> descendantCountMap; // LEGACY
-    std::unordered_map<std::wstring,sts_sz> descendantCountMap;
-#else
-//    std::unordered_map<std::string,sts> descendantCountMap; // LEGACY
-    std::unordered_map<std::string,sts_sz> descendantCountMap;
-#endif
+
+//    std::unordered_map<STR,sts> descendantCountMap; // LEGACY
+    std::unordered_map<STR,sts_sz> descendantCountMap;
 
 //    sts counts = {}; // no need to put this in the map // LEGACY
     sts_sz counts = {}; // no need to put this in the map
