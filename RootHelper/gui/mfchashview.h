@@ -118,9 +118,9 @@ void initGUIContext() {
         wcex.cbWndExtra     = 0;
         wcex.hInstance      = H;
         wcex.hIcon          = LoadIcon(H, IDI_APPLICATION);
-        wcex.hCursor        = LoadCursor(NULL, IDC_ARROW);
+        wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
         wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-        wcex.lpszMenuName   = NULL;
+        wcex.lpszMenuName   = nullptr;
         wcex.lpszClassName  = szWindowClass;
         wcex.hIconSm        = LoadIcon(wcex.hInstance, IDI_APPLICATION);
 
@@ -152,10 +152,10 @@ void runMFCSessionWithColorGrid(Botan::secure_vector<uint8_t> inBytes) {
             WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
             CW_USEDEFAULT, CW_USEDEFAULT,
             squareSize*gridSize, squareSize*gridSize,
-            NULL,
-            NULL,
+            nullptr,
+            nullptr,
             H,
-            NULL
+            nullptr
     );
 
     if (!hWnd)
