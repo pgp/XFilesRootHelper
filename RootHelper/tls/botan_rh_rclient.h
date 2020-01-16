@@ -244,7 +244,7 @@ public:
             eventLoopFn(std::ref(*this)); // TLS client interacts with local socket
         }
         catch (threadExitThrowable& i) {
-            PRINTUNIFIEDERROR("T1 Unconditional housekeeping and return");
+            PRINTUNIFIEDERROR("T1 Unconditional housekeeping and return\n");
             cleanup();
         }
 

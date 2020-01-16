@@ -139,7 +139,7 @@ void initGUIContext() {
     }
 }
 
-void runMFCSessionWithColorGrid(Botan::secure_vector<uint8_t> inBytes) {
+void runSessionWithColorGrid(Botan::secure_vector<uint8_t> inBytes) {
     initGUIContext();
 
     std::unique_ptr<Botan::HashFunction> sponge(new Botan::SHAKE_128(outBitsLen)); // ctor accepts bits, multiply by 8

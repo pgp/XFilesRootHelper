@@ -117,16 +117,13 @@ public:
                 exit(8563748);
             }
         }
-		else {
-			// use X11 (when available and enabled) or MFC to show hashview popup
-#ifdef _WIN32
-			std::thread hvThread(runMFCSessionWithColorGrid,sharedHash);
+        else {
+			// use X11 (when available and enabled) - or MFC on Windows - to show hashview popup
+            // beware, runSessionWithColorGrid resolves to
+            // two different functions with same name depending on the OS
+#if defined(_WIN32) || defined(USE_X11)
+			std::thread hvThread(runSessionWithColorGrid,sharedHash);
 			hvThread.detach();
-#else
-#ifdef USE_X11
-			std::thread hvThread(runX11SessionWithColorGrid,sharedHash);
-			hvThread.detach();
-#endif
 #endif
 		}
 
@@ -192,7 +189,7 @@ public:
 			cleanup();
 		}
 		catch (threadExitThrowable& i) {
-            PRINTUNIFIEDERROR("T1 Unconditional housekeeping and return");
+            PRINTUNIFIEDERROR("T1 Unconditional housekeeping and return\n");
             cleanup();
 		}
 		mainEventLoopThread.join();

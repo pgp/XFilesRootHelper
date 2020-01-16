@@ -76,7 +76,7 @@ void createAndShowSquareGridFromBytes(Display* dpy, int s, Window& win, size_t g
     }
 }
 
-void runX11SessionWithColorGrid(Botan::secure_vector<uint8_t> inBytes) {
+void runSessionWithColorGrid(Botan::secure_vector<uint8_t> inBytes) {
     constexpr size_t squareSize = 50;
     constexpr size_t gridSize = 16;
     constexpr size_t bpp = 3;
