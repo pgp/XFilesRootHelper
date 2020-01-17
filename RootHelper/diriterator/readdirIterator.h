@@ -162,11 +162,11 @@ public:
         listOnStack(Cdir_,dir);
     }
 
-    ~readdirIterator() {
+    ~readdirIterator() override {
         if (provideFilenames) delete NamesOnly;
     }
 
-    bool next() {
+    bool next() override {
         if (S.empty()) return false;
 
         current = S.top();

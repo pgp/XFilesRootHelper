@@ -41,11 +41,11 @@ public:
         other.desc = -1;
     }*/
 
-    virtual inline ssize_t read(void* buf, size_t count) override {return ::read(desc,buf,count);}
+    inline ssize_t read(void* buf, size_t count) override {return ::read(desc,buf,count);}
 
-    virtual inline ssize_t write(const void* buf, size_t count) override {return ::write(desc,buf,count);}
+    inline ssize_t write(const void* buf, size_t count) override {return ::write(desc,buf,count);}
 
-    virtual inline void close() override {::close(desc);}
+    inline void close() override {::close(desc);}
 };
 
 #endif /* POSIXDESCRIPTOR */

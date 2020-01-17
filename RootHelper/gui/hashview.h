@@ -9,7 +9,7 @@
 
 #define BITS_IN_BYTE 8
 
-std::vector<bool> bytesToBools(uint8_t* arr, size_t byteSize) {
+std::vector<bool> bytesToBools(const uint8_t* arr, size_t byteSize) {
     std::vector<bool> result(8*byteSize,false);
     for(int i = byteSize - 1; i >= 0; --i) {
         for(int bit = 0; bit < BITS_IN_BYTE; ++bit) {

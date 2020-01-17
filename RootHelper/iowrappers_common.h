@@ -37,7 +37,7 @@ std::string readStringWithByteLen(IDescriptor& desc) {
 }
 
 void writeStringWithLen(IDescriptor& desc, const std::string& s) {
-    uint16_t len = (uint16_t)(s.size());
+    auto len = (uint16_t)(s.size());
     desc.writeAllOrExit(&len,sizeof(uint16_t));
     desc.writeAllOrExit(s.c_str(),len);
 }
