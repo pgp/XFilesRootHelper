@@ -18,7 +18,7 @@ if(DEFINED USE_X11)
 endif()
 
 if(WIN32) # -O3 allows fast data transfer (order of Gbps)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3 -municode -mavx -Wl,--stack,67108864 -Wa,-mbig-obj")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -s -O3 -municode -mavx -Wl,--stack,67108864 -Wa,-mbig-obj")
 else()
 	if(DEFINED USE_X11)
 		if(X11_FOUND)
