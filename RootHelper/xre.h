@@ -93,30 +93,30 @@ void tlsServerSessionEventLoop(RingBuffer& inRb, Botan::TLS::Server& server) {
             PRINTUNIFIED("request 5-bits received:\t%u\n", rq.request);
             PRINTUNIFIED("request flags (3-bits) received:\t%u\n", rq.flags);
 
-            switch(rq.request) {
-                case ACTION_LS:
+            switch(static_cast<ControlCodes>(rq.request)) {
+                case ControlCodes::ACTION_LS:
                     if(rq.flags == 0) listDir(rcl);
                     else if (rq.flags == 2) retrieveHomePath(rcl);
                     else threadExit();
                     break;
-                case ACTION_DOWNLOAD:
+                case ControlCodes::ACTION_DOWNLOAD:
                     // client sends DOWNLOAD action, server has to UPLOAD data
                     server_download(rcl, STRNAMESPACE());
                     break;
-                case ACTION_UPLOAD:
+                case ControlCodes::ACTION_UPLOAD:
                     // client sends UPLOAD action, server has to DOWNLOAD data
                     downloadRemoteItems(rcl);
                     break;
-                case ACTION_CREATE:
+                case ControlCodes::ACTION_CREATE:
                     createFileOrDirectory(rcl,rq.flags);
                     break;
-                case ACTION_LINK:
+                case ControlCodes::ACTION_LINK:
                     createHardOrSoftLink(rcl,rq.flags);
                     break;
-                case ACTION_STATS:
+                case ControlCodes::ACTION_STATS:
                     stats(rcl,rq.flags);
                     break;
-                case ACTION_HASH:
+                case ControlCodes::ACTION_HASH:
                     hashFile(rcl);
                     break;
                 default: // unlike local ones do at the current time, remote sessions should serve more than one request... On wrong data received, close session and disconnect client

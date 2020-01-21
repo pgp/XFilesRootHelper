@@ -1733,7 +1733,8 @@ void client_upload(IDescriptor& cl, IDescriptor& rcl) {
 
     // No need for auto-flushing buffered descriptor here, genericUploadBasicRecursiveImplWithProgress and internal callees are already manually optimized
 	// send "client upload" request to server
-	rcl.writeAllOrExit(&ACTION_UPLOAD, sizeof(uint8_t));
+    auto x = static_cast<uint8_t>(ControlCodes::ACTION_UPLOAD);
+	rcl.writeAllOrExit(&x, sizeof(uint8_t));
 	
 	for (auto& item : v)
 		genericUploadBasicRecursiveImplWithProgress(item.first,item.second,rcl,&cl);
@@ -1753,7 +1754,8 @@ void client_download(IDescriptor& cl, IDescriptor& rcl) {
 	
 	// send "client download" request to server
     AutoFlushBufferedWriteDescriptor afrcl(rcl);
-    afrcl.writeAllOrExit(&ACTION_DOWNLOAD, sizeof(uint8_t));
+    auto x = static_cast<uint8_t>(ControlCodes::ACTION_DOWNLOAD);
+    afrcl.writeAllOrExit(&x, sizeof(uint8_t));
 	
 	// send list of path pairs (files and maybe-not-empty folders)
 	// receive back items with type flag, file full path, size and content, till list end
@@ -1779,11 +1781,11 @@ void client_download(IDescriptor& cl, IDescriptor& rcl) {
 
 // avoids forking, just for debug purposes
 void plainP7ZipSession(IDescriptor& cl, request_type rq) {
-    switch (rq.request) {
-        case ACTION_COMPRESS:
+    switch (static_cast<ControlCodes>(rq.request)) {
+        case ControlCodes::ACTION_COMPRESS:
             compressToArchive(cl,rq.flags);
             break;
-        case ACTION_EXTRACT:
+        case ControlCodes::ACTION_EXTRACT:
             extractFromArchive(cl);
             break;
         default:
@@ -1812,11 +1814,11 @@ void forkP7ZipSession(IDescriptor& cl, request_type rq) {
 	if (pid == 0) { // in child process
 		
 	try {
-	switch (rq.request) {
-		case ACTION_COMPRESS:
+	switch (static_cast<ControlCodes>(rq.request)) {
+	    case ControlCodes::ACTION_COMPRESS:
 			compressToArchive(cl, rq.flags);
 			break;
-		case ACTION_EXTRACT:
+		case ControlCodes::ACTION_EXTRACT:
 			extractFromArchive(cl);
 			break;
 		default:
@@ -1942,26 +1944,26 @@ void tlsClientSessionEventLoop(TLS_Client& client_wrapper) {
 		// read request from cl, propagate to rcl
 		request_type rq = {};
 		cl.readAllOrExit(&rq,sizeof(rq));
-		switch (rq.request) {
-			case ACTION_LS:
+		switch (static_cast<ControlCodes>(rq.request)) {
+		    case ControlCodes::ACTION_LS:
 				client_ls(cl,rcl,rq);
 				break;
-			case ACTION_CREATE:
+			case ControlCodes::ACTION_CREATE:
 				client_createFileOrDirectory(cl,rcl,rq);
 				break;
-			case ACTION_LINK:
+			case ControlCodes::ACTION_LINK:
 				client_createHardOrSoftLink(cl,rcl,rq);
 				break;
-			case ACTION_STATS:
+			case ControlCodes::ACTION_STATS:
 				client_stats(cl,rcl,rq);
 				break;
-			case ACTION_HASH:
+			case ControlCodes::ACTION_HASH:
 				client_hash(cl,rcl,rq);
 				break;
-			case ACTION_DOWNLOAD:
+			case ControlCodes::ACTION_DOWNLOAD:
 				client_download(cl,rcl);
 				break;
-			case ACTION_UPLOAD:
+			case ControlCodes::ACTION_UPLOAD:
                 if (rq.flags == 0)
                     client_upload(cl,rcl);
                 else
@@ -2114,36 +2116,36 @@ void ssh_keygen(IDescriptor& inOutDesc, uint8_t flags) {
 void serveRequest(int intcl, request_type rq) {
 	PosixDescriptor cl(intcl);
 	
-	switch (rq.request) {
-		case ACTION_COMPRESS:
-		case ACTION_EXTRACT:
+	switch (static_cast<ControlCodes>(rq.request)) {
+	    case ControlCodes::ACTION_COMPRESS:
+		case ControlCodes::ACTION_EXTRACT:
 			forkP7ZipSession(cl,rq);
 			break;
-		case ACTION_LS:
+		case ControlCodes::ACTION_LS:
 			listDirOrArchive(cl, rq.flags);
 			break;
-		case ACTION_COPY:
+		case ControlCodes::ACTION_COPY:
 			copyFileOrDirectoryFullNew(cl);
 			break;
-		case ACTION_MOVE:
+		case ControlCodes::ACTION_MOVE:
 			moveFileOrDirectory(cl, rq.flags);
 			break;
-		case ACTION_DELETE:
+		case ControlCodes::ACTION_DELETE:
 			deleteFile(cl);
 			break;
-		case ACTION_STATS:
+		case ControlCodes::ACTION_STATS:
 			stats(cl, rq.flags);
 			break;
-		case ACTION_EXISTS:
+		case ControlCodes::ACTION_EXISTS:
 			existsIsFileIsDir(cl, rq.flags);
 			break;
-		case ACTION_CREATE:
+		case ControlCodes::ACTION_CREATE:
 			createFileOrDirectory(cl, rq.flags);
 			break;
-		case ACTION_HASH:
+		case ControlCodes::ACTION_HASH:
 			hashFile(cl);
 			break;
-		case ACTION_FIND:
+		case ControlCodes::ACTION_FIND:
 			try {
 				findNamesAndContent(cl, rq.flags);
 			}
@@ -2152,35 +2154,35 @@ void serveRequest(int intcl, request_type rq) {
 				throw; // rethrow in order to exit from the for loop of 
 			}
 			break;
-		case ACTION_KILL:
+		case ControlCodes::ACTION_KILL:
 			killProcess(cl);
 			break;
-		case ACTION_GETPID:
+		case ControlCodes::ACTION_GETPID:
 			getThisPid(cl);
 			break;
 		//~ case ACTION_FORK:
 			//~ forkNewRH(intcl,unixSocketFd);
 			//~ break;
-		case ACTION_FILE_IO:
+		case ControlCodes::ACTION_FILE_IO:
 			readOrWriteFile(cl,rq.flags);
 			break;
 		//~ case ACTION_CANCEL:
 			//~ cancelRunningOperations(intcl);
 			//~ break;
 			
-		case ACTION_SETATTRIBUTES:
+		case ControlCodes::ACTION_SETATTRIBUTES:
 			setAttributes(cl);
 			break;
 			
-		case ACTION_SSH_KEYGEN:
+		case ControlCodes::ACTION_SSH_KEYGEN:
 			ssh_keygen(cl,rq.flags);
 			break;
 		
-		case ACTION_LINK:
+		case ControlCodes::ACTION_LINK:
 			createHardOrSoftLink(cl,rq.flags);
 			break;
 		
-		case REMOTE_SERVER_MANAGEMENT:
+		case ControlCodes::REMOTE_SERVER_MANAGEMENT:
 			switch(rq.flags) {
 				case 0: // stop if active
 					killServerAcceptor(cl);
@@ -2199,13 +2201,13 @@ void serveRequest(int intcl, request_type rq) {
 			}
 			break;
 		
-		case REMOTE_CONNECT:
+		case ControlCodes::REMOTE_CONNECT:
 			// connect to rh remote server
 			tlsClientSession(cl);
 			break;
 		// client disconnect: on process exit, or on Java client disconnect from local unix socket
 
-        case ACTION_HTTPS_URL_DOWNLOAD:
+        case ControlCodes::ACTION_HTTPS_URL_DOWNLOAD:
             httpsUrlDownload(cl);
             threadExit(); // no request continuation, one URL download per local thread
             break;
@@ -2228,7 +2230,7 @@ void clientSession(int cl) {
       PRINTUNIFIED("request 5-bits received:\t%u\n", rq.request);
       PRINTUNIFIED("request flags (3-bits) received:\t%u\n", rq.flags);
       
-      if (rq.request == ACTION_EXIT) {
+      if (static_cast<ControlCodes>(rq.request) == ControlCodes::ACTION_EXIT) {
 		  PRINTUNIFIED("Received exit request, exiting...\n");
 		  exit(0);
 	  }
