@@ -1725,6 +1725,8 @@ void client_upload(IDescriptor& cl, IDescriptor& rcl) {
 		counts.tFolders += itemTotals.tFolders;
         counts.tSize += itemTotals.tSize;
 	}
+
+	auto&& progressHook = getProgressHook(counts.tSize);
 	
 	// send counts.tFiles on local descriptor
 	cl.writeAllOrExit(&(counts.tFiles),sizeof(uint64_t));
@@ -1737,7 +1739,7 @@ void client_upload(IDescriptor& cl, IDescriptor& rcl) {
 	rcl.writeAllOrExit(&x, sizeof(uint8_t));
 	
 	for (auto& item : v)
-		genericUploadBasicRecursiveImplWithProgress(item.first,item.second,rcl,&cl);
+		genericUploadBasicRecursiveImplWithProgress(item.first,item.second,rcl,progressHook,&cl);
 	
 	// send end of files indicator to local descriptor
 	cl.writeAllOrExit(&maxuint_2,sizeof(uint64_t));

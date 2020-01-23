@@ -1,3 +1,6 @@
+#ifndef _RH_HASHVIEW_
+#define _RH_HASHVIEW_
+
 #include <cstdio>
 #include <vector>
 #include <cstdint>
@@ -31,3 +34,4 @@ int getBitSeqFromBooleanArray(int bitIndex, int bitLength, const std::vector<boo
 
     return a;
 }
+#endif /* _RH_HASHVIEW_ */

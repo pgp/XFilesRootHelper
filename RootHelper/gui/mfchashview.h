@@ -95,6 +95,18 @@ WNDCLASSEX wcex;
 
 // Forward declarations of functions included in this code module:
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+	
+	static UINT s_uTBBC = WM_NULL;
+	
+	if (s_uTBBC == WM_NULL) {
+		// Compute the value for the TaskbarButtonCreated message
+		s_uTBBC = RegisterWindowMessageW(L"TaskbarButtonCreated");
+		
+		// In case the application is run elevated, allow the
+		// TaskbarButtonCreated message through.
+		ChangeWindowMessageFilter(s_uTBBC, MSGFLT_ADD);
+	}
+	
     switch (message) {
         case WM_PAINT:
             createAndShowSquareGridFromBytes(hWnd,gridSize,squareSize,bitsPerCell,&latestForHashview[0],latestForHashview.size());

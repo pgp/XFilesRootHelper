@@ -19,6 +19,7 @@
 #include "desc/FileDescriptorFactory.h"
 #include "rh_hasher_botan.h"
 #include "homePaths.h"
+#include "progressHook.h"
 
 #ifndef _WIN32
 #include "pwd.h"
@@ -394,7 +395,7 @@ int mkpathCopyPermissionsFromNearestAncestor(const std::string& dirPath) {
 
 // outDesc == nullptr means server to client upload and no local socket for communicating progress
 template<typename STR>
-ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destination, singleStats_resp_t& fileinfo, IDescriptor* outDesc, IDescriptor& networkDesc) {
+ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destination, singleStats_resp_t& fileinfo, IDescriptor* outDesc, IDescriptor& networkDesc, ProgressHook& progressHook) {
     auto&& input = fdfactory.create(source,"rb");
     if (!input) return -1;
 
@@ -442,7 +443,8 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
         currentProgress += REMOTE_IO_CHUNK_SIZE;
 
 		if (outDesc) outDesc->writeAllOrExit(&currentProgress,sizeof(uint64_t));
-        PRINTUNIFIED("Progress: %" PRIu64 "\n",currentProgress);
+//        PRINTUNIFIED("Progress: %" PRIu64 "\n",currentProgress);
+        progressHook.publishDelta(REMOTE_IO_CHUNK_SIZE);
     }
 
     if (remainder != 0) {
@@ -453,7 +455,8 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
         currentProgress += remainder;
         
         if (outDesc) outDesc->writeAllOrExit(&currentProgress,sizeof(uint64_t));
-        PRINTUNIFIED("Progress: %" PRIu64 "\n",currentProgress);
+//        PRINTUNIFIED("Progress: %" PRIu64 "\n",currentProgress);
+        progressHook.publishDelta(remainder);
     }
     /********* end quotient + remainder IO loop *********/
 
@@ -1006,6 +1009,7 @@ template<typename STR>
 int genericUploadBasicRecursiveImplWithProgress(const STR& src_path, // local path (in remote client's filesystem)
                                                 const STR& dest_path, // remote path (on rh remote server's filesystem)
                                                 IDescriptor& networkDesc,
+                                                ProgressHook& progressHook,
                                                 IDescriptor* outDesc = nullptr) {
     int ret = 0;
     int ret_ = 0;
@@ -1027,7 +1031,7 @@ int genericUploadBasicRecursiveImplWithProgress(const STR& src_path, // local pa
         case 1: // file
         {
             PRINTUNIFIED("regular file: %s\tdestination file: %s\n", TOUNIXPATH(src_path).c_str(),TOUNIXPATH(dest_path).c_str());
-            ret_ = OSUploadRegularFileWithProgress(src_path,dest_path,st_x,outDesc,networkDesc);
+            ret_ = OSUploadRegularFileWithProgress(src_path,dest_path,st_x,outDesc,networkDesc,progressHook);
 
             // send EOF (-1) regardless if the file was copied with or without errors
             if (outDesc) outDesc->writeAllOrExit(&maxuint,sizeof(uint64_t));
@@ -1046,12 +1050,12 @@ int genericUploadBasicRecursiveImplWithProgress(const STR& src_path, // local pa
                 STR&& destSubDir = pathConcat(dest_path,it.getCurrentFilename());
 
                 // recursive upload non-empty directory
-                ret_ = genericUploadBasicRecursiveImplWithProgress(srcSubDir,destSubDir,networkDesc,outDesc);
+                ret_ = genericUploadBasicRecursiveImplWithProgress(srcSubDir,destSubDir,networkDesc,progressHook,outDesc);
                 if (ret_ < 0) ret = ret_;
             }
             if(empty) { // treat also non-listable folders as empty ones
                 // send empty dir item to network descriptor
-                uint8_t d = 0x01; // flag byte for folder
+                constexpr uint8_t d = 0x01; // flag byte for folder
                 auto&& dp = TOUNIXPATH(dest_path);
                 uint16_t y_len = dp.size();
 
@@ -1092,12 +1096,14 @@ void server_download(IDescriptor& rcl, const STR& strType) {
         counts.tSize += itemTotals.tSize;
     }
 
+    auto&& progressHook = getProgressHook(counts.tSize);
+
     // send counts.tFiles to remote descriptor
     rcl.writeAllOrExit(&(counts.tFiles),sizeof(uint64_t));
     rcl.writeAllOrExit(&(counts.tSize),sizeof(uint64_t));
 
     for (auto& item : v)
-        genericUploadBasicRecursiveImplWithProgress(FROMUNIXPATH(item.first),FROMUNIXPATH(item.second),rcl,nullptr);
+        genericUploadBasicRecursiveImplWithProgress(FROMUNIXPATH(item.first),FROMUNIXPATH(item.second),rcl,progressHook,nullptr);
 
     // send end of list to remote descriptor
     static constexpr uint8_t endOfList = 0xFF;
