@@ -33,6 +33,8 @@
 char SOCKET_ADDR[32]={};
 int CALLER_EUID = -1; // populated by second command-line argument, in order to verify client credentials (euid must match on connect)
 
+bool lib7zLoaded = false;
+
 //////// string IO methods moved in iowrappers.h //////////////
 
 /*******************************************************************
@@ -418,6 +420,11 @@ void compressToArchiveFromFds(IDescriptor& inOutDesc) {
 // not really a problem, since compress task is forked into a new process
 // compress or update (TODO) if the destination archive already exists
 void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
+    if(!lib7zLoaded) {
+        errno = 771;
+        sendErrorResponse(inOutDesc);
+        return;
+    }
     if(flags) {
         compressToArchiveFromFds(inOutDesc);
         return;
@@ -673,6 +680,12 @@ that is, files or folders themselves without their sub-tree nodes)
  */
 void extractFromArchive(IDescriptor& inOutDesc)
 {
+    if(!lib7zLoaded) {
+        errno = 771;
+        sendErrorResponse(inOutDesc);
+        return;
+    }
+
 	auto createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
 	if (!createObjectFunc)
 	{
@@ -847,6 +860,11 @@ void listStreamArchive(IDescriptor& inOutDesc, const std::string& archiveName, A
 // only UTF-8 codepoint 0 contains the \0 byte (unlike UTF-16)
 // web source: http://stackoverflow.com/questions/6907297/can-utf-8-contain-zero-byte
 void listArchive(IDescriptor& inOutDesc) {
+    if(!lib7zLoaded) {
+        errno = 771;
+        sendErrorResponse(inOutDesc);
+        return;
+    }
 	auto createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
 	if (!createObjectFunc) {
 		PrintError("Can not get CreateObject");
@@ -2271,13 +2289,11 @@ void rhMain(int uid=rh_default_uid, std::string name=rh_uds_default_name) {
 #endif
 
 	// TODO Remember that also JNI wrapper needs to call this!
-	// FIXME return value not working for lib.Load
-	if (!lib.Load(NDLL::GetModuleDirPrefix() + FTEXT(kDllName))) {
-		PrintError("p7zip - Can not load 7-zip library");
-		_Exit(71);
-	}
-  
-	// Main code of PGP's rootHelper
+    if (!lib.Load(NDLL::GetModuleDirPrefix() + FTEXT(kDllName)))
+        PRINTUNIFIEDERROR("Can not load p7zip library, list archive, compress and extract operations won't be available\n");
+    else lib7zLoaded = true;
+
+    // Main code of PGP's rootHelper
 	signal(SIGPIPE,SIG_IGN);
 	atexit(exitRhss);
 	

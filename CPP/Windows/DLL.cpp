@@ -177,7 +177,7 @@ TRACEN((printf("load_add_on(%s)=%d\n",p.Path(),(int)image)))
 #else
     printf("Can't load '%ls' (%s)\n", lpLibFileName,dlerror());
 #endif
-	_Exit(-1);
+	return false;
   }
 
   _module = handler;
