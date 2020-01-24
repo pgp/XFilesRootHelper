@@ -1112,7 +1112,9 @@ void server_download(IDescriptor& rcl, const STR& strType) {
 
 void hashFile(IDescriptor& inOutDesc) {
     uint8_t algorithm;
+    uint8_t dirHashOpts; // mandatory for all hash requests, but used only for dir hashing
     inOutDesc.readAllOrExit(&algorithm, sizeof(uint8_t));
+    inOutDesc.readAllOrExit(&dirHashOpts, sizeof(uint8_t));
     PRINTUNIFIED("received algorithm hash position is:\t%u\n", algorithm);
     if (algorithm >= rh_hash_maxAlgoIndex) {
         sendErrorResponse(inOutDesc);
@@ -1122,7 +1124,7 @@ void hashFile(IDescriptor& inOutDesc) {
     auto&& filepath = FROMUNIXPATH(readStringWithLen(inOutDesc));
     // PRINTUNIFIED("received filepath to hash is:\t%s\n", filepath.c_str());
 
-    std::vector<uint8_t> digest = rh_computeHash_wrapper(filepath, rh_hashLabels[algorithm]);
+    std::vector<uint8_t> digest = rh_computeHash_wrapper(filepath, rh_hashLabels[algorithm], dirHashOpts);
 
     if (digest.empty()) {
         PRINTUNIFIEDERROR("Size is 0");

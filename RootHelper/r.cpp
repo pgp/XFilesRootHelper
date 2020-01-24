@@ -1582,7 +1582,9 @@ void client_stats(IDescriptor& cl, IDescriptor& rcl, request_type rqByteWithFlag
 // cl: local Unix socket, rcl: TLS socket
 void client_hash(IDescriptor& cl, IDescriptor& rcl, request_type rqByteWithFlags) {
 	uint8_t algorithm;
+	uint8_t dirHashOpts;
 	cl.readAllOrExit(&algorithm, sizeof(uint8_t));
+	cl.readAllOrExit(&dirHashOpts, sizeof(uint8_t));
 	PRINTUNIFIED("received algorithm hash position is:\t%u\n", algorithm);
 	if (algorithm >= rh_hash_maxAlgoIndex) {
 		sendErrorResponse(cl);
@@ -1591,7 +1593,8 @@ void client_hash(IDescriptor& cl, IDescriptor& rcl, request_type rqByteWithFlags
     BufferedWriteDescriptor brcl(rcl);
 	brcl.writeAllOrExit(&rqByteWithFlags, sizeof(uint8_t));
 	brcl.writeAllOrExit(&algorithm, sizeof(uint8_t));
-	
+	brcl.writeAllOrExit(&dirHashOpts, sizeof(uint8_t));
+
 	std::string filepath = readStringWithLen(cl);
 	PRINTUNIFIED("received filepath to hash is:\t%s\n", filepath.c_str());
 	writeStringWithLen(brcl, filepath);

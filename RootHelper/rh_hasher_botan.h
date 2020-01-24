@@ -56,11 +56,11 @@ template<typename STR>
 std::vector<uint8_t> rh_computeHash_dir(
         const STR& filePath,
         const std::string& algo,
-        bool withNames = false,
-        bool ignoreThumbsFiles = true,
-        bool ignoreUnixHiddenFiles = true, // filenames starting with '.'
-        bool ignoreEmptyDirs = true // parameter used only if withNames is true // TODO to be implemented
-        ) {
+        uint8_t dirHashOpts) {
+    bool withNames = b0(dirHashOpts); // should be false by default
+    bool ignoreThumbsFiles = b1(dirHashOpts); // should be true by default
+    bool ignoreUnixHiddenFiles = b2(dirHashOpts); // filenames starting with '.' // should be true by default
+    bool ignoreEmptyDirs = BIT(dirHashOpts,3); // parameter used only if withNames is true // should be true by default // TODO to be implemented
     const std::unordered_set<STR> thumbsnames {FROMUTF("Thumbs.db"), FROMUTF(".DS_Store")};
 
     std::shared_ptr<Botan::HashFunction> dirHasher(Botan::HashFunction::create(algo));
@@ -92,9 +92,10 @@ std::vector<uint8_t> rh_computeHash_dir(
 template<typename STR>
 std::vector<uint8_t> rh_computeHash_wrapper(
         const STR& path,
-        const std::string& algo) {
+        const std::string& algo,
+        uint8_t dirHashOpts) {
     auto efd = IDirIterator<STR>::efdL(path);
-    return (efd == 'd' || efd == 'L')?rh_computeHash_dir(path,algo):rh_computeHash(path,algo);
+    return (efd == 'd' || efd == 'L')?rh_computeHash_dir(path,algo,dirHashOpts):rh_computeHash(path,algo);
 }
 
 // Botan-compatible labels
