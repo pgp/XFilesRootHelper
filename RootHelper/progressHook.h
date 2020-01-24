@@ -48,10 +48,10 @@ public:
 
 class MfcProgressHook : public ProgressHook {
 public:
-    ITaskbarList3 *pTaskbarList;
+    ITaskbarList3* pTaskbarList;
     HWND hWnd;
 
-    MfcProgressHook(HWND hWnd_, uint64_t totalSize_) : ProgressHook(totalSize_), hWnd(hWnd_) {
+    MfcProgressHook(HWND hWnd_, ITaskbarList3* pTaskbarList_, uint64_t totalSize_) : ProgressHook(totalSize_), hWnd(hWnd_), pTaskbarList(pTaskbarList_) {
         PRINTUNIFIED("@Total size: %" PRIu64 "\n",totalSize_);
         CoInitialize(nullptr);
     }
@@ -78,7 +78,7 @@ public:
 
 #ifdef _WIN32
 MfcProgressHook getProgressHook(uint64_t totalSize_) {
-    return {console_hwnd,totalSize_};
+    return {console_hwnd,console_pTaskbarList,totalSize_};
 }
 #else
 ConsoleProgressHook getProgressHook(uint64_t totalSize_) {
