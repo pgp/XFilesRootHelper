@@ -63,14 +63,14 @@ public:
 
     void publish(uint64_t current) override {
         currentSize = current;
-        HRESULT hr = pTaskbarList->SetProgressValue(hWnd, currentSize, totalSize);
-        PRINTUNIFIED("@Progress: %" PRIu64 " [res: %d]\n",currentSize,hr);
+        /*HRESULT hr = */pTaskbarList->SetProgressValue(hWnd, currentSize, totalSize);
+        PRINTUNIFIED("@Progress: %" PRIu64 "\n",currentSize);
     }
 
     void publishDelta(uint64_t delta) override {
         currentSize += delta;
-        HRESULT hr = pTaskbarList->SetProgressValue(hWnd, currentSize, totalSize);
-        PRINTUNIFIED("@Progress: %" PRIu64 " [res: %d]\n",currentSize,hr);
+        /*HRESULT hr = */pTaskbarList->SetProgressValue(hWnd, currentSize, totalSize);
+        PRINTUNIFIED("@Progress: %" PRIu64 "\n",currentSize);
     }
 };
 

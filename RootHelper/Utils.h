@@ -901,6 +901,8 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
 
     // END moved into downloadRemoteItems
 
+    auto&& progressHook = getProgressHook(totalSize);
+
     std::vector<uint8_t> buffer(REMOTE_IO_CHUNK_SIZE);
 
     for(;;) {
@@ -946,7 +948,7 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
 
                 currentProgress += REMOTE_IO_CHUNK_SIZE;
                 if(cl) cl->writeAllOrExit(&currentProgress,sizeof(uint64_t));
-                PRINTUNIFIED("Progress: %" PRIu64 "\n",currentProgress);
+                progressHook.publishDelta(REMOTE_IO_CHUNK_SIZE);
             }
 
             if (remainder != 0) {
@@ -955,7 +957,7 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
 
                 currentProgress += remainder;
                 if(cl) cl->writeAllOrExit(&currentProgress,sizeof(uint64_t));
-                PRINTUNIFIED("Progress: %" PRIu64 "\n",currentProgress);
+                progressHook.publishDelta(remainder);
             }
             /********* end quotient + remainder IO loop *********/
 
