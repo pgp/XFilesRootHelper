@@ -885,6 +885,22 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
     // - size of file (present only if regular file)
     // - file content (present only if regular file)
 
+    // BEGIN moved into downloadRemoteItems
+
+    // receive total number of files to be received
+    uint64_t totalFiles,totalSize;
+    rcl.readAllOrExit(&totalFiles,sizeof(uint64_t));
+    // NEW receive total size as well
+    rcl.readAllOrExit(&totalSize,sizeof(uint64_t));
+
+
+    // propagate total files to local socket
+    if(cl) cl->writeAllOrExit(&totalFiles,sizeof(uint64_t));
+    // NEW propagate total size as well
+    if(cl) cl->writeAllOrExit(&totalSize,sizeof(uint64_t));
+
+    // END moved into downloadRemoteItems
+
     std::vector<uint8_t> buffer(REMOTE_IO_CHUNK_SIZE);
 
     for(;;) {

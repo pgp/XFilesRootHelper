@@ -1748,16 +1748,19 @@ void client_upload(IDescriptor& cl, IDescriptor& rcl) {
 	}
 
 	auto&& progressHook = getProgressHook(counts.tSize);
-	
-	// send counts.tFiles on local descriptor
-	cl.writeAllOrExit(&(counts.tFiles),sizeof(uint64_t));
-    // send total size as well
-    cl.writeAllOrExit(&(counts.tSize),sizeof(uint64_t));
 
     // No need for auto-flushing buffered descriptor here, genericUploadBasicRecursiveImplWithProgress and internal callees are already manually optimized
 	// send "client upload" request to server
     auto x = static_cast<uint8_t>(ControlCodes::ACTION_UPLOAD);
 	rcl.writeAllOrExit(&x, sizeof(uint8_t));
+
+    // send counts.tFiles and counts.tSize to both rcl and cl
+    for (auto* descriptor : {&rcl,&cl}) {
+        // send counts.tFiles on local descriptor
+        descriptor->writeAllOrExit(&(counts.tFiles),sizeof(uint64_t));
+        // send total size as well
+        descriptor->writeAllOrExit(&(counts.tSize),sizeof(uint64_t));
+    }
 	
 	for (auto& item : v)
 		genericUploadBasicRecursiveImplWithProgress(item.first,item.second,rcl,progressHook,&cl);
@@ -1784,18 +1787,6 @@ void client_download(IDescriptor& cl, IDescriptor& rcl) {
 	// receive back items with type flag, file full path, size and content, till list end
 	sendPathPairsList(v,afrcl);
     afrcl.flush();
-	
-	// receive total number of files to be received
-	uint64_t totalFiles,totalSize;
-	rcl.readAllOrExit(&totalFiles,sizeof(uint64_t));
-	// NEW receive total size as well
-	rcl.readAllOrExit(&totalSize,sizeof(uint64_t));
-	
-	
-	// propagate total files to local socket
-	cl.writeAllOrExit(&totalFiles,sizeof(uint64_t));
-	// NEW propagate total size as well
-	cl.writeAllOrExit(&totalSize,sizeof(uint64_t));
 	
 	downloadRemoteItems(rcl,&cl);
 }
