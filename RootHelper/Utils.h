@@ -468,7 +468,7 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
 
 #ifndef _WIN32
 template<typename STR>
-ssize_t OSUploadFromFileDescriptorWithProgress(IDescriptor& input, const STR& destination, uint64_t thisFileSize, IDescriptor* outDesc, IDescriptor& networkDesc) {
+ssize_t OSUploadFromFileDescriptorWithProgress(IDescriptor& input, const STR& destination, uint64_t thisFileSize, IDescriptor* outDesc, IDescriptor& networkDesc, ProgressHook& progressHook) {
     static constexpr uint8_t fileFlag = 0x00;
 
     // TODO send also struct stat's mode_t in order to set destination permissions
@@ -512,7 +512,7 @@ ssize_t OSUploadFromFileDescriptorWithProgress(IDescriptor& input, const STR& de
         currentProgress += REMOTE_IO_CHUNK_SIZE;
 
         if (outDesc) outDesc->writeAllOrExit(&currentProgress,sizeof(uint64_t));
-        PRINTUNIFIED("Progress: %" PRIu64 "\n",currentProgress);
+        progressHook.publishDelta(REMOTE_IO_CHUNK_SIZE);
     }
 
     if (remainder != 0) {
@@ -523,7 +523,7 @@ ssize_t OSUploadFromFileDescriptorWithProgress(IDescriptor& input, const STR& de
         currentProgress += remainder;
 
         if (outDesc) outDesc->writeAllOrExit(&currentProgress,sizeof(uint64_t));
-        PRINTUNIFIED("Progress: %" PRIu64 "\n",currentProgress);
+        progressHook.publishDelta(remainder);
     }
     /********* end quotient + remainder IO loop *********/
 

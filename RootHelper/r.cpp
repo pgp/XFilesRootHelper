@@ -1694,8 +1694,14 @@ void client_upload_from_fds(IDescriptor& cl, IDescriptor& rcl, const request_typ
     uint64_t totalSize,totalFiles=0;
     cl.readAllOrExit(&totalSize,sizeof(uint64_t));
 
+    auto&& progressHook = getProgressHook(totalSize);
+
     // send "client upload" request to server
     rcl.writeAllOrExit(&rq, sizeof(uint8_t));
+
+    // send totals over remote socket as well (rh protocol modification for itaskbarlist progress)
+    rcl.writeAllOrExit(&totalFiles,sizeof(uint64_t)); // unused, yet mandatory
+    rcl.writeAllOrExit(&totalSize,sizeof(uint64_t));
 
     for(;;) {
         // receive destination path including desired filename and source file size (by Java), and file descriptor (by JNI)
@@ -1712,7 +1718,7 @@ void client_upload_from_fds(IDescriptor& cl, IDescriptor& rcl, const request_typ
         }
 
         PosixDescriptor receivedFd_(receivedFd);
-        OSUploadFromFileDescriptorWithProgress(receivedFd_,destPath,size,&cl,rcl);
+        OSUploadFromFileDescriptorWithProgress(receivedFd_,destPath,size,&cl,rcl,progressHook);
 
         cl.writeAllOrExit(&maxuint,sizeof(uint64_t));
         PRINTUNIFIED("End of file in caller\n");
