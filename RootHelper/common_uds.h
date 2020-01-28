@@ -107,8 +107,8 @@ typedef struct {
 #define BIT(x,n) ((x & (1<<n)) >> n)
 #define SETBIT(x,n,v) (x = (x & (~(1 << n))) | (v << n))
 
-#define COPY_CHUNK_SIZE 33554432 // 32 Mb chunk size for copy operations
-#define REMOTE_IO_CHUNK_SIZE 1048576 // for upload/download
+constexpr uint32_t COPY_CHUNK_SIZE = 33554432; // 32 Mb chunk size for copy operations
+constexpr uint32_t REMOTE_IO_CHUNK_SIZE = 1048576; // for upload/download
 
 // total files and folders in a directory sub-tree
 typedef struct {

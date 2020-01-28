@@ -14,7 +14,9 @@ else()
 endif()
 
 if(DEFINED USE_X11)
-	add_definitions("-D${USE_X11}")
+	if(X11_FOUND)
+		add_definitions("-D${USE_X11}")
+	endif()
 endif()
 
 if(WIN32) # -O3 allows fast data transfer (order of Gbps)
