@@ -37,7 +37,7 @@
 
 /*
 * This file was automatically generated running
-* 'configure.py --amalgamation --single-amalgamation-file --disable-modules=pkcs11 --disable-cc-tests --without-os-feature=thread_local --cpu=arm --os=ios --cc=clang'
+* 'configure.py --amalgamation --single-amalgamation-file --disable-modules=pkcs11,tls_10 --disable-cc-tests --without-os-feature=thread_local --cpu=arm --os=ios --cc=clang'
 *
 * Target
 *  - Compiler: clang++ -fstack-protector -pthread -stdlib=libc++ -std=c++11 -D_REENTRANT -O3
@@ -285,7 +285,6 @@
 #define BOTAN_HAS_TLS 20191210
 #define BOTAN_HAS_TLS_CBC 20161008
 #define BOTAN_HAS_TLS_SESSION_MANAGER_SQL_DB 20141219
-#define BOTAN_HAS_TLS_V10 20191109
 #define BOTAN_HAS_TLS_V10_PRF 20131128
 #define BOTAN_HAS_TLS_V12_PRF 20131128
 #define BOTAN_HAS_TOTP 20180816
