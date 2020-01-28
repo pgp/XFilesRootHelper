@@ -899,9 +899,9 @@ public:
 
 
 // PGP
-#if __WORDSIZE == 32
+#if __RH_WORDSIZE__ == 32
 auto UNIXTimestampToWindowsFILETIME = NWindows::NTime::UnixTimeToFileTime;
-#elif __WORDSIZE == 64
+#elif __RH_WORDSIZE__ == 64
 auto UNIXTimestampToWindowsFILETIME = NWindows::NTime::UnixTime64ToFileTime;
 #else
 #error Unable to detect ABI size

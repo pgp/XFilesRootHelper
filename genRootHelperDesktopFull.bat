@@ -10,3 +10,5 @@ cmake -G "MinGW Makefiles" -DCMAKE_SH="CMAKE_SH-NOTFOUND" -H. -Bwinbuild
 cmake --build winbuild -- -j4
 
 robocopy ..\cert ..\bin /s /e
+
+cd ..
