@@ -1,3 +1,6 @@
+#ifndef __RH_ARCHIVE_TYPE_DETECTOR_H__
+#define __RH_ARCHIVE_TYPE_DETECTOR_H__
+
 #include <cstdint>
 #include <cstdlib>
 #include <string>
@@ -21,7 +24,7 @@ typedef enum {
 	UNKNOWN
 } ArchiveType;
 
-std::unordered_map<std::string,ArchiveType> archiveExtsToTypes = {
+const std::unordered_map<std::string,ArchiveType> archiveExtsToTypes = {
         {"7z",_7Z},
         {"xz",XZ},
         {"rar",RAR5},
@@ -32,7 +35,7 @@ std::unordered_map<std::string,ArchiveType> archiveExtsToTypes = {
         {"tar",TAR}
 };
 
-std::vector<std::vector<uint8_t>> headers = {
+const std::vector<std::vector<uint8_t>> rh_archive_headers = {
 		{0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C}, // 7z
 		{0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00}, // xz
 		{0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00}, // rar
@@ -43,7 +46,7 @@ std::vector<std::vector<uint8_t>> headers = {
 		{0x42, 0x5A, 0x68} // bz2
 };
 
-std::vector<uint8_t> headers_lengths = {
+constexpr uint8_t headers_lengths[] = {
 		6,
 		6,
 		7,
@@ -54,9 +57,9 @@ std::vector<uint8_t> headers_lengths = {
 		3
 };
 
-std::vector<uint8_t> tar_header = {0x75, 0x73, 0x74, 0x61, 0x72}; // tar
-uint16_t tar_header_offset = 0x101;
-uint8_t tar_header_length = 5;
+constexpr uint8_t tar_header[] = {0x75, 0x73, 0x74, 0x61, 0x72}; // tar
+const uint16_t tar_header_offset = 0x101;
+const uint8_t tar_header_length = 5;
 
 ArchiveType archiveTypeFromExtension(const std::string& ext) {
     try {
@@ -82,18 +85,19 @@ ArchiveType detectArchiveType(const std::string& archivePath) {
 	int i;
 
 	// test against offset-0 headers
-	for (i=0;i<headers_lengths.size();i++) {
-        uint8_t* cur = &(headers[i][0]);
+	for (i=0;i<(sizeof(headers_lengths)/(sizeof(uint8_t)));i++) {
+        const uint8_t* cur = &(rh_archive_headers[i][0]);
 		if (memcmp(h,cur,headers_lengths[i])==0)
 			return (ArchiveType)i; // simply cast to enum type to get the desired enum label
 	}
 
     if (readBytes >= tar_header_offset+tar_header_length) {
-        uint8_t* cur = &(tar_header[0]);
         // test against tar header (non-zero offset)
-        if (memcmp(h+tar_header_offset,cur,tar_header_length)==0)
+        if (memcmp(h+tar_header_offset,tar_header,tar_header_length)==0)
             ret = TAR;
     }
 
 	return ret;
 }
+
+#endif /* __RH_ARCHIVE_TYPE_DETECTOR_H__ */

@@ -965,8 +965,6 @@ STDMETHODIMP ArchiveUpdateCallbackFromFd::GetStream(UInt32 index, ISequentialInS
     // By construction, here all the file stats item have already been received
     // PRINTUNIFIED("GetStream invoked for index %u",index);
     RINOK(Finilize())
-
-    constexpr uint64_t maxuint = -1;
     
     inOutDesc->writeAllOrExit(&maxuint,sizeof(uint64_t)); // send EOF for previous file, so that client knows it has to send next fd
 

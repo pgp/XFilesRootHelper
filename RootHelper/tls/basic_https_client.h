@@ -430,7 +430,7 @@ void tlsClientUrlDownloadEventLoop(TLS_Client& client_wrapper) {
     PRINTUNIFIEDERROR("[tlsClientUrlDownloadEventLoop] No housekeeping and return\n");
 }
 
-int httpsUrlDownload_internal(IDescriptor& cl, std::string& targetUrl, uint16_t port, std::string& downloadPath, std::string& targetFilename, RingBuffer& inRb, std::string& redirectUrl) {
+int httpsUrlDownload_internal(IDescriptor& cl, std::string& targetUrl, uint16_t port, const std::string& downloadPath, const std::string& targetFilename, RingBuffer& inRb, std::string& redirectUrl) {
     if(targetUrl.find("http://")==0)
         throw std::runtime_error("Plain HTTP not allowed");
     else if(targetUrl.find("https://")==0)

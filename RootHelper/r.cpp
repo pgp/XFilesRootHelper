@@ -461,7 +461,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
     if (password.empty()) PRINTUNIFIED("No password provided, archive will not be encrypted\n");
 
     // receive number of filenames to be received, 0 means compress entire folder content
-    uint32_t nOfItemsToCompress, i;
+    uint32_t nOfItemsToCompress;
     inOutDesc.readAllOrExit( &(nOfItemsToCompress), sizeof(uint32_t));
 
     std::vector<std::string> currentEntries; // actually, this will contain only filenames, not full paths
@@ -470,7 +470,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
 
     if (nOfItemsToCompress != 0) {
         currentEntries.reserve(nOfItemsToCompress);
-        for (i = 0; i < nOfItemsToCompress; i++)
+        for (uint32_t i = 0; i < nOfItemsToCompress; i++)
             currentEntries.push_back(readStringWithLen(inOutDesc));
     }
     // END RECEIVE DATA
@@ -496,12 +496,9 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
 
     CObjectVector<CDirItem> dirItems;
     {
-        int i;
-
         if (nOfItemsToCompress == 0) {
             auto&& dirIt = itf.createIterator(srcFolder, RELATIVE_WITHOUT_BASE, false);
-            while (dirIt.next())
-            {
+            while (dirIt.next()) {
                 std::string curEntString = dirIt.getCurrent();
 
                 CDirItem di;
@@ -510,8 +507,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
                 UString u(uws.c_str());
 
                 NFind::CFileInfo fi;
-                if (!fi.Find(name))
-                {
+                if (!fi.Find(name)) {
                     PrintError("Can't find file", name);
                     errno = 12341;
                     sendErrorResponse(inOutDesc);
@@ -531,19 +527,16 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
             }
         }
         else {
-            for (i = 0; i < nOfItemsToCompress; i++)
-            {
+            for (int i = 0; i < nOfItemsToCompress; i++) {
                 // stat current item, if it's a directory, open a stdfsIterator over it with parent prepend mode
                 struct stat st{};
                 stat(currentEntries[i].c_str(), &st); // filepath is relative path (filename only)
-                if (S_ISDIR(st.st_mode))
-                {
+                if (S_ISDIR(st.st_mode)) {
                     // STDFSITERATOR ONLY ALLOWS ABSOLUTE PATHS
                     std::stringstream ss;
                     ss<<srcFolder<<"/"<<currentEntries[i];
                     auto&& dirIt = itf.createIterator(ss.str(), RELATIVE_INCL_BASE, false);
-                    while (dirIt.next())
-                    {
+                    while (dirIt.next()) {
                         std::string curEntString = dirIt.getCurrent();
                         PRINTUNIFIED("Current item: %s\n",curEntString.c_str());
 
@@ -582,8 +575,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
                     UString u(uws.c_str());
 
                     NFind::CFileInfo fi;
-                    if (!fi.Find(name))
-                    {
+                    if (!fi.Find(name)) {
                         PrintError("Can't find file", name);
                         errno = 12343;
                         sendErrorResponse(inOutDesc);
@@ -615,8 +607,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
                                            updateCallbackSpec,
                                            dirItems.Size());
     if (result == E_ABORT) return;
-    if (result != S_OK)
-    {
+    if (result != S_OK) {
         PrintError("Update Error");
         if (errno == 0) errno = 12345;
         sendEndProgressAndErrorResponse(inOutDesc);
@@ -624,10 +615,9 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
     }
 
     // unreachable in case or error
-    FOR_VECTOR(i, updateCallbackSpec->FailedFiles)
-    {
+    FOR_VECTOR(j, updateCallbackSpec->FailedFiles) {
         PrintNewLine();
-        PrintError("Error for file", updateCallbackSpec->FailedFiles[i]);
+        PrintError("Error for file", updateCallbackSpec->FailedFiles[j]);
     }
 
     // if (updateCallbackSpec->FailedFiles.Size() != 0) exit(-1);
