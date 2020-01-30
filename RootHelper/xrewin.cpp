@@ -1,11 +1,8 @@
 #include "common_win.h"
 #include <tchar.h>
 #include <cstdio>
-#include <cstdlib>
 #include <vector>
 #include <cstdint>
-#include <thread>
-#include <iostream>
 #include "Utils.h"
 #include "xre.h"
 

@@ -1,19 +1,11 @@
 #ifndef _BOTAN_RH_RSERVER_H_
 #define _BOTAN_RH_RSERVER_H_
 
-// adapted from my_server_2.cpp in botanTlsExample
-#include <cstdlib>
 #include <cerrno>
 #include <list>
-#include <thread>
 
 #include "botan_credentials.h"
 #include "../ReliableRingBuffer.h"
-
-// FIXME X_PROTOCOL seems to become undefined
-//#ifdef X_PROTOCOL
-//#include "../gui/x11hashview.h"
-//#endif
 
 #ifdef _WIN32
 #include "../gui/mfchashview.h"

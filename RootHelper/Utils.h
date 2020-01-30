@@ -396,7 +396,7 @@ int mkpathCopyPermissionsFromNearestAncestor(const std::string& dirPath) {
 // outDesc == nullptr means server to client upload and no local socket for communicating progress
 template<typename STR>
 ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destination, singleStats_resp_t& fileinfo, IDescriptor* outDesc, IDescriptor& networkDesc, ProgressHook& progressHook) {
-    auto&& input = fdfactory.create(source,"rb");
+    auto&& input = fdfactory.create(source,FileOpenMode::READ);
     if (!input) return -1;
 
     static constexpr uint8_t fileFlag = 0x00;
@@ -923,7 +923,7 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
                 threadExit();
             }
 
-            auto&& fd = fdfactory.create(filepath,"wb");
+            auto&& fd = fdfactory.create(filepath,FileOpenMode::WRITE);
             if (!fd) {
                 PRINTUNIFIEDERROR("Cannot open output file %s for writing, errno is %d, exiting thread...\n",fileitem.file.c_str(),fd.error);
                 rcl.close();
@@ -1190,7 +1190,7 @@ int createRandomFile(const STR& path, uint64_t size) {
     int i,j;
 
     // generate random data by hashing and write to file
-    auto&& fd = fdfactory.create(path,"wb");
+    auto&& fd = fdfactory.create(path,FileOpenMode::WRITE);
     if(!fd) return fd.error;
     
     // quotient
@@ -1237,7 +1237,7 @@ int createRandomFile(const STR& path, uint64_t size) {
     botan_cipher_init(&enc, "ChaCha", Botan::ENCRYPTION);
     //~ botan_cipher_init(&enc, "SHACAL2/CTR", Botan::ENCRYPTION);
 
-    auto&& fd = fdfactory.create(path,"wb");
+    auto&& fd = fdfactory.create(path,FileOpenMode::WRITE);
     if(!fd) return fd.error;
 
     /********* quotient + remainder IO loop *********/
@@ -1279,7 +1279,7 @@ int createRandomFile(const STR& path, uint64_t size) {
 
 template<typename STR>
 int createEmptyFile(const STR& path, uint64_t size) {
-    auto&& fd = fdfactory.create(path,"wb");
+    auto&& fd = fdfactory.create(path,FileOpenMode::WRITE);
     if (!fd) return -1;
 
     std::vector<uint8_t> emptyChunk(COPY_CHUNK_SIZE,0);
@@ -1363,7 +1363,7 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
 
 			// create file
 			PRINTUNIFIEDERROR("creating %s after parent dir\n",filepath.c_str());
-            auto&& fd = fdfactory.create(filepath,"wb");
+            auto&& fd = fdfactory.create(filepath,FileOpenMode::WRITE);
 			if (!fd) {
 				sendErrorResponse(inOutDesc); return;
 			}

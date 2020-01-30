@@ -2,7 +2,6 @@
 #define _RH_FDFACTORY_
 
 #include "IDescriptor.h"
-#include <string>
 #include <cerrno>
 #include <memory>
 
@@ -16,7 +15,7 @@
 class FileDescriptorFactory {
 public:
     template<typename STR>
-    WinfileDescriptor create(const STR& filename, const std::string& openMode) {
+    WinfileDescriptor create(const STR& filename, FileOpenMode openMode) {
         return {filename,openMode};
     }
 };
@@ -25,7 +24,7 @@ public:
 #include "PosixDescriptor.h"
 class FileDescriptorFactory {
 public:
-    PosixDescriptor create(const std::string& filename, const std::string& openMode) {
+    PosixDescriptor create(const std::string& filename, FileOpenMode openMode) {
         return {filename,openMode};
     }
 };

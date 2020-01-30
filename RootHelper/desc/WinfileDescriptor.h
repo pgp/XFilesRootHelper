@@ -17,16 +17,18 @@ public:
 public:
     explicit WinfileDescriptor(HANDLE hFile_) : hFile(hFile_) {}
 
-    WinfileDescriptor(const std::wstring& path, const std::string& openFormat) {
-        if (openFormat == "rb") {
-            hFile = CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ,
+    WinfileDescriptor(const std::wstring& path, FileOpenMode openFormat) {
+        switch(openFormat) {
+            case FileOpenMode::READ:
+                hFile = CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ,
                                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,nullptr);
-        }
-        else if (openFormat == "wb") {
-            //~ hFile = CreateFileW(path.c_str(),GENERIC_WRITE,EXCLUSIVE_RW_ACCESS,
+                break;
+            case FileOpenMode::WRITE:
+                //~ hFile = CreateFileW(path.c_str(),GENERIC_WRITE,EXCLUSIVE_RW_ACCESS,
                                    //~ nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,nullptr);
-            hFile = CreateFileW(path.c_str(),GENERIC_WRITE,EXCLUSIVE_RW_ACCESS,
+                hFile = CreateFileW(path.c_str(),GENERIC_WRITE,EXCLUSIVE_RW_ACCESS,
                                    nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL,nullptr);
+                break;
         }
 
         if (hFile == INVALID_HANDLE_VALUE) error = GetLastError();

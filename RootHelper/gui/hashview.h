@@ -1,10 +1,13 @@
 #ifndef _RH_HASHVIEW_
 #define _RH_HASHVIEW_
 
+#include <iostream>
 #include <cstdio>
 #include <vector>
 #include <cstdint>
 #include <cstdlib>
+#include <thread>
+#include <random>
 
 /**
  * Common code for both MFC and X11 versions

@@ -3,7 +3,7 @@
 
 #include "unifiedlogging.h" 
 
-const char* _ROOTHELPER_VERSION_ = "1.4.3_20200129";
+const char* _ROOTHELPER_VERSION_ = "1.4.4_20200130";
 
 inline void print_roothelper_version() {
 	PRINTUNIFIED("Roothelper version %s\n",_ROOTHELPER_VERSION_);

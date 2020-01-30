@@ -1,14 +1,10 @@
 #ifndef _XRE_ANNOUNCER_H_
 #define _XRE_ANNOUNCER_H_
 
-#include <iostream>
-#include <string>
 #include <vector>
 #include <cstdio>
-#include <cstdlib>
 #include <cstdint>
 #include <cstring>
-#include <thread>
 #include <chrono>
 #include <utility>
 #include "../unifiedlogging.h"

@@ -1,16 +1,8 @@
-// FIXME X_PROTOCOL seems to become undefined
-//#ifndef X_PROTOCOL
-//#error "X11 not available"
-//#endif
-
 #ifndef _X11_HASHVIEW_
 #define _X11_HASHVIEW_
 
 #include "hashview.h"
-#include <iostream>
 #include <chrono>
-#include <thread>
-#include <random>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xos.h>
@@ -27,29 +19,25 @@ XColor getSingleColor(uint16_t R, uint16_t G, uint16_t B) {
 }
 
 // colors copied from XFiles' HashView.java
-std::vector<XColor> initXColorsMap() {
-    std::vector<XColor> xcolors;
-    xcolors.push_back(getSingleColor(0,0,0));
-    xcolors.push_back(getSingleColor(255,0,0));
-    xcolors.push_back(getSingleColor(0,255,0));
-    xcolors.push_back(getSingleColor(0,0,255));
-    xcolors.push_back(getSingleColor(255,255,255));
-    xcolors.push_back(getSingleColor(255,255,0));
-    xcolors.push_back(getSingleColor(0,255,255));
-    xcolors.push_back(getSingleColor(255,0,255));
-    xcolors.push_back(getSingleColor(0x7F,0,0));
-    xcolors.push_back(getSingleColor(0,0x7F,0x7F));
-    xcolors.push_back(getSingleColor(0,0x7F,0));
-    xcolors.push_back(getSingleColor(0x7F,0x7F,0));
-    xcolors.push_back(getSingleColor(0x7F,0x44,0));
-    xcolors.push_back(getSingleColor(0x7F,0,0x6E));
-    xcolors.push_back(getSingleColor(0xFF,0x88,0));
-    xcolors.push_back(getSingleColor(0x7F,0x7F,0x7F));
-    return xcolors;
-}
-
 // XColor has 16 bits per channel, just multiply by 256
-std::vector<XColor> xcolors = initXColorsMap();
+const std::vector<XColor> xcolors = {
+        getSingleColor(0,0,0),
+        getSingleColor(255,0,0),
+        getSingleColor(0,255,0),
+        getSingleColor(0,0,255),
+        getSingleColor(255,255,255),
+        getSingleColor(255,255,0),
+        getSingleColor(0,255,255),
+        getSingleColor(255,0,255),
+        getSingleColor(0x7F,0,0),
+        getSingleColor(0,0x7F,0x7F),
+        getSingleColor(0,0x7F,0),
+        getSingleColor(0x7F,0x7F,0),
+        getSingleColor(0x7F,0x44,0),
+        getSingleColor(0x7F,0,0x6E),
+        getSingleColor(0xFF,0x88,0),
+        getSingleColor(0x7F,0x7F,0x7F)
+};
 
 void createAndShowSquareGridFromBytes(Display* dpy, int s, Window& win, size_t gridSize, size_t squareSize, size_t bitsPerCell, uint8_t* b, size_t bLenInBytes) {
 

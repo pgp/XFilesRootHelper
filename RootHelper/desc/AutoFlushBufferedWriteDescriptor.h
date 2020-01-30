@@ -1,7 +1,6 @@
 #ifndef __AUTOFLUSH_BUFFERED_WRITE_DESCRIPTOR_
 #define __AUTOFLUSH_BUFFERED_WRITE_DESCRIPTOR_
 
-#include <sstream>
 #include "BufferedWriteDescriptor.h"
 
 // write is buffered, read is unbuffered

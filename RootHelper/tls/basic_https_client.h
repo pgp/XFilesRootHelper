@@ -1,7 +1,6 @@
 #ifndef __BASIC_HTTPS_CLIENT__
 #define __BASIC_HTTPS_CLIENT__
 
-#include <sstream>
 #include <regex>
 #include "../iowrappers_common.h"
 #include "../desc/PosixDescriptor.h"

@@ -1,7 +1,6 @@
 #ifndef _FOLDER_STATS_RESP_H_
 #define _FOLDER_STATS_RESP_H_
 
-#include "../unifiedlogging.h"
 #include "../desc/IDescriptor.h"
 
 typedef struct {

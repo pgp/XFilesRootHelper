@@ -16,17 +16,18 @@ public:
 
     // OK with std::string, won't work with std::wstring, just to try templates
     template <typename STR>
-    PosixDescriptor(const STR& path, const std::string& openFormat) {
-        if (openFormat == "rb") {
-            desc = ::open(path.c_str(), O_RDONLY);
-        }
-        else if (openFormat == "wb") {
-            //~ desc = ::open(path.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0644);
-            desc = ::open(path.c_str(), O_WRONLY|O_CREAT|O_EXCL, 0644);
-        }
-        else {
-            desc = -1;
-            error = errno = EINVAL;
+    PosixDescriptor(const STR& path, FileOpenMode openFormat) {
+        switch(openFormat) {
+            case FileOpenMode::READ:
+                desc = ::open(path.c_str(), O_RDONLY);
+                break;
+            case FileOpenMode::WRITE:
+                //~ desc = ::open(path.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0644);
+                desc = ::open(path.c_str(), O_WRONLY|O_CREAT|O_EXCL, 0644);
+                break;
+            default:
+                desc = -1;
+                error = errno = EINVAL;
         }
     }
 

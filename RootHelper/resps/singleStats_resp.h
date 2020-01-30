@@ -1,7 +1,6 @@
 #ifndef _SINGLE_STATS_RESP_H_
 #define _SINGLE_STATS_RESP_H_
 
-#include "../unifiedlogging.h"
 #include "../desc/IDescriptor.h"
 
 typedef struct {

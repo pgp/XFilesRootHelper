@@ -3,10 +3,6 @@
 
 #include "unifiedlogging.h"
 
-#ifdef _WIN32
-#include "common_win.h"
-#endif
-
 class ProgressHook {
 public:
     const uint64_t totalSize;

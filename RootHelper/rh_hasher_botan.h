@@ -18,7 +18,7 @@ std::vector<uint8_t> rh_computeHash(const STR& filePath, const std::string& algo
     bool externalState = !!hash1;
     if(!externalState)
         hash1 = Botan::HashFunction::create(algo);
-	auto&& fd = fdfactory.create(filePath,"rb");
+	auto&& fd = fdfactory.create(filePath,FileOpenMode::READ);
 
 //	PRINTUNIFIEDERROR("@@@filepath is:\t%s\n", filePath.c_str());
 //	PRINTUNIFIEDERROR("@@@algorithm is:\t%s\n", algo.c_str());

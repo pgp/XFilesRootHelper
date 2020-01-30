@@ -1,20 +1,15 @@
-#include <utility>
-
 #ifndef IDIRITERATOR_H
 #define IDIRITERATOR_H
+
+#include <utility>
 
 #ifdef _WIN32
 #include "../common_win.h"
 #endif
 
 #include "../path_utils.h"
-#include <iostream>
-#include <string>
 #include <cstring>
 #include <cerrno>
-#include <stdexcept>
-#include <cstdlib>
-#include <sstream>
 #include <stack>
 #include <memory>
 #include <regex>

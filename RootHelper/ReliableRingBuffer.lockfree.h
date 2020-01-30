@@ -1,18 +1,12 @@
 #ifndef LOCKFREERINGBUFFER_H
 #define LOCKFREERINGBUFFER_H
 
-#include <thread>
-#include <mutex>
+#include <atomic>
 #include <condition_variable>
-#include <cstdio>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
 #include <vector>
-#include <iostream>
-#include <atomic>
 
-#include "unifiedlogging.h"
 #include "desc/IDescriptor.h"
 
 constexpr unsigned RB_POLLING_INTERVAL_MS = 100;

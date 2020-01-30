@@ -1,7 +1,6 @@
 #ifndef _BOTAN_RH_RCLIENT_H_
 #define _BOTAN_RH_RCLIENT_H_
 
-#include <thread>
 #include <chrono>
 
 #include "botan_credentials.h"

@@ -1300,7 +1300,7 @@ void readOrWriteFile(IDescriptor& inOutDesc, uint8_t flags) {
 			return;
 		}
 		
-		auto&& fd = fdfactory.create(filepath,"rb");
+		auto&& fd = fdfactory.create(filepath,FileOpenMode::READ);
 		if (!fd) {
 			sendErrorResponse(inOutDesc);
 			return;
@@ -1326,7 +1326,7 @@ void readOrWriteFile(IDescriptor& inOutDesc, uint8_t flags) {
 		// UNATTENDED READ: on remote connection close, close the file
 		PRINTUNIFIED("Receive from client, write to file\n");
 		
-		auto&& fd = fdfactory.create(filepath,"wb");
+		auto&& fd = fdfactory.create(filepath,FileOpenMode::WRITE);
 		if (!fd) {
 			sendErrorResponse(inOutDesc);
 			return;

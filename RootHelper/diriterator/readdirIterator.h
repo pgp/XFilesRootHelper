@@ -1,20 +1,11 @@
 #ifndef READDIRITERATOR_H
 #define READDIRITERATOR_H
 
-#include <iostream>
-#include <string>
-#include <cstring>
-#include <cerrno>
-#include <stdexcept>
-#include <cstdlib>
-#include <sstream>
-#include <stack>
-#include <algorithm>
+#include "IdirIterator.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <dirent.h>
-#include "IdirIterator.h"
 
 class readdirIterator: public IDirIterator<std::string> {
 private:

@@ -7,15 +7,10 @@
 #define _MFC_HASHVIEW_
 
 #include "../common_win.h"
-#include <tchar.h>
-#include <cstdio>
-#include <vector>
-#include <cstdint>
-#include <thread>
-#include <iostream>
-#include <random>
-
 #include "hashview.h"
+
+#include <tchar.h>
+
 
 Botan::secure_vector<uint8_t> latestForHashview;
 

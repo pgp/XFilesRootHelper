@@ -1,18 +1,12 @@
 #ifndef RELIABLERINGBUFFER_H
 #define RELIABLERINGBUFFER_H
 
-#include <thread>
-#include <mutex>
 #include <atomic>
 #include <condition_variable>
-#include <cstdio>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
 #include <vector>
-#include <iostream>
 
-#include "unifiedlogging.h"
 #include "desc/IDescriptor.h"
 
 constexpr unsigned DEFAULT_CAPACITY = 1048576;

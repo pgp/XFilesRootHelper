@@ -9,10 +9,8 @@
 
 
 #include "botan_all.h"
-#include <iostream>
 #include <fstream>
 #include <memory>
-#include <cstdlib>
 #include "../unifiedlogging.h"
 
 inline bool value_exists(const std::vector<std::string>& vec,

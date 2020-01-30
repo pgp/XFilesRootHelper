@@ -2,9 +2,6 @@
 #define IDESCRIPTOR_H
 
 #include <cstdio>
-#include <cstdlib>
-#include <thread>
-#include <string>
 
 #ifdef _WIN32
 #include "../common_win.h"
@@ -25,10 +22,10 @@
 #include "../unifiedlogging.h"
 
 // both binary
-typedef enum {
-    READ,
-    WRITE
-} FileOpenMode;
+enum class FileOpenMode {
+    READ, // "rb"
+    WRITE // "wb"
+};
 
 // interface, only pure virtual functions
 class IDescriptor {
@@ -95,11 +92,5 @@ public:
 
     virtual ~IDescriptor() = default;
 };
-
-//class IDescriptorFactory {
-//public:
-//    virtual std::unique_ptr<IDescriptor> createFileDescriptor(std::string file_, FileOpenMode mode_) = 0;
-//    virtual std::unique_ptr<IDescriptor> createNetworkDescriptor() = 0;
-//};
 
 #endif /* IDESCRIPTOR_H */
