@@ -81,6 +81,7 @@ std::vector<uint8_t> rh_computeHash_dir(
                     dirHasher->update(currentRelPathName);
                 }
             }
+            else if(ignoreEmptyDirs && (it.currentEfd == '@')) continue;
             else if(withNames) { // include names of empty directories and non-accessible files, if withNames is enabled
                 auto&& currentRelPathName = TOUNIXPATH(it.getCurrent()); // accumulate relative pathnames into hash state
                 dirHasher->update(currentRelPathName);

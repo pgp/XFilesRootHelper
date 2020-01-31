@@ -61,13 +61,17 @@ private:
                 }
             }
             while(FindNextFileW(hFind, &fdFile)); //Find the next file.
-            std::sort(currentLevel.begin(),currentLevel.end(),IDirIterator::defaultPairComparator);
-            for(auto& pair: currentLevel) {
-                S.push(pair.first);
-                if(provideFilenames) NamesOnly->push(pair.second);
+            if(currentLevel.size()==0) currentEfd = '@'; // BEWARE!!! will consider empty also a FILTERED empty dir
+            else {
+                std::sort(currentLevel.begin(),currentLevel.end(),IDirIterator::defaultPairComparator);
+                for(auto& pair: currentLevel) {
+                    S.push(pair.first);
+                    if(provideFilenames) NamesOnly->push(pair.second);
+                }
             }
         }
         else {
+            bool dirEmpty = true;
             do {
                 //Find first file will always return "."
                 //    and ".." as the first two directories.
@@ -87,9 +91,11 @@ private:
                     }
                     S.push(currentFilePath);
                     if (provideFilenames) NamesOnly->push(currentFileName);
+                    dirEmpty = false; // behaviour aligned to sorted branch
                 }
             }
             while(FindNextFileW(hFind, &fdFile)); //Find the next file.
+            if(dirEmpty) currentEfd = '@';
         }
 
         FindClose(hFind); //Always, Always, clean things up!

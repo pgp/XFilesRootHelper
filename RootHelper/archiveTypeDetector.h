@@ -24,7 +24,7 @@ typedef enum {
 	UNKNOWN
 } ArchiveType;
 
-const std::unordered_map<std::string,ArchiveType> archiveExtsToTypes = {
+const std::unordered_map<std::string,ArchiveType> archiveExtsToTypes {
         {"7z",_7Z},
         {"xz",XZ},
         {"rar",RAR5},
@@ -35,7 +35,7 @@ const std::unordered_map<std::string,ArchiveType> archiveExtsToTypes = {
         {"tar",TAR}
 };
 
-const std::vector<std::vector<uint8_t>> rh_archive_headers = {
+const std::vector<std::vector<uint8_t>> rh_archive_headers {
 		{0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C}, // 7z
 		{0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00}, // xz
 		{0x52, 0x61, 0x72, 0x21, 0x1A, 0x07, 0x00}, // rar
@@ -46,7 +46,7 @@ const std::vector<std::vector<uint8_t>> rh_archive_headers = {
 		{0x42, 0x5A, 0x68} // bz2
 };
 
-constexpr uint8_t headers_lengths[] = {
+constexpr uint8_t headers_lengths[] {
 		6,
 		6,
 		7,
@@ -57,7 +57,7 @@ constexpr uint8_t headers_lengths[] = {
 		3
 };
 
-constexpr uint8_t tar_header[] = {0x75, 0x73, 0x74, 0x61, 0x72}; // tar
+constexpr uint8_t tar_header[] {0x75, 0x73, 0x74, 0x61, 0x72}; // tar
 const uint16_t tar_header_offset = 0x101;
 const uint8_t tar_header_length = 5;
 

@@ -54,6 +54,7 @@ public:
     // 1: existing file
     // 'd': existing directory
     // 'L': existing symlink to existing directory
+    /** '@': empty directory or dir symlink (empty AFTER filtering) (NOT a return value of this method, currentEfd reassigned in subclasses) */
     static char efdL(const STR& path) {
 #ifdef _WIN32
         DWORD attrs = GetFileAttributesW(path.c_str());
