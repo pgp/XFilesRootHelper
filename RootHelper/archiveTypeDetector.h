@@ -75,7 +75,7 @@ ArchiveType detectArchiveType(const std::string& archivePath) {
 	ArchiveType ret = UNKNOWN;
 	FILE* f = fopen(archivePath.c_str(),"rb");
 	if (f == nullptr) return ret;
-	uint8_t h[512] = {};
+	uint8_t h[512]{};
 	size_t readBytes = fread(h,1,512,f);
 	fclose(f);
 	if (readBytes < 8) {

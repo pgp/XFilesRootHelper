@@ -70,7 +70,7 @@ private:
     sts_sz counts{};
 
     ConflictOrErrorInfo lastCEInfo;
-    int permanentDecs[2] = {NO_PREV_DEC,NO_PREV_DEC};
+    int permanentDecs[2]{NO_PREV_DEC,NO_PREV_DEC};
     uint64_t currentProgress = 0; // incremented by 1 at regular file's end of copy, (TODO) incremented by descendantCountMap lookup on directory skip
     
     // private methods
@@ -355,7 +355,7 @@ private:
 
         // sendfile will work with non-socket output (i.e. regular file) on Linux 2.6.33+
         off_t offset = 0;
-        struct stat fileinfo = {};
+        struct stat fileinfo{};
         fstat(input, &fileinfo);
         ssize_t chunkWrittenBytes;
 
@@ -391,7 +391,7 @@ private:
         // UPDATE put here again, changed skip logic
         sockfd.writeAllOrExit(&EOF_ind,sizeof(uint64_t));
 
-        struct stat fst = {};
+        struct stat fst{};
         fstat(input,&fst);
         fchmod(output,fst.st_mode);
 

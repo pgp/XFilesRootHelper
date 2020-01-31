@@ -41,12 +41,12 @@ void writeStringWithLen(IDescriptor& desc, const std::string& s) {
 // BEWARE of endianness when packing two shorts into an integer (one single length read of uint32_t)
 
 std::vector<std::string> readPairOfStringsWithPairOfLens(IDescriptor& desc) {
-    uint16_t lens[2] = {};
+    uint16_t lens[2]{};
     desc.readAllOrExit(&lens[0],sizeof(uint16_t));
     desc.readAllOrExit(&lens[1],sizeof(uint16_t));
 
     if (lens[0] == 0) return {"",""};
-    std::vector<std::string> v = {std::string(lens[0],0),std::string(lens[1],0)};
+    std::vector<std::string> v {std::string(lens[0],0),std::string(lens[1],0)};
 
     desc.readAllOrExit((char*)(v[0].c_str()),lens[0]);
     desc.readAllOrExit((char*)(v[1].c_str()),lens[1]);
@@ -55,7 +55,7 @@ std::vector<std::string> readPairOfStringsWithPairOfLens(IDescriptor& desc) {
 }
 
 void writePairOfStringsWithPairOfLens(IDescriptor& desc, std::vector<std::string>& v) {
-    uint16_t lens[2] = {};
+    uint16_t lens[2]{};
     lens[0] = v[0].size();
     lens[1] = v[1].size();
     

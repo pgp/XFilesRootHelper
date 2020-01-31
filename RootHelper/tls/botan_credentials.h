@@ -62,9 +62,9 @@ public:
        {
           // TODO make path configurable
 #ifdef ANDROID_NDK
-          const std::vector<std::string> paths = { "/system/etc/security/cacerts" };
+          const std::vector<std::string> paths { "/system/etc/security/cacerts" };
 #else
-          const std::vector<std::string> paths = { "/etc/ssl/certs", "/usr/share/ca-certificates" };
+          const std::vector<std::string> paths { "/etc/ssl/certs", "/usr/share/ca-certificates" };
 #endif
 
           for(auto&& path : paths)

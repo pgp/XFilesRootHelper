@@ -538,7 +538,7 @@ ssize_t OSUploadFromFileDescriptorWithProgress(IDescriptor& input, const STR& de
 // counts total regular files and folders in a directory subtree; special files are not counted
 template<typename STR>
 sts countTotalFilesAndFoldersIntoMap(const STR& name, std::unordered_map<STR,sts>& m) {
-    sts num = {}; // tFiles: 0, tFolders: 0
+    sts num{}; // tFiles: 0, tFolders: 0
 
     switch(existsIsFileIsDir_(name)) {
         case 0:
@@ -572,7 +572,7 @@ sts countTotalFilesAndFoldersIntoMap(const STR& name, std::unordered_map<STR,sts
 // same as previous method, but accumulates total size as well
 template<typename STR>
 sts_sz countTotalStatsIntoMap(const STR& name, std::unordered_map<STR,sts_sz>& m) {
-    sts_sz num = {}; // tFiles: 0, tFolders: 0
+    sts_sz num{}; // tFiles: 0, tFolders: 0
 
     switch(existsIsFileIsDir_(name)) {
         case 0:
@@ -907,7 +907,7 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
 
     for(;;) {
         // on each item received, after saving it on the given path, send back ok or error byte (optional)
-        fileitem_sock_t fileitem = {};
+        fileitem_sock_t fileitem{};
         read_fileitem_sock_t(fileitem,rcl);
         if (fileitem.flag == 0xFF) break;
 
@@ -997,8 +997,8 @@ void sendPathPairsList(std::vector<std::pair<std::string,std::string>>& pathPair
     std::vector<uint8_t> buffer;
 
     for (auto& item : pathPairs) {
-        //~ uint16_t szs[2] = {item.first.size(),item.second.size()}; // warning: narrowing conversion
-        uint16_t szs[2] = {};
+        //~ uint16_t szs[2]{item.first.size(),item.second.size()}; // warning: narrowing conversion
+        uint16_t szs[2]{};
         szs[0] = item.first.size();
         szs[1] = item.second.size();
 
@@ -1103,8 +1103,8 @@ void server_download(IDescriptor& rcl, const STR& strType) {
 //    std::unordered_map<STR,sts> descendantCountMap; // LEGACY
     std::unordered_map<STR,sts_sz> descendantCountMap;
 
-//    sts counts = {}; // no need to put this in the map // LEGACY
-    sts_sz counts = {}; // no need to put this in the map
+//    sts counts{}; // no need to put this in the map // LEGACY
+    sts_sz counts{}; // no need to put this in the map
 
     for (auto& item : v) {
 //        sts itemTotals = countTotalFilesAndFoldersIntoMap(FROMUNIXPATH(item.first),descendantCountMap); // LEGACY
@@ -1160,7 +1160,7 @@ template<typename STR>
 int createRandomFile(const STR& path, uint64_t size) {
 	PRINTUNIFIED("Using ARMv8 SHA instructions for random content generation...");
 	
-	static const std::map<std::string,size_t> shaParams = {
+	static const std::map<std::string,size_t> shaParams {
             {"SHA-1", 20},
             {"SHA-256", 32},
             {"SHA-512", 64},
@@ -1461,7 +1461,7 @@ void stats_file(IDescriptor& inOutDesc) {
 		return;
 	}
 
-    singleStats_resp_t resp = {};
+    singleStats_resp_t resp{};
     int ret = osStat(filepath,resp);
 
     if (ret != 0) {

@@ -20,7 +20,7 @@ constexpr size_t bitsPerCell = 3;
 constexpr size_t outBitsLen = gridSize*gridSize*bitsPerCell; // 16*16 grid, 3 bpp
 
 // colors copied from XFiles' HashView.java
-COLORREF colorMap[] = {RGB(0, 0, 0), RGB(255, 0, 0), RGB(0, 255, 0), RGB(0, 0, 255),
+COLORREF colorMap[] {RGB(0, 0, 0), RGB(255, 0, 0), RGB(0, 255, 0), RGB(0, 0, 255),
                        RGB(255, 255, 255), RGB(255, 255, 0), RGB(0, 255, 255), RGB(255, 0, 255),
                        RGB(0x7F, 0, 0), RGB(0, 0x7F, 0x7F), RGB(0, 0x7F, 0), RGB(0x7F, 0x7F, 0),
                        RGB(0x7F, 0x44, 0), RGB(0x7F, 0, 0x6E), RGB(0xFF, 0x88, 0), RGB(0x7F, 0x7F, 0x7F)};

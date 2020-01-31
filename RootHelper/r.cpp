@@ -276,27 +276,27 @@ HRESULT common_compress_logic(Func_CreateObject& createObjectFunc,
     // which are not-compatible with the target archive format are ignored
 
     // names
-    const wchar_t *names_7z[] =
+    const wchar_t *names_7z[]
             {
                     L"x", // compression level
                     L"s", // solid mode
                     L"he" // encrypt filenames
             };
 
-    const wchar_t *names_other[] =
+    const wchar_t *names_other[]
             {
                     L"x", // compression level
             };
 
     // values
-    NWindows::NCOM::CPropVariant values_7z[3] =
+    NWindows::NCOM::CPropVariant values_7z[3]
             {
                     (UInt32)(compress_options.compressionLevel),	// compression level
                     (compress_options.solid > 0),					// solid mode
                     (compress_options.encryptHeader > 0)			// encrypt filenames
             };
 
-    NWindows::NCOM::CPropVariant values_other[1] =
+    NWindows::NCOM::CPropVariant values_other[1]
             {
                     (UInt32)(compress_options.compressionLevel)	// compression level
             };
@@ -449,7 +449,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
     FString archiveName(UTF8_to_wchar(destArchive.c_str()).c_str());
 
     // receive compress options
-    compress_rq_options_t compress_options = {};
+    compress_rq_options_t compress_options{};
     readcompress_rq_options(inOutDesc,compress_options);
     PRINTUNIFIED("received compress options:\tlevel %u, encryptHeader %s, solid %s\n",
                  compress_options.compressionLevel,
@@ -476,7 +476,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
     // END RECEIVE DATA
 
     // change working directory to srcFolder
-    char currentDirectory[1024] = {};
+    char currentDirectory[1024]{};
     getcwd(currentDirectory, 1024);
 
     int ret = chdir(srcFolder.c_str()); // errno already set if chdir fails
@@ -944,7 +944,7 @@ void listArchive(IDescriptor& inOutDesc) {
 			// Get uncompressed size of file
 			NCOM::CPropVariant prop;
 			archive->GetProperty(i, kpidSize, &prop);
-			char s[32] = {};
+			char s[32]{};
 			ConvertPropVariantToShortString(prop, s);
 			responseEntry.size = atol(s);
 		}
@@ -952,7 +952,7 @@ void listArchive(IDescriptor& inOutDesc) {
 		//~ // Get compressed size of file (TO BE TESTED)
 		//~ NCOM::CPropVariant prop;
 		//~ archive->GetProperty(i, kpidPackSize, &prop);
-		//~ char s[32] = {};
+		//~ char s[32]{};
 		//~ ConvertPropVariantToShortString(prop, s);
 		//~ // responseEntry.packedSize = atol(s); // TODO modify responseEntry struct before
 	//~ }
@@ -1287,7 +1287,7 @@ void readOrWriteFile(IDescriptor& inOutDesc, uint8_t flags) {
 	if (flags) { // read from file, send to client
 		// UNATTENDED READ: at the end of the file close connection
 		PRINTUNIFIED("Read from file, send to client\n");
-		struct stat st = {};
+		struct stat st{};
 		ret = getFileType_(filepath.c_str(),&st);
 		if (ret < 0) {
 			errno = ENOENT;
@@ -1364,7 +1364,7 @@ void setDates(const char* filepath, IDescriptor& inOutDesc,uint8_t flags) {
 	PRINTUNIFIED("Setting file dates\n");
 	PRINTUNIFIED("Flags: %u\n",flags);
 	
-	struct timeval times[2] = {};
+	struct timeval times[2]{};
 	
 	uint32_t x;
 	if (b0(flags)) { // access (least significant bit)
@@ -1376,7 +1376,7 @@ void setDates(const char* filepath, IDescriptor& inOutDesc,uint8_t flags) {
 		times[1].tv_sec = x;
 	}
 	
-	struct stat st = {}; // in case of expected modification of only one timestamp, take the other from here
+	struct stat st{}; // in case of expected modification of only one timestamp, take the other from here
 	int ret = getFileType_(filepath,&st);
 	if (ret < 0) {
 		sendErrorResponse(inOutDesc);
@@ -1399,7 +1399,7 @@ void setOwnership(const char* filepath, IDescriptor& inOutDesc,uint8_t flags) {
 	if (b0(flags)) inOutDesc.readAllOrExit(&owner,sizeof(int32_t));
 	if (b1(flags)) inOutDesc.readAllOrExit(&group,sizeof(int32_t));
 	
-	struct stat st = {}; // in case of expected modification of only one between owner and group, take the other from here
+	struct stat st{}; // in case of expected modification of only one between owner and group, take the other from here
 	int ret = getFileType_(filepath,&st);
 	if (ret < 0) {
 		sendErrorResponse(inOutDesc);
@@ -1548,14 +1548,14 @@ void client_stats(IDescriptor& cl, IDescriptor& rcl, request_type rqByteWithFlag
 	}
 	else { // OK
 		if (b0(rqByteWithFlags.flags)) {
-			singleStats_resp_t sfstats = {};
+			singleStats_resp_t sfstats{};
 			readsingleStats_resp(rcl,sfstats);
 			cl.writeAllOrExit(&resp,sizeof(uint8_t));
 			writesingleStats_resp(cl,sfstats);
 			return;
 		}
 		if (b1(rqByteWithFlags.flags)) {
-			folderStats_resp_t fldstats = {};
+			folderStats_resp_t fldstats{};
 			readfolderStats_resp(rcl,fldstats);
 			cl.writeAllOrExit(&resp,sizeof(uint8_t));
 			writefolderStats_resp(cl,fldstats);
@@ -1734,7 +1734,7 @@ void client_upload(IDescriptor& cl, IDescriptor& rcl) {
 	// count all files in the selection
 	std::unordered_map<std::string,sts_sz> descendantCountMap;
 
-	sts_sz counts = {}; // no need to put this in the map
+	sts_sz counts{}; // no need to put this in the map
 
 	for (auto& item : v) {
 		sts_sz itemTotals = countTotalStatsIntoMap(item.first,descendantCountMap);
@@ -1952,7 +1952,7 @@ void tlsClientSessionEventLoop(TLS_Client& client_wrapper) {
 	PRINTUNIFIED("In TLS client event loop...\n");
 	for(;;) {
 		// read request from cl, propagate to rcl
-		request_type rq = {};
+		request_type rq{};
 		cl.readAllOrExit(&rq,sizeof(rq));
 		switch (static_cast<ControlCodes>(rq.request)) {
 		    case ControlCodes::ACTION_LS:
@@ -2234,7 +2234,7 @@ void clientSession(int cl) {
 	try {
     for (;;) {
       // read request type (1 byte: 5 bits + 3 bits of flags)
-      request_type rq = {};
+      request_type rq{};
       pd_cl.readAllOrExit(&rq, sizeof(rq));
       
       PRINTUNIFIED("request 5-bits received:\t%u\n", rq.request);

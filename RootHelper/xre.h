@@ -87,7 +87,7 @@ void tlsServerSessionEventLoop(RingBuffer& inRb, Botan::TLS::Server& server) {
     try {
         for (;;) {
             // read request type (1 byte: 5 bits + 3 bits of flags)
-            request_type rq = {};
+            request_type rq{};
             rcl.readAllOrExit(&rq, sizeof(rq));
 
             PRINTUNIFIED("request 5-bits received:\t%u\n", rq.request);
@@ -235,7 +235,7 @@ int getServerSocket(int cl = -1) {
         exit(-1);
     }
 
-    struct sockaddr_in socket_info = {};
+    struct sockaddr_in socket_info{};
     socket_info.sin_family = AF_INET;
     socket_info.sin_port = htons(rhServerPort);
 
@@ -328,7 +328,7 @@ void tlsServerSession(int remoteCl) {
 }
 
 void acceptLoop(int& rhss_socket) {
-    constexpr struct linger lo = {1, 0};
+    constexpr struct linger lo{1,0};
     for(;;) {
         struct sockaddr_in st{};
         socklen_t stlen{};

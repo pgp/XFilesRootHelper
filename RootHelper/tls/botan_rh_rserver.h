@@ -157,7 +157,7 @@ public:
 			PRINTUNIFIED("In TLS server loop\n");
 			while(!server->is_closed()) {
 				try {
-					uint8_t buf[4*1024] = {0};
+					uint8_t buf[4*1024]{};
 					ssize_t got = Gsock.read(buf, sizeof(buf));
 					if(got == -1) {
 						PRINTUNIFIEDERROR("Error in socket read - %s\n",lastError().c_str());

@@ -97,7 +97,7 @@ Java_it_pgp_Native_getPathFromFd(JNIEnv *env, jclass type, jstring fdNumAsString
 JNIEXPORT jint JNICALL
 Java_it_pgp_Native_isSymLink(JNIEnv *env, jclass type, jstring path_) {
 	int ret;
-	struct stat st = {};
+	struct stat st{};
 	const char* path = (const char*)(env->GetStringUTFChars(path_,nullptr));
 	lstat(path,&st);
 	ret = S_ISLNK(st.st_mode)?1:0;
@@ -135,12 +135,12 @@ JNIEXPORT jbyteArray JNICALL Java_it_pgp_Native_spongeForHashViewShake(JNIEnv *e
 	//~ jbyte *output = env->GetByteArrayElements(output_, nullptr);
 	//~ jsize outputLen = env->GetArrayLength(output_);
 	
-	//~ uint8_t nonce[8] = {};
+	//~ uint8_t nonce[8]{};
 	//~ // to be provided already allocated by caller
 	//~ std::vector<uint8_t> input(outputLen,0);
 	
 	//~ // using Botan C89 API, avoid messing up with std vectors & JNI layer 
-	//~ botan_cipher_t enc = {};
+	//~ botan_cipher_t enc{};
 	//~ botan_cipher_init(&enc, "ChaCha", Botan::ENCRYPTION);
     //~ botan_cipher_set_key(enc, (uint8_t*)key, (size_t)keyLen);
     //~ botan_cipher_start(enc, nonce, 8);
@@ -164,7 +164,7 @@ JNIEXPORT jbyteArray JNICALL Java_it_pgp_Native_spongeForHashViewShake(JNIEnv *e
 	//~ jbyte *output = env->GetByteArrayElements(output_, nullptr);
 	//~ jsize outputLen = env->GetArrayLength(output_);
 	
-	//~ uint8_t nonce[8] = {};
+	//~ uint8_t nonce[8]{};
 	//~ // to be provided already allocated by caller
 	//~ std::vector<uint8_t> emptyInput(outputLen,0);
 	
@@ -177,7 +177,7 @@ JNIEXPORT jbyteArray JNICALL Java_it_pgp_Native_spongeForHashViewShake(JNIEnv *e
 	//~ auto intermediate = hash1->final();
 	
 	//~ // expansion
-	//~ botan_cipher_t enc = {};
+	//~ botan_cipher_t enc{};
 	//~ botan_cipher_init(&enc, "ChaCha", Botan::ENCRYPTION);
     //~ botan_cipher_set_key(enc, &intermediate[0], intermediate.size());
     //~ botan_cipher_start(enc, nonce, 8);

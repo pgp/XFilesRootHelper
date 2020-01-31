@@ -20,7 +20,7 @@ XColor getSingleColor(uint16_t R, uint16_t G, uint16_t B) {
 
 // colors copied from XFiles' HashView.java
 // XColor has 16 bits per channel, just multiply by 256
-const std::vector<XColor> xcolors = {
+const std::vector<XColor> xcolors {
         getSingleColor(0,0,0),
         getSingleColor(255,0,0),
         getSingleColor(0,255,0),
@@ -102,7 +102,7 @@ void runSessionWithColorGrid(Botan::secure_vector<uint8_t> inBytes) {
         }
 
         if (e.type == KeyPress) {
-            char buf[128] = {0};
+            char buf[128]{};
             KeySym keysym;
             int len = XLookupString(&e.xkey, buf, sizeof buf, &keysym, nullptr);
             if (keysym == XK_Escape)

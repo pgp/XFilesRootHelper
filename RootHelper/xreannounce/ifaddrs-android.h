@@ -83,7 +83,7 @@ void freeifaddrs(struct ifaddrs* addrs) {
 }
 
 static int set_ifname(struct ifaddrs* ifaddr, int interface) {
-  char buf[IFNAMSIZ] = {0};
+  char buf[IFNAMSIZ]{};
   char* name = if_indextoname(interface, buf);
   if (name == nullptr) {
     return -1;

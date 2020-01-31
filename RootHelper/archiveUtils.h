@@ -61,7 +61,7 @@ DEFINE_GUID(CLSID_CFormatTar,
 
 // header-based archive type detection
 // elements must have same ordering of enum in archiveTypeDetector.h
-std::vector<GUID> archiveGUIDs = {
+std::vector<GUID> archiveGUIDs {
 	CLSID_CFormat7z,
 	CLSID_CFormatXz,
 	CLSID_CFormatRar,
