@@ -44,6 +44,21 @@ constexpr size_t rh_hashSizes[] {
         32
 };
 
+// TODO find a more elegant way of using comparators for qsort
+const comparison_fn_t rh_hashComparators[] = {
+    [](const void* p1, const void* p2) {return ::memcmp(p1,p2,4);},
+    [](const void* p1, const void* p2) {return ::memcmp(p1,p2,16);},
+    [](const void* p1, const void* p2) {return ::memcmp(p1,p2,20);},
+    [](const void* p1, const void* p2) {return ::memcmp(p1,p2,32);},
+    [](const void* p1, const void* p2) {return ::memcmp(p1,p2,48);},
+    [](const void* p1, const void* p2) {return ::memcmp(p1,p2,64);},
+    [](const void* p1, const void* p2) {return ::memcmp(p1,p2,28);},
+    [](const void* p1, const void* p2) {return ::memcmp(p1,p2,32);},
+    [](const void* p1, const void* p2) {return ::memcmp(p1,p2,48);},
+    [](const void* p1, const void* p2) {return ::memcmp(p1,p2,64);},
+    [](const void* p1, const void* p2) {return ::memcmp(p1,p2,32);},
+};
+
 constexpr size_t rh_hash_maxAlgoIndex = sizeof(rh_hashSizes)/sizeof(size_t);
 
 template<typename STR>
@@ -91,10 +106,6 @@ std::vector<uint8_t> rh_computeHash(const STR& filePath,
         else return std::vector<uint8_t>(result.data(),result.data()+result.size()); // just ignore return value and release state for caller to use it in subsequent invocations;
     }
 	return rh_emptyHash;
-}
-
-int memcmp_wrapper(const void* p1, const void* p2, void *sizeAsPtr) {
-    return ::memcmp(p1,p2,*((size_t*)sizeAsPtr));
 }
 
 template<typename STR>
@@ -166,7 +177,7 @@ std::vector<uint8_t> rh_computeHash_dir(
             }
 
             ////////////////////////////////// sort hashes by lexicographic ordering
-            ::qsort_r(&hashes[0],hashes.size()/hashSize,hashSize,memcmp_wrapper,(void*)&hashSize);
+            qsort(&hashes[0],hashes.size()/hashSize,hashSize,rh_hashComparators[algo]);
             dirHasher->update(hashes);
 
             auto result = dirHasher->final();
