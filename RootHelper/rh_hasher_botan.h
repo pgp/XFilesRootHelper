@@ -44,8 +44,10 @@ constexpr size_t rh_hashSizes[] {
         32
 };
 
+typedef int (*rh_qsort_comp_fn_t)(const void* p1, const void* p2);
+
 // TODO find a more elegant way of using comparators for qsort
-const comparison_fn_t rh_hashComparators[] = {
+const rh_qsort_comp_fn_t rh_hashComparators[] = {
     [](const void* p1, const void* p2) {return ::memcmp(p1,p2,4);},
     [](const void* p1, const void* p2) {return ::memcmp(p1,p2,16);},
     [](const void* p1, const void* p2) {return ::memcmp(p1,p2,20);},
