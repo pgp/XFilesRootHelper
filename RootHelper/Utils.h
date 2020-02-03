@@ -1142,7 +1142,7 @@ void hashFile(IDescriptor& inOutDesc) {
     auto&& filepath = FROMUNIXPATH(readStringWithLen(inOutDesc));
     // PRINTUNIFIED("received filepath to hash is:\t%s\n", filepath.c_str());
 
-    std::vector<uint8_t> digest = rh_computeHash_wrapper(filepath, rh_hashLabels[algorithm], dirHashOpts);
+    std::vector<uint8_t> digest = rh_computeHash_wrapper(filepath, algorithm, dirHashOpts);
 
     if (digest.empty()) {
         PRINTUNIFIEDERROR("Size is 0");
