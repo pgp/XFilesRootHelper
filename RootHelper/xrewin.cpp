@@ -9,6 +9,12 @@
 int wmain(int argc, wchar_t* argv[]) {
     initLogging();
 
+    if(argc >= 2 && mode_is_help(TOUTF(argv[1]))) {
+        auto&& x = TOUTF(argv[0]);
+        print_help(x.c_str());
+        return 0;
+    }
+
     CoInitialize(nullptr);
 
     console_hwnd = GetConsoleHwnd();
