@@ -1,6 +1,11 @@
 #ifndef _COMMON_WIN_H_
 #define _COMMON_WIN_H_
 
+// MSVC
+#ifdef _MSC_VER
+#define NOMINMAX
+#endif
+
 #define WINVER 0x0601
 #define _WIN32_WINNT 0x0601
 #include <winsock2.h>
@@ -10,6 +15,13 @@
 #include <iostream>
 #include <cstdlib>
 #include <thread>
+#include <cstdint>
+
+// MSVC
+#ifdef _MSC_VER
+typedef int64_t ssize_t;
+#endif
+
 
 ITaskbarList3 *console_pTaskbarList = nullptr;   // careful, COM objects should only be accessed from apartment they are created in
 

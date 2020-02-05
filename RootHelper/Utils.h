@@ -25,6 +25,11 @@
 #include "pwd.h"
 #endif
 
+// MSVC
+#ifdef _MSC_VER
+typedef int32_t mode_t;
+#endif
+
 #ifdef _WIN32
 using STRNAMESPACE = std::wstring;
 

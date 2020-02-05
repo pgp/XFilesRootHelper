@@ -46,6 +46,11 @@ SOCKET Accept(SOCKET &serv, struct sockaddr_in &client_info) {
 int rhss_local = -1; // local socket of rh remote server, to communicate arrival/end of client connections (they communicate themselves their arrival/end)
 constexpr uint16_t rhServerPort = 11111;
 
+// MSVC
+#ifdef _MSC_VER
+typedef int32_t pid_t;
+#endif
+
 // DO NOT USE -1 or any other negative number as sentinel value here!!! (see man 2 kill)
 pid_t rhss_pid = -2; // used by parent process to send INT signal to child if requested by user
 // FIXME currently unused, if used again better convert to pid_t* or wrapper struct (negative values are converted to positive in kill call)

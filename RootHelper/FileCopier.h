@@ -14,7 +14,6 @@
 
 #include "Utils.h"
 #include "FileCopierConstants.h"
-#include <unistd.h>
 #include <iostream>
 #include <stack>
 

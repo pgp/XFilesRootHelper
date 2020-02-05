@@ -4,6 +4,12 @@
 #include <vector>
 #include "desc/IDescriptor.h"
 
+// MSVC
+#ifdef _MSC_VER
+#include <process.h>
+#define getpid _getpid
+#endif
+
 constexpr uint8_t RESPONSE_OK = 0x00;
 constexpr uint8_t RESPONSE_ERROR = 0xFF;
 constexpr uint8_t RESPONSE_REDIRECT = 0x11; // used for sending back HOME directory on empty LS request

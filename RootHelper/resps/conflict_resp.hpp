@@ -2,7 +2,11 @@
 #define _CONFLICT_RESP_H_
 
 #include <string>
+
+// MSVC
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 // conflict decision responses (4 bit: 4 bit semantic splitting)
 #define CD_SKIP 0x00

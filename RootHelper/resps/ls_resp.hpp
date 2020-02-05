@@ -3,7 +3,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <dirent.h>
 
 #include "../desc/IDescriptor.h"
 

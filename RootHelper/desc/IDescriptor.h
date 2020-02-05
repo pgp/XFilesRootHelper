@@ -7,6 +7,7 @@
 #include "../common_win.h"
 #else
 #include <unistd.h>
+#include <dirent.h> // MSVC
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
