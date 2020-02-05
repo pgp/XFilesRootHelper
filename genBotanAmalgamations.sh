@@ -54,9 +54,13 @@ mv botan_all.cpp botan_all.h botan_all_internal.h $BOTAN_DEST_IOS_DIR/arm64
 
 ########## Desktop (with all possible cpu extensions enabled)
 
-# Windows build not tested with MSVC, please download MingW from https://nuwen.net/mingw.html
+# Windows build with MinGW, please download MingW from https://nuwen.net/mingw.html
 ./configure.py --amalgamation --single-amalgamation-file --disable-modules=pkcs11,tls_10 --disable-cc-tests --cpu=x64 --os=mingw --cc=gcc
 mv botan_all.cpp botan_all.h botan_all_internal.h $BOTAN_DEST_DESKTOP_DIR/windows/x86_64
+
+# Windows build with MSVC, at least Visual Studio Build Tools with NMake are needed
+./configure.py --amalgamation --single-amalgamation-file --disable-modules=pkcs11,tls_10 --disable-cc-tests --cpu=x64 --os=windows --cc=msvc
+mv botan_all.cpp botan_all.h botan_all_internal.h $BOTAN_DEST_DESKTOP_DIR/windows/x64_msvc
 
 ./configure.py --amalgamation --single-amalgamation-file --disable-modules=pkcs11,tls_10 --disable-cc-tests --cpu=x64 --os=linux --cc=gcc
 mv botan_all.cpp botan_all.h botan_all_internal.h $BOTAN_DEST_DESKTOP_DIR/linux/x86_64
