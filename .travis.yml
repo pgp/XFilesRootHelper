@@ -12,6 +12,7 @@ matrix:
             - cmake
             - libx11-dev
       env:
+         - TARGETTING_MSVC=false
          - TARGETTING_ANDROID=false
          - MATRIX_EVAL="export CC=gcc-8 && export CXX=g++-8 && cd CMAKE && cmake -H. -Bbuild" 
     
@@ -23,6 +24,7 @@ matrix:
           packages:
             - g++-8
       env:
+         - TARGETTING_MSVC=false
          - TARGETTING_ANDROID=true
          - MATRIX_EVAL="" 
 
@@ -35,6 +37,7 @@ matrix:
             - gcc@8
             - cmake
       env:
+        - TARGETTING_MSVC=false
         - TARGETTING_ANDROID=false
         - MATRIX_EVAL="export CC=gcc-8 && export CXX=g++-8 && cd CMAKE && cmake -H. -Bbuild"
 
@@ -45,7 +48,7 @@ matrix:
             - mingw
             - cmake
       env:
-        - TARGETTING_MINGW=true
+        - TARGETTING_MSVC=false
         - TARGETTING_ANDROID=false
         - MATRIX_EVAL="export CC=gcc && export CXX=g++ && cd CMAKE && cmake -G \"MinGW Makefiles\" -DCMAKE_SH=\"CMAKE_SH-NOTFOUND\" -H. -Bbuild"
      
