@@ -33,7 +33,7 @@ osx_task:
 
 windows_task:
   windows_container:
-    image: cirrusci/windowsservercore:2019
+    image: cirrusci/windowsservercore:cmake
     memory: 8G
     os_version: 2019
   env:
@@ -46,6 +46,21 @@ windows_task:
     - cd CMAKE
     - cmake -G "MinGW Makefiles" -H. -Bbuild
     - cmake --build build -- -j1
+
+msvc_task:
+  windows_container:
+    image: cirrusci/windowsservercore:cmake
+    memory: 8G
+    os_version: 2019
+  env:
+    CIRRUS_CLONE_DEPTH: 1
+  install_script:
+    - choco install -y --no-progress --installargs 'ADD_CMAKE_TO_PATH=System' cmake
+  script:
+    - set PATH=%PATH%;C:\Program Files\cmake\bin
+    - cd CMAKE
+    - cmake -G "Visual Studio 15 2017" -A x64 -H. -Bbuild
+    - cmake --build build --
 
 linux_task:
   container:

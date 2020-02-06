@@ -45,12 +45,26 @@ matrix:
             - mingw
             - cmake
       env:
+        - TARGETTING_MINGW=true
         - TARGETTING_ANDROID=false
         - MATRIX_EVAL="export CC=gcc && export CXX=g++ && cd CMAKE && cmake -G \"MinGW Makefiles\" -DCMAKE_SH=\"CMAKE_SH-NOTFOUND\" -H. -Bbuild"
+     
+    - os: windows
+      addons:
+        chocolatey:
+          packages:
+            - microsoft-build-tools
+            - visualstudio2017buildtools
+            - cmake
+      env:
+        - TARGETTING_MSVC=true
+        - TARGETTING_ANDROID=false
+        - MATRIX_EVAL="cd CMAKE && cmake -G \"Visual Studio 15 2017\" -A x64 -H. -Bbuild"
 
 before_script:
   - eval "${MATRIX_EVAL}"
 
 script:
 - if $TARGETTING_ANDROID; then source ./genRootHelpersAndroid_travis.sh;
+  elif $TARGETTING_MSVC; then cmake --build build --;
   else cmake --build build -- -j4; fi
