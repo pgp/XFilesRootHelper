@@ -32,6 +32,8 @@ endif()
 
 if(WIN32) # -O3 allows fast data transfer (order of Gbps)
 	if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+		set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT")
+		set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
 		add_definitions("/DBOTAN_DLL=__declspec(dllexport)")
 		add_compile_options("/bigobj")
 		add_compile_definitions("_ENABLE_EXTENDED_ALIGNED_STORAGE")

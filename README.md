@@ -15,6 +15,8 @@ The native library/executable file operations helper for XFiles, which can also 
     ```
 - From a bash shell:
     ```shell
+	export CC=gcc
+    export CXX=g++
     cd CMAKE
     cmake -H. -Bbuild
     cmake --build build -- -j2
@@ -30,14 +32,14 @@ The native library/executable file operations helper for XFiles, which can also 
     ```
 - From a bash shell:
     ```shell
-    export CC=$(which gcc-8)
-    export CXX=$(which g++-8)
+    export CC=gcc-9
+    export CXX=g++-9
     cd CMAKE
     cmake -H. -Bbuild
     cmake --build build -- -j2
     ```
 
-**Windows**
+**Windows (MinGW)**
 - Install [MingW](https://nuwen.net/mingw.html)
 - (Optional) Add c:\MinGW\bin to PATH
 - Install [CMake](https://cmake.org/download)
@@ -47,19 +49,30 @@ The native library/executable file operations helper for XFiles, which can also 
     set CC=c:\MinGW\bin\gcc.exe
     set CXX=c:\MinGW\bin\g++.exe
     cd CMAKE
-    cmake -G "MinGW Makefiles" -H. -Bwinbuild
+    cmake -G "MinGW Makefiles" -DCMAKE_SH="CMAKE_SH-NOTFOUND" -H. -Bwinbuild
     cmake --build winbuild -- -j2
+    ```
+
+**Windows (MSVC)**
+- Install [Visual Studio](https://visualstudio.microsoft.com/downloads/) (Build Tools at least)
+- Install [CMake](https://cmake.org/download)
+- Add CMake to system PATH from installation GUI
+- From a command prompt:
+    ```bat
+    cd CMAKE
+    cmake -G "Visual Studio 16 2019" -A x64 -H. -Bmsvcbuild
+    cmake --build msvcbuild --config Release --
     ```
 
 **BSD (e.g. FreeBSD, TrueOS)**
 - Install latest gcc and cmake:
     ```shell
-    sudo pkg install gcc8 cmake
+    sudo pkg install gcc9 cmake
     ```
 - From a bash shell:
     ```shell
-    export CC=$(which gcc8)
-    export CXX=$(which g++8)
+    export CC=gcc9
+    export CXX=g++9
     cd CMAKE
     cmake -H. -Bbuild
     cmake --build build -- -j2
