@@ -2002,48 +2002,12 @@ void tlsClientSession(IDescriptor& cl) { // cl is local socket
 	
 	PRINTUNIFIED("Received IP and port over local socket: %s %d\n",target.c_str(),port);
 	
-    int remoteCl = -1;
-	struct addrinfo hints, *servinfo, *p;
-	int rv;
+    int remoteCl = resolve_and_connect_with_timeout(target,port);
+    if(remoteCl < 0) {
+        sendErrorResponse(cl);
+        return;
+    }
 
-	PRINTUNIFIED("Populating hints...\n");
-	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_INET; // use AF_INET to force IPv4, AF_INET6 to force IPv6, AF_UNSPEC to allow both
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
-	
-	std::string port_s = std::to_string(port);
-	
-	PRINTUNIFIED("Invoking getaddrinfo...\n");
-	if ((rv = getaddrinfo(target.c_str(), port_s.c_str(), &hints, &servinfo)) != 0) {
-		PRINTUNIFIEDERROR("getaddrinfo error: %s\n", gai_strerror(rv));
-		return;
-	}
-	
-	PRINTUNIFIED("Looping through getaddrinfo results...\n");
-	// loop through all the results and connect to the first we can
-	for(p = servinfo; p != nullptr; p = p->ai_next) {
-		PRINTUNIFIED("getaddrinfo item\n");
-		
-		// NEW, with timeout
-		rv = connect_with_timeout(remoteCl, p);
-		if (rv == 0) break;
-		else {
-			PRINTUNIFIEDERROR("Timeout or connection error %d\n",rv);
-			close(remoteCl);
-		}
-	}
-	PRINTUNIFIED("getaddrinfo end results\n");
-	
-	if (p == nullptr) {
-		freeaddrinfo(servinfo);
-		PRINTUNIFIED("Could not create socket or connect\n");
-		errno = 0x323232;
-		sendErrorResponse(cl);
-		return;
-	}
-	PRINTUNIFIED("freeaddrinfo...\n");
-	freeaddrinfo(servinfo);
 	PRINTUNIFIED("Remote client session connected to server %s, port %d\n",target.c_str(),port);
 	sendOkResponse(cl); // OK, from now on java client can communicate with remote server using this local socket
 	
