@@ -31,7 +31,7 @@ public:
         }
     }
 
-    explicit PosixDescriptor(int desc_) : desc(desc_) {}
+    PosixDescriptor(int desc_) : desc(desc_) {}
 
     PosixDescriptor(const IDescriptor& other) = delete;
     PosixDescriptor(const PosixDescriptor& other) = delete;
@@ -41,6 +41,10 @@ public:
         desc = other.desc;
         other.desc = -1;
     }*/
+
+    operator bool() override {
+        return error == 0 && desc > 0;
+    }
 
     inline ssize_t read(void* buf, size_t count) override {return ::read(desc,buf,count);}
 

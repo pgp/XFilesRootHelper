@@ -13,7 +13,11 @@ class WinsockDescriptor : public IDescriptor {
 public:
     SOCKET desc;
 public:
-    explicit WinsockDescriptor(SOCKET desc_) : desc(desc_) {}
+    WinsockDescriptor(SOCKET desc_) : desc(desc_) {}
+
+    operator bool() override {
+        return error == 0 && desc != INVALID_SOCKET;
+    }
 
     virtual inline ssize_t read(void* buf, size_t count) override {
         return recv(desc,(char*)buf,count,MSG_NOSIGNAL);

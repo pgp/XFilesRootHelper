@@ -2001,9 +2001,9 @@ void tlsClientSession(IDescriptor& cl) { // cl is local socket
 	cl.readAllOrExit(&port,sizeof(uint16_t));
 	
 	PRINTUNIFIED("Received IP and port over local socket: %s %d\n",target.c_str(),port);
-	
-    int remoteCl = resolve_and_connect_with_timeout(target,port);
-    if(remoteCl < 0) {
+
+	auto&& remoteCl = netfactory.create(target, port);
+    if(!remoteCl) {
         sendErrorResponse(cl);
         return;
     }
@@ -2011,13 +2011,12 @@ void tlsClientSession(IDescriptor& cl) { // cl is local socket
 	PRINTUNIFIED("Remote client session connected to server %s, port %d\n",target.c_str(),port);
 	sendOkResponse(cl); // OK, from now on java client can communicate with remote server using this local socket
 	
-	PosixDescriptor pd_remoteCl(remoteCl);
 	RingBuffer inRb;
-	TLS_Client tlsClient(tlsClientSessionEventLoop,inRb,cl,pd_remoteCl);
+	TLS_Client tlsClient(tlsClientSessionEventLoop,inRb,cl,remoteCl);
 	tlsClient.go();
 	
 	// at the end, close the sockets
-	pd_remoteCl.close();
+	remoteCl.close();
 	cl.close();
 }
 

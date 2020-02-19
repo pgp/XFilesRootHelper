@@ -32,4 +32,4 @@ public:
 
 FileDescriptorFactory fdfactory;
 
-#endif
+#endif /* _RH_NETFACTORY_ */

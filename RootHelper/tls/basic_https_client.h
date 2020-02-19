@@ -3,7 +3,7 @@
 
 #include <regex>
 #include "../iowrappers_common.h"
-#include "../desc/PosixDescriptor.h"
+#include "../desc/NetworkDescriptorFactory.h"
 #include "botan_rh_rclient.h"
 
 
@@ -124,133 +124,6 @@ std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
     }
 
     return "file.bin";
-}
-
-// FIXME this should go in a separate header, it is used by XRE TLS client as well
-int connect_with_timeout(int& sock_fd, struct addrinfo* p, unsigned timeout_seconds) {
-    int res;
-    //~ struct sockaddr_in addr;
-    long arg;
-    fd_set myset;
-    struct timeval tv{};
-    int valopt;
-    socklen_t lon;
-
-    // Create socket
-    // sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-    sock_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-
-    if (sock_fd < 0) {
-        PRINTUNIFIEDERROR("Error creating socket (%d %s)\n", errno, strerror(errno));
-        return -1;
-    }
-
-    // Set non-blocking
-    if( (arg = fcntl(sock_fd, F_GETFL, nullptr)) < 0) {
-        PRINTUNIFIEDERROR("Error fcntl(..., F_GETFL) (%s)\n", strerror(errno));
-        return -2;
-    }
-    arg |= O_NONBLOCK;
-    if( fcntl(sock_fd, F_SETFL, arg) < 0) {
-        PRINTUNIFIEDERROR("Error fcntl(..., F_SETFL) (%s)\n", strerror(errno));
-        return -3;
-    }
-    // Trying to connect with timeout
-    // res = connect(sock_fd, (struct sockaddr *)&addr, sizeof(addr));
-    res = connect(sock_fd, p->ai_addr, p->ai_addrlen);
-    if (res < 0) {
-        if (errno == EINPROGRESS) {
-            PRINTUNIFIEDERROR("EINPROGRESS in connect() - selecting\n");
-            for(;;) {
-                tv.tv_sec = timeout_seconds;
-                tv.tv_usec = 0;
-                FD_ZERO(&myset);
-                FD_SET(sock_fd, &myset);
-                res = select(sock_fd+1, nullptr, &myset, nullptr, &tv);
-                if (res < 0 && errno != EINTR) {
-                    PRINTUNIFIEDERROR("Error connecting %d - %s\n", errno, strerror(errno));
-                    return -4;
-                }
-                else if (res > 0) {
-                    // Socket selected for write
-                    lon = sizeof(int);
-                    if (getsockopt(sock_fd, SOL_SOCKET, SO_ERROR, (void*)(&valopt), &lon) < 0) {
-                        PRINTUNIFIEDERROR("Error in getsockopt() %d - %s\n", errno, strerror(errno));
-                        return -5;
-                    }
-                    // Check the value returned...
-                    if (valopt) {
-                        PRINTUNIFIEDERROR("Error in delayed connection() %d - %s\n", valopt, strerror(valopt));
-                        return -6;
-                    }
-                    break;
-                }
-                else {
-                    PRINTUNIFIEDERROR("Timeout in select() - Cancelling!\n");
-                    return -7;
-                }
-            }
-        }
-        else {
-            PRINTUNIFIEDERROR("Error connecting %d - %s\n", errno, strerror(errno));
-            return -8;
-        }
-    }
-    // Set to blocking mode again...
-    if( (arg = fcntl(sock_fd, F_GETFL, nullptr)) < 0) {
-        PRINTUNIFIEDERROR("Error fcntl(..., F_GETFL) (%s)\n", strerror(errno));
-        return -9;
-    }
-    arg &= (~O_NONBLOCK);
-    if( fcntl(sock_fd, F_SETFL, arg) < 0) {
-        PRINTUNIFIEDERROR("Error fcntl(..., F_SETFL) (%s)\n", strerror(errno));
-        return -10;
-    }
-    return 0; // ok, at this point the socket is connected and again in blocking mode
-}
-
-int resolve_and_connect_with_timeout(const std::string& domainOnly, int port = 443, int timeout_seconds = 2) {
-    int remoteCl = -1;
-    struct addrinfo hints, *servinfo, *p;
-    int rv;
-
-    PRINTUNIFIED("Populating hints...\n");
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET; // use AF_INET to force IPv4, AF_INET6 to force IPv6, AF_UNSPEC to allow both
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_protocol = IPPROTO_TCP;
-
-    std::string port_s = std::to_string(port);
-
-    PRINTUNIFIED("Invoking getaddrinfo for %s\n",domainOnly.c_str());
-    if ((rv = getaddrinfo(domainOnly.c_str(), port_s.c_str(), &hints, &servinfo)) != 0) {
-        PRINTUNIFIEDERROR("getaddrinfo error: %s\n", gai_strerror(rv));
-        return -1;
-    }
-
-    PRINTUNIFIED("Looping through getaddrinfo results...\n");
-    // loop through all the results and connect to the first we can
-    for(p = servinfo; p != nullptr; p = p->ai_next) {
-        PRINTUNIFIED("getaddrinfo item\n");
-
-        rv = connect_with_timeout(remoteCl, p, timeout_seconds);
-        if (rv == 0) break;
-        else {
-            PRINTUNIFIEDERROR("Timeout or connection error %d\n",rv);
-            close(remoteCl);
-        }
-    }
-    PRINTUNIFIED("getaddrinfo end results\n");
-
-    if (p == nullptr) {
-        freeaddrinfo(servinfo);
-        PRINTUNIFIED("Could not create socket or connect\n");
-        errno = 0x323232;
-        return -1;
-    }
-    PRINTUNIFIED("freeaddrinfo...\n");
-    freeaddrinfo(servinfo);
-    return remoteCl;
 }
 
 // return value: HTTP response code or -1 for unsolvable error
@@ -482,8 +355,8 @@ int httpsUrlDownload_internal(IDescriptor& cl, std::string& targetUrl, uint16_t 
     auto domainOnly = slashIdx==std::string::npos?targetUrl:targetUrl.substr(0,slashIdx);
     std::string getString = slashIdx==std::string::npos?"":targetUrl.substr(slashIdx);
 
-    int remoteCl = resolve_and_connect_with_timeout(domainOnly, port);
-    if(remoteCl < 0) {
+    auto&& remoteCl = netfactory.create(domainOnly, port);
+    if(!remoteCl) {
         sendErrorResponse(cl);
         return -1;
     }
@@ -491,12 +364,11 @@ int httpsUrlDownload_internal(IDescriptor& cl, std::string& targetUrl, uint16_t 
     PRINTUNIFIED("Remote client session connected to server %s, port %d\n",domainOnly.c_str(),port);
     sendOkResponse(cl); // OK, from now on java client can communicate with remote server using this local socket
 
-    PosixDescriptor pd_remoteCl(remoteCl);
-    TLS_Client tlsClient(tlsClientUrlDownloadEventLoop,inRb,cl,pd_remoteCl, true, domainOnly, getString, port, downloadPath, targetFilename);
+    TLS_Client tlsClient(tlsClientUrlDownloadEventLoop,inRb,cl,remoteCl, true, domainOnly, getString, port, downloadPath, targetFilename);
     tlsClient.go();
     redirectUrl = tlsClient.locationToRedirect;
 
-    pd_remoteCl.close();
+    remoteCl.close();
     return tlsClient.httpRet;
 }
 
