@@ -12,7 +12,7 @@
 #ifdef _WIN32
 #include "WinsockDescriptor.h"
 
-SOCKET connect_with_timeout(const char* ipaddr, int port = 443, unsigned timeout_seconds) {
+SOCKET connect_with_timeout(const char* ipaddr, int port, unsigned timeout_seconds) {
     struct sockaddr_in server{};
 
     server.sin_family = AF_INET;
