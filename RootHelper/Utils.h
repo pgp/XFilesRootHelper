@@ -23,6 +23,8 @@
 
 #ifndef _WIN32
 #include "pwd.h"
+#else
+#include <direct.h>
 #endif
 
 // MSVC
@@ -302,15 +304,19 @@ void read_fileitem_sock_t(fileitem_sock_t& fileitem, IDescriptor& desc) {
 }
 
 #ifdef _WIN32
-#include <direct.h>
 
 int mkpath(const std::wstring& s_, mode_t _unused_) {
     if (s_ == L".") return 0; // current dir and root always exist
 
+    // check if we are trying to create root dirs for drive units
+    if((s_.size() == 2 && s_[1] == L':') || (s_.size() == 3 && s_[1] == L':' && s_[2] == L'\\')) {
+        if(existsIsFileIsDir_(s_) == 2) return 0; // _wmkdir would return error when trying to create a root dir
+        else return -1;
+    }
     std::wstring s = s_ + L"\\"; // just to avoid code duplication after for loop
     const wchar_t* cstr = s.c_str();
 
-    if (s.size() < 3) return -1; // "C:\"
+    if (s.size() < 3) return -1; // at least "C:\"
 
     if (!((cstr[0] >= L'a' && cstr[0] <= L'z') || (cstr[0] >= L'A' && cstr[0] <= L'Z'))) {
         std::wcerr<<L"Invalid unit name for path "<<s_<<std::endl;
