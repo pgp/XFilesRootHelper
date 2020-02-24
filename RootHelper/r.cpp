@@ -2069,21 +2069,16 @@ void ssh_keygen(IDescriptor& inOutDesc, uint8_t flags) {
 	uint32_t keySize;
 	inOutDesc.readAllOrExit(&keySize,sizeof(uint32_t));
 	PRINTUNIFIED("Received key size: %u\n", keySize);
-	PRINTUNIFIED("Generating key pair...");
-	Botan::AutoSeeded_RNG rng;
-	Botan::RSA_PrivateKey prv(rng,keySize);
-	PRINTUNIFIED("Generation complete, encoding to PEM...");
-	std::string prv_s = Botan::PKCS8::PEM_encode(prv);
-	uint32_t prv_s_len = prv_s.size();
-    std::string pub_s = Botan::X509::PEM_encode(prv);
-    uint32_t pub_s_len = pub_s.size();
-    PRINTUNIFIED("Encoding complete");
+	auto&& keyPair = ssh_keygen_internal(keySize);
     sendOkResponse(inOutDesc); // actually not needed
+
+    uint32_t prv_s_len = keyPair.first.size();
+    uint32_t pub_s_len = keyPair.second.size();
     
     inOutDesc.writeAllOrExit(&prv_s_len,sizeof(uint32_t));
-    inOutDesc.writeAllOrExit(prv_s.c_str(),prv_s_len);
+    inOutDesc.writeAllOrExit(keyPair.first.c_str(),prv_s_len);
     inOutDesc.writeAllOrExit(&pub_s_len,sizeof(uint32_t));
-    inOutDesc.writeAllOrExit(pub_s.c_str(),pub_s_len);
+    inOutDesc.writeAllOrExit(keyPair.second.c_str(),pub_s_len);
 }
 
 // request types to be served in a new thread

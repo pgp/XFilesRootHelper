@@ -372,4 +372,15 @@ int httpsUrlDownload_internal(IDescriptor& cl, std::string& targetUrl, uint16_t 
     return tlsClient.httpRet;
 }
 
+std::pair<std::string,std::string> ssh_keygen_internal(uint32_t keySize) {
+    PRINTUNIFIED("Generating key pair...");
+    Botan::AutoSeeded_RNG rng;
+    Botan::RSA_PrivateKey prv(rng,keySize);
+    PRINTUNIFIED("Generation complete, encoding to PEM...");
+    std::string prv_s = Botan::PKCS8::PEM_encode(prv);
+    std::string pub_s = Botan::X509::PEM_encode(prv);
+    PRINTUNIFIED("Encoding complete");
+    return std::make_pair(prv_s,pub_s);
+}
+
 #endif /* __BASIC_HTTPS_CLIENT__ */

@@ -59,8 +59,34 @@ int downloadFromArgs(int argc, const C* argv[]) {
     return httpRet==200?0:httpRet;
 }
 
+template<typename C>
+int sshKeygenFromArgs(int argc, const C* argv[]) {
+    // synopsis (RSA only): r.exe ssh-keygen [keySize=4096] [destDir='.'] [prvKeyName=id_rsa]
+
+    uint32_t keySize = 4096;
+    if(argc >= 3) {
+        std::string arg2 = TOUTF(argv[2]);
+        keySize = std::atoi(arg2.c_str());
+    }
+    std::string destDir = (argc>=4)?TOUTF(argv[3]):".";
+    std::string prvKeyName = (argc>=5)?TOUTF(argv[4]):"id_rsa";
+    std::string pubKeyName = prvKeyName + ".pub";
+    PRINTUNIFIED("Generating RSA keypair of size %d bits in path %s, name: %s\n", keySize, destDir.c_str(), prvKeyName.c_str());
+    auto&& keyPair = ssh_keygen_internal(keySize);
+    std::ofstream prv(destDir+"/"+prvKeyName, std::ios::binary);
+    prv<<keyPair.first;
+    prv.flush();
+    prv.close();
+    std::ofstream pub(destDir+"/"+pubKeyName, std::ios::binary);
+    pub<<keyPair.second;
+    pub.flush();
+    pub.close();
+    return 0;
+}
+
 const std::unordered_map<std::string,std::pair<ControlCodes,cliFunction>> allowedFromCli = {
-        {"download", {ControlCodes::ACTION_HTTPS_URL_DOWNLOAD, downloadFromArgs}}
+        {"download", {ControlCodes::ACTION_HTTPS_URL_DOWNLOAD, downloadFromArgs}},
+        {"ssh-keygen", {ControlCodes::ACTION_SSH_KEYGEN, sshKeygenFromArgs}}
 };
 
 
