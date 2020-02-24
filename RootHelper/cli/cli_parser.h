@@ -15,9 +15,9 @@ using cliFunction = int (*)(int argc, const char* argv[]);
 template<typename C>
 int downloadFromArgs(int argc, const C* argv[]) {
     // argv[1] already checked == "download"
-    if(argc < 5) {
+    if(argc < 3) {
         std::string x = TOUTF(argv[0]);
-        PRINTUNIFIED("Usage: %s download targeturl.com/path/to/remote/file.htm dest-path output_file.bin\n", x.c_str());
+        PRINTUNIFIED("Usage: %s download targeturl.com/path/to/remote/file.htm [dest-path] [output_file.bin]\n", x.c_str());
         _Exit(0);
     }
 #ifdef _WIN32
@@ -36,8 +36,10 @@ int downloadFromArgs(int argc, const C* argv[]) {
     SinkDescriptor cl;
     std::string targetUrl = TOUTF(argv[2]);
     if(targetUrl.find("https://")==0) targetUrl = targetUrl.substr(8); // strip leading https:// if present
-    std::string destDir = TOUTF(argv[3]); // NOT TOUNIXPATH, user is expected to pass the correctly formatted path from cli
-    std::string destFilename = TOUTF(argv[4]); // TODO verify correctness on windows with utf8 chars
+    // use current (working) directory as destination if not provided
+    std::string destDir = (argc>=4)?TOUTF(argv[3]):"."; // NOT TOUNIXPATH, user is expected to pass the correctly formatted path from cli
+    // detect filename from Content-Disposition header if not passed as argument
+    std::string destFilename = (argc>=5)?TOUTF(argv[4]):""; // TODO verify correctness on windows with utf8 chars
     int port = 443;
     auto httpRet = httpsUrlDownload_internal(cl,targetUrl,port,destDir,destFilename,inRb,redirectUrl);
 
