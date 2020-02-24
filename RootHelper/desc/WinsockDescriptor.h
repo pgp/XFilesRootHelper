@@ -23,6 +23,10 @@ public:
         return recv(desc,(char*)buf,count,MSG_NOSIGNAL);
     }
 
+    virtual inline ssize_t readAll(void* buf, size_t count) override {
+        return recv(desc,(char*)buf,count,MSG_WAITALL);
+    }
+
     virtual inline ssize_t write(const void* buf, size_t count) override {
         return send(desc,(const char*)buf,count,0);
     }

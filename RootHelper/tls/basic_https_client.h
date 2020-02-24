@@ -245,7 +245,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, cons
     PRINTUNIFIED("Assigned download filename is %s\n",httpFilename.c_str());
     auto destFullPath = downloadPath.empty() ? httpFilename : downloadPath + "/" + httpFilename;
     PRINTUNIFIED("Assigned download path is %s\n",destFullPath.c_str());
-    std::ofstream body(destFullPath);
+    std::ofstream body(destFullPath, std::ios::binary);
     if(!body.good()) {
         PRINTUNIFIEDERROR("Unable to open destination file for writing");
         return -1;
