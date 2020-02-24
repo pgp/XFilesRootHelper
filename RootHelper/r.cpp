@@ -28,6 +28,7 @@
 #endif
 
 #include "xre.h"
+#include "cli/cli_parser.h"
 
 #define PROGRAM_NAME "roothelper"
 char SOCKET_ADDR[32]={};
@@ -2305,11 +2306,16 @@ int MY_CDECL main(int argc, const char *argv[]) {
 		}
 	}
 	else if (argc >= 2) {
-		if (mode_is_xre(argv[1])) {
+	    std::string arg1 = TOUTF(argv[1]);
+	    if(allowedFromCli.find(arg1) != allowedFromCli.end()) {
+            PRINTUNIFIED("cli mode\n");
+	        return allowedFromCli.at(arg1).second(argc,argv);
+	    }
+		if (mode_is_xre(arg1)) {
 			PRINTUNIFIED("xre mode\n");
 			return xreMain(argc,argv,getSystemPathSeparator());
 		}
-		else if(mode_is_help(argv[1])) {
+		else if(mode_is_help(arg1)) {
 			print_help(argv[0]);
 		}
 		else { // capture second argument as UID, third as socket name
