@@ -60,6 +60,8 @@ public:
     {
        try
        {
+#ifndef _WIN32
+
           // TODO make path configurable
 #ifdef ANDROID_NDK
           const std::vector<std::string> paths { "/system/etc/security/cacerts" };
@@ -72,6 +74,11 @@ public:
              std::shared_ptr<Botan::Certificate_Store> cs(new Botan::Certificate_Store_In_Memory(path));
              m_certstores.push_back(cs);
           }
+#else
+           // works also on MinGW starting with randombit/botan@cb6f4c4
+           std::shared_ptr<Botan::Certificate_Store> cs(new Botan::Certificate_Store_Windows());
+           m_certstores.push_back(cs);
+#endif
        }
        catch(std::exception& e) {
            PRINTUNIFIEDERROR("exception in loading certificates: %s\n",e.what());

@@ -1,6 +1,6 @@
 /*
-* Botan 2.13.0 Amalgamation
-* (C) 1999-2018 The Botan Authors
+* Botan 2.14.0 Amalgamation
+* (C) 1999-2020 The Botan Authors
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -37,7 +37,7 @@
 
 /*
 * This file was automatically generated running
-* 'configure.py --amalgamation --single-amalgamation-file --disable-modules=pkcs11,tls_10 --disable-cc-tests --cpu=x64 --os=mingw --cc=gcc'
+* 'configure.py --amalgamation --disable-modules=pkcs11,tls_10 --disable-cc-tests --cpu=x64 --os=mingw --cc=gcc'
 *
 * Target
 *  - Compiler: g++ -pthread -std=c++11 -D_REENTRANT -O3
@@ -46,13 +46,13 @@
 */
 
 #define BOTAN_VERSION_MAJOR 2
-#define BOTAN_VERSION_MINOR 13
+#define BOTAN_VERSION_MINOR 14
 #define BOTAN_VERSION_PATCH 0
-#define BOTAN_VERSION_DATESTAMP 20200106
+#define BOTAN_VERSION_DATESTAMP 0
 
-#define BOTAN_VERSION_RELEASE_TYPE "release"
+#define BOTAN_VERSION_RELEASE_TYPE "unreleased"
 
-#define BOTAN_VERSION_VC_REVISION "git:ed360ab268544fd801b8ea68ff08b07610680052"
+#define BOTAN_VERSION_VC_REVISION "git:cb6f4c442f0236f4855585619fc437be7d62e69e"
 
 #define BOTAN_DISTRIBUTION_INFO "unspecified"
 
@@ -63,7 +63,7 @@
 #define BOTAN_INSTALL_PREFIX R"(/mingw)"
 #define BOTAN_INSTALL_HEADER_DIR R"(include/botan-2)"
 #define BOTAN_INSTALL_LIB_DIR R"(/mingw/lib)"
-#define BOTAN_LIB_LINK "-lws2_32"
+#define BOTAN_LIB_LINK "-lcrypt32 -lws2_32"
 #define BOTAN_LINK_FLAGS "-pthread"
 
 #define BOTAN_SYSTEM_CERT_BUNDLE "/etc/ssl/certs/ca-certificates.crt"
@@ -76,6 +76,7 @@
 
 #define BOTAN_TARGET_OS_IS_MINGW
 
+#define BOTAN_TARGET_OS_HAS_CERTIFICATE_STORE
 #define BOTAN_TARGET_OS_HAS_FILESYSTEM
 #define BOTAN_TARGET_OS_HAS_RTLGENRANDOM
 #define BOTAN_TARGET_OS_HAS_THREAD_LOCAL
@@ -149,6 +150,7 @@
 #define BOTAN_HAS_CERTSTOR_FLATFILE 20190410
 #define BOTAN_HAS_CERTSTOR_SQL 20160818
 #define BOTAN_HAS_CERTSTOR_SYSTEM 20190411
+#define BOTAN_HAS_CERTSTOR_WINDOWS 20190430
 #define BOTAN_HAS_CHACHA 20180807
 #define BOTAN_HAS_CHACHA_AVX2 20180418
 #define BOTAN_HAS_CHACHA_RNG 20170728
@@ -194,7 +196,7 @@
 #define BOTAN_HAS_ENTROPY_SOURCE 20151120
 #define BOTAN_HAS_ENTROPY_SRC_RDRAND 20131128
 #define BOTAN_HAS_ENTROPY_SRC_RDSEED 20151218
-#define BOTAN_HAS_ENTROPY_SRC_WIN32 20131128
+#define BOTAN_HAS_ENTROPY_SRC_WIN32 20200209
 #define BOTAN_HAS_FFI 20191214
 #define BOTAN_HAS_FILTERS 20160415
 #define BOTAN_HAS_FPE_FE1 20131128
@@ -573,7 +575,7 @@
     #define BOTAN_DEPRECATED(msg) __attribute__ ((deprecated(msg)))
     #define BOTAN_DEPRECATED_HEADER(hdr) _Pragma("message \"this header is deprecated\"")
 
-    #if !defined(BOTAN_IS_BEING_BUILT)
+    #if !defined(BOTAN_IS_BEING_BUILT) && !defined(BOTAN_AMALGAMATION_H_)
       #define BOTAN_FUTURE_INTERNAL_HEADER(hdr) _Pragma("message \"this header will be made internal in the future\"")
     #endif
 
@@ -581,7 +583,7 @@
     #define BOTAN_DEPRECATED(msg) __declspec(deprecated(msg))
     #define BOTAN_DEPRECATED_HEADER(hdr) __pragma(message("this header is deprecated"))
 
-    #if !defined(BOTAN_IS_BEING_BUILT)
+    #if !defined(BOTAN_IS_BEING_BUILT) && !defined(BOTAN_AMALGAMATION_H_)
       #define BOTAN_FUTURE_INTERNAL_HEADER(hdr) __pragma(message("this header will be made internal in the future"))
     #endif
 
@@ -590,7 +592,7 @@
     #define BOTAN_DEPRECATED(msg) __attribute__ ((deprecated(msg)))
     #define BOTAN_DEPRECATED_HEADER(hdr) _Pragma("GCC warning \"this header is deprecated\"")
 
-    #if !defined(BOTAN_IS_BEING_BUILT)
+    #if !defined(BOTAN_IS_BEING_BUILT) && !defined(BOTAN_AMALGAMATION_H_)
       #define BOTAN_FUTURE_INTERNAL_HEADER(hdr) _Pragma("GCC warning \"this header will be made internal in the future\"")
     #endif
   #endif
@@ -997,7 +999,10 @@ inline bool constant_time_compare(const uint8_t x[],
    }
 
 /**
-* Zero out some bytes
+* Zero out some bytes. Warning: use secure_scrub_memory instead if the
+* memory is about to be freed or otherwise the compiler thinks it can
+* elide the writes.
+*
 * @param ptr a pointer to memory to zero
 * @param bytes the number of bytes to zero in ptr
 */
@@ -1024,10 +1029,8 @@ template<typename T> inline void clear_mem(T* ptr, size_t n)
    clear_bytes(ptr, sizeof(T)*n);
    }
 
-
-
 // is_trivially_copyable is missing in g++ < 5.0
-#if !__clang__ && __GNUG__ && __GNUC__ < 5
+#if (BOTAN_GCC_VERSION > 0 && BOTAN_GCC_VERSION < 500)
 #define BOTAN_IS_TRIVIALLY_COPYABLE(T) true
 #else
 #define BOTAN_IS_TRIVIALLY_COPYABLE(T) std::is_trivially_copyable<T>::value
@@ -3585,8 +3588,6 @@ class BOTAN_PUBLIC_API(2,8) PasswordHashFamily
 }
 
 namespace Botan {
-
-BOTAN_FUTURE_INTERNAL_HEADER(argon2.h)
 
 class RandomNumberGenerator;
 
@@ -7986,11 +7987,11 @@ class RandomNumberGenerator;
 */
 
 // TODO: change to just a secure_vector
-class newhope_poly final
+class BOTAN_UNSTABLE_API newhope_poly final
    {
    public:
       uint16_t coeffs[1024];
-      ~newhope_poly() { secure_scrub_memory(coeffs, sizeof(coeffs)); }
+      ~newhope_poly();
    };
 
 enum Newhope_Params
@@ -10055,6 +10056,62 @@ class BOTAN_PUBLIC_API(2,11) System_Certificate_Store final : public Certificate
 
 }
 
+namespace Botan {
+/**
+* Certificate Store that is backed by the system trust store on Windows.
+*/
+class BOTAN_PUBLIC_API(2, 11) Certificate_Store_Windows final : public Certificate_Store
+   {
+   public:
+      Certificate_Store_Windows();
+
+      Certificate_Store_Windows(const Certificate_Store_Windows&) = default;
+      Certificate_Store_Windows(Certificate_Store_Windows&&) = default;
+      Certificate_Store_Windows& operator=(const Certificate_Store_Windows&) = default;
+      Certificate_Store_Windows& operator=(Certificate_Store_Windows&&) = default;
+
+      /**
+      * @return DNs for all certificates managed by the store
+      */
+      std::vector<X509_DN> all_subjects() const override;
+
+      /**
+      * Find a certificate by Subject DN and (optionally) key identifier
+      * @return the first certificate that matches
+      */
+      std::shared_ptr<const X509_Certificate> find_cert(
+         const X509_DN& subject_dn,
+         const std::vector<uint8_t>& key_id) const override;
+
+      /**
+      * Find all certificates with a given Subject DN.
+      * Subject DN and even the key identifier might not be unique.
+      */
+      std::vector<std::shared_ptr<const X509_Certificate>> find_all_certs(
+               const X509_DN& subject_dn, const std::vector<uint8_t>& key_id) const override;
+
+      /**
+      * Find a certificate by searching for one with a matching SHA-1 hash of
+      * public key.
+      * @return a matching certificate or nullptr otherwise
+      */
+      std::shared_ptr<const X509_Certificate>
+      find_cert_by_pubkey_sha1(const std::vector<uint8_t>& key_hash) const override;
+
+      /**
+       * @throws Botan::Not_Implemented
+       */
+      std::shared_ptr<const X509_Certificate>
+      find_cert_by_raw_subject_dn_sha256(const std::vector<uint8_t>& subject_hash) const override;
+
+      /**
+       * Not Yet Implemented
+       * @return nullptr;
+       */
+      std::shared_ptr<const X509_CRL> find_crl_for(const X509_Certificate& subject) const override;
+   };
+}
+
 BOTAN_FUTURE_INTERNAL_HEADER(cfb.h)
 
 namespace Botan {
@@ -11187,6 +11244,8 @@ class BOTAN_PUBLIC_API(2,1) CPUID final
          return has_clmul();
 #elif defined(BOTAN_TARGET_CPU_IS_ARM_FAMILY)
          return has_arm_pmull();
+#elif defined(BOTAN_TARGET_ARCH_IS_PPC64)
+         return has_power_crypto();
 #else
          return false;
 #endif
@@ -20381,8 +20440,6 @@ class BOTAN_PUBLIC_API(2,0) GOST_34_11 final : public HashFunction
    };
 
 }
-
-BOTAN_FUTURE_INTERNAL_HEADER(hash_id)
 
 namespace Botan {
 
