@@ -29,6 +29,7 @@ public:
                 desc = -1;
                 error = errno = EINVAL;
         }
+        if(desc < 0) error = errno;
     }
 
     PosixDescriptor(int desc_) : desc(desc_) {}

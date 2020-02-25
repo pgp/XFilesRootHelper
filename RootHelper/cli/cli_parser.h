@@ -131,11 +131,29 @@ int hashFromArgs(int argc, const C* argv[]) {
     return 0;
 }
 
+template<typename C>
+int createFileFromArgs(int argc, const C* argv[]) {
+    std::string exeName = TOUTF(argv[0]);
+    if(argc < 3) {
+        PRINTUNIFIED("Usage: %s <create|touch> filename [size in bytes]\n", exeName.c_str());
+        _Exit(0);
+    }
+
+    auto&& filename = STRNAMESPACE(argv[2]);
+    std::string sizeAsString = (argc >= 4)?argv[3]:"0";
+    uint64_t fileSize = std::stoull(sizeAsString);
+
+    // default creation strategy: random (equivalent to dd if=/dev/urandom ...)
+    return (fileSize != 0)?createRandomFile(filename, fileSize):createEmptyFile(filename, fileSize);
+}
+
 const std::unordered_map<std::string,std::pair<ControlCodes,cliFunction>> allowedFromCli = {
         {"download", {ControlCodes::ACTION_HTTPS_URL_DOWNLOAD, downloadFromArgs}},
         {"ssh-keygen", {ControlCodes::ACTION_SSH_KEYGEN, sshKeygenFromArgs}},
         {"hashNames", {ControlCodes::ACTION_HASH, hashFromArgs}},
-        {"hash", {ControlCodes::ACTION_HASH, hashFromArgs}}
+        {"hash", {ControlCodes::ACTION_HASH, hashFromArgs}},
+        {"create", {ControlCodes::ACTION_CREATE, createFileFromArgs}},
+        {"touch", {ControlCodes::ACTION_CREATE, createFileFromArgs}}
 };
 
 
