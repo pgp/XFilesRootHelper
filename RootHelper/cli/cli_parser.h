@@ -140,8 +140,11 @@ int createFileFromArgs(int argc, const C* argv[]) {
     }
 
     auto&& filename = STRNAMESPACE(argv[2]);
-    std::string sizeAsString = (argc >= 4)?argv[3]:"0";
-    uint64_t fileSize = std::stoull(sizeAsString);
+    uint64_t fileSize = 0;
+    if(argc >= 4) {
+        auto&& sizeAsStr = STRNAMESPACE(argv[3]);
+        fileSize = std::stoull(sizeAsStr);
+    }
 
     // default creation strategy: random (equivalent to dd if=/dev/urandom ...)
     return (fileSize != 0)?createRandomFile(filename, fileSize):createEmptyFile(filename, fileSize);
