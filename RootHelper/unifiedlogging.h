@@ -50,7 +50,7 @@ void initWindowsConsoleOutput() {
                            FILE_ATTRIBUTE_NORMAL,
                            nullptr);
     if (conHandle == INVALID_HANDLE_VALUE) {
-        std::cout<<"Invalid Console handle"<<std::endl; // actually nonsense
+        // std::cout<<"Invalid Console handle"<<std::endl; // just like the famous "Keyboard not found, press F11 to continue"
         _Exit(-234567);
     }
 }
@@ -78,6 +78,11 @@ void safeprintf(const char* fmt, ...) {
 #define  PRINTUNIFIED(...) safeprintf(__VA_ARGS__)
 #define  PRINTUNIFIEDERROR(...) safeprintf(__VA_ARGS__)
 
+#define SAMELINEPRINT(...) do { \
+	safeprintf("\r                                                                          \r"); \
+	safeprintf(__VA_ARGS__); \
+} while(0)
+
 #define EXITWITHERROR(...) do { \
 	fprintf(stderr,"Exiting on error:\n"); \
 	fprintf(stderr,__VA_ARGS__); \
@@ -102,6 +107,7 @@ void safeprintf(const char* fmt, ...) {
 
 #define  PRINTUNIFIED(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG_WITH_SOCKET_ADDR, __VA_ARGS__)
 #define  PRINTUNIFIEDERROR(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG_WITH_SOCKET_ADDR, __VA_ARGS__)
+#define  SAMELINEPRINT(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG_WITH_SOCKET_ADDR, __VA_ARGS__)
 
 
 #define EXITWITHERROR(...) do { \
@@ -144,6 +150,11 @@ void safefprintf(int descriptor, const char* fmt, ...) {
 
 #define  PRINTUNIFIED(...) safefprintf(STDOUT_FILENO, __VA_ARGS__)
 #define  PRINTUNIFIEDERROR(...) safefprintf(STDERR_FILENO, __VA_ARGS__)
+
+#define SAMELINEPRINT(...) do { \
+	safefprintf(STDOUT_FILENO,"\r                                                                          \r"); \
+	safefprintf(STDOUT_FILENO, __VA_ARGS__); \
+} while(0)
 
 #define EXITWITHERROR(...) do { \
 	 fprintf(stderr,"Exiting on error:\n"); \

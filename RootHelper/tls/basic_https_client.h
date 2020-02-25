@@ -269,7 +269,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, cons
         }
         auto substrContentLengthField = substrAfterContentLength.substr(0,crIdx);
         parsedContentLength = ::strtoll(substrContentLengthField.c_str(),nullptr,10);
-        PRINTUNIFIEDERROR("PARSED CONTENT LENGTH IS: %" PRIu64 ,parsedContentLength);
+        PRINTUNIFIEDERROR("PARSED CONTENT LENGTH IS: %" PRIu64 "\n",parsedContentLength);
     }
 
     writeStringWithLen(local_fd,httpFilename); // send guessed filename (or send back received one) in order for the GUI to locate it once completed
@@ -284,13 +284,13 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, cons
         body<<buf;
         if(currentProgress-last_progress>1000000) {
             last_progress = currentProgress;
-            PRINTUNIFIEDERROR("Progress: %" PRIu64 "\tPercentage: %.2f %%\n",currentProgress,((100.0*currentProgress)/parsedContentLength));
+            SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %%",currentProgress,((100.0*currentProgress)/parsedContentLength));
             local_fd.writeAllOrExit(&currentProgress,sizeof(uint64_t)); // send progress
         }
     }
     body.flush();
     body.close();
-    PRINTUNIFIEDERROR("End of download: %" PRIu64 " bytes downloaded\n",currentProgress);
+    PRINTUNIFIEDERROR("\nEnd of download: %" PRIu64 " bytes downloaded\n",currentProgress);
     local_fd.writeAllOrExit(&maxuint,sizeof(uint64_t)); // send end-of-progress
 
     return httpRet;
