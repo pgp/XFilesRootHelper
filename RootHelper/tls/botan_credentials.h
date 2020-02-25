@@ -60,24 +60,27 @@ public:
     {
        try
        {
-#ifndef _WIN32
-
-          // TODO make path configurable
-#ifdef ANDROID_NDK
-          const std::vector<std::string> paths { "/system/etc/security/cacerts" };
-#else
-          const std::vector<std::string> paths { "/etc/ssl/certs", "/usr/share/ca-certificates" };
-#endif
-
-          for(auto&& path : paths)
-          {
-             std::shared_ptr<Botan::Certificate_Store> cs(new Botan::Certificate_Store_In_Memory(path));
-             m_certstores.push_back(cs);
-          }
-#else
+#ifdef _WIN32
            // works also on MinGW starting with randombit/botan@cb6f4c4
            std::shared_ptr<Botan::Certificate_Store> cs(new Botan::Certificate_Store_Windows());
            m_certstores.push_back(cs);
+#elif defined(__APPLE__)
+           std::shared_ptr<Botan::Certificate_Store> cs(new Botan::Certificate_Store_MacOS());
+           m_certstores.push_back(cs);
+#else
+
+#ifdef ANDROID_NDK
+           const std::vector<std::string> paths { "/system/etc/security/cacerts" };
+#elif defined(__linux__)
+           const std::vector<std::string> paths { "/etc/ssl/certs", "/usr/share/ca-certificates" };
+#else /* BSD */
+           const std::vector<std::string> paths { "/usr/local/share/certs" };
+#endif
+           for(auto&& path : paths) {
+               std::shared_ptr<Botan::Certificate_Store> cs(new Botan::Certificate_Store_In_Memory(path));
+               m_certstores.push_back(cs);
+           }
+
 #endif
        }
        catch(std::exception& e) {
