@@ -21,7 +21,7 @@ int wmain(int argc, const wchar_t* argv[]) {
             PRINTUNIFIED("cli mode\n");
             return allowedFromCli.at(arg1).second(argc,argv);
         }
-        else {
+        else if(argv[1][0] != L'-') { // allow --homePath, etc...
             PRINTUNIFIED("Cli usage: r.exe OP args...");
             return 0;
         }
