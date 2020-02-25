@@ -193,7 +193,7 @@ template<typename STR>
 std::vector<uint8_t> rh_computeHash_wrapper(
         const STR& path,
         const uint8_t algo,
-        uint8_t dirHashOpts) {
+        const uint8_t dirHashOpts) {
     auto efd = IDirIterator<STR>::efdL(path);
     return (efd == 'd' || efd == 'L')?rh_computeHash_dir(path,algo,dirHashOpts):rh_computeHash(path,algo);
 }

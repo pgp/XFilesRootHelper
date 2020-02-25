@@ -5,6 +5,7 @@
 #include "../common_uds.h"
 #include "../tls/basic_https_client.h"
 #include "../desc/SinkDescriptor.h"
+#include "../rh_hasher_botan.h"
 
 #ifdef _WIN32
 using cliFunction = int (*)(int argc, const wchar_t* argv[]);
@@ -84,9 +85,57 @@ int sshKeygenFromArgs(int argc, const C* argv[]) {
     return 0;
 }
 
+template<typename C>
+int hashFromArgs(int argc, const C* argv[]) {
+    // default dirHash configuration (will be customizable once argparse is added as dependency):
+    // - ignore windows thumbs files: true
+    // - ignore unix hidden files/folders: true
+    // - ignore empty dirs (in case of hashNames): false
+
+    std::string hl = "hashNames";
+    uint8_t dirHashOpts = 0;
+    std::string tmparg;
+    std::unordered_map<std::string,uint8_t> tmpAlgoMap;
+    uint8_t tmpIdx = 0;
+    std::string exeName = TOUTF(argv[0]);
+
+    if(argc < 4) {
+        cliHashPrintUsage:
+        PRINTUNIFIED("Usage: %s <hash|hashNames> algo filesOrDirectories...\n"
+                     "Availables algorithms: ",exeName.c_str());
+        for(auto& s: rh_hashLabels) PRINTUNIFIED("%s ",s.c_str());
+        PRINTUNIFIED("\n");
+        _Exit(0);
+    }
+
+    tmparg = TOUTF(argv[1]);
+
+    SETb0(dirHashOpts, ((int)(hl==tmparg))); // set withNames
+    SETb1(dirHashOpts, 1); // ignore thumbs files: true
+    SETb2(dirHashOpts, 1); // ignore unix hidden files: true
+    SETBIT(dirHashOpts, 3, 0); // ignore empty dirs (if hashing also names): false
+
+    PRINTUNIFIED("dirHashOpts: %u\n",dirHashOpts);
+
+    tmparg = TOUTF(argv[2]);
+    for(auto& rhl: rh_hashLabels) tmpAlgoMap[rhl] = tmpIdx++;
+    if(tmpAlgoMap.find(tmparg) == tmpAlgoMap.end())
+        goto cliHashPrintUsage;
+
+    for(int i=3; i<argc; i++) {
+        auto&& s_arg_i = STRNAMESPACE(argv[i]);
+        auto&& currentHash = rh_computeHash_wrapper(s_arg_i, tmpAlgoMap[tmparg], dirHashOpts);
+        std::string arg_i = TOUTF(argv[i]);
+        PRINTUNIFIED("%s: %s\n", Botan::hex_encode(currentHash).c_str(), arg_i.c_str());
+    }
+    return 0;
+}
+
 const std::unordered_map<std::string,std::pair<ControlCodes,cliFunction>> allowedFromCli = {
         {"download", {ControlCodes::ACTION_HTTPS_URL_DOWNLOAD, downloadFromArgs}},
-        {"ssh-keygen", {ControlCodes::ACTION_SSH_KEYGEN, sshKeygenFromArgs}}
+        {"ssh-keygen", {ControlCodes::ACTION_SSH_KEYGEN, sshKeygenFromArgs}},
+        {"hashNames", {ControlCodes::ACTION_HASH, hashFromArgs}},
+        {"hash", {ControlCodes::ACTION_HASH, hashFromArgs}}
 };
 
 

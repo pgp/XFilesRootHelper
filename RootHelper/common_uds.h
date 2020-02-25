@@ -98,9 +98,10 @@ typedef struct {
 #define b0(x) (x & 1)
 #define b1(x) ((x & 2) >> 1)
 #define b2(x) ((x & 4) >> 2)
-#define SETb0(x,v) (x = (x & (~(1))) | 1)
-#define SETb1(x,v) (x = (x & (~(2))) | 2)
-#define SETb2(x,v) (x = (x & (~(4))) | 4)
+// ASSUMPTION for bit-set macros: v must be 1 or 0
+#define SETb0(x,v) (x = (x & (~(1))) | (v << 0))
+#define SETb1(x,v) (x = (x & (~(2))) | (v << 1))
+#define SETb2(x,v) (x = (x & (~(4))) | (v << 2))
 
 // get nth bit of x
 // #define BIT(x,n) (x & (1<<n)) // not correct for array indexing, should return 1 or 0
