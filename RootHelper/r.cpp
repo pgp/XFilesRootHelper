@@ -1058,14 +1058,12 @@ const char* find_legend = R"FIND1(
  */
 )FIND1";
 
-// std::atomic_int currentSearchInOutDesc(-1); // at most one search thread per roothelper instance
 std::mutex currentSearchInOutDesc_mx;
 bool searchInterrupted = false; // FIXME not really thread-safe, replace with more robust mechanism
 IDescriptor* currentSearchInOutDesc = nullptr; // at most one search thread per roothelper instance
 
 void on_find_thread_exit_function() {
 	PRINTUNIFIED("Resetting find thread global descriptor\n");
-	// currentSearchInOutDesc.store(-1);
 	std::unique_lock<std::mutex> lock(currentSearchInOutDesc_mx);
 	currentSearchInOutDesc->close();
 	delete currentSearchInOutDesc;
@@ -1087,13 +1085,10 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 		currentSearchInOutDesc->close(); // will cause search thread, if any, to exit on socket write error, in so freeing the allocated global IDescriptor
 		lock.unlock();
 		
-		// close(currentSearchInOutDesc.load()); // will cause search thread, if any, to exit on socket write error
-		// currentSearchInOutDesc.store(-1);
 		sendOkResponse(inOutDesc);
 		return;
 	}
 	
-	// if (currentSearchInOutDesc.load() > 0) { // another search task already active, and we are trying to start a new one
 	if (currentSearchInOutDesc != nullptr) { // another search task already active, and we are trying to start a new one
 		errno = EAGAIN; // try again later
 		lock.unlock();
@@ -1128,11 +1123,8 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 	// (because otherwise a long-term search that doesn't find anything would continue despite the socket has been closed, since it
 	// would send no updates till the end-of-list indication)
 	
-	// on_thread_exit_generic(on_find_thread_exit_function);
 	auto& fpd = dynamic_cast<PosixDescriptor&>(inOutDesc);
 
-	//~ currentSearchInOutDesc.store(inOutDesc); // here atomic compare and set would be needed, or at least volatile variable
-	
 	currentSearchInOutDesc = new PosixDescriptor(fpd.desc);
 	lock.unlock();
 	
@@ -2117,6 +2109,7 @@ void serveRequest(int intcl, request_type rq) {
 		case ControlCodes::ACTION_FIND:
 			try {
 				findNamesAndContent(cl, rq.flags);
+				on_find_thread_exit_function();
 			}
 			catch(...) {
 				on_find_thread_exit_function();
