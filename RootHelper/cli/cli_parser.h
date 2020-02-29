@@ -102,7 +102,7 @@ int hashFromArgs(int argc, const C* argv[]) {
     if(argc < 4) {
         cliHashPrintUsage:
         PRINTUNIFIED("Usage: %s <hash|hashNames> algo filesOrDirectories...\n"
-                     "Availables algorithms: ",exeName.c_str());
+                     "Available algorithms: ",exeName.c_str());
         for(auto& s: rh_hashLabels) PRINTUNIFIED("%s ",s.c_str());
         PRINTUNIFIED("\n");
         _Exit(0);

@@ -26,7 +26,8 @@ const std::vector<std::string> rh_hashLabels {
         "SHA-3(256)",
         "SHA-3(384)",
         "SHA-3(512)",
-        "Blake2b(256)"
+        "Blake2b(256)",
+        "SHA-224",
 };
 
 // only needed for remote hash computation
@@ -41,7 +42,8 @@ constexpr size_t rh_hashSizes[] {
         32,
         48,
         64,
-        32
+        32,
+        28
 };
 
 typedef int (*rh_qsort_comp_fn_t)(const void* p1, const void* p2);
@@ -59,6 +61,7 @@ const rh_qsort_comp_fn_t rh_hashComparators[] = {
     [](const void* p1, const void* p2) {return ::memcmp(p1,p2,48);},
     [](const void* p1, const void* p2) {return ::memcmp(p1,p2,64);},
     [](const void* p1, const void* p2) {return ::memcmp(p1,p2,32);},
+    [](const void* p1, const void* p2) {return ::memcmp(p1,p2,28);},
 };
 
 constexpr size_t rh_hash_maxAlgoIndex = sizeof(rh_hashSizes)/sizeof(size_t);
