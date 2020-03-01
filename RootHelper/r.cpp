@@ -1059,15 +1059,24 @@ const char* find_legend = R"FIND1(
 )FIND1";
 
 std::mutex currentSearchInOutDesc_mx;
-bool searchInterrupted = false; // FIXME not really thread-safe, replace with more robust mechanism
 IDescriptor* currentSearchInOutDesc = nullptr; // at most one search thread per roothelper instance
 
-void on_find_thread_exit_function() {
+void find_thread_exit_function_unsafe() {
+	if(currentSearchInOutDesc) {
+		currentSearchInOutDesc->close(); // will cause search thread, if any, to exit on socket write error, in so freeing the allocated global IDescriptor
+		delete currentSearchInOutDesc;
+		currentSearchInOutDesc = nullptr;
+	}
+}
+
+void on_find_thread_exit_function(bool resourceAlreadyLocked = false) {
 	PRINTUNIFIED("Resetting find thread global descriptor\n");
-	std::unique_lock<std::mutex> lock(currentSearchInOutDesc_mx);
-	currentSearchInOutDesc->close();
-	delete currentSearchInOutDesc;
-	currentSearchInOutDesc = nullptr;
+	if(resourceAlreadyLocked)
+		find_thread_exit_function_unsafe();
+	else {
+		std::unique_lock<std::mutex> lock(currentSearchInOutDesc_mx);
+		find_thread_exit_function_unsafe();
+	}
 }
 
 void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
@@ -1081,15 +1090,12 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 	
 	std::unique_lock<std::mutex> lock(currentSearchInOutDesc_mx);
 	if (b0(flags)) { // cancel current search, if any
-		searchInterrupted = true;
-		currentSearchInOutDesc->close(); // will cause search thread, if any, to exit on socket write error, in so freeing the allocated global IDescriptor
-		lock.unlock();
-		
+		on_find_thread_exit_function(true); // force close of currently open search descriptor
 		sendOkResponse(inOutDesc);
 		return;
 	}
 	
-	if (currentSearchInOutDesc != nullptr) { // another search task already active, and we are trying to start a new one
+	if (currentSearchInOutDesc) { // another search task already active, and we are trying to start a new one
 		errno = EAGAIN; // try again later
 		lock.unlock();
 		sendErrorResponse(inOutDesc);
@@ -1129,7 +1135,6 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 	lock.unlock();
 	
 	sendOkResponse(inOutDesc);
-	searchInterrupted = false;
 	
 	// check flags
 	if (b1(flags)) { // search in base folder only
@@ -1144,7 +1149,7 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 				if (strcmp(dir->d_name, ".") == 0 ||
 					strcmp(dir->d_name, "..") == 0) continue;
 					
-				if (searchInterrupted) {
+				if (currentSearchInOutDesc == nullptr) {
 					PRINTUNIFIEDERROR("Search interrupted,exiting...\n");
 					threadExit();
 				}
@@ -1180,7 +1185,7 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 			std::string curEntString = dirIt.getCurrent();
 			std::string curEntName = dirIt.getCurrentFilename();
 			
-			if (searchInterrupted) {
+			if (currentSearchInOutDesc == nullptr) {
 				PRINTUNIFIEDERROR("Search interrupted,exiting...\n");
 				threadExit();
 			}
@@ -1210,6 +1215,7 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 	// send end of list indication
 	constexpr uint16_t eol = 0;
 	inOutDesc.writeAllOrExit(&eol,sizeof(uint16_t));
+	on_find_thread_exit_function(); // free search descriptor
 }
 
 #ifdef __linux__
@@ -2109,7 +2115,6 @@ void serveRequest(int intcl, request_type rq) {
 		case ControlCodes::ACTION_FIND:
 			try {
 				findNamesAndContent(cl, rq.flags);
-				on_find_thread_exit_function();
 			}
 			catch(...) {
 				on_find_thread_exit_function();
