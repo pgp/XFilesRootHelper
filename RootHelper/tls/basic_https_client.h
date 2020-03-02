@@ -127,7 +127,14 @@ std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
 }
 
 // return value: HTTP response code or -1 for unsolvable error
-int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, const std::string& downloadPath, const std::string& targetFilename, std::string& hdrs, const std::string& url) {
+// if downloadToFile is false, downloadPath is ignored, and downloaded body is sent back to local_fd as string with length
+int parseHttpResponseHeadersAndBody(IDescriptor& fd,
+                                    IDescriptor& local_fd,
+                                    const std::string& downloadPath,
+                                    const std::string& targetFilename,
+                                    std::string& hdrs,
+                                    const std::string& url,
+                                    const bool downloadToFile = true) {
     uint64_t currentProgress = 0, last_progress = 0;
     std::stringstream headers;
     std::stringstream tmpbody;
@@ -245,12 +252,17 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, cons
     PRINTUNIFIED("Assigned download filename is %s\n",httpFilename.c_str());
     auto destFullPath = downloadPath.empty() ? httpFilename : downloadPath + TOUTF(getSystemPathSeparator()) + httpFilename;
     PRINTUNIFIED("Assigned download path is %s\n",destFullPath.c_str());
-    std::ofstream body(destFullPath, std::ios::binary);
-    if(!body.good()) {
+
+    // will try to open (with no success) an empty-name file in case of download to memory
+    std::ofstream body(downloadToFile?destFullPath:"", std::ios::binary);
+    if(!body.good() && downloadToFile) {
         PRINTUNIFIEDERROR("Unable to open destination file for writing");
         return -1;
     }
-    body<<tmpbody.str();
+
+    auto&& tmpbody_str = tmpbody.str();
+    if(downloadToFile) body<<tmpbody_str;
+    // in case of in-memory download, tmpbody_str will be written later
 
     PRINTUNIFIED("Finding content length... (part of body may have been already received)\n");
 
@@ -275,23 +287,36 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, cons
     writeStringWithLen(local_fd,httpFilename); // send guessed filename (or send back received one) in order for the GUI to locate it once completed
     local_fd.writeAllOrExit(&parsedContentLength,sizeof(uint64_t)); // send total size
 
+    if(!downloadToFile)
+        local_fd.writeAllOrExit(tmpbody_str.c_str(),tmpbody_str.length());
+
     for(;;) {
         std::string buf(4096,0);
         auto readBytes = fd.read((char*)(buf.c_str()), 4096);
         if(readBytes<=0) break;
         buf.resize(readBytes);
         currentProgress += readBytes;
-        body<<buf;
+
+        if(downloadToFile) body<<buf;
+        else {
+            local_fd.writeAllOrExit(buf.c_str(),readBytes); // send actual content only if in-memory download has been requested
+            PRINTUNIFIEDERROR("Sent downloaded chunk of %d bytes\n",readBytes);
+        }
+
         if(currentProgress-last_progress>1000000) {
             last_progress = currentProgress;
             SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %%",currentProgress,((100.0*currentProgress)/parsedContentLength));
-            local_fd.writeAllOrExit(&currentProgress,sizeof(uint64_t)); // send progress
+            if(downloadToFile)
+                local_fd.writeAllOrExit(&currentProgress,sizeof(uint64_t)); // send progress only when writing to file
         }
     }
-    body.flush();
-    body.close();
+    if(downloadToFile) {
+        body.flush();
+        body.close();
+    }
     PRINTUNIFIEDERROR("\nEnd of download: %" PRIu64 " bytes downloaded\n",currentProgress);
-    local_fd.writeAllOrExit(&maxuint,sizeof(uint64_t)); // send end-of-progress
+    if(downloadToFile)
+        local_fd.writeAllOrExit(&maxuint,sizeof(uint64_t)); // send end-of-progress
 
     return httpRet;
 }
@@ -301,8 +326,10 @@ void tlsClientUrlDownloadEventLoop(TLS_Client& client_wrapper) {
     TLSDescriptor rcl(client_wrapper.inRb,*(client_wrapper.client));
     try {
         if(client_wrapper.sniHost.empty() || client_wrapper.downloadPath.empty()) {
-            PRINTUNIFIEDERROR("sniHost field or download path is empty");
-            threadExit();
+            if(client_wrapper.downloadToFile) {
+                PRINTUNIFIEDERROR("sniHost field or download path is empty");
+                threadExit();
+            }
         }
         PRINTUNIFIED("In TLS URL Download event loop, getString is %s ...\n",client_wrapper.getString.c_str());
         auto&& getString1 = (client_wrapper.getString.empty() || client_wrapper.getString[0] != '/')?
@@ -321,8 +348,8 @@ void tlsClientUrlDownloadEventLoop(TLS_Client& client_wrapper) {
                                                                  client_wrapper.downloadPath,
                                                                  client_wrapper.targetFilename,
                                                                  hdrs,
-                                                                 client_wrapper.sniHost+"/"+client_wrapper.getString // ~ url
-                                                                 );
+                                                                 client_wrapper.sniHost+"/"+client_wrapper.getString, // ~ url
+                                                                 client_wrapper.downloadToFile);
         if (client_wrapper.httpRet == 301 || client_wrapper.httpRet == 302) {
             // get redirect domain
             const std::string locLabel = "Location: ";
@@ -345,7 +372,14 @@ void tlsClientUrlDownloadEventLoop(TLS_Client& client_wrapper) {
     PRINTUNIFIEDERROR("[tlsClientUrlDownloadEventLoop] No housekeeping and return\n");
 }
 
-int httpsUrlDownload_internal(IDescriptor& cl, std::string& targetUrl, uint16_t port, const std::string& downloadPath, const std::string& targetFilename, RingBuffer& inRb, std::string& redirectUrl) {
+int httpsUrlDownload_internal(IDescriptor& cl,
+                              std::string& targetUrl,
+                              uint16_t port,
+                              const std::string& downloadPath,
+                              const std::string& targetFilename,
+                              RingBuffer& inRb,
+                              std::string& redirectUrl,
+                              const bool downloadToFile) {
     if(targetUrl.find("http://")==0)
         throw std::runtime_error("Plain HTTP not allowed");
     else if(targetUrl.find("https://")==0)
@@ -364,7 +398,7 @@ int httpsUrlDownload_internal(IDescriptor& cl, std::string& targetUrl, uint16_t 
     PRINTUNIFIED("Remote client session connected to server %s, port %d\n",domainOnly.c_str(),port);
     sendOkResponse(cl); // OK, from now on java client can communicate with remote server using this local socket
 
-    TLS_Client tlsClient(tlsClientUrlDownloadEventLoop,inRb,cl,remoteCl, true, domainOnly, getString, port, downloadPath, targetFilename);
+    TLS_Client tlsClient(tlsClientUrlDownloadEventLoop,inRb,cl,remoteCl, true, domainOnly, getString, port, downloadPath, targetFilename, downloadToFile);
     tlsClient.go();
     redirectUrl = tlsClient.locationToRedirect;
 

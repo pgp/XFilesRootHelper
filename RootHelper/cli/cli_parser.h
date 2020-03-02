@@ -42,7 +42,7 @@ int downloadFromArgs(int argc, const C* argv[]) {
     // detect filename from Content-Disposition header if not passed as argument
     std::string destFilename = (argc>=5)?TOUTF(argv[4]):""; // TODO verify correctness on windows with utf8 chars
     int port = 443;
-    auto httpRet = httpsUrlDownload_internal(cl,targetUrl,port,destDir,destFilename,inRb,redirectUrl);
+    auto httpRet = httpsUrlDownload_internal(cl,targetUrl,port,destDir,destFilename,inRb,redirectUrl,true);
 
     // HTTP redirect limit
     for(int i=0;i<5;i++) {
@@ -54,7 +54,7 @@ int downloadFromArgs(int argc, const C* argv[]) {
         }
         inRb.reset();
         std::string target = redirectUrl;
-        httpRet = httpsUrlDownload_internal(cl,target,port,destDir,destFilename,inRb,redirectUrl);
+        httpRet = httpsUrlDownload_internal(cl,target,port,destDir,destFilename,inRb,redirectUrl,true);
     }
 
     return httpRet==200?0:httpRet;

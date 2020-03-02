@@ -2019,9 +2019,10 @@ void tlsClientSession(IDescriptor& cl) { // cl is local socket
 	cl.close();
 }
 
-void httpsUrlDownload(IDescriptor& cl) { // cl is local socket
+void httpsUrlDownload(IDescriptor& cl, const uint8_t flags) { // cl is local socket
     // receive server address
     std::string target = readStringWithLen(cl);
+    const bool downloadToFile = flags == 0; // flags: 000 -> download to file, 111 -> download to memory
 
     // receive port
     uint16_t port;
@@ -2042,7 +2043,7 @@ void httpsUrlDownload(IDescriptor& cl) { // cl is local socket
 
     RingBuffer inRb;
     std::string redirectUrl;
-    auto httpRet = httpsUrlDownload_internal(cl,target,port,downloadPath,targetFilename,inRb,redirectUrl);
+    auto httpRet = httpsUrlDownload_internal(cl,target,port,downloadPath,targetFilename,inRb,redirectUrl,downloadToFile);
     
     // HTTP redirect limit
     for(int i=0;i<5;i++) {
@@ -2054,7 +2055,7 @@ void httpsUrlDownload(IDescriptor& cl) { // cl is local socket
         }
         inRb.reset();
         target = redirectUrl;
-        httpRet = httpsUrlDownload_internal(cl,target,port,downloadPath,targetFilename,inRb,redirectUrl);
+        httpRet = httpsUrlDownload_internal(cl,target,port,downloadPath,targetFilename,inRb,redirectUrl,downloadToFile);
     }
 
     // at the end, close the sockets
@@ -2175,7 +2176,7 @@ void serveRequest(int intcl, request_type rq) {
 		// client disconnect: on process exit, or on Java client disconnect from local unix socket
 
         case ControlCodes::ACTION_HTTPS_URL_DOWNLOAD:
-            httpsUrlDownload(cl);
+            httpsUrlDownload(cl, rq.flags);
             threadExit(); // no request continuation, one URL download per local thread
             break;
 		default:

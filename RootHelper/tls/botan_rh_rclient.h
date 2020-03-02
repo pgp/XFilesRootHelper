@@ -48,6 +48,7 @@ public:
     const std::string targetFilename; // only for URL download
     int httpRet; // onyl for URL download, to be read from caller in order to decide whether follow redirect or not
     std::string locationToRedirect; // onyl for URL download, to be read from caller
+    const bool downloadToFile;
 
     RingBuffer& inRb;
     TlsClientEventLoopFn eventLoopFn;
@@ -181,7 +182,8 @@ public:
                std::string getString_ = "",
                int serverPort_=11111,
                std::string downloadPath_ = "",
-               std::string targetFilename_ = ""
+               std::string targetFilename_ = "",
+               const bool downloadToFile_ = true
     ) :
             eventLoopFn(eventLoopFn_),
             inRb(inRb_),
@@ -193,6 +195,7 @@ public:
             serverPort(serverPort_),
             downloadPath(std::move(downloadPath_)),
             targetFilename(std::move(targetFilename_)),
+            downloadToFile(downloadToFile_),
             httpRet(-1),
             client(nullptr) {}
 
