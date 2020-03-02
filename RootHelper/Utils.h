@@ -32,30 +32,6 @@
 typedef int32_t mode_t;
 #endif
 
-#ifdef _WIN32
-using STRNAMESPACE = std::wstring;
-
-std::wstring getSystemPathSeparator() {
-    return L"\\";
-}
-
-std::wstring getExtSeparator() {
-    return L".";
-}
-
-#else
-using STRNAMESPACE = std::string;
-
-std::string getSystemPathSeparator() {
-    return "/";
-}
-
-std::string getExtSeparator() {
-    return ".";
-}
-
-#endif
-
 #define TICKS_PER_SECOND 10000000
 #define EPOCH_DIFFERENCE 11644473600LL
 time_t convertWindowsTimeToUnixTime(long long int input){

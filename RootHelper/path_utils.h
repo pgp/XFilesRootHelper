@@ -4,6 +4,30 @@
 #include "unifiedlogging.h"
 #include <algorithm>
 
+#ifdef _WIN32
+using STRNAMESPACE = std::wstring;
+
+std::wstring getSystemPathSeparator() {
+    return L"\\";
+}
+
+std::wstring getExtSeparator() {
+    return L".";
+}
+
+#else
+using STRNAMESPACE = std::string;
+
+std::string getSystemPathSeparator() {
+    return "/";
+}
+
+std::string getExtSeparator() {
+    return ".";
+}
+
+#endif
+
 // PGP
 std::string wchar_to_UTF8(const std::wstring& in_) {
     const wchar_t* in = in_.c_str();

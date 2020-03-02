@@ -243,7 +243,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd, IDescriptor& local_fd, cons
     PRINTUNIFIED("Finding a valid filename to download to, if not explicitly provided...\n");
     auto httpFilename = targetFilename.empty()?getHttpFilename(hdrs,url):targetFilename;
     PRINTUNIFIED("Assigned download filename is %s\n",httpFilename.c_str());
-    auto destFullPath = downloadPath.empty() ? httpFilename : downloadPath + "/" + httpFilename;
+    auto destFullPath = downloadPath.empty() ? httpFilename : downloadPath + TOUTF(getSystemPathSeparator()) + httpFilename;
     PRINTUNIFIED("Assigned download path is %s\n",destFullPath.c_str());
     std::ofstream body(destFullPath, std::ios::binary);
     if(!body.good()) {
