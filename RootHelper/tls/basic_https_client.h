@@ -2,9 +2,23 @@
 #define __BASIC_HTTPS_CLIENT__
 
 #include <regex>
+#include <algorithm>
+#include <string>
+#include <cctype>
 #include "../iowrappers_common.h"
 #include "../desc/NetworkDescriptorFactory.h"
 #include "botan_rh_rclient.h"
+
+// Web source: https://stackoverflow.com/questions/3152241/case-insensitive-stdstring-find
+size_t findStringIC(const std::string& strHaystack, const std::string& strNeedle) {
+    auto it = std::search(
+            strHaystack.begin(), strHaystack.end(),
+            strNeedle.begin(),   strNeedle.end(),
+            [](char ch1, char ch2) { return std::toupper(ch1) == std::toupper(ch2); }
+    );
+    if(it == strHaystack.end()) return std::string::npos;
+    return it - strHaystack.begin();
+}
 
 
 // Web source for url encode/decode: https://stackoverflow.com/questions/154536/encode-decode-urls-in-c
@@ -75,7 +89,7 @@ std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
     std::string line;
     const std::string cdPrefix = "Content-Disposition: ";
     while(std::getline(ss,line)) {
-        if(line.find(cdPrefix)==0) {
+        if(findStringIC(line,cdPrefix)==0) {
             PRINTUNIFIED("Content-Disposition header found\n");
             // try parsing using regex
             auto&& z = parseContentDispLine(line);
@@ -267,7 +281,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd,
     PRINTUNIFIED("Finding content length... (part of body may have been already received)\n");
 
     std::string contentLengthPattern = "Content-Length: ";
-    auto contentLengthIdx = hdrs.find(contentLengthPattern);
+    auto contentLengthIdx = findStringIC(hdrs,contentLengthPattern);
     uint64_t parsedContentLength = -1;
     if(contentLengthIdx == std::string::npos) {
         PRINTUNIFIEDERROR("No content-length provided, progress won't be available\n");
@@ -353,7 +367,7 @@ void tlsClientUrlDownloadEventLoop(TLS_Client& client_wrapper) {
         if (client_wrapper.httpRet == 301 || client_wrapper.httpRet == 302) {
             // get redirect domain
             const std::string locLabel = "Location: ";
-            auto redirectLocIdx = hdrs.find(locLabel);
+            auto redirectLocIdx = findStringIC(hdrs,locLabel);
             if(redirectLocIdx == std::string::npos) throw std::runtime_error("Malformed redirect response");
             auto locationtag = hdrs.substr(redirectLocIdx+locLabel.size());
             redirectLocIdx = locationtag.find("\r\n");
