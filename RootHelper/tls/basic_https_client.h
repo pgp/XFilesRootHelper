@@ -7,6 +7,7 @@
 #include <cctype>
 #include "../iowrappers_common.h"
 #include "../desc/NetworkDescriptorFactory.h"
+#include "../desc/FileDescriptorFactory.h"
 #include "botan_rh_rclient.h"
 
 // Web source: https://stackoverflow.com/questions/3152241/case-insensitive-stdstring-find
@@ -272,14 +273,14 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd,
 
     // will try to open (with no success) an empty-name file in case of download to memory
     auto definitiveDestPath = downloadToFile?destFullPath:STRNAMESPACE();
-    std::ofstream body(definitiveDestPath.c_str(), std::ios::binary);
-    if(!body.good() && downloadToFile) {
-        PRINTUNIFIEDERROR("Unable to open destination file for writing");
+    auto&& body = fdfactory.create(definitiveDestPath, FileOpenMode::WRITE);
+    if(!body && downloadToFile) {
+        PRINTUNIFIEDERROR("Unable to open destination file for writing, error is %d\n", body.error);
         return -1;
     }
 
     auto&& tmpbody_str = tmpbody.str();
-    if(downloadToFile) body<<tmpbody_str;
+    if(downloadToFile) body.writeAllOrExit(tmpbody_str.c_str(), tmpbody_str.size());
     // in case of in-memory download, tmpbody_str will be written later
 
     PRINTUNIFIED("Finding content length... (part of body may have been already received)\n");
@@ -316,7 +317,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd,
         buf.resize(readBytes);
         currentProgress += readBytes;
 
-        if(downloadToFile) body<<buf;
+        if(downloadToFile) body.writeAllOrExit(buf.c_str(), readBytes);
         else {
             local_fd.writeAllOrExit(buf.c_str(),readBytes); // send actual content only if in-memory download has been requested
             PRINTUNIFIEDERROR("Sent downloaded chunk of %d bytes\n",readBytes);
@@ -330,7 +331,6 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd,
         }
     }
     if(downloadToFile) {
-        body.flush();
         body.close();
     }
     PRINTUNIFIEDERROR("\nEnd of download: %" PRIu64 " bytes downloaded\n",currentProgress);
