@@ -30,13 +30,12 @@ public:
     }
 };
 
-
 class TLS_Client;
 
-//typedef void (*TlsClientEventLoopFn) (RingBuffer& inRb, Botan::TLS::Client& client, IDescriptor& local_sock_fd);
 typedef void (*TlsClientEventLoopFn) (TLS_Client& client_wrapper);
 
 class TLS_Client final : public Botan::TLS::Callbacks {
+    using STR = decltype(STRNAMESPACE());
 public:
 
     const int serverPort; // 443 for URL download, 11111 for connecting to XRE server
@@ -44,8 +43,8 @@ public:
     const bool verifyCertificates; // true for URL download, false for connection to XRE server
     const std::string sniHost; // only for URL download
     const std::string getString; // only for URL download
-    const std::string downloadPath; // only for URL download
-    const std::string targetFilename; // only for URL download
+    const STR downloadPath; // only for URL download
+    const STR targetFilename; // only for URL download
     int httpRet; // onyl for URL download, to be read from caller in order to decide whether follow redirect or not
     std::string locationToRedirect; // onyl for URL download, to be read from caller
     const bool downloadToFile;
@@ -57,12 +56,6 @@ public:
     Botan::TLS::Client* client;
 
     bool setupAborted = false;
-
-    // returns socket or -1
-    int connect_tcp_socket(std::string& domain, int port=443) {
-        // TODO add socket factory in desc folder (client network sockets for Posix and Windows)
-        return -1;
-    }
 
 	// local_socket passed for closing it by here when this thread terminates before the other, in so avoiding deadlock
     static void incomingRbMemberFn(IDescriptor& networkSocket, Botan::TLS::Client& client, IDescriptor& local_socket, IDescriptor& ringBuffer) {
@@ -181,8 +174,8 @@ public:
                std::string sniHost_ = "",
                std::string getString_ = "",
                int serverPort_=11111,
-               std::string downloadPath_ = "",
-               std::string targetFilename_ = "",
+               STR downloadPath_ = STRNAMESPACE(),
+               STR targetFilename_ = STRNAMESPACE(),
                const bool downloadToFile_ = true
     ) :
             eventLoopFn(eventLoopFn_),

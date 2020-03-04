@@ -38,9 +38,9 @@ int downloadFromArgs(int argc, const C* argv[]) {
     std::string targetUrl = TOUTF(argv[2]);
     if(targetUrl.find("https://")==0) targetUrl = targetUrl.substr(8); // strip leading https:// if present
     // use current (working) directory as destination if not provided
-    std::string destDir = (argc>=4)?TOUTF(argv[3]):"."; // NOT TOUNIXPATH, user is expected to pass the correctly formatted path from cli
+    auto destDir = STRNAMESPACE() + ((argc>=4)?argv[3]:FROMUTF(".")); // NOT TOUNIXPATH, user is expected to pass the correctly formatted path from cli
     // detect filename from Content-Disposition header if not passed as argument
-    std::string destFilename = (argc>=5)?TOUTF(argv[4]):""; // TODO verify correctness on windows with utf8 chars
+    auto destFilename = STRNAMESPACE() + ((argc>=5)?argv[4]:STRNAMESPACE());
     int port = 443;
     auto httpRet = httpsUrlDownload_internal(cl,targetUrl,port,destDir,destFilename,inRb,redirectUrl,true);
 

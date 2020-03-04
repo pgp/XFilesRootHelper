@@ -142,10 +142,11 @@ std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
 
 // return value: HTTP response code or -1 for unsolvable error
 // if downloadToFile is false, downloadPath is ignored, and downloaded body is sent back to local_fd as string with length
+template<typename STR>
 int parseHttpResponseHeadersAndBody(IDescriptor& fd,
                                     IDescriptor& local_fd,
-                                    const std::string& downloadPath,
-                                    const std::string& targetFilename,
+                                    const STR& downloadPath,
+                                    const STR& targetFilename,
                                     std::string& hdrs,
                                     const std::string& url,
                                     const bool downloadToFile = true) {
@@ -262,13 +263,16 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd,
     local_fd.writeAllOrExit(&endOfRedirects,sizeof(uint8_t));
 
     PRINTUNIFIED("Finding a valid filename to download to, if not explicitly provided...\n");
-    auto httpFilename = targetFilename.empty()?getHttpFilename(hdrs,url):targetFilename;
-    PRINTUNIFIED("Assigned download filename is %s\n",httpFilename.c_str());
-    auto destFullPath = downloadPath.empty() ? httpFilename : downloadPath + TOUTF(getSystemPathSeparator()) + httpFilename;
-    PRINTUNIFIED("Assigned download path is %s\n",destFullPath.c_str());
+    auto httpFilename = targetFilename.empty()?FROMUTF(getHttpFilename(hdrs,url)):targetFilename;
+    auto tmp_ = TOUTF(httpFilename);
+    PRINTUNIFIED("Assigned download filename is %s\n",tmp_.c_str());
+    auto destFullPath = downloadPath.empty() ? httpFilename : downloadPath + getSystemPathSeparator() + httpFilename;
+    tmp_ = TOUTF(destFullPath);
+    PRINTUNIFIED("Assigned download path is %s\n",tmp_.c_str());
 
     // will try to open (with no success) an empty-name file in case of download to memory
-    std::ofstream body(downloadToFile?destFullPath:"", std::ios::binary);
+    auto definitiveDestPath = downloadToFile?destFullPath:STRNAMESPACE();
+    std::ofstream body(definitiveDestPath.c_str(), std::ios::binary);
     if(!body.good() && downloadToFile) {
         PRINTUNIFIEDERROR("Unable to open destination file for writing");
         return -1;
@@ -298,7 +302,8 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd,
         PRINTUNIFIEDERROR("PARSED CONTENT LENGTH IS: %" PRIu64 "\n",parsedContentLength);
     }
 
-    writeStringWithLen(local_fd,httpFilename); // send guessed filename (or send back received one) in order for the GUI to locate it once completed
+    tmp_ = TOUTF(httpFilename);
+    writeStringWithLen(local_fd,tmp_); // send guessed filename (or send back received one) in order for the GUI to locate it once completed
     local_fd.writeAllOrExit(&parsedContentLength,sizeof(uint64_t)); // send total size
 
     if(!downloadToFile)
@@ -386,11 +391,12 @@ void tlsClientUrlDownloadEventLoop(TLS_Client& client_wrapper) {
     PRINTUNIFIEDERROR("[tlsClientUrlDownloadEventLoop] No housekeeping and return\n");
 }
 
+template<typename STR>
 int httpsUrlDownload_internal(IDescriptor& cl,
                               std::string& targetUrl,
                               uint16_t port,
-                              const std::string& downloadPath,
-                              const std::string& targetFilename,
+                              const STR& downloadPath,
+                              const STR& targetFilename,
                               RingBuffer& inRb,
                               std::string& redirectUrl,
                               const bool downloadToFile) {
