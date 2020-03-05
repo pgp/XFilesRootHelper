@@ -136,7 +136,7 @@ int renamePathMakeAncestors(std::string oldPath, std::string newPath) {
 
 // Does not attempt to copy-then-delete, nor to merge folders on move
 // only creates ancestor paths if they don't exist
-void moveFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags)
+void moveFileOrDirectory(IDescriptor& inOutDesc)
 {
 	std::vector<std::string> v_fx;
 	std::vector<std::string> v_fy;
@@ -175,7 +175,7 @@ void moveFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags)
 	sendBaseResponse(ret,inOutDesc);
 }
 
-void copyFileOrDirectoryFullNew(IDescriptor& inOutDesc, uint8_t _unusedFlags_ = 0) {
+void copyFileOrDirectoryFullNew(IDescriptor& inOutDesc) {
 	FileCopier<std::string> fc(inOutDesc);
 	fc.maincopy();
 }
@@ -1137,13 +1137,12 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 	sendOkResponse(inOutDesc);
 	
 	// check flags
-	if (b1(flags)) { // search in base folder only
+	if(b1(flags)) { // search in base folder only
 		PRINTUNIFIED("Entering plain listing...\n");
 		DIR *d;
 		struct dirent *dir;
 		d = opendir(basepath.c_str());
-		if (d) {
-			uint16_t filenamelen;
+		if(d) {
 			while ((dir = readdir(d)) != nullptr) {
 				// exclude current (.) and parent (..) directory
 				if (strcmp(dir->d_name, ".") == 0 ||
@@ -1280,7 +1279,6 @@ void readOrWriteFile(IDescriptor& inOutDesc, uint8_t flags) {
 	
 	std::vector<uint8_t> iobuffer(COPY_CHUNK_SIZE);
 	int ret;
-	int err = 0;
     
 	int readBytes,writtenBytes;
 	if (flags) { // read from file, send to client
@@ -2063,7 +2061,7 @@ void httpsUrlDownload(IDescriptor& cl, const uint8_t flags) { // cl is local soc
 }
 
 // generate SSH keys in PKCS8 format via Botan
-void ssh_keygen(IDescriptor& inOutDesc, uint8_t flags) {
+void ssh_keygen(IDescriptor& inOutDesc) {
 	// TODO for now, only RSA supported, ignore the flag bits of rq and receive key size
 	uint32_t keySize;
 	inOutDesc.readAllOrExit(&keySize,sizeof(uint32_t));
@@ -2096,7 +2094,7 @@ void serveRequest(int intcl, request_type rq) {
 			copyFileOrDirectoryFullNew(cl);
 			break;
 		case ControlCodes::ACTION_MOVE:
-			moveFileOrDirectory(cl, rq.flags);
+			moveFileOrDirectory(cl);
 			break;
 		case ControlCodes::ACTION_DELETE:
 			deleteFile(cl);
@@ -2143,7 +2141,7 @@ void serveRequest(int intcl, request_type rq) {
 			break;
 			
 		case ControlCodes::ACTION_SSH_KEYGEN:
-			ssh_keygen(cl,rq.flags);
+			ssh_keygen(cl);
 			break;
 		
 		case ControlCodes::ACTION_LINK:

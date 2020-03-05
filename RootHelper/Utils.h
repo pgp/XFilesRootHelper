@@ -77,11 +77,10 @@ int isDirectoryEmpty(const std::wstring& dirname) {
 #else
 int isDirectoryEmpty(const std::string& dirname) {
     int n = 0;
-    struct dirent *d;
     DIR *dir = opendir(dirname.c_str());
     if (dir == nullptr) //Not a directory or doesn't exist
-        return 1; // FIXME maybe return value here should be different
-    while ((d = readdir(dir)) != nullptr) {
+        return -1;
+    while (readdir(dir) != nullptr) {
         if(++n > 2) // must contain only the entries '.' and '..'
             break;
     }

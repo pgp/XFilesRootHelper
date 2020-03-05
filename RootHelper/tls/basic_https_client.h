@@ -310,16 +310,15 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd,
     if(!downloadToFile)
         local_fd.writeAllOrExit(tmpbody_str.c_str(),tmpbody_str.length());
 
+    uint8_t buf[4096]{};
     for(;;) {
-        std::string buf(4096,0);
-        auto readBytes = fd.read((char*)(buf.c_str()), 4096);
+        auto readBytes = fd.read(buf, 4096);
         if(readBytes<=0) break;
-        buf.resize(readBytes);
         currentProgress += readBytes;
 
-        if(downloadToFile) body.writeAllOrExit(buf.c_str(), readBytes);
+        if(downloadToFile) body.writeAllOrExit(buf, readBytes);
         else {
-            local_fd.writeAllOrExit(buf.c_str(),readBytes); // send actual content only if in-memory download has been requested
+            local_fd.writeAllOrExit(buf,readBytes); // send actual content only if in-memory download has been requested
             PRINTUNIFIEDERROR("Sent downloaded chunk of %d bytes\n",readBytes);
         }
 

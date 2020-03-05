@@ -59,7 +59,7 @@ std::vector<std::pair<std::string,std::string>> getIPAddressesWithBroadcasts() {
 
 int xre_announce() { // TODO add sleep period and total time
     struct sockaddr_in send_addr;
-    int trueflag = 1, count = 0;
+    int trueflag = 1;
     int fd;
     if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
         return -1;
