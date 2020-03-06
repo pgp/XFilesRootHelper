@@ -59,18 +59,17 @@ public:
 
 	// local_socket passed for closing it by here when this thread terminates before the other, in so avoiding deadlock
     static void incomingRbMemberFn(IDescriptor& networkSocket, Botan::TLS::Client& client, IDescriptor& local_socket, IDescriptor& ringBuffer) {
+        uint8_t buf[4096];
         for(;;) {
-            std::vector<uint8_t> buf(16384,0);
-            ssize_t readBytes = networkSocket.read(&buf[0],16384);
+            ssize_t readBytes = networkSocket.read(buf,4096);
             if (readBytes <= 0) {
                 PRINTUNIFIEDERROR(readBytes==0?"networkSocket EOF\n":"networkSocket read error\n");
                 networkSocket.close();
                 ringBuffer.close();
                 return;
             }
-            buf.resize(readBytes);
             try {
-                client.received_data(buf); // -> tls_record_received writes into ringbuffer
+                client.received_data(buf,readBytes); // -> tls_record_received writes into ringbuffer
             }
             catch (Botan::Exception& e) {
                 PRINTUNIFIEDERROR("Botan exception: %s",e.what());
