@@ -144,7 +144,7 @@ std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
 // return value: HTTP response code or -1 for unsolvable error
 // if downloadToFile is false, downloadPath is ignored, and downloaded body is sent back to local_fd as string with length
 template<typename STR>
-int parseHttpResponseHeadersAndBody(IDescriptor& fd,
+int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
                                     IDescriptor& local_fd,
                                     const STR& downloadPath,
                                     const STR& targetFilename,
@@ -159,7 +159,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd,
 
     for(;;) {
         std::string buffer(4096,0);
-        auto readBytes=fd.read((char*)(buffer.c_str()), 4096);
+        auto readBytes=rcl.read((char*)(buffer.c_str()), 4096);
         if(readBytes<=0) {
             PRINTUNIFIEDERROR("EOF or error reading headers, errno is %d\n",errno);
             return -1;
@@ -193,7 +193,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd,
         }
         else if (::memcmp(buffer.c_str()+readBytes-3,"\r\n\r",3)==0) {
             char c;
-            if(fd.read(&c, 1) < 1 || c != '\n')
+            if(rcl.read(&c, 1) < 1 || c != '\n')
                 throw std::runtime_error("header parsing error on 1-byte look-ahead");
             headers<<buffer;
             headers<<c;
@@ -201,7 +201,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd,
         }
         else if (::memcmp(buffer.c_str()+readBytes-2,"\r\n",2)==0) {
             char cc[2]{};
-            if(fd.read(cc, 2) < 2 || ::memcmp(cc,"\r\n",2) !=0 )
+            if(rcl.read(cc, 2) < 2 || ::memcmp(cc,"\r\n",2) !=0 )
                 throw std::runtime_error("header parsing error on 2-byte look-ahead");
             headers<<buffer;
             headers<<cc;
@@ -210,7 +210,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd,
         else if (buffer[readBytes-1] == '\r') {
             int rb;
             char ccc[3]{};
-            if((rb = fd.read(ccc, 3)) < 3) {
+            if((rb = rcl.read(ccc, 3)) < 3) {
                 throw std::runtime_error("header parsing error on 3-byte look-ahead -- not enough bytes read: "+std::to_string(rb));
             }
             if(::memcmp(ccc,"\n\r\n",3) !=0) {
@@ -276,6 +276,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd,
     auto&& body = fdfactory.create(definitiveDestPath, FileOpenMode::WRITE);
     if(!body && downloadToFile) {
         PRINTUNIFIEDERROR("Unable to open destination file for writing, error is %d\n", body.error);
+        rcl.close();
         return -1;
     }
 
@@ -312,7 +313,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd,
 
     uint8_t buf[4096]{};
     for(;;) {
-        auto readBytes = fd.read(buf, 4096);
+        auto readBytes = rcl.read(buf, 4096);
         if(readBytes<=0) break;
         currentProgress += readBytes;
 
@@ -339,7 +340,6 @@ int parseHttpResponseHeadersAndBody(IDescriptor& fd,
     return httpRet;
 }
 
-//void tlsClientUrlDownloadEventLoop(RingBuffer& inRb, Botan::TLS::Client& client, IDescriptor& cl) {
 void tlsClientUrlDownloadEventLoop(TLS_Client& client_wrapper) {
     TLSDescriptor rcl(client_wrapper.inRb,*(client_wrapper.client));
     try {
