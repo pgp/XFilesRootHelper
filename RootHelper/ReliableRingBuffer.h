@@ -33,7 +33,7 @@ private:
         // DEBUG
         if (offset > oneDirCircularDistance()) {
             PRINTUNIFIEDERROR("Attempting to move read pointer ahead of write pointer!!!\n");
-            exit(7256);
+            _Exit(89);
         }
 
         readIdx = (readIdx + offset + capacity)%capacity;
@@ -43,7 +43,7 @@ private:
         // DEBUG
         if (offset > (capacity-oneDirCircularDistance()-1)) {
             PRINTUNIFIEDERROR("Attempting to break oneDirCircularDistance invariant!!!\n");
-            exit(7257);
+            _Exit(107);
         }
 
         int newWriteIdx = writeIdx + offset;
@@ -104,7 +104,7 @@ public:
                 int postBoundaryBytes = bytesToBeCopied - preBoundaryBytes;
                 if (postBoundaryBytes < 0) {
                     PRINTUNIFIEDERROR("postBoundaryBytes: %d\n",postBoundaryBytes);
-                    exit(4693);
+                    _Exit(109);
                 }
                 memcpy(buf,rb+readIdx,preBoundaryBytes); // from readIdx to capacity
                 memcpy(((uint8_t*)buf)+preBoundaryBytes,rb,postBoundaryBytes); // from 0 to ending position (max writeIdx)
@@ -115,7 +115,7 @@ public:
         }
         else if (writeIdx == readIdx) { // FIXME sometimes happens (on client close?)
             PRINTUNIFIEDERROR("Ambiguity between empty and full ringbuffer");
-            exit(-1);
+            _Exit(119);
         }
         else { // writeIdx > readIdx
             // one copy starting at readIdx
@@ -141,7 +141,7 @@ public:
         const int maxWritable = capacity -1 -oneDirCircularDistance();
         if (maxWritable < 0) {
             PRINTUNIFIEDERROR("MaxWritable: %d\n",maxWritable);
-            exit(3571);
+            _Exit(103);
         }
 
         const int bytesToBeCopied = count>maxWritable?maxWritable:count;
@@ -153,14 +153,14 @@ public:
             int preBoundaryBytes = capacity - writeIdx;
             if (preBoundaryBytes < 0) {
                 PRINTUNIFIEDERROR("preBoundaryBytes: %d\n",preBoundaryBytes);
-                exit(4792);
+                _Exit(101);
             }
 
             if (bytesToBeCopied > preBoundaryBytes) {
                 int postBoundaryBytes = bytesToBeCopied - preBoundaryBytes;
                 if (postBoundaryBytes < 0) {
                     PRINTUNIFIEDERROR("postBoundaryBytes: %d\n",postBoundaryBytes);
-                    exit(4793);
+                    _Exit(97);
                 }
 
                 // copy into (position from 0 to read idx -1 !!!)

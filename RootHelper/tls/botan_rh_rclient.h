@@ -157,7 +157,7 @@ public:
     }
 
     void tls_record_received(uint64_t seq_no, const uint8_t buf[], size_t buf_size) override {
-        if (inRb.writeAll(buf,buf_size) < buf_size) exit(9341); // RingBuffer is reliable, OK to call exit here
+        if (inRb.writeAll(buf,buf_size) < buf_size) _Exit(91); // RingBuffer is reliable, OK to call exit here
     }
 
 public:
