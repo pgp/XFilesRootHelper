@@ -312,9 +312,10 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
         local_fd.writeAllOrExit(tmpbody_str.c_str(),tmpbody_str.length());
 
     uint8_t buf[4096]{};
+    ssize_t readBytes;
     for(;;) {
-        auto readBytes = rcl.read(buf, 4096);
-        if(readBytes<=0) break;
+        readBytes = rcl.read(buf, 4096);
+        if(readBytes<=0) break; // once out of the loop, check further conditions in order to deduce valid or broken download
         currentProgress += readBytes;
 
         if(downloadToFile) body.writeAllOrExit(buf, readBytes);
@@ -334,10 +335,35 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
         body.close();
     }
     PRINTUNIFIEDERROR("\nEnd of download: %" PRIu64 " bytes downloaded\n",currentProgress);
+
+    if(parsedContentLength > 0) {
+        // do not check connection state, assume valid download only if all expected bytes were transferred
+        if(currentProgress == parsedContentLength)
+            PRINTUNIFIED("All expected bytes downloaded, download completed\n");
+        else {
+            PRINTUNIFIEDERROR("Expected to download %llu bytes, %llu downloaded instead, broken download\n",parsedContentLength,currentProgress);
+            goto brokenDownload;
+        }
+    }
+    else {
+        // since we don't have an explicit download size here, check if TLS connection was terminated abruptly or not
+        if(readBytes == 0)
+            PRINTUNIFIED("Connection closed, no content size provided, assume download completed\n");
+        else {
+            PRINTUNIFIEDERROR("Connection reset, no content size provided, assume broken download\n");
+            goto brokenDownload;
+        }
+    }
+
     if(downloadToFile)
         local_fd.writeAllOrExit(&maxuint,sizeof(uint64_t)); // send end-of-progress
 
     return httpRet;
+
+brokenDownload:
+    rcl.close();
+    local_fd.close();
+    return -1;
 }
 
 void tlsClientUrlDownloadEventLoop(TLS_Client& client_wrapper) {

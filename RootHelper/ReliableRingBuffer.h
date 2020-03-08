@@ -15,6 +15,7 @@ constexpr unsigned DEFAULT_CAPACITY = 1048576;
 class RingBuffer : public IDescriptor {
 private:
     std::atomic_bool closed;
+    bool brokenConnection;
     const int capacity;
     uint8_t* ringbuffer;
     int readIdx = 0;
@@ -52,7 +53,7 @@ private:
 
 public:
     explicit RingBuffer(int capacity_ = DEFAULT_CAPACITY) :
-            capacity(capacity_), closed(false) {
+            capacity(capacity_), closed(false), brokenConnection(false) {
         ringbuffer = new uint8_t[capacity];
     }
 
@@ -61,9 +62,19 @@ public:
     }
 
     void close() override {
-        closed = true;
-        // no more writes allowed from now on, just allow emptying read buffer
-        ringbuffer_written_cond.notify_one();
+        bool expected = false;
+        if(closed.compare_exchange_strong(expected,true,std::memory_order_relaxed,std::memory_order_relaxed)) {
+            // no more writes allowed from now on, just allow emptying read buffer
+            ringbuffer_written_cond.notify_one();
+        }
+    }
+
+    inline void close(bool brokenConnection_) { // not IDescriptor interface method
+        bool expected = false;
+        if(closed.compare_exchange_strong(expected,true,std::memory_order_relaxed,std::memory_order_relaxed)) {
+            brokenConnection = brokenConnection_;
+            ringbuffer_written_cond.notify_one();
+        }
     }
 
     void reset() {
@@ -84,12 +95,12 @@ public:
         // empty buffer, nothing to read, block till some data is available
         // while construct should not be needed here, since we have only one reader thread
         if (readIdx == writeIdx) {
-            if (closed) return 0; // EOF-like
+            if (closed) return brokenConnection?-1:0; // EOF-like
 //            PRINTUNIFIEDERROR("Underflow, waiting for data to be available...");
             ringbuffer_written_cond.wait(lock);
         }
         // here, we have successfully taken ownership of mutex again
-        if (closed && (readIdx == writeIdx)) return 0;// EOF-like FIXME redundant, refactor
+        if (closed && (readIdx == writeIdx)) return brokenConnection?-1:0;// EOF-like FIXME redundant, refactor
 
         const int maxReadable = oneDirCircularDistance();
         const int bytesToBeCopied = count>maxReadable?maxReadable:count;

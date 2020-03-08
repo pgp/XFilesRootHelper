@@ -58,14 +58,14 @@ public:
     bool setupAborted = false;
 
 	// local_socket passed for closing it by here when this thread terminates before the other, in so avoiding deadlock
-    static void incomingRbMemberFn(IDescriptor& networkSocket, Botan::TLS::Client& client, IDescriptor& local_socket, IDescriptor& ringBuffer) {
+    static void incomingRbMemberFn(IDescriptor& networkSocket, Botan::TLS::Client& client, IDescriptor& local_socket, RingBuffer& ringBuffer) {
         uint8_t buf[4096];
         for(;;) {
             ssize_t readBytes = networkSocket.read(buf,4096);
             if (readBytes <= 0) {
                 PRINTUNIFIEDERROR(readBytes==0?"networkSocket EOF\n":"networkSocket read error\n");
                 networkSocket.close();
-                ringBuffer.close();
+                ringBuffer.close(readBytes<0); // propagate broken connection information to ringbuffer
                 return;
             }
             try {
@@ -117,7 +117,7 @@ public:
             else {
                 PRINTUNIFIEDERROR("Certificate verification failed\n");
                 Gsock.close();
-                inRb.close();
+                inRb.close(true);
                 setupAborted = true;
             }
         }
@@ -152,7 +152,7 @@ public:
         if (alert.type() == Botan::TLS::Alert::Type::CLOSE_NOTIFY) {
             PRINTUNIFIED("TLS endpoint closed connection\n");
             Gsock.close();
-            inRb.close();
+            inRb.close(false); // Assume close notify is graceful connection termination
         }
     }
 
