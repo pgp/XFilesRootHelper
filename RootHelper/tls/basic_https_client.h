@@ -288,7 +288,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
 
     std::string contentLengthPattern = "Content-Length: ";
     auto contentLengthIdx = findStringIC(hdrs,contentLengthPattern);
-    uint64_t parsedContentLength = -1;
+    uint64_t parsedContentLength = maxuint;
     if(contentLengthIdx == std::string::npos) {
         PRINTUNIFIEDERROR("No content-length provided, progress won't be available\n");
     }
@@ -336,7 +336,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
     }
     PRINTUNIFIEDERROR("\nEnd of download: %" PRIu64 " bytes downloaded\n",currentProgress);
 
-    if(parsedContentLength > 0) {
+    if(parsedContentLength != maxuint) {
         // do not check connection state, assume valid download only if all expected bytes were transferred
         if(currentProgress == parsedContentLength)
             PRINTUNIFIED("All expected bytes downloaded, download completed\n");
