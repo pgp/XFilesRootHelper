@@ -20,23 +20,17 @@ public:
 class ConsoleProgressHook : public ProgressHook {
 public:
     ConsoleProgressHook(uint64_t totalSize_) : ProgressHook(totalSize_) {
-        PRINTUNIFIED("#Total size: %"
-                             PRIu64
-                             "\n", totalSize_);
+        PRINTUNIFIED("Total size: %" PRIu64 "\n", totalSize_);
     }
 
     void publish(uint64_t current) override {
         currentSize = current;
-        PRINTUNIFIED("#Progress: %"
-                             PRIu64
-                             "\n", currentSize);
+        SAMELINEPRINT("Progress: %" PRIu64 "", currentSize);
     }
 
     void publishDelta(uint64_t delta) override {
         currentSize += delta;
-        PRINTUNIFIED("#Progress: %"
-                             PRIu64
-                             "\n", currentSize);
+        SAMELINEPRINT("Progress: %" PRIu64 "", currentSize);
     }
 };
 
@@ -48,7 +42,7 @@ public:
     HWND hWnd;
 
     MfcProgressHook(HWND hWnd_, ITaskbarList3* pTaskbarList_, uint64_t totalSize_) : ProgressHook(totalSize_), hWnd(hWnd_), pTaskbarList(pTaskbarList_) {
-        PRINTUNIFIED("@Total size: %" PRIu64 "\n",totalSize_);
+        PRINTUNIFIED("Total size: %" PRIu64 "\n",totalSize_);
         CoInitialize(nullptr);
     }
 
@@ -60,13 +54,13 @@ public:
     void publish(uint64_t current) override {
         currentSize = current;
         /*HRESULT hr = */pTaskbarList->SetProgressValue(hWnd, currentSize, totalSize);
-        PRINTUNIFIED("@Progress: %" PRIu64 "\n",currentSize);
+        SAMELINEPRINT("Progress: %" PRIu64 "",currentSize);
     }
 
     void publishDelta(uint64_t delta) override {
         currentSize += delta;
         /*HRESULT hr = */pTaskbarList->SetProgressValue(hWnd, currentSize, totalSize);
-        PRINTUNIFIED("@Progress: %" PRIu64 "\n",currentSize);
+        SAMELINEPRINT("Progress: %" PRIu64 "",currentSize);
     }
 };
 

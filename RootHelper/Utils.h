@@ -429,7 +429,6 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
         currentProgress += REMOTE_IO_CHUNK_SIZE;
 
 		if (outDesc) outDesc->writeAllOrExit(&currentProgress,sizeof(uint64_t));
-//        PRINTUNIFIED("Progress: %" PRIu64 "\n",currentProgress);
         progressHook.publishDelta(REMOTE_IO_CHUNK_SIZE);
     }
 
@@ -441,7 +440,6 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
         currentProgress += remainder;
         
         if (outDesc) outDesc->writeAllOrExit(&currentProgress,sizeof(uint64_t));
-//        PRINTUNIFIED("Progress: %" PRIu64 "\n",currentProgress);
         progressHook.publishDelta(remainder);
     }
     /********* end quotient + remainder IO loop *********/
