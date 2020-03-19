@@ -9,7 +9,7 @@ const char* help_args = R"HELP1(Usage:
   Standalone mode can also be enabled by default even on Unix, by renaming this executable to "xre".
 - additional arguments for standalone mode:
   --homePath=<default (home) path>
-  Clients providing an empty path will be redirected here. If this is not provided, OS defaults are /sdcard on Android, /tmp on Unix in general, and C:\Windows\Temp on Windows.
+  Clients providing an empty path will be redirected here. If this is not provided, OS defaults are the content of EXTERNAL_STORAGE env variable on Android, /tmp on Unix in general, and C:\Windows\Temp on Windows.
   --announcedPath=<path to be announced>
   The server will announce its IP addresses and this path via IGMP broadcast. By default an empty path is announced.
   --noAnnounce

@@ -3,6 +3,7 @@
 
 #include <string>
 #include <cstring>
+#include <cstdlib>
 
 /**
  * Home (default) paths
@@ -25,7 +26,8 @@ inline void initDefaultHomePaths() {
     currentXREHomePath = L"C:\\Windows\\Temp"; // TODO try with %TMP% or %TEMP%
 
 #elif defined(ANDROID_NDK)    // Android
-    currentXREHomePath = currentHomePath = "/sdcard";
+    const char* tmp = getenv("EXTERNAL_STORAGE");
+    currentXREHomePath = currentHomePath = tmp==nullptr?"/sdcard":tmp;
 
 #elif defined(__linux__)    // Linux
     currentXREHomePath = currentHomePath = "/tmp";
