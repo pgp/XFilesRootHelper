@@ -268,7 +268,8 @@ HRESULT common_compress_logic(Func_CreateObject& createObjectFunc,
     // doesn't result in error (archive is simply not encrypted anyway), so no need
     // to add explicit input parameter check
     updateCallbackSpec->PasswordIsDefined = (!password.empty());
-    updateCallbackSpec->Password = FString(UTF8_to_wchar(password.c_str()).c_str());
+    auto&& password_ = UTF8_to_wchar(password);
+    updateCallbackSpec->Password = FString(password_.c_str());
 
     updateCallbackSpec->Init(&dirItems);
 
@@ -363,7 +364,8 @@ void compressToArchiveFromFds(IDescriptor& inOutDesc) {
     std::string destArchive = readStringWithLen(inOutDesc);
     PRINTUNIFIED("[fds]received destination archive path is:\t%s\n", destArchive.c_str());
 
-    FString archiveName(UTF8_to_wchar(destArchive.c_str()).c_str());
+    auto&& destArchive_ = UTF8_to_wchar(destArchive);
+    FString archiveName(destArchive_.c_str());
 
     // receive compress options
     compress_rq_options_t compress_options{};
@@ -447,7 +449,8 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
     PRINTUNIFIED("received source folder path is:\t%s\n", srcFolder.c_str());
     PRINTUNIFIED("received destination archive path is:\t%s\n", destArchive.c_str());
 
-    FString archiveName(UTF8_to_wchar(destArchive.c_str()).c_str());
+    auto&& destArchive_ = UTF8_to_wchar(destArchive);
+    FString archiveName(destArchive_.c_str());
 
     // receive compress options
     compress_rq_options_t compress_options{};
@@ -504,7 +507,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
 
                 CDirItem di;
                 FString name = CmdStringToFString(curEntString.c_str());
-                std::wstring uws = UTF8_to_wchar(curEntString.c_str());
+                auto&& uws = UTF8_to_wchar(curEntString);
                 UString u(uws.c_str());
 
                 NFind::CFileInfo fi;
@@ -544,7 +547,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
                         CDirItem di;
 
                         FString name = CmdStringToFString(curEntString.c_str());
-                        std::wstring uws = UTF8_to_wchar(curEntString.c_str());
+                        auto&& uws = UTF8_to_wchar(curEntString);
                         UString u(uws.c_str());
 
                         NFind::CFileInfo fi;
@@ -572,7 +575,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
                     CDirItem di;
 
                     FString name = CmdStringToFString(currentEntries[i].c_str());
-                    std::wstring uws = UTF8_to_wchar(currentEntries[i].c_str());
+                    auto&& uws = UTF8_to_wchar(currentEntries[i]);
                     UString u(uws.c_str());
 
                     NFind::CFileInfo fi;
@@ -718,8 +721,9 @@ void extractFromArchive(IDescriptor& inOutDesc)
         // RECEIVE THE PATH LENGTH TO TRUNCATE FOR RELATIVE SUBDIR EXTRACTION
         inOutDesc.readAllOrExit(&subDirLengthForPathTruncateInWideChars,sizeof(uint32_t));
 	}
-	
-	FString archiveName(UTF8_to_wchar(srcArchive.c_str()).c_str());
+
+	auto&& srcArchive_ = UTF8_to_wchar(srcArchive);
+	FString archiveName(srcArchive_.c_str());
 	
 	CMyComPtr<IInArchive> archive;
 	
@@ -755,7 +759,8 @@ void extractFromArchive(IDescriptor& inOutDesc)
     auto openCallbackSpec = new CArchiveOpenCallback;
     CMyComPtr<IArchiveOpenCallback> openCallback(openCallbackSpec);
     openCallbackSpec->PasswordIsDefined = (!password.empty());
-    openCallbackSpec->Password = FString(UTF8_to_wchar(password.c_str()).c_str());;
+    auto&& password_ = UTF8_to_wchar(password);
+    openCallbackSpec->Password = FString(password_.c_str());
 
     constexpr UInt64 scanSize = 1 << 23;
     if (archive->Open(file, &scanSize, openCallback) != S_OK)
@@ -780,10 +785,8 @@ void extractFromArchive(IDescriptor& inOutDesc)
   auto extractCallbackSpec = new CArchiveExtractCallback;
   // generate virtual single-child name by archive name in case of stream archive types
   if (archiveType == XZ || archiveType == GZ || archiveType == BZ2)
-	extractCallbackSpec->streamArchiveOnlyChildFilenameOnly = UTF8_to_wchar(
-																getVirtualInnerNameForStreamArchive(
-																	getFilenameFromFullPath(srcArchive),
-																archiveType).c_str());
+      extractCallbackSpec->streamArchiveOnlyChildFilenameOnly = UTF8_to_wchar(
+              getVirtualInnerNameForStreamArchive(getFilenameFromFullPath(srcArchive),archiveType));
   
   extractCallbackSpec->setDesc(&inOutDesc); // for publishing progress
   extractCallbackSpec->setSubDirLengthForPathTruncate(subDirLengthForPathTruncateInWideChars);
@@ -791,10 +794,12 @@ void extractFromArchive(IDescriptor& inOutDesc)
   CMyComPtr<IArchiveExtractCallback> extractCallback(extractCallbackSpec);
   
   sendOkResponse(inOutDesc); // means: archive init OK, from now on start extracting and publishing progress
-  
-  extractCallbackSpec->Init(archive, FString(UTF8_to_wchar(destFolder.c_str()).c_str()));
+
+  auto&& destFolder_ = UTF8_to_wchar(destFolder);
+  auto&& password_ = UTF8_to_wchar(password);
+  extractCallbackSpec->Init(archive, FString(destFolder_.c_str()));
   extractCallbackSpec->PasswordIsDefined = (!password.empty());
-  extractCallbackSpec->Password = FString(UTF8_to_wchar(password.c_str()).c_str());
+  extractCallbackSpec->Password = FString(password_.c_str());
 
   HRESULT result;
 
@@ -869,7 +874,8 @@ void listArchive(IDescriptor& inOutDesc) {
 	std::string password = readStringWithByteLen(inOutDesc);
 	
 	// perform list archive
-	FString archiveName(UTF8_to_wchar(archivepath.c_str()).c_str());
+	auto&& archivepath_ = UTF8_to_wchar(archivepath);
+	FString archiveName(archivepath_.c_str());
 	
 	CMyComPtr<IInArchive> archive;
 	
@@ -917,7 +923,8 @@ void listArchive(IDescriptor& inOutDesc) {
 		CMyComPtr<IArchiveOpenCallback> openCallback(openCallbackSpec);
 		
 		openCallbackSpec->PasswordIsDefined = (!password.empty());
-		openCallbackSpec->Password = FString(UTF8_to_wchar(password.c_str()).c_str());
+		auto&& password_ = UTF8_to_wchar(password);
+		openCallbackSpec->Password = FString(password_.c_str());
 
 		constexpr UInt64 scanSize = 1 << 23;
 		if (archive->Open(file, &scanSize, openCallback) != S_OK) {
