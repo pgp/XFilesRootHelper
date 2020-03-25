@@ -1,5 +1,6 @@
 #ifndef __XRE_H__
 #define __XRE_H__
+#include <iterator>
 #include "tls/botan_rh_tls_descriptor.h"
 #include "tls/botan_rh_rserver.h"
 

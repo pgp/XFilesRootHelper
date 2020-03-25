@@ -78,9 +78,11 @@ using namespace NFile;
 using namespace NDir;
 
 // #define kDllName "7z.dll"
-#define kDllName "lib7z.dll" // string will be replaced with lib7z.so before library loading 
+#define kDllName "lib7z.dll" // string will be replaced with lib7z.so before library loading
 
 static NDLL::CLibrary lib;
+
+bool lib7zLoaded = false;
 
 static AString FStringToConsoleString(const FString &s) {
   return GetOemString(fs2us(s));
