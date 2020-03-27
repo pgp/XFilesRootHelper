@@ -187,9 +187,10 @@ void listDirOrArchive(IDescriptor& inOutDesc, uint8_t flags) {
 			retrieveHomePath(inOutDesc);
 			break;
 		case 7: // 111
+		case 6: // 110
 			{
 				auto& pd = static_cast<PosixDescriptor&>(inOutDesc);
-				listArchive(pd);
+				listArchive(pd,flags); // use last flag bit to decide whether listing archive or checking for single item at top level
 				break;
 			}
 		default:

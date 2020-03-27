@@ -54,41 +54,36 @@ void listStreamArchive(IDescriptor& inOutDesc, const std::string& archiveName, A
     inOutDesc.writeAllOrExit( &terminationLen, sizeof(uint16_t));
 }
 
-// list compressed archive returning all entries (at every archive directory tree level) as relative-to-archive paths
-// error code is not indicative in errors generated in this function, errno is set manually before calling sendErrorResponse
-// only UTF-8 codepoint 0 contains the \0 byte (unlike UTF-16)
-// web source: http://stackoverflow.com/questions/6907297/can-utf-8-contain-zero-byte
-void listArchive(IDescriptor& inOutDesc) {
+// return value when inOutDesc is null:
+// -  1: there is a single item in the archive root 
+// -  2: more than one item in the archive root
+// - -1: there were errors (generic)
+// - -2: errors during archive type detection
+// return value is ignored if inOutDesc is non-null
+int listArchiveInternalOrCheckForSingleItem(const std::string& archivepath, const std::string& password, IDescriptor* inOutDesc = nullptr) {
     if(!lib7zLoaded) {
         errno = 771;
-        sendErrorResponse(inOutDesc);
-        return;
+        if(inOutDesc) sendErrorResponse(*inOutDesc);
+        return -1;
     }
     auto createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
     if (!createObjectFunc) {
         PrintError("Can not get CreateObject");
-        exit(-1);
+        _Exit(-1);
     }
-
-    // read input from socket (except first byte - action code - which has already been read by caller, in order to perform action dispatching)
-    std::string archivepath = readStringWithLen(inOutDesc);
-
-    // read password, if provided
-    std::string password = readStringWithByteLen(inOutDesc);
-
-    // perform list archive
+	
+	// perform list archive
     auto&& archivepath_ = UTF8_to_wchar(archivepath);
     FString archiveName(archivepath_.c_str());
-
-    CMyComPtr<IInArchive> archive;
-
+    
+    // archive type detection
     ArchiveType archiveType = detectArchiveType(archivepath);
     // PRINTUNIFIED("Archive type is: %u\n",archiveType);
     if (archiveType == UNKNOWN) {
         PrintError("Unable to open archive with any associated codec", archiveName);
         errno = 23458;
-        sendErrorResponse(inOutDesc);
-        return;
+        if(inOutDesc) sendErrorResponse(*inOutDesc);
+        return -2;
     }
 
     // for stream archives, just send a virtual inner name without actually opening the archive
@@ -96,17 +91,20 @@ void listArchive(IDescriptor& inOutDesc) {
         case XZ:
         case GZ:
         case BZ2:
-            listStreamArchive(inOutDesc,getFilenameFromFullPath(archivepath),archiveType);
-            return;
+            if(inOutDesc)
+                listStreamArchive(*inOutDesc,getFilenameFromFullPath(archivepath),archiveType);
+            return 1; // streaming archives contain only one file by construction
         default:
             break;
     }
 
+    CMyComPtr<IInArchive> archive;
+
     if (createObjectFunc(&(archiveGUIDs[archiveType]), &IID_IInArchive, (void **)&archive) != S_OK) {
         PrintError("Can not get class object");
         errno = 23459;
-        sendErrorResponse(inOutDesc);
-        return;
+        if(inOutDesc) sendErrorResponse(*inOutDesc);
+        return -1;
     }
 
     //////////////////////////////////////
@@ -117,8 +115,8 @@ void listArchive(IDescriptor& inOutDesc) {
     if (!fileSpec->Open(archiveName)) {
         PrintError("Can not open archive file", archiveName);
         errno = EACCES; // simulate access error to file in errno
-        sendErrorResponse(inOutDesc);
-        return;
+        if(inOutDesc) sendErrorResponse(*inOutDesc);
+        return -1;
     }
 
     {
@@ -133,20 +131,20 @@ void listArchive(IDescriptor& inOutDesc) {
         if (archive->Open(file, &scanSize, openCallback) != S_OK) {
             PrintError("Can not open file as archive - listing error (password needed or wrong password provided?)", archiveName);
             errno = NULL_OR_WRONG_PASSWORD;
-            sendErrorResponse(inOutDesc);
-            return;
+            if(inOutDesc) sendErrorResponse(*inOutDesc);
+            return -1;
         }
     }
-
-    ////////////////////////////////////////////
-
-    // Enumerate and send archive entries
+	
+	    // Enumerate and send archive entries if inOutDesc is non-null
     UInt32 numItems = 0;
     archive->GetNumberOfItems(&numItems);
 
     PRINTUNIFIED("Entering entries enumeration block, size is %u\n", numItems); // DEBUG
 
-    inOutDesc.writeAllOrExit( &RESPONSE_OK, sizeof(uint8_t));
+    if(inOutDesc) inOutDesc->writeAllOrExit(&RESPONSE_OK, sizeof(uint8_t));
+	
+	std::string currentTopItem; 
 
     for (UInt32 i = 0; i < numItems; i++) {
         // assemble and send response
@@ -219,12 +217,49 @@ void listArchive(IDescriptor& inOutDesc) {
             }
         }
 
-        writeLsRespOrExit(inOutDesc,responseEntry);
+        if(inOutDesc) writeLsRespOrExit(*inOutDesc,responseEntry);
+		else {
+			auto idx = responseEntry.filename.find('/'); // FIXME not sure if 7zip uses / (unix style) or \ (windows style)
+			if(currentTopItem.empty()) {
+				currentTopItem = (idx == std::string::npos) ? responseEntry.filename : responseEntry.filename.substr(0,idx); // truncate before first path separator if any
+			}
+			else {
+				// TODO truncate before first '/' if any, and compare with currentTopItem; if changed, return 2;
+				auto newTopItem = (idx == std::string::npos) ? responseEntry.filename : responseEntry.filename.substr(0,idx); // truncate before first path separator if any
+				if(newTopItem != currentTopItem)
+					return 2; // archive contains more than 1 item at the root level
+			}
+		}
     }
 
     // list termination indicator
     uint16_t terminationLen = 0;
-    inOutDesc.writeAllOrExit( &terminationLen, sizeof(uint16_t));
+    if(inOutDesc) inOutDesc->writeAllOrExit(&terminationLen, sizeof(uint16_t));
+	return 1;
+}
+
+// list compressed archive returning all entries (at every archive directory tree level) as relative-to-archive paths
+// error code is not indicative in errors generated in this function, errno is set manually before calling sendErrorResponse
+// only UTF-8 codepoint 0 contains the \0 byte (unlike UTF-16)
+// web source: http://stackoverflow.com/questions/6907297/can-utf-8-contain-zero-byte
+void listArchive(IDescriptor& inOutDesc, const uint8_t flags) {
+    // read input from socket (except first byte - action code - which has already been read by caller, in order to perform action dispatching)
+    std::string archivepath = readStringWithLen(inOutDesc);
+
+    // read password, if provided
+    std::string password = readStringWithByteLen(inOutDesc);
+    
+    if (flags == 7) // flags 111
+		listArchiveInternalOrCheckForSingleItem(archivepath, password, &inOutDesc);
+    else { // flags 110
+		int ret = listArchiveInternalOrCheckForSingleItem(archivepath, password);
+		if(ret <= 0) sendErrorResponse(inOutDesc); // errno already set in listArchiveInternalOrCheckForSingleItem
+		else {
+			sendOkResponse(inOutDesc);
+			uint64_t ret_ = ret;
+			inOutDesc.writeAllOrExit(&ret_,sizeof(uint64_t));
+		}
+	}
 }
 
 /*
@@ -500,14 +535,14 @@ HRESULT common_compress_logic(Func_CreateObject& createObjectFunc,
     // values
     NWindows::NCOM::CPropVariant values_7z[3]
             {
-                    (UInt32)(compress_options.compressionLevel),	// compression level
-                    (compress_options.solid > 0),					// solid mode
-                    (compress_options.encryptHeader > 0)			// encrypt filenames
+                    (UInt32)(compress_options.compressionLevel),    // compression level
+                    (compress_options.solid > 0),                    // solid mode
+                    (compress_options.encryptHeader > 0)            // encrypt filenames
             };
 
     NWindows::NCOM::CPropVariant values_other[1]
             {
-                    (UInt32)(compress_options.compressionLevel)	// compression level
+                    (UInt32)(compress_options.compressionLevel)    // compression level
             };
 
     CMyComPtr<ISetProperties> setProperties;
