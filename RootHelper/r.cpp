@@ -945,8 +945,6 @@ void client_download(IDescriptor& cl, IDescriptor& rcl) {
 	downloadRemoteItems(rcl,&cl);
 }
 
-// ----------------@@@@@@@@@@@@@@@@@ rhss related logic and variable moved into xre.h
-
 // avoids forking, just for debug purposes
 void plainP7ZipSession(IDescriptor& cl, request_type rq) {
     switch (static_cast<ControlCodes>(rq.request)) {
@@ -954,7 +952,7 @@ void plainP7ZipSession(IDescriptor& cl, request_type rq) {
             compressToArchive(cl,rq.flags);
             break;
         case ControlCodes::ACTION_EXTRACT:
-            extractFromArchive(cl);
+            extractFromArchive(cl,rq.flags);
             break;
         default:
             PRINTUNIFIED("Unexpected request byte received\n");
@@ -984,10 +982,10 @@ void forkP7ZipSession(IDescriptor& cl, request_type rq) {
 	try {
 	switch (static_cast<ControlCodes>(rq.request)) {
 	    case ControlCodes::ACTION_COMPRESS:
-			compressToArchive(cl, rq.flags);
+			compressToArchive(cl,rq.flags);
 			break;
 		case ControlCodes::ACTION_EXTRACT:
-			extractFromArchive(cl);
+			extractFromArchive(cl,rq.flags);
 			break;
 		default:
 			PRINTUNIFIED("Unexpected request byte received\n");

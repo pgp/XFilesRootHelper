@@ -56,15 +56,20 @@ inline std::string TO_STR(T s) {
 
 template<typename STR>
 // mandatory absolute path as input
-int getFileExtension(const STR& filepath, STR& tmp) {
-    size_t last = filepath.find_last_of(getSystemPathSeparator());
+int getFileExtension(const STR& filepath, STR& out, bool filenameWithoutExtensionOrExtensionOnly) {
+    auto last = filepath.find_last_of(getSystemPathSeparator());
     if (last == STRNAMESPACE::npos)
         return -1;
-    tmp = filepath.substr(last + 1, filepath.length()); // extract filename
-    last = tmp.find_last_of(getExtSeparator());                       // extract extension
-    if (last == STRNAMESPACE::npos)
-        return -1;
-    tmp = tmp.substr(last + 1, tmp.length());
+    out = filepath.substr(last + 1, filepath.length()); // extract filename
+    last = out.find_last_of(getExtSeparator());        // extract extension
+    if (last == STRNAMESPACE::npos) { // file has no extension
+		if(!filenameWithoutExtensionOrExtensionOnly) out = STRNAMESPACE();
+		return 0;
+	}
+    if(filenameWithoutExtensionOrExtensionOnly) // filename without extension
+		out = out.substr(0, last);
+    else // extension only
+		out = out.substr(last + 1);
     return 0;
 }
 

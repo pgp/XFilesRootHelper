@@ -268,8 +268,10 @@ that is, files or folders themselves without their sub-tree nodes)
 - XFiles UI allows to choose some items at a subdirectory level in an archive, but if an item is a directory, XFiles sends
  all the entries of its subtree (the entire archive content tree has already been stored in a VMap on archive open for listing)
 - if items are not top-level in the archive, the path truncation offset is needed in order to perform natural relative extraction
+
+if flags == 6 (binary: 110), internally call list archive with the same flag in order to determine whether to create or not an intermediate directory
  */
-void extractFromArchive(IDescriptor& inOutDesc)
+void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
 {
     if(!lib7zLoaded) {
         errno = 771;
@@ -301,6 +303,8 @@ void extractFromArchive(IDescriptor& inOutDesc)
     uint32_t nOfEntriesToExtract, i;
     inOutDesc.readAllOrExit( &(nOfEntriesToExtract), sizeof(uint32_t));
 
+    bool smartCreateDirectory = (flags == 6) && (nOfEntriesToExtract == 0);
+
     std::vector<uint32_t> currentEntries;
 
     PRINTUNIFIED("nOfEntriesToExtract: %d\n", nOfEntriesToExtract);
@@ -308,6 +312,7 @@ void extractFromArchive(IDescriptor& inOutDesc)
     if (nOfEntriesToExtract != 0)
     {
         // DO NOT RECEIVE FILENAME ENTRIES, RECEIVE INDICES INSTEAD - TODO check if works with all archive types
+        // smart directory creation option does not apply here
         currentEntries.reserve(nOfEntriesToExtract);
         for (i = 0; i < nOfEntriesToExtract; i++) {
             uint32_t current;
@@ -366,6 +371,24 @@ void extractFromArchive(IDescriptor& inOutDesc)
             errno = NULL_OR_WRONG_PASSWORD;
             sendErrorResponse(inOutDesc);
             return;
+        }
+    }
+
+    if(smartCreateDirectory) {
+        int ret = listArchiveInternalOrCheckForSingleItem(srcArchive,password);
+        if(ret != 1 && ret != 2) {
+            errno = EINVAL;
+            PRINTUNIFIEDERROR("Unable to determine whether the archive contains one or more items at the top level\n");
+            sendErrorResponse(inOutDesc);
+            return;
+        }
+
+        if(ret == 2) {
+            // update destination folder by adding a subfolder with archive name
+            std::string tmp;
+            auto ret = getFileExtension(srcArchive,tmp,true);
+            destFolder += "/";
+            destFolder += ((ret == 0) ? tmp : std::string("intermediate"));
         }
     }
 
@@ -464,7 +487,7 @@ HRESULT common_compress_logic(Func_CreateObject& createObjectFunc,
     // only 7Z,ZIP and TAR for now
     std::string outExt;
     ArchiveType archiveType = UNKNOWN;
-    int extRet = getFileExtension(destArchive,outExt);
+    int extRet = getFileExtension(destArchive,outExt,false);
     if (extRet < 0) goto unknownOutType;
 
     archiveType = archiveTypeFromExtension(outExt);
