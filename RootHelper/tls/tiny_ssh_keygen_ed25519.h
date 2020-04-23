@@ -529,13 +529,15 @@ static std::pair<std::string,std::string> generate_ed25519_keypair(const char *f
     char filename_pub[4096];
 
     uint32_t comment_size, filename_size;  /* TODO(pts): Check for overflow */
-    filename_size = strlen(filename);
+    filename_size = (filename==nullptr)?0:strlen(filename);
     if (filename_size > sizeof(filename_pub) - 5) {
         fatal("output-file too long");
     }
 
-    memcpy(filename_pub, filename, filename_size);
-    memcpy(filename_pub + filename_size, ".pub", 5);
+    if(filename != nullptr) {
+        memcpy(filename_pub, filename, filename_size);
+        memcpy(filename_pub + filename_size, ".pub", 5);
+    }
     comment_size = strlen(comment);
     /* Subsequent checks would prevent the crash even without this check,
      * but this check displays a more informative error message.
