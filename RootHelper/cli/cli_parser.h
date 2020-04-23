@@ -63,45 +63,51 @@ int downloadFromArgs(int argc, const C* argv[]) {
 
 template<typename C>
 int sshKeygenFromArgs(int argc, const C* argv[]) {
-    // synopsis (RSA only): r.exe ssh-keygen [keySize=4096] [destDir='.'] [prvKeyName=id_rsa]
+    std::string keyType;
+    if(argc < 3) goto errorLabel;
 
-    uint32_t keySize = 4096;
-    if(argc >= 3) {
-        std::string arg2 = TOUTF(argv[2]);
-        keySize = std::atoi(arg2.c_str());
-    }
-    std::string destDir = (argc>=4)?TOUTF(argv[3]):".";
-    std::string prvKeyName = (argc>=5)?TOUTF(argv[4]):"id_rsa";
-    std::string pubKeyName = prvKeyName + ".pub";
-    PRINTUNIFIED("Generating RSA keypair of size %d bits in path %s, name: %s\n", keySize, destDir.c_str(), prvKeyName.c_str());
-    auto&& keyPair = ssh_keygen_internal(keySize);
-    std::ofstream prv(destDir+"/"+prvKeyName, std::ios::binary);
-    prv<<keyPair.first;
-    prv.flush();
-    prv.close();
-    std::ofstream pub(destDir+"/"+pubKeyName, std::ios::binary);
-    pub<<keyPair.second;
-    pub.flush();
-    pub.close();
-    return 0;
-}
-
-template<typename C>
-int sshKeygenEd25519FromArgs(int argc, const C* argv[]) {
-    // synopsis: r.exe ssh-ed25519-kg [destDir='.'] [prvKeyName=id_ed25519] [comment='']
-    std::string destDir = (argc>=3)?TOUTF(argv[2]):".";
-    std::string prvKeyName = (argc>=4)?TOUTF(argv[3]):"id_ed25519";
-    std::string comment = (argc>=5)?TOUTF(argv[4]):"";
-    std::string filepath = destDir + "/" + prvKeyName;
-    PRINTUNIFIEDERROR("destination file path: %s\n",filepath.c_str());
-
-    try {
-        generate_ed25519_keypair(filepath.c_str(),comment.c_str());
+    keyType = TOUTF(argv[2]);
+    if(keyType == "rsa") {
+        uint32_t keySize = 4096;
+        if(argc >= 4) {
+            std::string arg2 = TOUTF(argv[3]);
+            keySize = std::atoi(arg2.c_str());
+        }
+        std::string destDir = (argc>=5)?TOUTF(argv[4]):".";
+        std::string prvKeyName = (argc>=6)?TOUTF(argv[5]):"id_rsa";
+        std::string pubKeyName = prvKeyName + ".pub";
+        PRINTUNIFIED("Generating RSA keypair of size %d bits in path %s, name: %s\n", keySize, destDir.c_str(), prvKeyName.c_str());
+        auto&& keyPair = ssh_keygen_internal(keySize);
+        std::ofstream prv(destDir+"/"+prvKeyName, std::ios::binary);
+        prv<<keyPair.first;
+        prv.flush();
+        prv.close();
+        std::ofstream pub(destDir+"/"+pubKeyName, std::ios::binary);
+        pub<<keyPair.second;
+        pub.flush();
+        pub.close();
         return 0;
     }
-    catch(const std::runtime_error& e) {
-        return -1;
+    else if(keyType == "ed25519") {
+        std::string destDir = (argc>=4)?TOUTF(argv[3]):".";
+        std::string prvKeyName = (argc>=5)?TOUTF(argv[4]):"id_ed25519";
+        std::string filepath = destDir + "/" + prvKeyName;
+        PRINTUNIFIED("Generating ed25519 keypair in path %s, name: %s\n", destDir.c_str(), prvKeyName.c_str());
+
+        try {
+            generate_ed25519_keypair(filepath.c_str(),"");
+            return 0;
+        }
+        catch(const std::runtime_error& e) {
+            return -1;
+        }
     }
+
+    errorLabel:
+    PRINTUNIFIEDERROR("Usage: %s %s [rsa|ed25519] ...\n",argv[0],argv[1]);
+    PRINTUNIFIEDERROR("synopsis (rsa): ... [keySize=4096] [destDir='.'] [prvKeyName=id_rsa]\n"
+                      "synopsis (ed25519): ... [destDir='.'] [prvKeyName=id_rsa]\n");
+    return 0;
 }
 
 template<typename C>
@@ -172,7 +178,6 @@ int createFileFromArgs(int argc, const C* argv[]) {
 const std::unordered_map<std::string,std::pair<ControlCodes,cliFunction>> allowedFromCli = {
         {"download", {ControlCodes::ACTION_HTTPS_URL_DOWNLOAD, downloadFromArgs}},
         {"ssh-keygen", {ControlCodes::ACTION_SSH_KEYGEN, sshKeygenFromArgs}},
-        {"ssh-ed25519-kg", {ControlCodes::ACTION_SSH_KEYGEN, sshKeygenEd25519FromArgs}},
         {"hashNames", {ControlCodes::ACTION_HASH, hashFromArgs}},
         {"hash", {ControlCodes::ACTION_HASH, hashFromArgs}},
         {"create", {ControlCodes::ACTION_CREATE, createFileFromArgs}},

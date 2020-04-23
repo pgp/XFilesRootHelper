@@ -1219,18 +1219,30 @@ void httpsUrlDownload(IDescriptor& cl, const uint8_t flags) { // cl is local soc
     cl.close();
 }
 
-// generate SSH keys in PKCS8 format via Botan
-void ssh_keygen(IDescriptor& inOutDesc) {
-	// TODO for now, only RSA supported, ignore the flag bits of rq and receive key size
-	uint32_t keySize;
-	inOutDesc.readAllOrExit(&keySize,sizeof(uint32_t));
-	PRINTUNIFIED("Received key size: %u\n", keySize);
-	auto&& keyPair = ssh_keygen_internal(keySize);
+// rsa and ed25519 keys are supported
+void ssh_keygen(IDescriptor& inOutDesc, uint8_t flags) {
+    std::pair<std::string,std::string> keyPair;
+
+	if(flags == 0) { // RSA, OpenSSL PKCS8 format for private key, OpenSSL X509 for public key
+        uint32_t keySize;
+        inOutDesc.readAllOrExit(&keySize,sizeof(uint32_t));
+        PRINTUNIFIED("Received key size: %u\n", keySize);
+        keyPair = ssh_keygen_internal(keySize);
+	}
+	else if(flags == 1) {// Ed25519, "BEGIN OPENSSH" format for private, one-line ssh authorized_keys format for public
+	    keyPair = generate_ed25519_keypair(nullptr,"");
+    }
+	else {
+	    errno = EINVAL;
+	    sendErrorResponse(inOutDesc);
+	    return;
+	}
+
     sendOkResponse(inOutDesc); // actually not needed
 
     uint32_t prv_s_len = keyPair.first.size();
     uint32_t pub_s_len = keyPair.second.size();
-    
+
     inOutDesc.writeAllOrExit(&prv_s_len,sizeof(uint32_t));
     inOutDesc.writeAllOrExit(keyPair.first.c_str(),prv_s_len);
     inOutDesc.writeAllOrExit(&pub_s_len,sizeof(uint32_t));
@@ -1300,7 +1312,7 @@ void serveRequest(int intcl, request_type rq) {
 			break;
 			
 		case ControlCodes::ACTION_SSH_KEYGEN:
-			ssh_keygen(cl);
+			ssh_keygen(cl,rq.flags);
 			break;
 		
 		case ControlCodes::ACTION_LINK:

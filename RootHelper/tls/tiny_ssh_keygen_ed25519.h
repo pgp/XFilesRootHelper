@@ -37,6 +37,7 @@
 #include <cstdlib>
 #include <cstdint>
 #include <cstring>
+#include <utility>
 #include "../unifiedlogging.h"
 #include "botan_all.h"
 
@@ -520,7 +521,7 @@ static char *build_openssh_private_key_ed25519(
     return p;
 }
 
-static void generate_ed25519_keypair(const char *filename, const char *comment) {
+static std::pair<std::string,std::string> generate_ed25519_keypair(const char *filename, const char *comment) {
     uint8_t rnd36[36], public_key[32];
     /* Buffer size needed: <= 400 + comment_size * 142 / 105 bytes. */
     char buf[401 + MAX_COMMENT_SIZE + MAX_COMMENT_SIZE / 3 + MAX_COMMENT_SIZE * 2 / 105];
@@ -550,16 +551,27 @@ static void generate_ed25519_keypair(const char *filename, const char *comment) 
     botan_rng_get(rng,rnd36,36);
     botan_rng_destroy(rng);
 
+    std::pair<std::string,std::string> key_pair;
+
     keypair(public_key, rnd36);
     p = buf;
     p = build_openssh_public_key_ed25519(
             p, pend, public_key, comment, comment_size);
-    write_to_file(filename_pub, 0644, buf, p - buf);
+    if(filename != nullptr)
+        write_to_file(filename_pub, 0644, buf, p - buf);
+    else
+        key_pair.second = std::string(buf, p-buf);
     p = buf;
     p = build_openssh_private_key_ed25519(
             p, pend, public_key, comment, comment_size,
             rnd36 /* private_key */, rnd36 + 32 /* checkstr */);
-    write_to_file(filename, 0600, buf, p - buf);
+
+    if(filename != nullptr)
+        write_to_file(filename, 0600, buf, p - buf);
+    else
+        key_pair.first = std::string(buf, p-buf);
+
+    return key_pair;
 }
 
 #endif /* __TINY_SSH_KEYGEN_ED25519__ */
