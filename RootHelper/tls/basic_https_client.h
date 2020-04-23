@@ -451,11 +451,15 @@ int httpsUrlDownload_internal(IDescriptor& cl,
     return tlsClient.httpRet;
 }
 
+// private key in OpenSSL PKCS8 format, will only work with OpenSSH (incompatible with other SSH clients/libraries)
 std::pair<std::string,std::string> ssh_keygen_internal(uint32_t keySize) {
     PRINTUNIFIED("Generating key pair...");
     Botan::AutoSeeded_RNG rng;
     Botan::RSA_PrivateKey prv(rng,keySize);
     PRINTUNIFIED("Generation complete, encoding to PEM...");
+    // RSA with traditional format, should work with all ssh clients/libraries
+//    auto&& privateBits = prv.private_key_bits();
+//    std::string prv_s = Botan::PEM_Code::encode(privateBits, "RSA PRIVATE KEY");
     std::string prv_s = Botan::PKCS8::PEM_encode(prv);
     std::string pub_s = Botan::X509::PEM_encode(prv);
     PRINTUNIFIED("Encoding complete");

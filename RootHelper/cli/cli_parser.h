@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include "../common_uds.h"
 #include "../tls/basic_https_client.h"
+#include "../tls/tiny_ssh_keygen_ed25519.h"
 #include "../desc/SinkDescriptor.h"
 #include "../rh_hasher_botan.h"
 
@@ -86,6 +87,24 @@ int sshKeygenFromArgs(int argc, const C* argv[]) {
 }
 
 template<typename C>
+int sshKeygenEd25519FromArgs(int argc, const C* argv[]) {
+    // synopsis: r.exe ssh-ed25519-kg [destDir='.'] [prvKeyName=id_ed25519] [comment='']
+    std::string destDir = (argc>=3)?TOUTF(argv[2]):".";
+    std::string prvKeyName = (argc>=4)?TOUTF(argv[3]):"id_ed25519";
+    std::string comment = (argc>=5)?TOUTF(argv[4]):"";
+    std::string filepath = destDir + "/" + prvKeyName;
+    PRINTUNIFIEDERROR("destination file path: %s\n",filepath.c_str());
+
+    try {
+        generate_ed25519_keypair(filepath.c_str(),comment.c_str());
+        return 0;
+    }
+    catch(const std::runtime_error& e) {
+        return -1;
+    }
+}
+
+template<typename C>
 int hashFromArgs(int argc, const C* argv[]) {
     // default dirHash configuration (will be customizable once argparse is added as dependency):
     // - ignore windows thumbs files: true
@@ -153,6 +172,7 @@ int createFileFromArgs(int argc, const C* argv[]) {
 const std::unordered_map<std::string,std::pair<ControlCodes,cliFunction>> allowedFromCli = {
         {"download", {ControlCodes::ACTION_HTTPS_URL_DOWNLOAD, downloadFromArgs}},
         {"ssh-keygen", {ControlCodes::ACTION_SSH_KEYGEN, sshKeygenFromArgs}},
+        {"ssh-ed25519-kg", {ControlCodes::ACTION_SSH_KEYGEN, sshKeygenEd25519FromArgs}},
         {"hashNames", {ControlCodes::ACTION_HASH, hashFromArgs}},
         {"hash", {ControlCodes::ACTION_HASH, hashFromArgs}},
         {"create", {ControlCodes::ACTION_CREATE, createFileFromArgs}},
