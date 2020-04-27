@@ -1230,7 +1230,7 @@ void ssh_keygen(IDescriptor& inOutDesc, uint8_t flags) {
         keyPair = ssh_keygen_internal(keySize);
 	}
 	else if(flags == 1) {// Ed25519, "BEGIN OPENSSH" format for private, one-line ssh authorized_keys format for public
-	    keyPair = generate_ed25519_keypair(nullptr,"");
+	    keyPair = generate_ed25519_keypair(nullptr,"ed25519@xfiles");
     }
 	else {
 	    errno = EINVAL;

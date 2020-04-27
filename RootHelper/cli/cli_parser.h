@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include "../common_uds.h"
 #include "../tls/basic_https_client.h"
-#include "../tls/tiny_ssh_keygen_ed25519.h"
+#include "../tls/ssh_keygen_ed25519.h"
 #include "../desc/SinkDescriptor.h"
 #include "../rh_hasher_botan.h"
 
@@ -95,10 +95,13 @@ int sshKeygenFromArgs(int argc, const C* argv[]) {
         PRINTUNIFIED("Generating ed25519 keypair in path %s, name: %s\n", destDir.c_str(), prvKeyName.c_str());
 
         try {
-            generate_ed25519_keypair(filepath.c_str(),"");
+			auto&& keyComment = prvKeyName + "@xfiles";
+            generate_ed25519_keypair(filepath.c_str(),keyComment);
+            PRINTUNIFIED("Keypair generated successfully\n");
             return 0;
         }
         catch(const std::runtime_error& e) {
+            PRINTUNIFIEDERROR("Keypair generation error: %s\n",e.what());
             return -1;
         }
     }
