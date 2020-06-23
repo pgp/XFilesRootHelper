@@ -27,7 +27,7 @@ SOCKET connect_with_timeout(const char* ipaddr, int port, unsigned timeout_secon
     // put socket in non-blocking mode...
     u_long block = 1;
     if(ioctlsocket(sock, FIONBIO, &block) == SOCKET_ERROR) {
-		printf("Connect failed! Error: %d", WSAGetLastError());
+        printf("Connect failed! Error: %d", WSAGetLastError());
         closesocket(sock);
         return INVALID_SOCKET;
     }
@@ -64,7 +64,7 @@ SOCKET connect_with_timeout(const char* ipaddr, int port, unsigned timeout_secon
         if(FD_ISSET(sock, &setE)) {
             // connection failed
             int err = 0;
-			int s_err = sizeof(err);
+            int s_err = sizeof(err);
             getsockopt(sock, SOL_SOCKET, SO_ERROR, (char*)&err, &s_err);
             closesocket(sock);
             WSASetLastError(err);
@@ -90,7 +90,7 @@ SOCKET resolve_and_connect_with_timeout(const std::string& domainOnly, int port 
     struct hostent *remoteHost;
     struct in_addr addr;
     char **pAlias;
-	const char* host_name = domainOnly.c_str();
+    const char* host_name = domainOnly.c_str();
 
     printf("Calling gethostbyname with %s\n", host_name);
     remoteHost = gethostbyname(host_name);
@@ -134,11 +134,11 @@ SOCKET resolve_and_connect_with_timeout(const std::string& domainOnly, int port 
         {
             while (remoteHost->h_addr_list[i] != 0) {
                 addr.s_addr = *(u_long *) remoteHost->h_addr_list[i++];
-				char* currentAddr = inet_ntoa(addr);
+                char* currentAddr = inet_ntoa(addr);
                 printf("\tTrying connecting to IP Address #%d: %s\n", i, currentAddr);
-				auto currentSock = connect_with_timeout(currentAddr, port, timeout_seconds);
-				if(currentSock != INVALID_SOCKET)
-					return currentSock;
+                auto currentSock = connect_with_timeout(currentAddr, port, timeout_seconds);
+                if(currentSock != INVALID_SOCKET)
+                    return currentSock;
             }
         }
         else if (remoteHost->h_addrtype == AF_NETBIOS)
@@ -258,6 +258,7 @@ int resolve_and_connect_with_timeout(const std::string& domainOnly, int port = 4
     PRINTUNIFIED("Invoking getaddrinfo for %s\n",domainOnly.c_str());
     if ((rv = getaddrinfo(domainOnly.c_str(), port_s.c_str(), &hints, &servinfo)) != 0) {
         PRINTUNIFIEDERROR("getaddrinfo error: %s\n", gai_strerror(rv));
+        errno = 0x313131;
         return -1;
     }
 
