@@ -98,9 +98,10 @@ public:
             if (closed) return brokenConnection?-1:0; // EOF-like
 //            PRINTUNIFIEDERROR("Underflow, waiting for data to be available...");
             ringbuffer_written_cond.wait(lock);
+            
+            // here, we have successfully taken ownership of mutex again
+            if (closed && (readIdx == writeIdx)) return brokenConnection?-1:0;// EOF-like
         }
-        // here, we have successfully taken ownership of mutex again
-        if (closed && (readIdx == writeIdx)) return brokenConnection?-1:0;// EOF-like FIXME redundant, refactor
 
         const int maxReadable = oneDirCircularDistance();
         const int bytesToBeCopied = count>maxReadable?maxReadable:count;
@@ -146,8 +147,8 @@ public:
         if (oneDirCircularDistance() == capacity-1) {
             // cout<<"Overflow, waiting for data to be read..."<<endl;
             ringbuffer_read_cond.wait(lock);
+            if (closed) return -1;
         }
-        if (closed) return -1; // FIXME redundant, refactor
 
         const int maxWritable = capacity -1 -oneDirCircularDistance();
         if (maxWritable < 0) {
