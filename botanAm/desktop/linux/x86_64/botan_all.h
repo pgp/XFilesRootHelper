@@ -1,6 +1,6 @@
 /*
-* Botan 2.13.0 Amalgamation
-* (C) 1999-2018 The Botan Authors
+* Botan 2.15.0 Amalgamation
+* (C) 1999-2020 The Botan Authors
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 */
@@ -37,7 +37,7 @@
 
 /*
 * This file was automatically generated running
-* 'configure.py --amalgamation --single-amalgamation-file --disable-modules=pkcs11,tls_10 --disable-cc-tests --cpu=x64 --os=linux --cc=gcc'
+* 'configure.py --amalgamation --disable-modules=pkcs11,tls_10 --disable-cc-tests --cpu=x64 --os=linux --cc=gcc'
 *
 * Target
 *  - Compiler: g++ -fstack-protector -pthread -std=c++11 -D_REENTRANT -O3
@@ -46,13 +46,13 @@
 */
 
 #define BOTAN_VERSION_MAJOR 2
-#define BOTAN_VERSION_MINOR 13
+#define BOTAN_VERSION_MINOR 15
 #define BOTAN_VERSION_PATCH 0
-#define BOTAN_VERSION_DATESTAMP 20200106
+#define BOTAN_VERSION_DATESTAMP 0
 
-#define BOTAN_VERSION_RELEASE_TYPE "release"
+#define BOTAN_VERSION_RELEASE_TYPE "unreleased"
 
-#define BOTAN_VERSION_VC_REVISION "git:ed360ab268544fd801b8ea68ff08b07610680052"
+#define BOTAN_VERSION_VC_REVISION "git:3ed6eaa3c1236aed844f5475e2df8b89b3286ac4"
 
 #define BOTAN_DISTRIBUTION_INFO "unspecified"
 
@@ -62,11 +62,10 @@
 
 #define BOTAN_INSTALL_PREFIX R"(/usr/local)"
 #define BOTAN_INSTALL_HEADER_DIR R"(include/botan-2)"
-#define BOTAN_INSTALL_LIB_DIR R"(/usr/local/lib)"
+#define BOTAN_INSTALL_LIB_DIR R"(/usr/local\lib)"
 #define BOTAN_LIB_LINK "-lrt"
 #define BOTAN_LINK_FLAGS "-fstack-protector -pthread"
 
-#define BOTAN_SYSTEM_CERT_BUNDLE "/etc/ssl/certs/ca-certificates.crt"
 
 #ifndef BOTAN_DLL
   #define BOTAN_DLL __attribute__((visibility("default")))
@@ -76,6 +75,7 @@
 
 #define BOTAN_TARGET_OS_IS_LINUX
 
+#define BOTAN_TARGET_OS_HAS_ATOMICS
 #define BOTAN_TARGET_OS_HAS_CLOCK_GETTIME
 #define BOTAN_TARGET_OS_HAS_DEV_RANDOM
 #define BOTAN_TARGET_OS_HAS_FILESYSTEM
@@ -197,7 +197,6 @@
 #define BOTAN_HAS_ENTROPY_SOURCE 20151120
 #define BOTAN_HAS_ENTROPY_SRC_DEV_RANDOM 20131128
 #define BOTAN_HAS_ENTROPY_SRC_PROC_WALKER 20131128
-#define BOTAN_HAS_ENTROPY_SRC_RDRAND 20131128
 #define BOTAN_HAS_ENTROPY_SRC_RDSEED 20151218
 #define BOTAN_HAS_FFI 20191214
 #define BOTAN_HAS_FILTERS 20160415
@@ -262,6 +261,7 @@
 #define BOTAN_HAS_PK_PADDING 20131128
 #define BOTAN_HAS_POLY1305 20141227
 #define BOTAN_HAS_POLY_DBL 20170927
+#define BOTAN_HAS_PROCESSOR_RNG 20200508
 #define BOTAN_HAS_PSK_DB 20171119
 #define BOTAN_HAS_PUBLIC_KEY_CRYPTO 20131128
 #define BOTAN_HAS_RC4 20131128
@@ -403,13 +403,10 @@
 
 /*
 * Specifies (in order) the list of entropy sources that will be used
-* to seed an in-memory RNG. The first in the default list: "rdseed"
-* and "rdrand" do not count as contributing any entropy but are
-* included as they are fast and help protect against a seriously
-* broken system RNG.
+* to seed an in-memory RNG.
 */
 #define BOTAN_ENTROPY_DEFAULT_SOURCES \
-   { "rdseed", "rdrand", "p9_darn", "getentropy", "dev_random", \
+   { "rdseed", "hwrng", "p9_darn", "getentropy", "dev_random", \
      "system_rng", "proc_walk", "system_stats" }
 
 /* Multiplier on a block cipher's native parallelism */
@@ -506,6 +503,12 @@
 #define BOTAN_PUBLIC_API(maj,min) BOTAN_DLL
 
 /**
+* Used to annotate API exports which are public, but are now deprecated
+* and which will be removed in a future major release.
+*/
+#define BOTAN_DEPRECATED_API(msg) BOTAN_DLL BOTAN_DEPRECATED(msg)
+
+/**
 * Used to annotate API exports which are public and can be used by
 * applications if needed, but which are intentionally not documented,
 * and which may change incompatibly in a future major version.
@@ -578,7 +581,7 @@
     #define BOTAN_DEPRECATED(msg) __attribute__ ((deprecated(msg)))
     #define BOTAN_DEPRECATED_HEADER(hdr) _Pragma("message \"this header is deprecated\"")
 
-    #if !defined(BOTAN_IS_BEING_BUILT)
+    #if !defined(BOTAN_IS_BEING_BUILT) && !defined(BOTAN_AMALGAMATION_H_)
       #define BOTAN_FUTURE_INTERNAL_HEADER(hdr) _Pragma("message \"this header will be made internal in the future\"")
     #endif
 
@@ -586,7 +589,7 @@
     #define BOTAN_DEPRECATED(msg) __declspec(deprecated(msg))
     #define BOTAN_DEPRECATED_HEADER(hdr) __pragma(message("this header is deprecated"))
 
-    #if !defined(BOTAN_IS_BEING_BUILT)
+    #if !defined(BOTAN_IS_BEING_BUILT) && !defined(BOTAN_AMALGAMATION_H_)
       #define BOTAN_FUTURE_INTERNAL_HEADER(hdr) __pragma(message("this header will be made internal in the future"))
     #endif
 
@@ -595,7 +598,7 @@
     #define BOTAN_DEPRECATED(msg) __attribute__ ((deprecated(msg)))
     #define BOTAN_DEPRECATED_HEADER(hdr) _Pragma("GCC warning \"this header is deprecated\"")
 
-    #if !defined(BOTAN_IS_BEING_BUILT)
+    #if !defined(BOTAN_IS_BEING_BUILT) && !defined(BOTAN_AMALGAMATION_H_)
       #define BOTAN_FUTURE_INTERNAL_HEADER(hdr) _Pragma("GCC warning \"this header will be made internal in the future\"")
     #endif
   #endif
@@ -872,7 +875,7 @@ namespace Botan {
 * <dt>Message Authentication Codes<dd>
 *        @ref CBC_MAC "CBC-MAC", CMAC, HMAC, Poly1305, SipHash, ANSI_X919_MAC
 * <dt>Random Number Generators<dd>
-*        AutoSeeded_RNG, HMAC_DRBG, RDRAND_RNG, System_RNG
+*        AutoSeeded_RNG, HMAC_DRBG, Processor_RNG, System_RNG
 * <dt>Key Derivation<dd>
 *        HKDF, @ref KDF1 "KDF1 (IEEE 1363)", @ref KDF1_18033 "KDF1 (ISO 18033-2)", @ref KDF2 "KDF2 (IEEE 1363)",
 *        @ref sp800_108.h "SP800-108", @ref SP800_56C "SP800-56C", @ref PKCS5_PBKDF1 "PBKDF1 (PKCS#5),
@@ -926,6 +929,13 @@ using s32bit = std::int32_t;
   #error BOTAN_MP_WORD_BITS must be 32 or 64
 #endif
 
+/*
+* Should this assert fail on your system please contact the developers
+* for assistance in porting.
+*/
+static_assert(sizeof(std::size_t) == 8 || sizeof(std::size_t) == 4,
+              "This platform has an unexpected size for size_t");
+
 }
 
 namespace Botan {
@@ -951,7 +961,7 @@ BOTAN_PUBLIC_API(2,3) void deallocate_memory(void* p, size_t elems, size_t elem_
 /**
 * Ensure the allocator is initialized
 */
-void initialize_allocator();
+void BOTAN_UNSTABLE_API initialize_allocator();
 
 class Allocator_Initializer
    {
@@ -1002,7 +1012,10 @@ inline bool constant_time_compare(const uint8_t x[],
    }
 
 /**
-* Zero out some bytes
+* Zero out some bytes. Warning: use secure_scrub_memory instead if the
+* memory is about to be freed or otherwise the compiler thinks it can
+* elide the writes.
+*
 * @param ptr a pointer to memory to zero
 * @param bytes the number of bytes to zero in ptr
 */
@@ -1029,10 +1042,8 @@ template<typename T> inline void clear_mem(T* ptr, size_t n)
    clear_bytes(ptr, sizeof(T)*n);
    }
 
-
-
 // is_trivially_copyable is missing in g++ < 5.0
-#if !__clang__ && __GNUG__ && __GNUC__ < 5
+#if (BOTAN_GCC_VERSION > 0 && BOTAN_GCC_VERSION < 500)
 #define BOTAN_IS_TRIVIALLY_COPYABLE(T) true
 #else
 #define BOTAN_IS_TRIVIALLY_COPYABLE(T) std::is_trivially_copyable<T>::value
@@ -2974,23 +2985,15 @@ class BOTAN_PUBLIC_API(2,0) AES_128 final : public Block_Cipher_Fixed_Params<16,
 #endif
 
 #if defined(BOTAN_HAS_AES_NI)
-      void aesni_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-      void aesni_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
       void aesni_key_schedule(const uint8_t key[], size_t length);
 #endif
 
-#if defined(BOTAN_HAS_AES_ARMV8)
-      void armv8_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-      void armv8_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-#endif
-
-#if defined(BOTAN_HAS_AES_POWER8)
-      void power8_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-      void power8_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
+#if defined(BOTAN_HAS_AES_POWER8) || defined(BOTAN_HAS_AES_ARMV8) || defined(BOTAN_HAS_AES_NI)
+      void hw_aes_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
+      void hw_aes_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
 #endif
 
       secure_vector<uint32_t> m_EK, m_DK;
-      secure_vector<uint8_t> m_ME, m_MD;
    };
 
 /**
@@ -3017,25 +3020,17 @@ class BOTAN_PUBLIC_API(2,0) AES_192 final : public Block_Cipher_Fixed_Params<16,
 #endif
 
 #if defined(BOTAN_HAS_AES_NI)
-      void aesni_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-      void aesni_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
       void aesni_key_schedule(const uint8_t key[], size_t length);
 #endif
 
-#if defined(BOTAN_HAS_AES_ARMV8)
-      void armv8_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-      void armv8_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-#endif
-
-#if defined(BOTAN_HAS_AES_POWER8)
-      void power8_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-      void power8_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
+#if defined(BOTAN_HAS_AES_POWER8) || defined(BOTAN_HAS_AES_ARMV8) || defined(BOTAN_HAS_AES_NI)
+      void hw_aes_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
+      void hw_aes_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
 #endif
 
       void key_schedule(const uint8_t key[], size_t length) override;
 
       secure_vector<uint32_t> m_EK, m_DK;
-      secure_vector<uint8_t> m_ME, m_MD;
    };
 
 /**
@@ -3063,25 +3058,17 @@ class BOTAN_PUBLIC_API(2,0) AES_256 final : public Block_Cipher_Fixed_Params<16,
 #endif
 
 #if defined(BOTAN_HAS_AES_NI)
-      void aesni_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-      void aesni_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
       void aesni_key_schedule(const uint8_t key[], size_t length);
 #endif
 
-#if defined(BOTAN_HAS_AES_ARMV8)
-      void armv8_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-      void armv8_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-#endif
-
-#if defined(BOTAN_HAS_AES_POWER8)
-      void power8_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
-      void power8_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
+#if defined(BOTAN_HAS_AES_POWER8) || defined(BOTAN_HAS_AES_ARMV8) || defined(BOTAN_HAS_AES_NI)
+      void hw_aes_encrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
+      void hw_aes_decrypt_n(const uint8_t in[], uint8_t out[], size_t blocks) const;
 #endif
 
       void key_schedule(const uint8_t key[], size_t length) override;
 
       secure_vector<uint32_t> m_EK, m_DK;
-      secure_vector<uint8_t> m_ME, m_MD;
    };
 
 }
@@ -3424,6 +3411,14 @@ class BOTAN_PUBLIC_API(2,0) AlgorithmIdentifier final : public ASN1_Object
       const OID& get_oid() const { return oid; }
       const std::vector<uint8_t>& get_parameters() const { return parameters; }
 
+      bool parameters_are_null() const;
+      bool parameters_are_empty() const { return parameters.empty(); }
+
+      bool parameters_are_null_or_empty() const
+         {
+         return parameters_are_empty() || parameters_are_null();
+         }
+
    BOTAN_DEPRECATED_PUBLIC_MEMBER_VARIABLES:
       /*
       * These values are public for historical reasons, but in a future release
@@ -3589,9 +3584,9 @@ class BOTAN_PUBLIC_API(2,8) PasswordHashFamily
 
 }
 
-namespace Botan {
+//BOTAN_FUTURE_INTERNAL_HEADER(argon2.h)
 
-BOTAN_FUTURE_INTERNAL_HEADER(argon2.h)
+namespace Botan {
 
 class RandomNumberGenerator;
 
@@ -3803,6 +3798,91 @@ class BOTAN_PUBLIC_API(2,0) ASN1_String final : public ASN1_Object
 namespace Botan {
 
 /**
+* Distinguished Name
+*/
+class BOTAN_PUBLIC_API(2,0) X509_DN final : public ASN1_Object
+   {
+   public:
+      X509_DN() = default;
+
+      explicit X509_DN(const std::multimap<OID, std::string>& args)
+         {
+         for(auto i : args)
+            add_attribute(i.first, i.second);
+         }
+
+      explicit X509_DN(const std::multimap<std::string, std::string>& args)
+         {
+         for(auto i : args)
+            add_attribute(i.first, i.second);
+         }
+
+      void encode_into(class DER_Encoder&) const override;
+      void decode_from(class BER_Decoder&) override;
+
+      bool has_field(const OID& oid) const;
+      ASN1_String get_first_attribute(const OID& oid) const;
+
+      /*
+      * Return the BER encoded data, if any
+      */
+      const std::vector<uint8_t>& get_bits() const { return m_dn_bits; }
+
+      bool empty() const { return m_rdn.empty(); }
+
+      std::string to_string() const;
+
+      const std::vector<std::pair<OID,ASN1_String>>& dn_info() const { return m_rdn; }
+
+      std::multimap<OID, std::string> get_attributes() const;
+      std::multimap<std::string, std::string> contents() const;
+
+      bool has_field(const std::string& attr) const;
+      std::vector<std::string> get_attribute(const std::string& attr) const;
+      std::string get_first_attribute(const std::string& attr) const;
+
+      void add_attribute(const std::string& key, const std::string& val);
+
+      void add_attribute(const OID& oid, const std::string& val)
+         {
+         add_attribute(oid, ASN1_String(val));
+         }
+
+      void add_attribute(const OID& oid, const ASN1_String& val);
+
+      static std::string deref_info_field(const std::string& key);
+
+      /**
+      * Lookup upper bounds in characters for the length of distinguished name fields
+      * as given in RFC 5280, Appendix A.
+      *
+      * @param oid the oid of the DN to lookup
+      * @return the upper bound, or zero if no ub is known to Botan
+      */
+      static size_t lookup_ub(const OID& oid);
+
+   private:
+      std::vector<std::pair<OID,ASN1_String>> m_rdn;
+      std::vector<uint8_t> m_dn_bits;
+   };
+
+bool BOTAN_PUBLIC_API(2,0) operator==(const X509_DN& dn1, const X509_DN& dn2);
+bool BOTAN_PUBLIC_API(2,0) operator!=(const X509_DN& dn1, const X509_DN& dn2);
+
+/*
+The ordering here is arbitrary and may change from release to release.
+It is intended for allowing DNs as keys in std::map and similiar containers
+*/
+bool BOTAN_PUBLIC_API(2,0) operator<(const X509_DN& dn1, const X509_DN& dn2);
+
+BOTAN_PUBLIC_API(2,0) std::ostream& operator<<(std::ostream& out, const X509_DN& dn);
+BOTAN_PUBLIC_API(2,0) std::istream& operator>>(std::istream& in, X509_DN& dn);
+
+}
+
+namespace Botan {
+
+/**
 * Alternative Name
 */
 class BOTAN_PUBLIC_API(2,0) AlternativeName final : public ASN1_Object
@@ -3830,6 +3910,8 @@ class BOTAN_PUBLIC_API(2,0) AlternativeName final : public ASN1_Object
          {
          return m_othernames;
          }
+
+      X509_DN dn() const;
 
       bool has_items() const;
 
@@ -4312,7 +4394,7 @@ class BOTAN_PUBLIC_API(2,0) RandomNumberGenerator
 typedef RandomNumberGenerator RNG;
 
 /**
-* Hardware_RNG exists to tag hardware RNG types (PKCS11_RNG, TPM_RNG, RDRAND_RNG)
+* Hardware_RNG exists to tag hardware RNG types (PKCS11_RNG, TPM_RNG, Processor_RNG)
 */
 class BOTAN_PUBLIC_API(2,0) Hardware_RNG : public RandomNumberGenerator
    {
@@ -4621,11 +4703,6 @@ BOTAN_PUBLIC_API(2,9) base58_encode(const uint8_t input[],
                                     size_t input_length);
 
 /**
-* Perform base58 encoding
-*
-* This is raw base58 encoding, without the checksum
-*/
-/**
 * Perform base58 encoding with checksum
 */
 std::string
@@ -4644,8 +4721,6 @@ BOTAN_PUBLIC_API(2,9) base58_decode(const char input[],
 
 /**
 * Perform base58 decoding with checksum
-*
-* This is raw base58 encoding, without the checksum
 */
 std::vector<uint8_t>
 BOTAN_PUBLIC_API(2,9) base58_check_decode(const char input[],
@@ -5596,6 +5671,8 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
         this->swap(other);
         }
 
+     ~BigInt() { const_time_unpoison(); }
+
      /**
      * Move assignment
      */
@@ -6097,7 +6174,7 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
      * Resize the vector to the minimum word size to hold the integer, or
      * min_size words, whichever is larger
      */
-     void shrink_to_fit(size_t min_size = 0)
+     void BOTAN_DEPRECATED("Use resize if required") shrink_to_fit(size_t min_size = 0)
         {
         m_data.shrink_to_fit(min_size);
         }
@@ -6179,6 +6256,11 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
      * Uses a masked operation to avoid side channels
      */
      void ct_cond_swap(bool predicate, BigInt& other);
+
+     /**
+     * If predicate is true add value to *this
+     */
+     void ct_cond_add(bool predicate, const BigInt& value);
 
      /**
      * If predicate is true flip the sign of *this
@@ -6442,7 +6524,7 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
                  {
                  const word mask = (static_cast<word>(1) << (n % BOTAN_MP_WORD_BITS)) - 1;
                  const size_t len = size() - (top_word + 1);
-                 if (len > 0)
+                 if(len > 0)
                     {
                     clear_mem(&m_reg[top_word+1], len);
                     }
@@ -6714,30 +6796,32 @@ BigInt BOTAN_PUBLIC_API(2,0) lcm(const BigInt& x, const BigInt& y);
 BigInt BOTAN_PUBLIC_API(2,0) square(const BigInt& x);
 
 /**
-* Modular inversion
+* Modular inversion. This algorithm is const time with respect to x,
+* as long as x is less than modulus. It also avoids leaking
+* information about the modulus, except that it does leak which of 3
+* categories the modulus is in: an odd integer, a power of 2, or some
+* other even number, and if the modulus is even, leaks the power of 2
+* which divides the modulus.
+*
 * @param x a positive integer
 * @param modulus a positive integer
 * @return y st (x*y) % modulus == 1 or 0 if no such value
-* Not const time
 */
 BigInt BOTAN_PUBLIC_API(2,0) inverse_mod(const BigInt& x,
                                          const BigInt& modulus);
 
 /**
-* Modular inversion using extended binary Euclidian algorithm
+* Deprecated modular inversion function. Use inverse_mod instead.
 * @param x a positive integer
 * @param modulus a positive integer
 * @return y st (x*y) % modulus == 1 or 0 if no such value
-* Not const time
 */
-BigInt BOTAN_PUBLIC_API(2,5) inverse_euclid(const BigInt& x,
-                                            const BigInt& modulus);
+BigInt BOTAN_DEPRECATED_API("Use inverse_mod") inverse_euclid(const BigInt& x, const BigInt& modulus);
 
 /**
-* Const time modular inversion
-* Requires the modulus be odd
+* Deprecated modular inversion function. Use inverse_mod instead.
 */
-BigInt BOTAN_PUBLIC_API(2,0) ct_inverse_mod_odd_modulus(const BigInt& n, const BigInt& mod);
+BigInt BOTAN_DEPRECATED_API("Use inverse_mod") ct_inverse_mod_odd_modulus(const BigInt& n, const BigInt& mod);
 
 /**
 * Return a^-1 * 2^k mod b
@@ -7991,11 +8075,11 @@ class RandomNumberGenerator;
 */
 
 // TODO: change to just a secure_vector
-class newhope_poly final
+class BOTAN_UNSTABLE_API newhope_poly final
    {
    public:
       uint16_t coeffs[1024];
-      ~newhope_poly() { secure_scrub_memory(coeffs, sizeof(coeffs)); }
+      ~newhope_poly();
    };
 
 enum Newhope_Params
@@ -8076,7 +8160,6 @@ namespace Botan {
 
 /**
 * Certificate validation status code
-* Warning: reflect any changes to this in botan_cert_status_code in ffi.h
 */
 enum class Certificate_Status_Code {
    OK = 0,
@@ -8145,6 +8228,7 @@ enum class Certificate_Status_Code {
    OCSP_RESPONSE_INVALID = 4504,
    EXT_IN_V1_V2_CERT = 4505,
    DUPLICATE_CERT_POLICY = 4506,
+   V2_IDENTIFIERS_IN_V1_CERT = 4507,
 
    // Hard failures
    CERT_IS_REVOKED = 5000,
@@ -9335,91 +9419,6 @@ BOTAN_PUBLIC_API(2,0) bool operator!=(const X509_Certificate& cert1, const X509_
 
 namespace Botan {
 
-/**
-* Distinguished Name
-*/
-class BOTAN_PUBLIC_API(2,0) X509_DN final : public ASN1_Object
-   {
-   public:
-      X509_DN() = default;
-
-      explicit X509_DN(const std::multimap<OID, std::string>& args)
-         {
-         for(auto i : args)
-            add_attribute(i.first, i.second);
-         }
-
-      explicit X509_DN(const std::multimap<std::string, std::string>& args)
-         {
-         for(auto i : args)
-            add_attribute(i.first, i.second);
-         }
-
-      void encode_into(class DER_Encoder&) const override;
-      void decode_from(class BER_Decoder&) override;
-
-      bool has_field(const OID& oid) const;
-      ASN1_String get_first_attribute(const OID& oid) const;
-
-      /*
-      * Return the BER encoded data, if any
-      */
-      const std::vector<uint8_t>& get_bits() const { return m_dn_bits; }
-
-      bool empty() const { return m_rdn.empty(); }
-
-      std::string to_string() const;
-
-      const std::vector<std::pair<OID,ASN1_String>>& dn_info() const { return m_rdn; }
-
-      std::multimap<OID, std::string> get_attributes() const;
-      std::multimap<std::string, std::string> contents() const;
-
-      bool has_field(const std::string& attr) const;
-      std::vector<std::string> get_attribute(const std::string& attr) const;
-      std::string get_first_attribute(const std::string& attr) const;
-
-      void add_attribute(const std::string& key, const std::string& val);
-
-      void add_attribute(const OID& oid, const std::string& val)
-         {
-         add_attribute(oid, ASN1_String(val));
-         }
-
-      void add_attribute(const OID& oid, const ASN1_String& val);
-
-      static std::string deref_info_field(const std::string& key);
-
-      /**
-      * Lookup upper bounds in characters for the length of distinguished name fields
-      * as given in RFC 5280, Appendix A.
-      *
-      * @param oid the oid of the DN to lookup
-      * @return the upper bound, or zero if no ub is known to Botan
-      */
-      static size_t lookup_ub(const OID& oid);
-
-   private:
-      std::vector<std::pair<OID,ASN1_String>> m_rdn;
-      std::vector<uint8_t> m_dn_bits;
-   };
-
-bool BOTAN_PUBLIC_API(2,0) operator==(const X509_DN& dn1, const X509_DN& dn2);
-bool BOTAN_PUBLIC_API(2,0) operator!=(const X509_DN& dn1, const X509_DN& dn2);
-
-/*
-The ordering here is arbitrary and may change from release to release.
-It is intended for allowing DNs as keys in std::map and similiar containers
-*/
-bool BOTAN_PUBLIC_API(2,0) operator<(const X509_DN& dn1, const X509_DN& dn2);
-
-BOTAN_PUBLIC_API(2,0) std::ostream& operator<<(std::ostream& out, const X509_DN& dn);
-BOTAN_PUBLIC_API(2,0) std::istream& operator>>(std::istream& in, X509_DN& dn);
-
-}
-
-namespace Botan {
-
 class Extensions;
 class X509_Certificate;
 struct CRL_Entry_Data;
@@ -9647,16 +9646,18 @@ namespace Botan {
 class BOTAN_PUBLIC_API(2,0) Certificate_Store
    {
    public:
-      virtual ~Certificate_Store() = default;
+      virtual ~Certificate_Store();
 
       /**
       * Find a certificate by Subject DN and (optionally) key identifier
       * @param subject_dn the subject's distinguished name
       * @param key_id an optional key id
       * @return a matching certificate or nullptr otherwise
+      * If more than one certificate in the certificate store matches, then
+      * a single value is selected arbitrarily.
       */
       virtual std::shared_ptr<const X509_Certificate>
-         find_cert(const X509_DN& subject_dn, const std::vector<uint8_t>& key_id) const = 0;
+         find_cert(const X509_DN& subject_dn, const std::vector<uint8_t>& key_id) const;
 
       /**
       * Find all certificates with a given Subject DN.
@@ -9815,14 +9816,6 @@ class BOTAN_PUBLIC_API(2, 11) Flatfile_Certificate_Store final : public Certific
       * @return DNs for all certificates managed by the store
       */
       std::vector<X509_DN> all_subjects() const override;
-
-      /**
-      * Find a certificate by Subject DN and (optionally) key identifier
-      * @return the first certificate that matches
-      */
-      std::shared_ptr<const X509_Certificate> find_cert(
-         const X509_DN& subject_dn,
-         const std::vector<uint8_t>& key_id) const override;
 
       /**
       * Find all certificates with a given Subject DN.
@@ -11183,6 +11176,22 @@ class BOTAN_PUBLIC_API(2,1) CPUID final
          }
 
       /**
+      * Check if the processor supports hardware AES instructions
+      */
+      static bool has_hw_aes()
+         {
+#if defined(BOTAN_TARGET_CPU_IS_X86_FAMILY)
+         return has_aes_ni();
+#elif defined(BOTAN_TARGET_CPU_IS_ARM_FAMILY)
+         return has_arm_aes();
+#elif defined(BOTAN_TARGET_CPU_IS_PPC_FAMILY)
+         return has_power_crypto();
+#else
+         return false;
+#endif
+         }
+
+      /**
       * Check if the processor supports carryless multiply
       * (CLMUL, PMULL)
       */
@@ -11192,6 +11201,8 @@ class BOTAN_PUBLIC_API(2,1) CPUID final
          return has_clmul();
 #elif defined(BOTAN_TARGET_CPU_IS_ARM_FAMILY)
          return has_arm_pmull();
+#elif defined(BOTAN_TARGET_ARCH_IS_PPC64)
+         return has_power_crypto();
 #else
          return false;
 #endif
@@ -14916,14 +14927,14 @@ class PointGFp_Var_Point_Precompute;
 * Deprecated API for point multiplication
 * Use EC_Group::blinded_base_point_multiply or EC_Group::blinded_var_point_multiply
 */
-class BOTAN_PUBLIC_API(2,0) BOTAN_DEPRECATED("Use alternative APIs") Blinded_Point_Multiply final
+class BOTAN_PUBLIC_API(2,0) Blinded_Point_Multiply final
    {
    public:
       Blinded_Point_Multiply(const PointGFp& base, const BigInt& order, size_t h = 0);
 
       ~Blinded_Point_Multiply();
 
-      PointGFp blinded_multiply(const BigInt& scalar, RandomNumberGenerator& rng);
+      PointGFp BOTAN_DEPRECATED("Use alternative APIs") blinded_multiply(const BigInt& scalar, RandomNumberGenerator& rng);
    private:
       std::vector<BigInt> m_ws;
       const BigInt& m_order;
@@ -18171,6 +18182,9 @@ BOTAN_PUBLIC_API(2,0) int botan_pk_op_decrypt(botan_pk_op_decrypt_t op,
 /*
 * Signature Generation
 */
+
+#define BOTAN_PUBKEY_DER_FORMAT_SIGNATURE 1
+
 typedef struct botan_pk_op_sign_struct* botan_pk_op_sign_t;
 
 BOTAN_PUBLIC_API(2,0)
@@ -20354,8 +20368,6 @@ class BOTAN_PUBLIC_API(2,0) GOST_34_11 final : public HashFunction
    };
 
 }
-
-BOTAN_FUTURE_INTERNAL_HEADER(hash_id)
 
 namespace Botan {
 
@@ -25203,6 +25215,46 @@ class BOTAN_PUBLIC_API(2,0) X942_PRF final : public KDF
 
 namespace Botan {
 
+/**
+* Directly invokes a CPU specific instruction to generate random numbers.
+* On x86, the RDRAND instruction is used.
+* on POWER, the DARN instruction is used.
+*/
+class BOTAN_PUBLIC_API(2,15) Processor_RNG final : public Hardware_RNG
+   {
+   public:
+      /**
+      * Constructor will throw if CPU does not have RDRAND bit set
+      */
+      Processor_RNG();
+
+      /**
+      * Return true if RNG instruction is available on the current processor
+      */
+      static bool available();
+
+      bool accepts_input() const override { return false; }
+      bool is_seeded() const override { return true; }
+
+      void randomize(uint8_t out[], size_t out_len) override;
+
+      /*
+      * No way to provide entropy to RDRAND generator, so add_entropy is ignored
+      */
+      void add_entropy(const uint8_t[], size_t) override;
+
+      /*
+      * No way to reseed processor provided generator, so reseed is ignored
+      */
+      size_t reseed(Entropy_Sources&, size_t, std::chrono::milliseconds) override;
+
+      std::string name() const override;
+   };
+
+}
+
+namespace Botan {
+
 class BlockCipher;
 class MessageAuthenticationCode;
 
@@ -25493,7 +25545,7 @@ class BOTAN_PUBLIC_API(2,0) RDRAND_RNG final : public Hardware_RNG
       /**
       * Constructor will throw if CPU does not have RDRAND bit set
       */
-      RDRAND_RNG();
+      BOTAN_DEPRECATED("Use Processor_RNG instead") RDRAND_RNG();
 
       /**
       * Return true if RDRAND is available on the current processor
@@ -25529,13 +25581,13 @@ class BOTAN_PUBLIC_API(2,0) RDRAND_RNG final : public Hardware_RNG
       * retries RDRAND has still not suceeded, sets ok = false and
       * returns 0.
       */
-      static uint32_t BOTAN_DEPRECATED("Use RDRAND_RNG::randomize") rdrand_status(bool& ok);
+      static uint32_t BOTAN_DEPRECATED("Use Processor_RNG::randomize") rdrand_status(bool& ok);
 
       /*
       * Calls RDRAND until it succeeds, this could hypothetically
       * loop forever on broken hardware.
       */
-      static uint32_t BOTAN_DEPRECATED("Use RDRAND_RNG::randomize") rdrand();
+      static uint32_t BOTAN_DEPRECATED("Use Processor_RNG::randomize") rdrand();
    };
 
 }
@@ -26191,7 +26243,7 @@ std::vector<std::string> probe_providers_of(const std::string& algo_spec,
 
 }
 
-BOTAN_FUTURE_INTERNAL_HEADER(scrypt.h)
+//BOTAN_FUTURE_INTERNAL_HEADER(scrypt.h)
 
 namespace Botan {
 
@@ -36058,6 +36110,17 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PublicKey : public virtual Public_Key
          }
 
       /**
+       * Retrieves the XMSS parameters determined by the chosen XMSS Signature
+       * method.
+       *
+       * @return XMSS parameters.
+       **/
+      std::string xmss_hash_function() const
+         {
+         return m_xmss_params.hash_function_name();
+         }
+
+      /**
        * Retrieves the Winternitz One Time Signature (WOTS) method,
        * corresponding to the chosen XMSS signature method.
        *
@@ -36725,117 +36788,6 @@ class XMSS_Hash final
       std::vector<uint8_t> m_zero_padding;
       size_t m_output_length;
       const std::string m_hash_func_name;
-
-   };
-
-}
-
-//BOTAN_FUTURE_INTERNAL_HEADER(xmss_common_ops.h)
-
-namespace Botan {
-
-typedef std::vector<secure_vector<uint8_t>> wots_keysig_t;
-
-/**
- * Operations shared by XMSS signature generation and verification operations.
- **/
-class XMSS_Common_Ops
-   {
-   public:
-      XMSS_Common_Ops(XMSS_Parameters::xmss_algorithm_t oid)
-         : m_xmss_params(oid), m_hash(m_xmss_params.hash_function_name()) {}
-
-   protected:
-      /**
-        * Algorithm 7: "RAND_HASH"
-        *
-        * Generates a randomized hash.
-        *
-        * This overload is used in multithreaded scenarios, where it is
-        * required to provide seperate instances of XMSS_Hash to each
-        * thread.
-        *
-        * @param[out] result The resulting randomized hash.
-        * @param[in] left Left half of the hash function input.
-        * @param[in] right Right half of the hash function input.
-        * @param[in] adrs Adress of the hash function call.
-        * @param[in] seed The seed for G.
-        * @param[in] hash Instance of XMSS_Hash, that may only by the thead
-        *            executing generate_public_key.
-        **/
-      void randomize_tree_hash(
-         secure_vector<uint8_t>& result,
-         const secure_vector<uint8_t>& left,
-         const secure_vector<uint8_t>& right,
-         XMSS_Address& adrs,
-         const secure_vector<uint8_t>& seed,
-         XMSS_Hash& hash);
-
-      /**
-        * Algorithm 7: "RAND_HASH"
-        *
-        * Generates a randomized hash.
-        *
-        * @param[out] result The resulting randomized hash.
-        * @param[in] left Left half of the hash function input.
-        * @param[in] right Right half of the hash function input.
-        * @param[in] adrs Adress of the hash function call.
-        * @param[in] seed The seed for G.
-        **/
-      inline void randomize_tree_hash(
-         secure_vector<uint8_t>& result,
-         const secure_vector<uint8_t>& left,
-         const secure_vector<uint8_t>& right,
-         XMSS_Address& adrs,
-         const secure_vector<uint8_t>& seed)
-         {
-         randomize_tree_hash(result, left, right, adrs, seed, m_hash);
-         }
-
-      /**
-       * Algorithm 8: "ltree"
-       * Create an L-tree used to compute the leaves of the binary hash tree.
-       * Takes a WOTS+ public key and compresses it to a single n-byte value.
-       *
-       * This overload is used in multithreaded scenarios, where it is
-       * required to provide seperate instances of XMSS_Hash to each thread.
-       *
-       * @param[out] result Public key compressed to a single n-byte value
-       *             pk[0].
-       * @param[in] pk Winternitz One Time Signatures+ public key.
-       * @param[in] adrs Address encoding the address of the L-Tree
-       * @param[in] seed The seed generated during the public key generation.
-       * @param[in] hash Instance of XMSS_Hash, that may only be used by the
-       *            thead executing create_l_tree.
-      **/
-      void create_l_tree(secure_vector<uint8_t>& result,
-                         wots_keysig_t pk,
-                         XMSS_Address& adrs,
-                         const secure_vector<uint8_t>& seed,
-                         XMSS_Hash& hash);
-
-      /**
-       * Algorithm 8: "ltree"
-       * Create an L-tree used to compute the leaves of the binary hash tree.
-       * Takes a WOTS+ public key and compresses it to a single n-byte value.
-       *
-       * @param[out] result Public key compressed to a single n-byte value
-       *             pk[0].
-       * @param[in] pk Winternitz One Time Signatures+ public key.
-       * @param[in] adrs Address encoding the address of the L-Tree
-       * @param[in] seed The seed generated during the public key generation.
-       **/
-      inline void create_l_tree(secure_vector<uint8_t>& result,
-                                wots_keysig_t pk,
-                                XMSS_Address& adrs,
-                                const secure_vector<uint8_t>& seed)
-         {
-         create_l_tree(result, pk, adrs, seed, m_hash);
-         }
-
-   protected:
-      XMSS_Parameters m_xmss_params;
-      XMSS_Hash m_hash;
 
    };
 
@@ -37583,7 +37535,6 @@ namespace Botan {
  *     https://datatracker.ietf.org/doc/rfc8391/
  **/
 class BOTAN_PUBLIC_API(2,0) XMSS_PrivateKey final : public virtual XMSS_PublicKey,
-   public XMSS_Common_Ops,
    public virtual Private_Key
    {
    public:
@@ -37629,10 +37580,10 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PrivateKey final : public virtual XMSS_PublicKe
                       const secure_vector<uint8_t>& root,
                       const secure_vector<uint8_t>& public_seed)
          : XMSS_PublicKey(xmss_algo_id, root, public_seed),
-           XMSS_Common_Ops(xmss_algo_id),
            m_wots_priv_key(XMSS_PublicKey::m_xmss_params.ots_oid(),
                            public_seed,
                            wots_priv_seed),
+           m_hash(XMSS_PublicKey::m_xmss_params.hash_function_name()),
            m_prf(prf),
            m_index_reg(XMSS_Index_Registry::get_instance())
          {
@@ -37811,8 +37762,73 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PrivateKey final : public virtual XMSS_PublicKe
                              XMSS_Hash& hash);
 
       XMSS_WOTS_PrivateKey m_wots_priv_key;
+      XMSS_Hash m_hash;
       secure_vector<uint8_t> m_prf;
       XMSS_Index_Registry& m_index_reg;
+   };
+
+}
+
+BOTAN_FUTURE_INTERNAL_HEADER(xmss_common_ops.h)
+
+namespace Botan {
+
+typedef std::vector<secure_vector<uint8_t>> wots_keysig_t;
+
+/**
+ * Operations shared by XMSS signature generation and verification operations.
+ **/
+class XMSS_Common_Ops
+   {
+   public:
+      /**
+        * Algorithm 7: "RAND_HASH"
+        *
+        * Generates a randomized hash.
+        *
+        * This overload is used in multithreaded scenarios, where it is
+        * required to provide seperate instances of XMSS_Hash to each
+        * thread.
+        *
+        * @param[out] result The resulting randomized hash.
+        * @param[in] left Left half of the hash function input.
+        * @param[in] right Right half of the hash function input.
+        * @param[in] adrs Adress of the hash function call.
+        * @param[in] seed The seed for G.
+        * @param[in] hash Instance of XMSS_Hash, that may only by the thead
+        *            executing generate_public_key.
+        **/
+      static void randomize_tree_hash(
+         secure_vector<uint8_t>& result,
+         const secure_vector<uint8_t>& left,
+         const secure_vector<uint8_t>& right,
+         XMSS_Address& adrs,
+         const secure_vector<uint8_t>& seed,
+         XMSS_Hash& hash,
+         const XMSS_Parameters& params);
+
+      /**
+       * Algorithm 8: "ltree"
+       * Create an L-tree used to compute the leaves of the binary hash tree.
+       * Takes a WOTS+ public key and compresses it to a single n-byte value.
+       *
+       * This overload is used in multithreaded scenarios, where it is
+       * required to provide seperate instances of XMSS_Hash to each thread.
+       *
+       * @param[out] result Public key compressed to a single n-byte value
+       *             pk[0].
+       * @param[in] pk Winternitz One Time Signatures+ public key.
+       * @param[in] adrs Address encoding the address of the L-Tree
+       * @param[in] seed The seed generated during the public key generation.
+       * @param[in] hash Instance of XMSS_Hash, that may only be used by the
+       *            thead executing create_l_tree.
+      **/
+      static void create_l_tree(secure_vector<uint8_t>& result,
+                                wots_keysig_t pk,
+                                XMSS_Address& adrs,
+                                const secure_vector<uint8_t>& seed,
+                                XMSS_Hash& hash,
+                                const XMSS_Parameters& params);
    };
 
 }
