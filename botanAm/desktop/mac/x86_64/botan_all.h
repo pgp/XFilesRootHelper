@@ -48,9 +48,9 @@
 #define BOTAN_VERSION_MAJOR 2
 #define BOTAN_VERSION_MINOR 15
 #define BOTAN_VERSION_PATCH 0
-#define BOTAN_VERSION_DATESTAMP 0
+#define BOTAN_VERSION_DATESTAMP 20200707
 
-#define BOTAN_VERSION_RELEASE_TYPE "unreleased"
+#define BOTAN_VERSION_RELEASE_TYPE "release"
 
 #define BOTAN_VERSION_VC_REVISION "git:3ed6eaa3c1236aed844f5475e2df8b89b3286ac4"
 
@@ -62,10 +62,11 @@
 
 #define BOTAN_INSTALL_PREFIX R"(/usr/local)"
 #define BOTAN_INSTALL_HEADER_DIR R"(include/botan-2)"
-#define BOTAN_INSTALL_LIB_DIR R"(/usr/local\lib)"
+#define BOTAN_INSTALL_LIB_DIR R"(/usr/local/lib)"
 #define BOTAN_LIB_LINK "-framework CoreFoundation -framework Security"
 #define BOTAN_LINK_FLAGS "-fstack-protector -pthread"
 
+#define BOTAN_SYSTEM_CERT_BUNDLE "/etc/ssl/certs/ca-certificates.crt"
 
 #ifndef BOTAN_DLL
   #define BOTAN_DLL __attribute__((visibility("default")))
