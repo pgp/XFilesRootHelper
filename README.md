@@ -15,12 +15,15 @@ The native library/executable file operations helper for XFiles, which can also 
     ```
 - From a bash shell:
     ```shell
-	export CC=gcc
+    export CC=gcc
     export CXX=g++
     cd CMAKE
     cmake -H. -Bbuild
     cmake --build build -- -j2
     ```
+
+**Linux - universal binary**
+- Check [this guide](BUILDING_UNIVERSAL_LINUX.md) for more information
 
 **MacOS**
 
