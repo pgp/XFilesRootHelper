@@ -63,13 +63,13 @@ int getFileExtension(const STR& filepath, STR& out, bool filenameWithoutExtensio
     out = filepath.substr(last + 1, filepath.length()); // extract filename
     last = out.find_last_of(getExtSeparator());        // extract extension
     if (last == STRNAMESPACE::npos) { // file has no extension
-		if(!filenameWithoutExtensionOrExtensionOnly) out = STRNAMESPACE();
-		return 0;
-	}
+        if(!filenameWithoutExtensionOrExtensionOnly) out = STRNAMESPACE();
+        return 0;
+    }
     if(filenameWithoutExtensionOrExtensionOnly) // filename without extension
-		out = out.substr(0, last);
+        out = out.substr(0, last);
     else // extension only
-		out = out.substr(last + 1);
+        out = out.substr(last + 1);
     return 0;
 }
 
@@ -285,24 +285,51 @@ void read_fileitem_sock_t(fileitem_sock_t& fileitem, IDescriptor& desc) {
 
 #ifdef _WIN32
 
+// de-duplicate contiguous slashes and leave one single trailing slash
+std::wstring sanitizeSlashesInWindowsPath(const std::wstring& path) {
+    std::wstringstream ss;
+    const wchar_t* p = path.c_str();
+    bool alreadyEncountered = false;
+    for(int i=0; i<path.size(); i++) {
+        switch(p[i]) {
+            case L'\\':
+                if(!alreadyEncountered) {
+                    alreadyEncountered=true;
+                    ss<<p[i];
+                }
+                break;
+            default:
+                ss<<p[i];
+                alreadyEncountered=false;
+                break;
+        }
+    }
+    if(!alreadyEncountered) ss<<L'\\';
+    return ss.str();
+}
+
 int mkpath(const std::wstring& s_, mode_t _unused_) {
     if (s_ == L".") return 0; // current dir and root always exist
+    if (s_.size() < 2) return -1; // at least "C:"
+    
+    auto&& s = sanitizeSlashesInWindowsPath(s_);
 
     // check if we are trying to create root dirs for drive units
-    if((s_.size() == 2 && s_[1] == L':') || (s_.size() == 3 && s_[1] == L':' && s_[2] == L'\\')) {
+    
+    std::wregex driveUnitRegex {LR"([a-zA-Z]:\\*)"};
+    std::wsmatch match;
+    
+    if (std::regex_match(s_,match,driveUnitRegex)) {
         if(existsIsFileIsDir_(s_) == 2) return 0; // _wmkdir would return error when trying to create a root dir
         else return -1;
     }
-    std::wstring s = s_ + L"\\"; // just to avoid code duplication after for loop
     const wchar_t* cstr = s.c_str();
-
-    if (s.size() < 3) return -1; // at least "C:\"
 
     if (!((cstr[0] >= L'a' && cstr[0] <= L'z') || (cstr[0] >= L'A' && cstr[0] <= L'Z'))) {
         std::wcerr<<L"Invalid unit name for path "<<s_<<std::endl;
         return -1;
     }
-    if (cstr[1] != L':' || cstr[2] != L'\\') return -1; // not allowed for Windows paths
+    if (cstr[1] != L':') return -1; // not allowed for Windows paths
 
     for (int i=3;i<s.size();i++) {
         if (cstr[i] == L'\\') {
@@ -365,8 +392,8 @@ int mkpathCopyPermissionsFromNearestAncestor(const std::string& dirPath) {
     singleStats_resp_t str{};
     int ret = existsIsFileIsDir_(dirPath,&str);
     if(str.permissions[0] == 'd' || str.permissions[0] == 'L') { // dir exists (even as a softlink)
-		return 0;
-	}
+        return 0;
+    }
     if (ret == 1) { // pathname already exists and is a file, ERROR
         errno = EEXIST;
         return -1;
@@ -410,7 +437,7 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
     memcpy(v+sizeof(uint8_t)+sizeof(uint16_t)+destLen,&thisFileSize,sizeof(uint64_t));
     networkDesc.writeAllOrExit(v,totalRqSize);
 
-	if (outDesc) outDesc->writeAllOrExit(&thisFileSize,sizeof(uint64_t));
+    if (outDesc) outDesc->writeAllOrExit(&thisFileSize,sizeof(uint64_t));
     PRINTUNIFIED("File size: %" PRIu64 "\n",thisFileSize);
 
     uint64_t currentProgress = 0;
@@ -433,7 +460,7 @@ ssize_t OSUploadRegularFileWithProgress(const STR& source, const STR& destinatio
         // send progress information back to local socket
         currentProgress += REMOTE_IO_CHUNK_SIZE;
 
-		if (outDesc) outDesc->writeAllOrExit(&currentProgress,sizeof(uint64_t));
+        if (outDesc) outDesc->writeAllOrExit(&currentProgress,sizeof(uint64_t));
         progressHook.publishDelta(REMOTE_IO_CHUNK_SIZE);
     }
 
@@ -680,11 +707,11 @@ void listDir(IDescriptor& inOutDesc) {
         auto&& it = itf.createIterator(dirpath,FULL,true,PLAIN);
         if(!posixdirpath.empty()) {
             if(!it) {
-			    sendErrorResponse(inOutDesc);
+                sendErrorResponse(inOutDesc);
                 return;
-		    }
-		    sendOkResponse(inOutDesc);
-		}
+            }
+            sendOkResponse(inOutDesc);
+        }
 
         while (it.next()) {
             auto&& filepathname = it.getCurrent();
@@ -727,18 +754,18 @@ void listDir(IDescriptor& inOutDesc) {
         redirectHome = true;
     }
     
-	if (rhss_checkAccess(dirpath)) {
-		PRINTUNIFIEDERROR("Requested directory listing denied (rhss restricted access)\n");
-		errno = EPERM;
-		sendErrorResponse(inOutDesc);
-		return;
-	}
+    if (rhss_checkAccess(dirpath)) {
+        PRINTUNIFIEDERROR("Requested directory listing denied (rhss restricted access)\n");
+        errno = EPERM;
+        sendErrorResponse(inOutDesc);
+        return;
+    }
 
     auto&& it = itf.createIterator(dirpath,FULL,true,PLAIN);
-	if (!it) {
-		sendErrorResponse(inOutDesc);
+    if (!it) {
+        sendErrorResponse(inOutDesc);
         return;
-	}
+    }
 
     if(redirectHome) {
         // send redirect response
@@ -746,7 +773,7 @@ void listDir(IDescriptor& inOutDesc) {
         writeStringWithLen(inOutDesc,rhss==-1?currentHomePath:TOUNIXPATH(currentXREHomePath));
     }
     else sendOkResponse(inOutDesc);
-	
+    
     while (it.next()) {
         auto&& filepathname = it.getCurrent();
         auto&& nameonly = it.getCurrentFilename();
@@ -777,23 +804,23 @@ void listDir(IDescriptor& inOutDesc) {
 // client sends LS request with flags = 2 (010) and ANY input path
 // server replies with xre home dir
 void retrieveHomePath(IDescriptor& inOutDesc) {
-	auto&& inputPath = readStringWithLen(inOutDesc); // just to free input buffer
-	if(!inputPath.empty())
-		PRINTUNIFIEDERROR("Warning: non-empty input supplied when requesting home dir path, possible use mismatch");
-	
-	sendOkResponse(inOutDesc);
+    auto&& inputPath = readStringWithLen(inOutDesc); // just to free input buffer
+    if(!inputPath.empty())
+        PRINTUNIFIEDERROR("Warning: non-empty input supplied when requesting home dir path, possible use mismatch");
+    
+    sendOkResponse(inOutDesc);
 #ifdef _WIN32
-	writeStringWithLen(inOutDesc,TOUNIXPATH(currentXREHomePath));
+    writeStringWithLen(inOutDesc,TOUNIXPATH(currentXREHomePath));
 #else
-	auto homepath = rhss==-1?currentHomePath:TOUNIXPATH(currentXREHomePath);
-	writeStringWithLen(inOutDesc,homepath);
+    auto homepath = rhss==-1?currentHomePath:TOUNIXPATH(currentXREHomePath);
+    writeStringWithLen(inOutDesc,homepath);
 #endif
 }
 
 #ifdef _WIN32
 int genericDeleteBasicImpl(const std::wstring& path) {
-	// NOT IMPLEMENTED, NEITHER NECESSARY FOR NOW (Win32: XRE_RHSS, remote delete not available by design)
-	return -1;
+    // NOT IMPLEMENTED, NEITHER NECESSARY FOR NOW (Win32: XRE_RHSS, remote delete not available by design)
+    return -1;
 }
 #else
 // returns 0 on all files deleted, -1 (+errno) on some files not deleted
@@ -922,7 +949,7 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
             uint64_t currentProgress = 0;
 
             // propagate size to local socket
-			if(cl) cl->writeAllOrExit(&(fileitem.size),sizeof(uint64_t));
+            if(cl) cl->writeAllOrExit(&(fileitem.size),sizeof(uint64_t));
             PRINTUNIFIED("Fileitem size: %" PRIu64 "\n",fileitem.size);
 
             /********* quotient + remainder IO loop *********/
@@ -951,7 +978,7 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
             /********* end quotient + remainder IO loop *********/
 
             // end of progress
-			if (cl) cl->writeAllOrExit(&maxuint,sizeof(uint64_t));
+            if (cl) cl->writeAllOrExit(&maxuint,sizeof(uint64_t));
             PRINTUNIFIED("End of file\n");
 
             fd.close();
@@ -1147,9 +1174,9 @@ void hashFile(IDescriptor& inOutDesc) {
 // optimize for ARM64 with SHA hardware instructions (best found so far)
 template<typename STR>
 int createRandomFile(const STR& path, uint64_t size) {
-	PRINTUNIFIED("Using ARMv8 SHA instructions for random content generation...");
-	
-	static const std::map<std::string,size_t> shaParams {
+    PRINTUNIFIED("Using ARMv8 SHA instructions for random content generation...");
+    
+    static const std::map<std::string,size_t> shaParams {
             {"SHA-1", 20},
             {"SHA-256", 32},
             {"SHA-512", 64},
@@ -1292,81 +1319,81 @@ int createEmptyFile(const STR& path, uint64_t size) {
 
 void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
 
-	// sizeof(mode_t) is 2 bytes on Android's 32 bit ABIs (x86, armv7), not 4 bytes
-	// mode_t mode;
-	int32_t mode; // read 4 bytes anyway, just let the other methods perform the narrowing conversion
+    // sizeof(mode_t) is 2 bytes on Android's 32 bit ABIs (x86, armv7), not 4 bytes
+    // mode_t mode;
+    int32_t mode; // read 4 bytes anyway, just let the other methods perform the narrowing conversion
 
-	int ret;
-	// advanced options for file creation
-	uint8_t creationStrategy;
-	uint64_t filesize;
+    int ret;
+    // advanced options for file creation
+    uint8_t creationStrategy;
+    uint64_t filesize;
 
-	auto&& filepath = FROMUNIXPATH(readStringWithLen(inOutDesc));
+    auto&& filepath = FROMUNIXPATH(readStringWithLen(inOutDesc));
 
-	// read mode (mode_t) - 4 bytes
-	inOutDesc.readAllOrExit(&mode, sizeof(int32_t));
-	PRINTUNIFIED("Received mode %d\n",mode);
-	
-	// check access unconditionally (on local, always succeeds because rhss_currentlyServedDirectory is empty)
-	if (rhss_checkAccess(filepath)) {
-		PRINTUNIFIEDERROR("Requested file/dir creation denied (rhss restricted access)\n");
-		errno = EPERM;
-		sendErrorResponse(inOutDesc);
-		return;
-	}
+    // read mode (mode_t) - 4 bytes
+    inOutDesc.readAllOrExit(&mode, sizeof(int32_t));
+    PRINTUNIFIED("Received mode %d\n",mode);
+    
+    // check access unconditionally (on local, always succeeds because rhss_currentlyServedDirectory is empty)
+    if (rhss_checkAccess(filepath)) {
+        PRINTUNIFIEDERROR("Requested file/dir creation denied (rhss restricted access)\n");
+        errno = EPERM;
+        sendErrorResponse(inOutDesc);
+        return;
+    }
 
-	// flags: b0 (true: create file, false: create directory)
-	if (b0(flags))
-	{
-		if(b1(flags)) { // advanced options for create file
-			PRINTUNIFIED("Creating file with advanced options...");
-			// receive one byte with creation strategy: 0: FALLOCATE (fastest), 1: ZEROS, 2: RANDOM (slowest)
-			inOutDesc.readAllOrExit(&creationStrategy,sizeof(uint8_t));
-			// receive file size
-			inOutDesc.readAllOrExit(&filesize,sizeof(uint64_t));
-			
-			switch(creationStrategy) {
-				case 1:
-					ret = createEmptyFile(filepath,filesize);
-					break;
-				case 2:
-					ret = createRandomFile(filepath,filesize);
-					break;
-				default:
-					PRINTUNIFIEDERROR("Invalid creation strategy for file\n");
-					errno = EINVAL;
-					sendErrorResponse(inOutDesc);
-					return;
-			}
-		}
-		else {
-			PRINTUNIFIED("Creating file...");
-			// mkpath on parent
-			auto parent = getParentDir(filepath);
+    // flags: b0 (true: create file, false: create directory)
+    if (b0(flags))
+    {
+        if(b1(flags)) { // advanced options for create file
+            PRINTUNIFIED("Creating file with advanced options...");
+            // receive one byte with creation strategy: 0: FALLOCATE (fastest), 1: ZEROS, 2: RANDOM (slowest)
+            inOutDesc.readAllOrExit(&creationStrategy,sizeof(uint8_t));
+            // receive file size
+            inOutDesc.readAllOrExit(&filesize,sizeof(uint64_t));
+            
+            switch(creationStrategy) {
+                case 1:
+                    ret = createEmptyFile(filepath,filesize);
+                    break;
+                case 2:
+                    ret = createRandomFile(filepath,filesize);
+                    break;
+                default:
+                    PRINTUNIFIEDERROR("Invalid creation strategy for file\n");
+                    errno = EINVAL;
+                    sendErrorResponse(inOutDesc);
+                    return;
+            }
+        }
+        else {
+            PRINTUNIFIED("Creating file...");
+            // mkpath on parent
+            auto parent = getParentDir(filepath);
 
-			ret = mkpath(parent, mode);
-			if (ret != 0) {
-				PRINTUNIFIEDERROR("Unable to mkdir for parent before creating file\n");
-				sendErrorResponse(inOutDesc); return;
-			}
+            ret = mkpath(parent, mode);
+            if (ret != 0) {
+                PRINTUNIFIEDERROR("Unable to mkdir for parent before creating file\n");
+                sendErrorResponse(inOutDesc); return;
+            }
 
-			// create file
-			PRINTUNIFIEDERROR("creating %s after parent dir\n",filepath.c_str());
+            // create file
+            PRINTUNIFIEDERROR("creating %s after parent dir\n",filepath.c_str());
             auto&& fd = fdfactory.create(filepath,FileOpenMode::WRITE);
-			if (!fd) {
-				sendErrorResponse(inOutDesc); return;
-			}
-			fd.close();
-			ret = 0;
-		}
-	}
-	else
-	{
-		PRINTUNIFIED("creating directory...\n");
-		// mkpath on filepath
-		ret = mkpath(filepath, mode);
-	}
-	sendBaseResponse(ret, inOutDesc);
+            if (!fd) {
+                sendErrorResponse(inOutDesc); return;
+            }
+            fd.close();
+            ret = 0;
+        }
+    }
+    else
+    {
+        PRINTUNIFIED("creating directory...\n");
+        // mkpath on filepath
+        ret = mkpath(filepath, mode);
+    }
+    sendBaseResponse(ret, inOutDesc);
 }
 
 void createHardOrSoftLink(IDescriptor& inOutDesc, uint8_t flags) {
@@ -1399,7 +1426,7 @@ template<typename STR>
 int accumulateChildrenFilesAndFoldersCount(const STR& path, folderStats_resp_t& resp) {
     int ret = 0;
     auto&& dirIt = itf.createIterator(path, FULL, false, PLAIN);
-	if(dirIt)
+    if(dirIt)
     while (dirIt.next()) {
         int efd = existsIsFileIsDir_(dirIt.getCurrent());
 
@@ -1419,7 +1446,7 @@ template<typename STR>
 int accumulateTotalFilesAndFoldersCount(const STR& path, folderStats_resp_t& resp) {
     int ret = 0;
     auto&& dirIt = itf.createIterator(path, FULL, false);
-	if(dirIt)
+    if(dirIt)
     while (dirIt.next()) {
         singleStats_resp_t st{};
         int efd = existsIsFileIsDir_(dirIt.getCurrent(),&st);
@@ -1443,12 +1470,12 @@ void stats_file(IDescriptor& inOutDesc) {
     auto&& filepath = FROMUNIXPATH(readStringWithLen(inOutDesc));
     
     // check access unconditionally (on local, always succeeds because rhss_currentlyServedDirectory is empty)
-	if (rhss_checkAccess(filepath)) {
-		PRINTUNIFIEDERROR("Requested file stat denied (rhss restricted access)\n");
-		errno = EPERM;
-		sendErrorResponse(inOutDesc);
-		return;
-	}
+    if (rhss_checkAccess(filepath)) {
+        PRINTUNIFIEDERROR("Requested file stat denied (rhss restricted access)\n");
+        errno = EPERM;
+        sendErrorResponse(inOutDesc);
+        return;
+    }
 
     singleStats_resp_t resp{};
     int ret = osStat(filepath,resp);
@@ -1465,12 +1492,12 @@ void stats_file(IDescriptor& inOutDesc) {
 void stats_dir(IDescriptor& inOutDesc) {
     auto&& dirpath = FROMUNIXPATH(readStringWithLen(inOutDesc));
     // check access unconditionally (on local, always succeeds because rhss_currentlyServedDirectory is empty)
-	if (rhss_checkAccess(dirpath)) {
-		PRINTUNIFIEDERROR("Requested dir stat denied (rhss restricted access)\n");
-		errno = EPERM;
-		sendErrorResponse(inOutDesc);
-		return;
-	}
+    if (rhss_checkAccess(dirpath)) {
+        PRINTUNIFIEDERROR("Requested dir stat denied (rhss restricted access)\n");
+        errno = EPERM;
+        sendErrorResponse(inOutDesc);
+        return;
+    }
 
     int ret = 0;
     folderStats_resp_t resp{};
@@ -1483,27 +1510,27 @@ void stats_dir(IDescriptor& inOutDesc) {
 }
 
 void stats_multiple(IDescriptor& inOutDesc) {
-	int ret = 0;
+    int ret = 0;
     folderStats_resp_t resp{};
-	
-	// receive list of paths
-	for(;;) {
-		auto&& dirpath = FROMUNIXPATH(readStringWithLen(inOutDesc));
-		if (dirpath.empty()) break;
-		int efd = existsIsFileIsDir_(dirpath);
-		if (efd == 1) { // file
-			resp.childrenFiles++;
-			resp.totalFiles++;
-			resp.totalSize += osGetSize(dirpath);
-		}
-		else if (efd == 2) { // dir
-			if (accumulateChildrenFilesAndFoldersCount(dirpath, resp) != 0) ret = -1;
-			if (accumulateTotalFilesAndFoldersCount(dirpath, resp) != 0) ret = -1;
-		}
-		else { // something listable in parent folder but not stattable (at least in POSIX)
-			ret = -1;
-		}
-	}
+    
+    // receive list of paths
+    for(;;) {
+        auto&& dirpath = FROMUNIXPATH(readStringWithLen(inOutDesc));
+        if (dirpath.empty()) break;
+        int efd = existsIsFileIsDir_(dirpath);
+        if (efd == 1) { // file
+            resp.childrenFiles++;
+            resp.totalFiles++;
+            resp.totalSize += osGetSize(dirpath);
+        }
+        else if (efd == 2) { // dir
+            if (accumulateChildrenFilesAndFoldersCount(dirpath, resp) != 0) ret = -1;
+            if (accumulateTotalFilesAndFoldersCount(dirpath, resp) != 0) ret = -1;
+        }
+        else { // something listable in parent folder but not stattable (at least in POSIX)
+            ret = -1;
+        }
+    }
     
     sendBaseResponse(ret,inOutDesc); // error means some entries could not be stat
     writefolderStats_resp(inOutDesc,resp);
