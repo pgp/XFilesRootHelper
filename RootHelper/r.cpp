@@ -324,7 +324,7 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 					find_resp_t findEntry{};
 					
 					std::string filepathname = pathConcat(basepath,dir->d_name);
-					if (assemble_ls_resp_from_filepath(filepathname,dir->d_name,findEntry.fileItem)!=0) {
+					if (assemble_ls_resp_from_filepath(filepathname,dir->d_name,findEntry.fileItem, true)!=0) {
 						PRINTUNIFIEDERROR("Unable to stat file path: %s\n",filepathname.c_str());
 						continue;
 					}
@@ -359,7 +359,7 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 			if (haystack.find(needle) != std::string::npos) {
 				find_resp_t findEntry{};
 				
-				if (assemble_ls_resp_from_filepath(curEntString,curEntString,findEntry.fileItem)!=0) {
+				if (assemble_ls_resp_from_filepath(curEntString,curEntString,findEntry.fileItem, true)!=0) {
 					PRINTUNIFIEDERROR("Unable to stat file path: %s\n",curEntString.c_str());
 					continue;
 				}

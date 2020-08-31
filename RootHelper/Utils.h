@@ -202,7 +202,7 @@ int existsIsFileIsDir_(const std::string& filepath, singleStats_resp_t* st = nul
 #endif
 
 #ifdef _WIN32
-int assemble_ls_resp_from_filepath(const std::wstring& filepath, const std::wstring& nameOnly, ls_resp_t& responseEntry) {
+int assemble_ls_resp_from_filepath(const std::wstring& filepath, const std::wstring& nameOnly, ls_resp_t& responseEntry, bool fullPathAsName=false) {
     WIN32_FILE_ATTRIBUTE_DATA file_attr_data{};
     if(GetFileAttributesExW(filepath.c_str(), GetFileExInfoStandard, &file_attr_data)) {
         LARGE_INTEGER file_size{};
@@ -223,17 +223,17 @@ int assemble_ls_resp_from_filepath(const std::wstring& filepath, const std::wstr
         responseEntry.date = convertWindowsTimeToUnixTime(file_date.QuadPart);
 
         // name
-        responseEntry.filename = wchar_to_UTF8(nameOnly);
+        responseEntry.filename = fullPathAsName ? wchar_to_UTF8(filepath) : wchar_to_UTF8(nameOnly);
 
         return 0;
     }
     else return -1;
 }
 #else
-int assemble_ls_resp_from_filepath(const std::string& filepath, const std::string& nameOnly, ls_resp_t& responseEntry) {
+int assemble_ls_resp_from_filepath(const std::string& filepath, const std::string& nameOnly, ls_resp_t& responseEntry, bool fullPathAsName=false) {
     struct stat st{};
     if (lstat(filepath.c_str(), &st) < 0) return -1;
-    responseEntry.filename = nameOnly;
+    responseEntry.filename = fullPathAsName ? filepath : nameOnly;
     responseEntry.date = st.st_mtime;                      // last modification time
     getPermissions(filepath, responseEntry.permissions, st.st_mode); // permissions string
     responseEntry.size = st.st_size;
