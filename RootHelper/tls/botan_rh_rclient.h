@@ -22,7 +22,7 @@ class PostQuantumPolicy : public Botan::TLS::Policy {
 public:
     bool acceptable_ciphersuite(const Botan::TLS::Ciphersuite &suite) const override {
 //        0x16B7,0x16B8,0x16B9,0x16BA CECPQ1
-	auto csc = suite.ciphersuite_code();
+        auto csc = suite.ciphersuite_code();
         return (csc == 0x16B7 ||
                 csc == 0x16B8 ||
                 csc == 0x16B9 ||
@@ -57,7 +57,7 @@ public:
 
     bool setupAborted = false;
 
-	// local_socket passed for closing it by here when this thread terminates before the other, in so avoiding deadlock
+    // local_socket passed for closing it by here when this thread terminates before the other, in so avoiding deadlock
     static void incomingRbMemberFn(IDescriptor& networkSocket, Botan::TLS::Client& client, IDescriptor& local_socket, RingBuffer& ringBuffer) {
         uint8_t buf[4096];
         for(;;) {
@@ -125,20 +125,20 @@ public:
 
     bool tls_session_established(const Botan::TLS::Session& session) override {
         PRINTUNIFIED("Handshake complete, %s using %s\n",session.version().to_string().c_str(),
-							session.ciphersuite().to_string().c_str());
-		auto master_secret = session.master_secret();
-		
-		// NEW: SHA256 -> 32 bytes binary data ////////////////////
-		std::unique_ptr<Botan::HashFunction> sha256(Botan::HashFunction::create("SHA-256"));
-		sha256->update(master_secret.data(),master_secret.size());
-		Botan::secure_vector<uint8_t> sharedHash = sha256->final();
-		
-		PRINTUNIFIED("Master secret's hash for this session is:\n%s\n",Botan::hex_encode(sharedHash).c_str());
-		
-		if(local_sock_fd.write(&sharedHash[0],sharedHash.size()) < sharedHash.size()) {
-			PRINTUNIFIEDERROR("Unable to atomic write connect info to local socket");
-			threadExit();
-		}
+                     session.ciphersuite().to_string().c_str());
+        auto master_secret = session.master_secret();
+
+        // NEW: SHA256 -> 32 bytes binary data ////////////////////
+        std::unique_ptr<Botan::HashFunction> sha256(Botan::HashFunction::create("SHA-256"));
+        sha256->update(master_secret.data(),master_secret.size());
+        Botan::secure_vector<uint8_t> sharedHash = sha256->final();
+
+        PRINTUNIFIED("Master secret's hash for this session is:\n%s\n",Botan::hex_encode(sharedHash).c_str());
+
+        if(local_sock_fd.write(&sharedHash[0],sharedHash.size()) < sharedHash.size()) {
+            PRINTUNIFIEDERROR("Unable to atomic write connect info to local socket");
+            threadExit();
+        }
 
         return false;
     }
@@ -161,9 +161,9 @@ public:
     }
 
 public:
-	// constructor from IP and port that tries to connect
+    // constructor from IP and port that tries to connect
     // is removed for now, needs abstract class reference as input
-            
+
     // constructor using an already connected socket
     TLS_Client(TlsClientEventLoopFn eventLoopFn_,
                RingBuffer& inRb_,
@@ -200,18 +200,18 @@ public:
         auto version = Botan::TLS::Protocol_Version::TLS_V12;
         using namespace std::placeholders;
 
-		// PostQuantumPolicy policy; // no shared cipher if non-Botan-based XRE server is used
-		// ClassicPolicy policy;
+        // PostQuantumPolicy policy; // no shared cipher if non-Botan-based XRE server is used
+        // ClassicPolicy policy;
         Botan::TLS::Policy policy;
 
         client = new Botan::TLS::Client(*this,
-                                  session_mgr,
-                                  creds,
-                                  policy,
-                                  rng_,
-                                  Botan::TLS::Server_Information(sniHost, serverPort),
-                                  version,
-                                  protocols_to_offer);
+                                        session_mgr,
+                                        creds,
+                                        policy,
+                                        rng_,
+                                        Botan::TLS::Server_Information(sniHost, serverPort),
+                                        version,
+                                        protocols_to_offer);
 
         // here start helper network thread (filling incomingRb)
         std::thread incomingRbThread(incomingRbMemberFn,
@@ -222,14 +222,16 @@ public:
         );
 
         PRINTUNIFIED("Waiting for TLS channel to be ready");
+        int i=0;
         while(!client->is_active()) {
             PRINTUNIFIED(".");
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            if(setupAborted) {
-                PRINTUNIFIEDERROR("Client closed during connection setup\n");
+            if(setupAborted || i>50) { // wait till 5 seconds for connection establishment
+                PRINTUNIFIEDERROR("Client closed during connection setup, or connection timeout\n");
                 cleanup();
                 goto joinThread;
             }
+            i++;
         }
         PRINTUNIFIED("\nTLS channel ready\n");
 
@@ -251,12 +253,19 @@ public:
 
         PRINTUNIFIED("Finished, waiting for TLS client to close...\n");
         client->close();
-        while(!client->is_closed()) {
+        int i=0;
+        while(!client->is_closed()) { // allow up to 5 seconds for a graceful TLS shutdown
+            if(i>10) {
+                PRINTUNIFIEDERROR("TLS shutdown taking too much time, closing TCP connection");
+                goto finishClose;
+            }
             PRINTUNIFIED(".");
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            i++;
         }
         PRINTUNIFIED("TLS client closed");
 
+        finishClose:
         Gsock.close();
 
         if(client) {
