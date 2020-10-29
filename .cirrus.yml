@@ -25,8 +25,8 @@ osx_task:
     - sudo installer -store -pkg /Volumes/XQuartz-2.7.11/XQuartz.pkg -target /
     - hdiutil unmount /Volumes/XQuartz-2.7.11
   script:
-    - export CC=gcc-9
-    - export CXX=g++-9
+    - export CC=gcc-10
+    - export CXX=g++-10
     - cd CMAKE
     - cmake -H. -Bbuild
     - cmake --build build -- -j1
