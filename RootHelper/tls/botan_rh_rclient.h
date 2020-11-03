@@ -116,7 +116,7 @@ public:
             }
             else {
                 PRINTUNIFIEDERROR("Certificate verification failed\n");
-                Gsock.close();
+                Gsock.shutdown();
                 inRb.close(true);
                 setupAborted = true;
             }
@@ -151,7 +151,7 @@ public:
         PRINTUNIFIED("Alert: %s\n",alert.type_string().c_str());
         if (alert.type() == Botan::TLS::Alert::Type::CLOSE_NOTIFY) {
             PRINTUNIFIED("TLS endpoint closed connection\n");
-            Gsock.close();
+            Gsock.shutdown();
             inRb.close(false); // Assume close notify is graceful connection termination
         }
     }
@@ -266,7 +266,7 @@ public:
         PRINTUNIFIED("TLS client closed");
 
         finishClose:
-        Gsock.close();
+        Gsock.shutdown();
 
         if(client) {
             delete client;

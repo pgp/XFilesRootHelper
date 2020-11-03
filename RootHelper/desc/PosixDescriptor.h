@@ -52,6 +52,8 @@ public:
     inline ssize_t write(const void* buf, size_t count) override {return ::write(desc,buf,count);}
 
     inline void close() override {::close(desc);}
+
+    inline void shutdown() override {::shutdown(desc, SHUT_RDWR);}
 };
 
 #endif /* POSIXDESCRIPTOR */

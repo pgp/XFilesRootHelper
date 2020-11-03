@@ -41,6 +41,9 @@ public:
     virtual ssize_t write(const void* buf, size_t count) = 0;
     virtual void close() = 0;
 
+    // defaults to close(), PosixDescriptor uses ::shutdown syscall instead
+    virtual void shutdown() {close();}
+
     virtual ssize_t readAll(void* buf_, size_t count) {
         auto buf = (uint8_t*)buf_;
         size_t alreadyRead = 0;
