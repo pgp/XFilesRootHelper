@@ -15,7 +15,7 @@ environment:
 build_script:
   - set PATH=%MINGW_PATH%;%PATH%
   - cd CMAKE
-  - cmake -G "%CMAKE_GENERATOR%" -H. -Bbuild
+  - cmake -G "%CMAKE_GENERATOR%" -DCMAKE_SH="CMAKE_SH-NOTFOUND" -H. -Bbuild
   - cmake --build build --config Release --
 
 # whitelist branches to avoid testing feature branches twice (as branch and as pull request)
