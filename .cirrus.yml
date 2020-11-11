@@ -59,7 +59,7 @@ msvc_task:
   script:
     - set PATH=%PATH%;C:\Program Files\cmake\bin
     - cd CMAKE
-    - cmake -G "Visual Studio 15 2017" -A x64 -H. -Bbuild
+    - cmake -G "Visual Studio 16 2019" -A x64 -H. -Bbuild
     - cmake --build build --
 
 linux_task:
