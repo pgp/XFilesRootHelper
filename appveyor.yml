@@ -3,10 +3,20 @@ clone_depth: 1
 image:
   - Visual Studio 2017
 
+environment:
+  matrix:
+    # MSVC
+    - CMAKE_GENERATOR: "MinGW Makefiles"
+      MINGW_PATH: C:\mingw-w64\x86_64-8.1.0-posix-seh-rt_v6-rev0\mingw64\bin
+
+    # MinGW GCC
+    - CMAKE_GENERATOR: "Visual Studio 15 2017 Win64"
+
 build_script:
+  - set PATH=%MINGW_PATH%;%PATH%
   - cd CMAKE
-  - cmake -G "Visual Studio 15 2017" -A x64 -H. -Bbuild
-  - cmake --build build --
+  - cmake -G "%CMAKE_GENERATOR%" -H. -Bbuild
+  - cmake --build build --config Release --
 
 # whitelist branches to avoid testing feature branches twice (as branch and as pull request)
 branches:
