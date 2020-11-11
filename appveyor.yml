@@ -1,0 +1,14 @@
+clone_depth: 1
+
+image:
+  - Visual Studio 2017
+
+build_script:
+  - cd CMAKE
+  - cmake -G "Visual Studio 15 2017" -A x64 -H. -Bbuild
+  - cmake --build build --
+
+# whitelist branches to avoid testing feature branches twice (as branch and as pull request)
+branches:
+  only:
+    - master
