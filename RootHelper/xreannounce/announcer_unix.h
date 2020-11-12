@@ -78,7 +78,20 @@ int xre_announce() { // TODO add sleep period and total time
 		PRINTUNIFIEDERROR("No available IPs\n");
 		return -4;
 	}
-	
+
+	// TODO this code is already prepared for both Win32 and Unix, adapt and move it in announcer.h
+	//  (if possible, refactor the whole files and leave only announcer.h)
+	//  (further refinement: extend NetworkDescriptorFactory also for server sockets, and avoid typedef/define for closesocket)
+    // structures to the send all the found ipv4 addresses as strings, on ipv6 multicast
+    SOCKET ipv6MulticastSock;
+    struct addrinfo *ipv6MulticastAddr;
+    // create ipv6 multicast socket
+    const std::string ipv6McastAddressStr = "ff02::1";
+    const std::string ipv6McastAddressPort = "11111";
+    ipv6MulticastSock = mcast_send_socket(ipv6McastAddressStr, ipv6McastAddressPort, 5, &ipv6MulticastAddr);
+    if(ipv6MulticastSock == -1)
+        PRINTUNIFIEDERROR("mcast_send_socket() failed, no announce will be sent using IPv6\n");
+
     for(int i=0;i<15;i++) { // TODO parameterize total time
 		for(auto& pair : ipAddresses) {
 			inet_aton(pair.second.c_str(), &send_addr.sin_addr);
@@ -86,13 +99,17 @@ int xre_announce() { // TODO add sleep period and total time
 			auto retval = sendto(fd, &announce[0], announce.size(), 0, (struct sockaddr*) &send_addr, sizeof send_addr);
 			if (retval < announce.size()) {
 				PRINTUNIFIEDERROR("sendto error, bytes or return value %zd\n",retval);
-				continue;
-			}
+            }
+            // send over ipv6 as well
+            if(ipv6MulticastSock != -1)
+                if(sendto(ipv6MulticastSock,&announce[0],announce.size(),0,ipv6MulticastAddr->ai_addr,ipv6MulticastAddr->ai_addrlen) != announce.size())
+                    PRINTUNIFIEDERROR("ipv6 sendto error, bytes or return value %zd\n",retval);
 		}
         PRINTUNIFIED("Broadcast messages sent...\n");
 		std::this_thread::sleep_for(std::chrono::seconds(2)); // TODO parameterize sleep period
     }
     PRINTUNIFIED("XRE server announce ended\n");
     close(fd);
+    close(ipv6MulticastSock);
     return 0;
 }
