@@ -23,7 +23,7 @@
 	//~ }
 //~ }
 
-#ifndef SOCKET
+#ifndef _WIN32
 typedef int SOCKET;
 #endif
 
