@@ -31,37 +31,6 @@ osx_task:
     - cmake -H. -Bbuild
     - cmake --build build -- -j1
 
-windows_task:
-  windows_container:
-    image: cirrusci/windowsservercore:cmake
-    memory: 8G
-    os_version: 2019
-  env:
-    CIRRUS_CLONE_DEPTH: 1
-  install_script:
-    - choco install -y --no-progress mingw
-    - choco install -y --no-progress --installargs 'ADD_CMAKE_TO_PATH=System' cmake
-  script:
-    - set PATH=%PATH%;C:\Program Files\cmake\bin;C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin
-    - cd CMAKE
-    - cmake -G "MinGW Makefiles" -H. -Bbuild
-    - cmake --build build -- -j1
-
-msvc_task:
-  windows_container:
-    image: cirrusci/windowsservercore:cmake
-    memory: 8G
-    os_version: 2019
-  env:
-    CIRRUS_CLONE_DEPTH: 1
-  install_script:
-    - choco install -y --no-progress --installargs 'ADD_CMAKE_TO_PATH=System' cmake
-  script:
-    - set PATH=%PATH%;C:\Program Files\cmake\bin
-    - cd CMAKE
-    - cmake -G "Visual Studio 16 2019" -A x64 -H. -Bbuild
-    - cmake --build build --
-
 linux_task:
   container:
     image: openjdk:8-jdk
