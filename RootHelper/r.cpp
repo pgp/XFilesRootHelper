@@ -1035,47 +1035,53 @@ void forkServerAcceptor(int cl, uint8_t rq_flags) {
     PRINTUNIFIED("received directory to be announced is:\t%s\n", xreAnnouncedPath.c_str());
     xreExposedDirectory = readStringWithLen(pd_cl);
     PRINTUNIFIED("received directory to be offered is:\t%s\n", xreExposedDirectory.c_str());
-	
-	// if server already active, bind will give error
-	pid_t pid = fork();
-	if (pid < 0) {
-		PRINTUNIFIEDERROR("Unable to fork session for rh remote server\n");
-		sendErrorResponse(pd_cl);
-		return;
-	}
-	if (pid == 0) { // in child process (rh remote server acceptor)
-		
-		try {
-		
-		atexit(on_server_acceptor_exit_func);
-		rhss = getServerSocket(cl);
-		
-		// from now on, server session threads communicate with local client over rhss_local
-		rhss_local = cl;
-		cl = -1;
 
-		if(rq_flags == 5) {
-			// start announce loop (for now with default parameters)
-			std::thread announceThread(xre_announce);
-            announceThread.detach();
-		}
+    // if server already active, bind will give error
 
-		acceptLoop(rhss);
-		
-		}
-		catch (threadExitThrowable& i) {
-			PRINTUNIFIEDERROR("forkXRE_child...\n");
-		}
-	}
-	else { // in parent
+    // create server socket before fork
+    int tmp_rhss = getServerSocket(cl);
+    if(tmp_rhss < 0) return;
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        PRINTUNIFIEDERROR("Unable to fork session for rh remote server\n");
+        sendErrorResponse(pd_cl);
+        return;
+    }
+
+    if (pid == 0) { // in child process (rh remote server acceptor)
+
+        try {
+            atexit(on_server_acceptor_exit_func);
+            rhss = tmp_rhss;
+
+            // from now on, server session threads communicate with local client over rhss_local
+            rhss_local = cl;
+            cl = -1;
+
+            if(rq_flags == 5) {
+                // start announce loop (for now with default parameters)
+                std::thread announceThread(xre_announce);
+                announceThread.detach();
+            }
+
+            acceptLoop(rhss);
+
+        }
+        catch (threadExitThrowable& i) {
+            PRINTUNIFIEDERROR("forkXRE_child...\n");
+        }
+    }
+    else { // in parent
         xreExposedDirectory.clear(); // this shouldn't be needed anymore
-		rhss_pid = pid;
-		// just exit current thread, don't need it anymore
-		// cl descriptor is duplicated in parent and child, close it in parent
-		// in order to avoid leaving connection open till parent exit
-		pd_cl.close();
-		threadExit();
-	}
+        rhss_pid = pid;
+        // just exit current thread, don't need it anymore
+        // cl descriptor is duplicated in parent and child, close it in parent
+        // in order to avoid leaving connection open till parent exit
+        pd_cl.close();
+        close(tmp_rhss); // close server socket in parent as well, leave it open only in child process
+        threadExit();
+    }
 }
 
 void killServerAcceptor(IDescriptor& cl) {

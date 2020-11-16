@@ -233,12 +233,12 @@ void acceptLoop(SOCKET rhss) {
 #else
 
 int getServerSocket(int cl = -1) {
-    int rhss = socket(AF_INET, SOCK_STREAM, 0);
+    int xre_socket = socket(AF_INET, SOCK_STREAM, 0);
     PosixDescriptor pd_cl(cl);
-    if(rhss == -1) {
+    if(xre_socket == -1) {
         if(cl != -1) sendErrorResponse(pd_cl);
         PRINTUNIFIEDERROR("Unable to create TLS server socket\n");
-        exit(-1);
+        return -1;
     }
 
     struct sockaddr_in socket_info{};
@@ -247,24 +247,24 @@ int getServerSocket(int cl = -1) {
 
     socket_info.sin_addr.s_addr = INADDR_ANY;
 
-    if(bind(rhss, reinterpret_cast<struct sockaddr*>(&socket_info), sizeof(struct sockaddr)) != 0) {
-        close(rhss);
+    if(bind(xre_socket, reinterpret_cast<struct sockaddr*>(&socket_info), sizeof(struct sockaddr)) != 0) {
+        close(xre_socket);
         if(cl != -1) sendErrorResponse(pd_cl);
         PRINTUNIFIEDERROR("TLS server bind failed\n");
-        exit(-1);
+        return -1;
     }
 
     // up to 10 concurrent clients (both with 2 sessions) allowed
-    if(listen(rhss, MAX_CLIENTS) != 0) {
-        close(rhss);
+    if(listen(xre_socket, MAX_CLIENTS) != 0) {
+        close(xre_socket);
         if(cl != -1) sendErrorResponse(pd_cl);
         PRINTUNIFIEDERROR("TLS server listen failed\n");
-        exit(-1);
+        return -1;
     }
 
     PRINTUNIFIED("remote rhServer acceptor process started, pid: %d\n",getpid());
     if(cl != -1) sendOkResponse(pd_cl);
-    return rhss;
+    return xre_socket;
 }
 
 std::string getIPAndPortFromDesc(int desc) {
@@ -403,6 +403,7 @@ int xreMain(int argc, C* argv[], const STR& placeholder) {
     PRINTUNIFIED("Using as exposed path: %s\n",x.c_str());
 
     rhss = getServerSocket();
+    if(rhss < 0) return rhss;
     printNetworkInfo();
     // start announce loop (for now with default parameters)
     if(enableAnnounce) {
