@@ -3,7 +3,6 @@ The native library/executable file operations helper for XFiles, which can also 
 
 [![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/ibcim6n20n8cd91u?svg=true)](https://ci.appveyor.com/project/pgp/xfilesroothelper)
 [![Cirrus Build Status](https://api.cirrus-ci.com/github/pgp/XFilesRootHelper.svg)](https://cirrus-ci.com/github/pgp/XFilesRootHelper)
-[![Build Status](https://travis-ci.com/pgp/XFilesRootHelper.svg?branch=master)](https://travis-ci.com/pgp/XFilesRootHelper)
 
 Precompiled binaries are available for Windows 7+ (x64) and Linux (x64) in the [Release](https://github.com/pgp/XFilesRootHelper/releases) section. If you plan to build from source instead, just continue reading.
 
