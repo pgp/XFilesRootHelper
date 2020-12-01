@@ -157,6 +157,7 @@ public:
         }
 
         char efd = IDirIterator::efdL(current);
+        currentEfd = efd;
         if (efd == 'd' && (recursiveListing == RECURSIVE_FOLLOW_SYMLINKS || recursiveListing == RECURSIVE)) {
             // folder
             listOnStack(current); // TODO bool check
