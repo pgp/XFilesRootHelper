@@ -120,9 +120,9 @@ std::wstring unixToWindowsPath(std::string s) {
     return UTF8_to_wchar(rpl);
 }
 
-std::string windowsToUnixPath(const std::wstring& ws) {
+std::string windowsToUnixPath(const std::wstring& ws, bool isRelPath = false) {
     if(ws.empty()) return "";
-    std::string s = std::string("/") + wchar_to_UTF8(ws);
+    std::string s = isRelPath ? wchar_to_UTF8(ws) : std::string("/") + wchar_to_UTF8(ws);
     std::replace(s.begin(),s.end(),'\\','/');
     return s;
 }
@@ -132,11 +132,13 @@ std::string windowsToUnixPath(const std::wstring& ws) {
 #ifdef _WIN32
 #define FROMUNIXPATH(s) (unixToWindowsPath((s)))
 #define TOUNIXPATH(s) (windowsToUnixPath((s)))
+#define TOUNIXPATH2(s) (windowsToUnixPath((s),(true)))
 #define FROMUTF(s) (UTF8_to_wchar(s))
 #define TOUTF(s) (wchar_to_UTF8(s))
 #else
 #define FROMUNIXPATH(s) (s)
 #define TOUNIXPATH(s) (s)
+#define TOUNIXPATH2(s) (s)
 #define FROMUTF(s) (s)
 #define TOUTF(s) (s)
 #endif
