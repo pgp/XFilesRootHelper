@@ -108,8 +108,8 @@ int sshKeygenFromArgs(int argc, const C* argv[]) {
 
     errorLabel:
     PRINTUNIFIEDERROR("Usage: %s %s [rsa|ed25519] ...\n",argv[0],argv[1]);
-    PRINTUNIFIEDERROR("synopsis (rsa): ... [keySize=4096] [destDir='.'] [prvKeyName=id_rsa]\n"
-                      "synopsis (ed25519): ... [destDir='.'] [prvKeyName=id_rsa]\n");
+    PRINTUNIFIEDERROR("synopsis (rsa): ... [keySize (4096)] [destDir ('.')] [prvKeyName (id_rsa)]\n"
+                      "synopsis (ed25519): ... [destDir ('.')] [prvKeyName (id_ed25519)]\n");
     return 0;
 }
 
