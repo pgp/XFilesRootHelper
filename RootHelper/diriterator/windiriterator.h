@@ -84,7 +84,7 @@ private:
                     std::wstring currentFileName = fdFile.cFileName;
 
                     // Plain, no recursion
-                    std::wcout<<L"Current file path: "<<currentFilePath<<L"\tCurrent filename: "<<currentFileName<<std::endl;
+                    // std::wcout<<L"Current file path: "<<currentFilePath<<L"\tCurrent filename: "<<currentFileName<<std::endl;
                     if(filterEnabled) {
                         auto&& cf = TOUTF(currentFileName);
                         if(!std::regex_match(cf.c_str(),filterMatch,filter)) continue;

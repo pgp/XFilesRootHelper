@@ -142,12 +142,12 @@ std::vector<uint8_t> rh_computeHash_dir(
                     // PRINTUNIFIEDERROR("current shared_ptr count: %d\n",dirHasher.use_count()); // should be constant, NOT increasing
 
                     // allows to compare filenames on windows and unix not by OS encoding (useless) but using UTF-8  as reference encoding
-                    auto&& currentRelPathName = TOUNIXPATH(it.getCurrent()); // accumulate relative pathnames into hash state
+                    auto&& currentRelPathName = TOUNIXPATH2(it.getCurrent()); // accumulate relative pathnames into hash state
                     dirHasher->update(currentRelPathName);
                 }
                 else if(ignoreEmptyDirs && (it.currentEfd == '@')) continue;
                 else { // include names of empty directories and non-accessible files, if withNames is enabled
-                    auto&& currentRelPathName = TOUNIXPATH(it.getCurrent()); // accumulate relative pathnames into hash state
+                    auto&& currentRelPathName = TOUNIXPATH2(it.getCurrent()); // accumulate relative pathnames into hash state
                     dirHasher->update(currentRelPathName);
                 }
             }
