@@ -64,7 +64,7 @@ public:
             if (readBytes <= 0) {
                 PRINTUNIFIEDERROR(readBytes==0?"networkSocket EOF\n":"networkSocket read error\n");
                 // networkSocket.close();
-                // ringBuffer.close(readBytes<0); // propagate broken connection information to ringbuffer
+                ringBuffer.close(readBytes<0); // propagate broken connection information to ringbuffer
                 return;
             }
             try {
@@ -73,7 +73,7 @@ public:
             catch (Botan::Exception& e) {
                 PRINTUNIFIEDERROR("Botan exception: %s",e.what());
 //                networkSocket.close();
-//                ringBuffer.close();
+                ringBuffer.close();
                 return;
             }
         }
