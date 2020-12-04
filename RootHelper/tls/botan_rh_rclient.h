@@ -150,7 +150,6 @@ public:
         PRINTUNIFIED("Alert: %s\n",alert.type_string().c_str());
         if (alert.type() == Botan::TLS::Alert::Type::CLOSE_NOTIFY) {
             PRINTUNIFIED("TLS endpoint closed connection\n");
-            Gsock.shutdown();
             inRb.close(false); // Assume close notify is graceful connection termination
         }
     }
@@ -233,7 +232,6 @@ public:
         PRINTUNIFIED("\nTLS channel ready\n");
 
         try {
-//            eventLoopFn(inRb,std::ref(*client),local_sock_fd); // TLS client interacts with local socket
             eventLoopFn(std::ref(*this)); // TLS client interacts with local socket
         }
         catch (threadExitThrowable& i) {
@@ -258,14 +256,14 @@ public:
         int i=0;
         while(!client->is_closed()) { // allow up to 5 seconds for a graceful TLS shutdown
             if(i>10) {
-                PRINTUNIFIEDERROR("TLS shutdown taking too much time, closing TCP connection");
+                PRINTUNIFIEDERROR("TLS shutdown taking too much time, closing TCP connection\n");
                 goto finishClose;
             }
             PRINTUNIFIED(".");
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
             i++;
         }
-        PRINTUNIFIED("TLS client closed");
+        PRINTUNIFIED("TLS client closed\n");
 
         finishClose:
         Gsock.shutdown();
