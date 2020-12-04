@@ -57,15 +57,14 @@ public:
 
     bool setupAborted = false;
 
-    // local_socket passed for closing it by here when this thread terminates before the other, in so avoiding deadlock
-    static void incomingRbMemberFn(IDescriptor& networkSocket, Botan::TLS::Client& client, IDescriptor& local_socket, RingBuffer& ringBuffer) {
+    static void incomingRbMemberFn(IDescriptor& networkSocket, Botan::TLS::Client& client, RingBuffer& ringBuffer) {
         uint8_t buf[4096];
         for(;;) {
             ssize_t readBytes = networkSocket.read(buf,4096);
             if (readBytes <= 0) {
                 PRINTUNIFIEDERROR(readBytes==0?"networkSocket EOF\n":"networkSocket read error\n");
-                networkSocket.close();
-                ringBuffer.close(readBytes<0); // propagate broken connection information to ringbuffer
+                // networkSocket.close();
+                // ringBuffer.close(readBytes<0); // propagate broken connection information to ringbuffer
                 return;
             }
             try {
@@ -73,8 +72,8 @@ public:
             }
             catch (Botan::Exception& e) {
                 PRINTUNIFIEDERROR("Botan exception: %s",e.what());
-                networkSocket.close();
-                ringBuffer.close();
+//                networkSocket.close();
+//                ringBuffer.close();
                 return;
             }
         }
@@ -217,7 +216,6 @@ public:
         std::thread incomingRbThread(incomingRbMemberFn,
                                      std::ref(Gsock),
                                      std::ref(*client),
-                                     std::ref(local_sock_fd),
                                      std::ref(inRb)
         );
 
@@ -228,7 +226,6 @@ public:
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             if(setupAborted || i>50) { // wait till 5 seconds for connection establishment
                 PRINTUNIFIEDERROR("Client closed during connection setup, or connection timeout\n");
-                cleanup();
                 goto joinThread;
             }
             i++;
@@ -241,11 +238,16 @@ public:
         }
         catch (threadExitThrowable& i) {
             PRINTUNIFIEDERROR("T1 Unconditional housekeeping and return\n");
-            cleanup();
         }
 
         joinThread:
+        cleanup();
         incomingRbThread.join();
+
+        if(client) {
+            delete client;
+            client = nullptr;
+        }
     }
 
     void cleanup() {
@@ -267,11 +269,6 @@ public:
 
         finishClose:
         Gsock.shutdown();
-
-        if(client) {
-            delete client;
-            client = nullptr;
-        }
     }
 };
 

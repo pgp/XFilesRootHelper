@@ -2,6 +2,7 @@
 #define IDESCRIPTOR_H
 
 #include <cstdio>
+// #include <typeindex>
 
 #ifdef _WIN32
 #include "../common_win.h"
@@ -88,6 +89,9 @@ public:
         ssize_t writtenBytes = writeAll(buf,count);
         ssize_t count_ = count;
         if (writtenBytes < count_) {
+            // std::type_index t{typeid(*this)};
+            // auto tn = t.name();
+            // PRINTUNIFIEDERROR("%s - Exiting thread %s on write error, bytes to write: %d, written: %d\n",tn, getThreadIdAsString().c_str(), count_, writtenBytes);
             PRINTUNIFIEDERROR("Exiting thread %s on write error\n",getThreadIdAsString().c_str());
             close();
             threadExit();

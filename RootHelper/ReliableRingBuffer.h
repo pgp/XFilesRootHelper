@@ -62,14 +62,10 @@ public:
     }
 
     void close() override {
-        bool expected = false;
-        if(closed.compare_exchange_strong(expected,true,std::memory_order_relaxed,std::memory_order_relaxed)) {
-            // no more writes allowed from now on, just allow emptying read buffer
-            ringbuffer_written_cond.notify_one();
-        }
+        close(false);
     }
 
-    inline void close(bool brokenConnection_) { // not IDescriptor interface method
+    void close(bool brokenConnection_) { // not IDescriptor interface method
         bool expected = false;
         if(closed.compare_exchange_strong(expected,true,std::memory_order_relaxed,std::memory_order_relaxed)) {
             brokenConnection = brokenConnection_;

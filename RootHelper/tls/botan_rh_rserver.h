@@ -171,36 +171,35 @@ public:
 				}
 				catch(std::exception& e) {
 					PRINTUNIFIEDERROR("Connection problem: %s\n",e.what());
-					cleanup();
 					break;
 				}
 			}
 		}
 		catch(Botan::Exception& e) {
 			PRINTUNIFIEDERROR("Security exception: %s\n",e.what());
-			cleanup();
 		}
 		catch (threadExitThrowable& i) {
             PRINTUNIFIEDERROR("T1 Unconditional housekeeping and return\n");
-            cleanup();
 		}
+		cleanup();
 		mainEventLoopThread.join();
+
+		if (server) {
+			delete server;
+			server = nullptr;
+		}
+		if (creds) {
+			delete creds;
+			creds = nullptr;
+		}
 	}
-	
-	void cleanup() noexcept {
-		inRb->close();
-		Gsock.close();
+
+    void cleanup() noexcept {
+        inRb->close();
+        Gsock.shutdown();
         // local_sock_fd MUST NOT BE CLOSED by SToC threads (it is process-level, any SToC thread can atomically write to it)
         // local_sock_fd MUST NOT BE DELETED as well, must be passed as pointer to local stack variable of caller
-		if (server) {
-            delete server;
-            server = nullptr;
-        }
-		if (creds) {
-            delete creds;
-            creds = nullptr;
-        }
-	}
+    }
 };
 
 #endif /* _BOTAN_RH_RSERVER_H_ */
