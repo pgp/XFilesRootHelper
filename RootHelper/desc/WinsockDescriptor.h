@@ -32,6 +32,8 @@ public:
     }
 
     virtual inline void close() override {closesocket(desc);}
+
+    virtual inline void shutdown() override {::shutdown(desc, SD_BOTH);}
 };
 
 #endif /* _WINSOCK_DESCRIPTOR_H_ */
