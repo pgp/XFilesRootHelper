@@ -1010,13 +1010,14 @@ void forkP7ZipSession(IDescriptor& cl, request_type rq) {
  * - No network socket, since it is this method that creates the network descriptor and binds to it, and spawns the other server threads for serving connected clients
  */
 
-void on_server_acceptor_exit_func() {
+// actually useless, both local socket and xre server socket are closed in the parent process after fork, kernel will cleanup resources of child process on exit
+/*void on_server_acceptor_exit_func() {
 	shutdown(rhss,SHUT_RDWR);
 	close(rhss); // close communication with all remote endpoints
 	close(rhss_local); // close communication with local endpoint (Java rhss update thread)
 	rhss = -1;
 	rhss_local = -1;
-}
+}*/
 
 void forkServerAcceptor(int cl, uint8_t rq_flags) {
     PosixDescriptor pd_cl(cl);
@@ -1052,7 +1053,7 @@ void forkServerAcceptor(int cl, uint8_t rq_flags) {
     if (pid == 0) { // in child process (rh remote server acceptor)
 
         try {
-            atexit(on_server_acceptor_exit_func);
+            // atexit(on_server_acceptor_exit_func);
             rhss = tmp_rhss;
 
             // from now on, server session threads communicate with local client over rhss_local
