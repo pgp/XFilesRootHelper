@@ -361,10 +361,10 @@ void selectLoop(int listening_xre_socket, int local_socket) {
         switch(event) {
             case -1:
                 perror("select");
-                _Exit(EXIT_FAILURE);
+                _Exit(71);
             case 0:
                 PRINTUNIFIEDERROR("select returns 0");
-                _Exit(EXIT_FAILURE);
+                _Exit(73);
             default:
                 if (FD_ISSET(listening_xre_socket, rwe_fds+0)) {
                     PRINTUNIFIED("accept event\n");
@@ -372,7 +372,7 @@ void selectLoop(int listening_xre_socket, int local_socket) {
                     socklen_t stlen{};
                     int remoteCl;
                     if ((remoteCl = accept(listening_xre_socket, (struct sockaddr *) &st, &stlen)) == -1) {
-                        PRINTUNIFIEDERROR("accept error on remote server,errno is %d\n",errno);
+                        PRINTUNIFIEDERROR("accept error on remote server, errno is %d\n",errno);
                         continue;
                     }
 
@@ -387,13 +387,13 @@ void selectLoop(int listening_xre_socket, int local_socket) {
 
                 if(FD_ISSET(listening_xre_socket, rwe_fds+2)) {
                     PRINTUNIFIEDERROR("except event on xre socket\n");
-                    _Exit(EXIT_FAILURE);
+                    _Exit(77);
                 }
 
                 if (FD_ISSET(local_socket, rwe_fds+0) ||
                         FD_ISSET(local_socket, rwe_fds+2)) {
                     PRINTUNIFIEDERROR("read or except event on local_socket, assuming uds client has disconnected, exiting...");
-                    _Exit(EXIT_SUCCESS);
+                    _Exit(0);
                 }
         }
     }
