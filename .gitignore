@@ -3,6 +3,9 @@ bin/r
 bin/r.exe
 CMAKE/build/
 CMAKE/winbuild/
+CMAKE/msvcbuild/
+CMAKE/cmake-build-debug/
+CMAKE/cmake-build-release/
 CMAKE_ios/build/
 CMAKE_ios/bin/lib7z.so
 CMAKE_ios/bin/r
