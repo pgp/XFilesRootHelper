@@ -211,7 +211,7 @@ void tlsServerSession(SOCKET remoteCl, std::string s) {
     on_server_session_exit_func(s);
 }
 
-void acceptLoop(SOCKET rhss) {
+void acceptLoop(SOCKET rhss, int unused = -1) {
     for(;;) {
         struct sockaddr_in client_info;
         memset(&client_info,0,sizeof(client_info));
@@ -333,14 +333,81 @@ void tlsServerSession(int remoteCl) {
 	on_server_session_exit_func(clientIPAndPortOfThisServerSession);
 }
 
-void acceptLoop(int& rhss_socket) {
-    constexpr struct linger lo{1,0};
+void build_fd_sets(fd_set* rwe_fds, int listening_xre_socket, int local_socket) {
+    fd_set* read_fds = rwe_fds + 0;
+    fd_set* except_fds = rwe_fds + 2;
+
+    FD_ZERO(read_fds);
+    FD_ZERO(except_fds);
+
+    FD_SET(listening_xre_socket, read_fds);
+    FD_SET(listening_xre_socket, except_fds);
+    if(local_socket > 0) {
+        FD_SET(local_socket, read_fds);
+        FD_SET(local_socket, except_fds);
+    }
+}
+
+constexpr struct linger lo{1,0};
+
+void selectLoop(int listening_xre_socket, int local_socket) {
+    fd_set rwe_fds[3]{};
+    for(;;) {
+        build_fd_sets(rwe_fds, listening_xre_socket, local_socket);
+        int high_sock = (listening_xre_socket > local_socket) ? listening_xre_socket : local_socket;
+
+        int event = select(high_sock + 1, rwe_fds+0, rwe_fds+1, rwe_fds+2, nullptr);
+
+        switch(event) {
+            case -1:
+                perror("select");
+                _Exit(EXIT_FAILURE);
+            case 0:
+                PRINTUNIFIEDERROR("select returns 0");
+                _Exit(EXIT_FAILURE);
+            default:
+                if (FD_ISSET(listening_xre_socket, rwe_fds+0)) {
+                    PRINTUNIFIED("accept event\n");
+                    struct sockaddr_in st{};
+                    socklen_t stlen{};
+                    int remoteCl;
+                    if ((remoteCl = accept(listening_xre_socket, (struct sockaddr *) &st, &stlen)) == -1) {
+                        PRINTUNIFIEDERROR("accept error on remote server,errno is %d\n",errno);
+                        continue;
+                    }
+
+                    // this is needed in order for (client) write operations to fail when the remote (server) socket is closed
+                    // (e.g. client is performing unacked writing and server disconnects)
+                    // so that client does not hangs when server abruptly closes connections
+                    setsockopt(remoteCl, SOL_SOCKET, SO_LINGER, &lo, sizeof(lo));
+
+                    std::thread serverToClientThread(tlsServerSession,remoteCl);
+                    serverToClientThread.detach();
+                }
+
+                if(FD_ISSET(listening_xre_socket, rwe_fds+2)) {
+                    PRINTUNIFIEDERROR("except event on xre socket\n");
+                    _Exit(EXIT_FAILURE);
+                }
+
+                if (FD_ISSET(local_socket, rwe_fds+0) ||
+                        FD_ISSET(local_socket, rwe_fds+2)) {
+                    PRINTUNIFIEDERROR("read or except event on local_socket, assuming uds client has disconnected, exiting...");
+                    _Exit(EXIT_SUCCESS);
+                }
+        }
+    }
+}
+
+void acceptLoop(int& rhss_socket, int local_socket = -1) {
+    if(local_socket > 0)
+        return selectLoop(rhss_socket, local_socket);
     for(;;) {
         struct sockaddr_in st{};
         socklen_t stlen{};
         int remoteCl = accept(rhss_socket,(struct sockaddr *)&st,&stlen); // (#1) peer info retrieved and converted to string in spawned thread
         if (remoteCl == -1) {
-            PRINTUNIFIEDERROR("accept error on remote server,errno is %d\n",errno);
+            PRINTUNIFIEDERROR("accept error on remote server, errno is %d\n",errno);
             continue;
         }
         

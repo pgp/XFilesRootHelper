@@ -1058,7 +1058,6 @@ void forkServerAcceptor(int cl, uint8_t rq_flags) {
 
             // from now on, server session threads communicate with local client over rhss_local
             rhss_local = cl;
-            cl = -1;
 
             if(rq_flags == 5) {
                 // start announce loop (for now with default parameters)
@@ -1066,7 +1065,7 @@ void forkServerAcceptor(int cl, uint8_t rq_flags) {
                 announceThread.detach();
             }
 
-            acceptLoop(rhss);
+            acceptLoop(rhss, rhss_local); // TODO check if close() instructions in parent process are detected as events as well
 
         }
         catch (threadExitThrowable& i) {
@@ -1391,10 +1390,10 @@ void clientSession(int cl) {
     PRINTUNIFIED("disconnected\n");
 }
 
-void exitRhss() {
+/*void exitRhss() {
 	// rhss_pid default value already set to non-wildcard, non-valid pid, this check is redundant
 	if (rhss_pid > 0) kill(rhss_pid,SIGINT);
-}
+}*/
 
 void rhMain(int uid=rh_default_uid, std::string name=rh_uds_default_name) {
 	NT_CHECK
@@ -1419,7 +1418,7 @@ void rhMain(int uid=rh_default_uid, std::string name=rh_uds_default_name) {
 
     // Main code of PGP's rootHelper
 	signal(SIGPIPE,SIG_IGN);
-	atexit(exitRhss);
+	// atexit(exitRhss); // not needed anymore, forked XRE process will exit upon select event when its local socket has been socket
 	
 	struct sockaddr_un addr;
 	socklen_t len = 0;
