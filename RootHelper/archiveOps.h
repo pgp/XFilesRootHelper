@@ -174,7 +174,13 @@ int listArchiveInternalOrCheckForSingleItem(const std::string& archivepath, cons
                 u.SetFromBstr(prop.bstrVal);
                 const wchar_t* uuu = u.Ptr(); // wchar on Linux is 4 bytes long
                 responseEntry.filename = wchar_to_UTF8(uuu);
-                PRINTUNIFIED("entry name: %s\n", responseEntry.filename.c_str()); // DEBUG
+
+                if(responseEntry.filename.empty()) {
+                    // filename as empty string not allowed, interpreted as EOL by rh client
+                    PRINTUNIFIEDERROR("Empty filename in archive listing, ignoring it\n");
+                    continue;
+                }
+                else PRINTUNIFIED("entry name: %s\n", responseEntry.filename.c_str()); // DEBUG
             }
             else if (prop.vt != VT_EMPTY) {
                 responseEntry.filename = "ERROR";

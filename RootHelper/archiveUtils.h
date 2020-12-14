@@ -323,6 +323,10 @@ STDMETHODIMP CArchiveExtractCallback::GetStream(UInt32 index,
       if (prop.vt != VT_BSTR)
         return E_FAIL;
       fullPath = prop.bstrVal;
+      if(fullPath.IsEmpty()) {
+          PRINTUNIFIEDERROR("empty filename found during all-files extraction, ignoring it\n");
+          return S_OK;
+      }
     }
 
     if (subDirLengthForPathTruncateInWideChars == 0)
