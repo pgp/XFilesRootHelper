@@ -460,12 +460,14 @@ STDMETHODIMP CArchiveExtractCallback::PrepareOperation(Int32 askExtractMode)
   return S_OK;
 }
 
-Int32 latestExtractResult;
+Int32 latestExtractResult = NArchive::NExtract::NOperationResult::kOK;
 
 STDMETHODIMP CArchiveExtractCallback::SetOperationResult(Int32 operationResult)
 {
   // to be returned if not OK from extractFromArchive (at least to indicate wrong password provided)
-  latestExtractResult = operationResult;
+  if(latestExtractResult == NArchive::NExtract::NOperationResult::kOK &&
+    operationResult != NArchive::NExtract::NOperationResult::kOK)
+  latestExtractResult = operationResult; // actually it means latestError
   
   switch (operationResult)
   {
@@ -493,7 +495,7 @@ STDMETHODIMP CArchiveExtractCallback::SetOperationResult(Int32 operationResult)
     case NArchive::NExtract::NOperationResult::kUnexpectedEnd:
       s = kUnexpectedEnd;
       break;
-    case NArchive::NExtract::NOperationResult::kDataAfterEnd:
+    case NArchive::NExtract::NOperationResult::kDataAfterEnd: // actually a warning
       s = kDataAfterEnd;
       break;
     case NArchive::NExtract::NOperationResult::kIsNotArc:

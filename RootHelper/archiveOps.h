@@ -301,6 +301,7 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
     std::string destFolder = f[1];
     PRINTUNIFIED("received source archive path is:\t%s\n", srcArchive.c_str());
     PRINTUNIFIED("received destination folder path is:\t%s\n", destFolder.c_str());
+    bool testMode = destFolder.empty();
 
     // read password, if provided
     std::string password = readStringWithByteLen(inOutDesc);
@@ -309,7 +310,7 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
     uint32_t nOfEntriesToExtract, i;
     inOutDesc.readAllOrExit( &(nOfEntriesToExtract), sizeof(uint32_t));
 
-    bool smartCreateDirectory = (flags == 6) && (nOfEntriesToExtract == 0);
+    bool smartCreateDirectory = (flags == 6) && (nOfEntriesToExtract == 0) && !testMode;
 
     std::vector<uint32_t> currentEntries;
 
@@ -399,7 +400,7 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
     }
 
     // create destination folder if it does not exist
-    int ret = mkpathCopyPermissionsFromNearestAncestor(destFolder);
+    int ret = testMode? 0 : mkpathCopyPermissionsFromNearestAncestor(destFolder);
     if (ret < 0) {
         errno = EACCES;
         PRINTUNIFIEDERROR("Can not create destination folder %s\n",destFolder.c_str());
@@ -431,11 +432,11 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
 
     if (currentEntries.empty())
     { // extract all
-        result = archive->Extract(nullptr, (UInt32)(Int32)(-1), false, extractCallback);
+        result = archive->Extract(nullptr, (UInt32)(Int32)(-1), testMode, extractCallback);
     }
     else
     { // extract only the received entries
-        result = archive->Extract(&currentEntries[0], nOfEntriesToExtract, false, extractCallback);
+        result = archive->Extract(&currentEntries[0], nOfEntriesToExtract, testMode, extractCallback);
     }
 
     if (latestExtractResult != NArchive::NExtract::NOperationResult::kOK) {
@@ -447,7 +448,7 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
         return;
     }
 
-    if (result == S_OK)
+    if (result == S_OK && !testMode)
         result = extractCallbackSpec->SetFinalAttribs();
 
     if (result != S_OK) {
