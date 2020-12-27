@@ -294,13 +294,28 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
         return;
     }
     // recognizes archive type and tries to extract selected or all files into the destination folder
+    std::vector<std::string> f;
+    std::string destFolder;
+    bool multiArchive = !b2(flags);
 
-    // read source archive and destination folder
-    std::vector<std::string> f = readPairOfStringsWithPairOfLens(inOutDesc);
-    std::string srcArchive = f[0];
-    std::string destFolder = f[1];
-    PRINTUNIFIED("received source archive path is:\t%s\n", srcArchive.c_str());
-    PRINTUNIFIED("received destination folder path is:\t%s\n", destFolder.c_str());
+    if(multiArchive) { // extract from multiple source archives
+        for(;;) {
+            auto&& srcArchive = readStringWithLen(inOutDesc);
+            if(srcArchive.empty()) break;
+            f.emplace_back(srcArchive);
+        }
+
+        destFolder = readStringWithLen(inOutDesc);
+    }
+    else { // extract from one single archive
+        // read source archive and destination folder
+        f = readPairOfStringsWithPairOfLens(inOutDesc);
+        destFolder = f[1];
+        f = {f[0]}; // vector containing only one archive
+        PRINTUNIFIED("received source archive path is:\t%s\n", f[0].c_str());
+        PRINTUNIFIED("received destination folder path is:\t%s\n", destFolder.c_str());
+    }
+
     bool testMode = destFolder.empty();
 
     // read password, if provided
@@ -310,7 +325,7 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
     uint32_t nOfEntriesToExtract, i;
     inOutDesc.readAllOrExit( &(nOfEntriesToExtract), sizeof(uint32_t));
 
-    bool smartCreateDirectory = (flags == 6) && (nOfEntriesToExtract == 0) && !testMode;
+    bool smartCreateDirectory = (!b0(flags)) && (nOfEntriesToExtract == 0) && !testMode;
 
     std::vector<uint32_t> currentEntries;
 
@@ -318,6 +333,14 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
     uint32_t subDirLengthForPathTruncateInWideChars = 0;
     if (nOfEntriesToExtract != 0)
     {
+        // GUARD BLOCK
+        if(multiArchive) {
+            PRINTUNIFIEDERROR("Protocol inconsistency, when extracting from multiple archives, nOfEntriesToExtract must be 0\n");
+            errno = 17217;
+            sendErrorResponse(inOutDesc);
+            return;
+        }
+
         // DO NOT RECEIVE FILENAME ENTRIES, RECEIVE INDICES INSTEAD - TODO check if works with all archive types
         // smart directory creation option does not apply here
         currentEntries.reserve(nOfEntriesToExtract);
@@ -331,6 +354,8 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
         inOutDesc.readAllOrExit(&subDirLengthForPathTruncateInWideChars,sizeof(uint32_t));
     }
 
+  for(auto& srcArchive : f) {
+
     auto&& srcArchive_ = UTF8_to_wchar(srcArchive);
     FString archiveName(srcArchive_.c_str());
 
@@ -343,14 +368,14 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
         PrintError("Unable to open archive with any associated codec", archiveName);
         errno = 23458;
         sendErrorResponse(inOutDesc);
-        return;
+        continue;
     }
 
     if (createObjectFunc(&(archiveGUIDs[archiveType]), &IID_IInArchive, (void **)&archive) != S_OK) {
         PrintError("Can not get class object");
         errno = 23459;
         sendErrorResponse(inOutDesc);
-        return;
+        continue;
     }
 
 
@@ -361,7 +386,7 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
         PrintError("Can not open archive file", archiveName);
         errno = EACCES; // simulate access error to file in errno
         sendErrorResponse(inOutDesc);
-        return;
+        continue;
     }
 
     {
@@ -377,7 +402,7 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
             PrintError("Can not open file as archive - listing error (password needed or wrong password provided?)", archiveName);
             errno = NULL_OR_WRONG_PASSWORD;
             sendErrorResponse(inOutDesc);
-            return;
+            continue;
         }
     }
 
@@ -387,7 +412,7 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
             errno = EINVAL;
             PRINTUNIFIEDERROR("Unable to determine whether the archive contains one or more items at the top level\n");
             sendErrorResponse(inOutDesc);
-            return;
+            continue;
         }
 
         if(ret == 2) {
@@ -405,7 +430,7 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
         errno = EACCES;
         PRINTUNIFIEDERROR("Can not create destination folder %s\n",destFolder.c_str());
         sendErrorResponse(inOutDesc);
-        return;
+        continue;
     }
 
     // Extract command
@@ -445,7 +470,7 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
         latestExtractResult = 0;
 
         sendEndProgressAndErrorResponse(inOutDesc);
-        return;
+        continue;
     }
 
     if (result == S_OK && !testMode)
@@ -455,10 +480,11 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
         PrintError("Extraction error (password needed or wrong password provided?)", archiveName);
         errno = NULL_OR_WRONG_PASSWORD;
         sendEndProgressAndErrorResponse(inOutDesc);
-        return;
+        continue;
     }
     sendEndProgressAndOkResponse(inOutDesc);
     // delete extractCallbackSpec; // commented, causes segfault
+  }
 }
 
 HRESULT common_compress_logic(Func_CreateObject& createObjectFunc,
