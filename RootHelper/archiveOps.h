@@ -275,7 +275,7 @@ that is, files or folders themselves without their sub-tree nodes)
  all the entries of its subtree (the entire archive content tree has already been stored in a VMap on archive open for listing)
 - if items are not top-level in the archive, the path truncation offset is needed in order to perform natural relative extraction
 
-if flags == 6 (binary: 110), internally call list archive with the same flag in order to determine whether to create or not an intermediate directory
+if b0(flags) (binary: xx0), internally call list archive with the same flag in order to determine whether to create or not an intermediate directory
  */
 void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
 {
@@ -316,16 +316,17 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
         PRINTUNIFIED("received destination folder path is:\t%s\n", destFolder.c_str());
     }
 
-    bool testMode = destFolder.empty();
+    const bool testMode = destFolder.empty();
 
     // read password, if provided
-    std::string password = readStringWithByteLen(inOutDesc);
+    const std::string password = readStringWithByteLen(inOutDesc);
+    const std::string dstFolderBackup = destFolder; // for smart create directory mode
 
     // read number of entries to be received; 0 means "extract all content from archive"
     uint32_t nOfEntriesToExtract, i;
     inOutDesc.readAllOrExit( &(nOfEntriesToExtract), sizeof(uint32_t));
 
-    bool smartCreateDirectory = (!b0(flags)) && (nOfEntriesToExtract == 0) && !testMode;
+    const bool smartCreateDirectory = (!b0(flags)) && (nOfEntriesToExtract == 0) && !testMode;
 
     std::vector<uint32_t> currentEntries;
 
@@ -354,7 +355,7 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
         inOutDesc.readAllOrExit(&subDirLengthForPathTruncateInWideChars,sizeof(uint32_t));
     }
 
-  for(auto& srcArchive : f) {
+  for(const auto& srcArchive : f) {
 
     auto&& srcArchive_ = UTF8_to_wchar(srcArchive);
     FString archiveName(srcArchive_.c_str());
@@ -452,6 +453,8 @@ void extractFromArchive(IDescriptor& inOutDesc, const uint8_t flags)
     extractCallbackSpec->Init(archive, FString(destFolder_.c_str()));
     extractCallbackSpec->PasswordIsDefined = (!password.empty());
     extractCallbackSpec->Password = FString(password_.c_str());
+
+    if(smartCreateDirectory) destFolder = dstFolderBackup; // restore old value after having modified it in the current iteration
 
     HRESULT result;
 
