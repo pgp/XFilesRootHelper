@@ -149,6 +149,7 @@ int listArchiveInternalOrCheckForSingleItem(const std::string& archivepath, cons
     for (UInt32 i = 0; i < numItems; i++) {
         // assemble and send response
         ls_resp_t responseEntry{};
+        bool is_invalid = false;
         {
             // Get uncompressed size of file
             NCOM::CPropVariant prop;
@@ -177,8 +178,9 @@ int listArchiveInternalOrCheckForSingleItem(const std::string& archivepath, cons
 
                 if(responseEntry.filename.empty()) {
                     // filename as empty string not allowed, interpreted as EOL by rh client
-                    PRINTUNIFIEDERROR("Empty filename in archive listing, ignoring it\n");
-                    continue;
+                    PRINTUNIFIEDERROR("Empty filename in archive listing, marking it as invalid\n");
+                    is_invalid = true;
+                    responseEntry.filename = "ERROR";
                 }
                 else PRINTUNIFIED("entry name: %s\n", responseEntry.filename.c_str()); // DEBUG
             }
@@ -213,7 +215,9 @@ int listArchiveInternalOrCheckForSingleItem(const std::string& archivepath, cons
             // Get only dir attribute
             NCOM::CPropVariant prop;
             archive->GetProperty(i, kpidIsDir, &prop);
-            if (prop.vt == VT_BOOL) {
+            if(is_invalid)
+                memset(responseEntry.permissions, '!', 10);
+            else if (prop.vt == VT_BOOL) {
                 if (prop.boolVal != VARIANT_FALSE) memcpy(responseEntry.permissions,"d---------",10);
                 else memset(responseEntry.permissions, '-', 10);
             }
