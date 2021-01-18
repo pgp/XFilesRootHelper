@@ -875,7 +875,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
                         dirItems.Add(di);
                     }
                 }
-                else { // simply add to dirItems
+                { // no else branch, add entry to dirItems unconditionally, so that empty dirs are added as well
                     CDirItem di;
 
                     FString name = CmdStringToFString(currentEntries[i].c_str());
