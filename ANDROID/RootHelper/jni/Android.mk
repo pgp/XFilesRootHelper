@@ -85,6 +85,6 @@ LOCAL_SRC_FILES := \
 # LOCAL_STATIC_LIBRARIES := -lstdc++fs # no experimental::filesystem support on NDK
 
 LOCAL_CFLAGS += -fPIC -pie
-LOCAL_LDFLAGS += -fPIE -llog -latomic -Wl,-E
+LOCAL_LDFLAGS += -fPIE -llog -Wl,-E
 
 include $(BUILD_EXECUTABLE)
