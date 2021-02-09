@@ -396,7 +396,7 @@ void tlsClientUrlDownloadEventLoop(TLS_Client& client_wrapper) {
                                                                  client_wrapper.downloadToFile);
         if (client_wrapper.httpRet == 301 || client_wrapper.httpRet == 302) {
             // get redirect domain
-            const std::string locLabel = "Location: ";
+            const std::string locLabel = "\nLocation: ";
             auto redirectLocIdx = findStringIC(hdrs,locLabel);
             if(redirectLocIdx == std::string::npos) throw std::runtime_error("Malformed redirect response");
             auto locationtag = hdrs.substr(redirectLocIdx+locLabel.size());
