@@ -308,7 +308,7 @@ std::wstring sanitizeSlashesInWindowsPath(const std::wstring& path) {
     return ss.str();
 }
 
-int mkpath(const std::wstring& s_, mode_t _unused_) {
+int mkpath(const std::wstring& s_, mode_t _unused_, bool exist_ok=true) {
     if (s_ == L".") return 0; // current dir and root always exist
     if (s_.size() < 2) return -1; // at least "C:"
     
@@ -335,7 +335,7 @@ int mkpath(const std::wstring& s_, mode_t _unused_) {
         if (cstr[i] == L'\\') {
             std::wstring partialPath = s.substr(0,i);
             std::wcout<<"Creating: "<<partialPath<<" ...";
-            if (_wmkdir(partialPath.c_str()) < 0 && errno != EEXIST) {
+            if (_wmkdir(partialPath.c_str()) < 0 && (!exist_ok || errno != EEXIST)) {
                 PRINTUNIFIEDERROR("Error of _wmkdir: %d\n",GetLastError());
                 return -1;
             }
@@ -345,8 +345,8 @@ int mkpath(const std::wstring& s_, mode_t _unused_) {
     return 0;
 }
 
-inline int mkpathCopyPermissionsFromNearestAncestor(const std::wstring& dirPath) {
-    return mkpath(dirPath,-1);
+inline int mkpathCopyPermissionsFromNearestAncestor(const std::wstring& dirPath, bool exist_ok=true) {
+    return mkpath(dirPath,-1,exist_ok);
 }
 
 #else
@@ -369,7 +369,7 @@ int statNearestAncestor(const std::string& path, struct stat *st) {
     return ret; // no accessible ancestor found
 }
 
-int mkpath(const std::string& s_, mode_t mode = 0755) {
+int mkpath(const std::string& s_, mode_t mode = 0755, bool exist_ok=true) {
     if (s_ == "." || s_ == "/") return 0; // current dir and root always exist
 
     std::string s = s_ + "/"; // just to avoid code duplication after for loop
@@ -381,18 +381,19 @@ int mkpath(const std::string& s_, mode_t mode = 0755) {
         if (cstr[i] == '/') {
             std::string partialPath = s.substr(0,i);
 //            std::cout<<"Creating: "<<partialPath<<" ...";
-            if (mkdir(partialPath.c_str(),mode) < 0 && errno != EEXIST) return -1;
+            if (mkdir(partialPath.c_str(),mode) < 0 && (!exist_ok || errno != EEXIST)) return -1;
 //            std::cout<<"OK"<<std::endl;
         }
     }
     return 0;
 }
 
-int mkpathCopyPermissionsFromNearestAncestor(const std::string& dirPath) {
+int mkpathCopyPermissionsFromNearestAncestor(const std::string& dirPath, bool exist_ok=true) {
     singleStats_resp_t str{};
     int ret = existsIsFileIsDir_(dirPath,&str);
     if(str.permissions[0] == 'd' || str.permissions[0] == 'L') { // dir exists (even as a softlink)
-        return 0;
+        if(!exist_ok) errno = EEXIST;
+        return exist_ok?0:-1;
     }
     if (ret == 1) { // pathname already exists and is a file, ERROR
         errno = EEXIST;
@@ -403,7 +404,7 @@ int mkpathCopyPermissionsFromNearestAncestor(const std::string& dirPath) {
     struct stat st{};
     ret = statNearestAncestor(dirPath, &st);
     if (ret < 0) return ret;
-    ret = mkpath(dirPath,st.st_mode);
+    ret = mkpath(dirPath,st.st_mode,exist_ok);
     return ret;
 }
 
@@ -1391,7 +1392,7 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
     {
         PRINTUNIFIED("creating directory...\n");
         // mkpath on filepath
-        ret = mkpath(filepath, mode);
+        ret = mkpath(filepath, mode, false);
     }
     sendBaseResponse(ret, inOutDesc);
 }
