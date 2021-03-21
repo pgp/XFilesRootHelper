@@ -141,6 +141,12 @@ std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
     return "file.bin";
 }
 
+// template<typename STR>
+// void dumpToFile(const std::string& content, const STR& path) {
+    // auto&& out = fdfactory.create(path, FileOpenMode::WRITE);
+    // out.writeAllOrExit(content.c_str(),content.size());
+// }
+
 // return value: HTTP response code or -1 for unsolvable error
 // if downloadToFile is false, downloadPath is ignored, and downloaded body is sent back to local_fd as string with length
 template<typename STR>
@@ -152,11 +158,13 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
                                     const std::string& url,
                                     const bool downloadToFile = true) {
     uint64_t currentProgress = 0, last_progress = 0;
-    std::stringstream headers;
-    std::stringstream tmpbody;
+    std::string tmpbody;
+    
+    std::stringstream bbuffer;
+    auto headersEndIdx = std::string::npos;
+    uint32_t headersCurrentSize = 0;
 
-    // headers
-
+    // headers and, in case, part of or whole body
     for(;;) {
         std::string buffer(4096,0);
         auto readBytes=rcl.read((char*)(buffer.c_str()), 4096);
@@ -164,81 +172,32 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
             PRINTUNIFIEDERROR("EOF or error reading headers, errno is %d\n",errno);
             return -1;
         }
-
-        // don't expect this to happen on first received packet (must contain at least HTTP/*.* header, longer than 4 bytes)
-        // anyway, it could happen on last packet
-        if(readBytes<4) {
-            PRINTUNIFIEDERROR("WARNING: Read less than 4 byte on current chunk");
-            if (headers.str().size()+readBytes < 4)
-                throw std::runtime_error("Header buffer still empty, and not enough bytes to detect double CRLF");
-            else {
-                // borrow 4-readBytes bytes from headers accumulated so far
-                buffer.resize(readBytes);
-                auto currentHeader = headers.str();
-                // reset headers
-                std::stringstream tmpss;
-                headers.swap(tmpss);
-
-                auto splittingLength = currentHeader.size()-4+readBytes;
-                headers<<currentHeader.substr(0,splittingLength);
-                buffer = currentHeader.substr(splittingLength) + buffer;
-                // here, it is guaranteed buffer length will be == 4
-            }
-        }
-        else buffer.resize(readBytes);
-
-        if(::memcmp(buffer.c_str()+readBytes-4,"\r\n\r\n",4)==0) {
-            headers<<buffer;
-            goto body_tag;
-        }
-        else if (::memcmp(buffer.c_str()+readBytes-3,"\r\n\r",3)==0) {
-            char c;
-            if(rcl.read(&c, 1) < 1 || c != '\n')
-                throw std::runtime_error("header parsing error on 1-byte look-ahead");
-            headers<<buffer;
-            headers<<c;
-            goto body_tag;
-        }
-        else if (::memcmp(buffer.c_str()+readBytes-2,"\r\n",2)==0) {
-            char cc[2]{};
-            if(rcl.read(cc, 2) < 2 || ::memcmp(cc,"\r\n",2) !=0 )
-                throw std::runtime_error("header parsing error on 2-byte look-ahead");
-            headers<<buffer;
-            headers<<cc;
-            goto body_tag;
-        }
-        else if (buffer[readBytes-1] == '\r') {
-            int rb;
-            char ccc[3]{};
-            if((rb = rcl.read(ccc, 3)) < 3) {
-                throw std::runtime_error("header parsing error on 3-byte look-ahead -- not enough bytes read: "+std::to_string(rb));
-            }
-            if(::memcmp(ccc,"\n\r\n",3) !=0) {
-                throw std::runtime_error("header parsing error on 3-byte look-ahead (memcmp failed)");
-            }
-            headers<<buffer;
-            headers<<ccc;
-            goto body_tag;
-        }
-        else {
-            // header boundary may already have been passed, check for \r\n\r\n
-            for(int i=0;i<readBytes-4;i++) {
-                if(::memcmp(buffer.c_str()+i,"\r\n\r\n",4)==0) {
-                    headers<<buffer.substr(0,i+4);
-                    auto bodystart = buffer.substr(i+4);
-                    currentProgress += bodystart.length();
-                    tmpbody<<bodystart;
-                    goto body_tag;
-                }
-            }
-            headers<<buffer;
+        buffer.resize(readBytes);
+        bbuffer<<buffer;
+        headersCurrentSize += readBytes;
+        if(headersCurrentSize>1048576)
+            throw std::runtime_error("HTTP header too large");
+        auto&& bbuffer_s = bbuffer.str();
+        headersEndIdx = bbuffer_s.find("\r\n\r\n");
+        if(headersEndIdx != std::string::npos) {
+            headersEndIdx += 4;
+            const uint8_t* bb_ptr = (const uint8_t*)bbuffer_s.c_str();
+            auto bodySize = bbuffer_s.size() - headersEndIdx;
+            
+            hdrs.resize(headersEndIdx);
+            tmpbody.resize(bodySize);
+            
+            memcpy((uint8_t*)(hdrs.c_str()), bb_ptr, headersEndIdx);
+            memcpy((uint8_t*)(tmpbody.c_str()), bb_ptr+headersEndIdx, bodySize);
+            currentProgress = bodySize;
+            PRINTUNIFIEDERROR("headers size is %u\n",headersEndIdx);
+            break;
         }
     }
 
     // body
     body_tag:
 
-    hdrs = headers.str();
     std::cout<<hdrs;
 
     PRINTUNIFIED("Retrieving HTTP response code...");
@@ -280,7 +239,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
         return -1;
     }
 
-    auto&& tmpbody_str = tmpbody.str();
+    auto& tmpbody_str = tmpbody;
     if(downloadToFile) body.writeAllOrExit(tmpbody_str.c_str(), tmpbody_str.size());
     // in case of in-memory download, tmpbody_str will be written later
 
