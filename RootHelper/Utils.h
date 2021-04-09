@@ -308,6 +308,7 @@ std::wstring sanitizeSlashesInWindowsPath(const std::wstring& path) {
     return ss.str();
 }
 
+// exist_ok=false fails only if the leaf directory in the path already exists
 int mkpath(const std::wstring& s_, mode_t _unused_, bool exist_ok=true) {
     if (s_ == L".") return 0; // current dir and root always exist
     if (s_.size() < 2) return -1; // at least "C:"
@@ -331,11 +332,13 @@ int mkpath(const std::wstring& s_, mode_t _unused_, bool exist_ok=true) {
     }
     if (cstr[1] != L':') return -1; // not allowed for Windows paths
 
-    for (int i=3;i<s.size();i++) {
+    const auto S = s.size();
+    for (int i=3;i<S;i++) {
         if (cstr[i] == L'\\') {
             std::wstring partialPath = s.substr(0,i);
             std::wcout<<"Creating: "<<partialPath<<" ...";
-            if (_wmkdir(partialPath.c_str()) < 0 && (!exist_ok || errno != EEXIST)) {
+            // if I'm trying to create an intermediate path and I receive EEXIST, I ignore exist_ok
+            if (_wmkdir(partialPath.c_str()) < 0 && ((!exist_ok && i==S-1) || errno != EEXIST)) {
                 PRINTUNIFIEDERROR("Error of _wmkdir: %d\n",GetLastError());
                 return -1;
             }
@@ -377,11 +380,12 @@ int mkpath(const std::string& s_, mode_t mode = 0755, bool exist_ok=true) {
 
     if (cstr[0] != '/') return -1; // not allowed for UNIX paths
 
-    for (int i=1;i<s.size();i++) {
+    const auto S = s.size();
+    for (int i=1;i<S;i++) {
         if (cstr[i] == '/') {
             std::string partialPath = s.substr(0,i);
 //            std::cout<<"Creating: "<<partialPath<<" ...";
-            if (mkdir(partialPath.c_str(),mode) < 0 && (!exist_ok || errno != EEXIST)) return -1;
+            if (mkdir(partialPath.c_str(),mode) < 0 && ((!exist_ok && i==S-1) || errno != EEXIST)) return -1;
 //            std::cout<<"OK"<<std::endl;
         }
     }
