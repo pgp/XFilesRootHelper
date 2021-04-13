@@ -444,6 +444,12 @@ inline void registerExitRoutines() {
 #endif
 }
 
+bool xreAvailable() {
+    bool b = existsIsFileIsDir_(FROMUTF(RH_TLS_CERT_STRING)) == 1 && existsIsFileIsDir_(FROMUTF(RH_TLS_KEY_STRING)) == 1;
+    if(!b) PRINTUNIFIEDERROR("Dummy cert/key files not found\n");
+    return b;
+}
+
 /**
  * default config for paths in standalone XRE:
  * - default is OS-default (after initDefaultHomePaths())
@@ -455,6 +461,7 @@ inline void registerExitRoutines() {
 */
 template<typename C, typename STR>
 int xreMain(int argc, C* argv[], const STR& placeholder) {
+    if(!xreAvailable()) return 1;
     bool enableAnnounce = true;
     auto&& paths = getXREPaths(argc,argv,enableAnnounce,placeholder);
     if(!paths[0].empty()) // replace home path only if not empty, otherwise leave OS default

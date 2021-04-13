@@ -1039,6 +1039,12 @@ void forkServerAcceptor(int cl, uint8_t rq_flags) {
 
     // if server already active, bind will give error
 
+    if(!xreAvailable()) {
+        errno = 772;
+        sendErrorResponse(pd_cl);
+        return;
+    }
+
     // create server socket before fork
     int tmp_rhss = getServerSocket(cl);
     if(tmp_rhss < 0) return;
@@ -1413,7 +1419,7 @@ void rhMain(int uid=rh_default_uid, std::string name=rh_uds_default_name) {
 
 	// TODO Remember that also JNI wrapper needs to call this!
     if (!lib.Load(NDLL::GetModuleDirPrefix() + FTEXT(kDllName)))
-        PRINTUNIFIEDERROR("Can not load p7zip library, list archive, compress and extract operations won't be available\n");
+        PRINTUNIFIEDERROR("Cannot load p7zip library. List archive, compress and extract operations won't be available\n");
     else lib7zLoaded = true;
 
     // Main code of PGP's rootHelper
