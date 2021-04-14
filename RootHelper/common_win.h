@@ -59,7 +59,7 @@ HWND GetConsoleHwnd() {
 void SafeCoCreateInstance(ITaskbarList3* &pTaskbarList, void (*progressThreadFn)(HWND), HWND hWnd) {
     HRESULT hr = CoCreateInstance(CLSID_TaskbarList, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pTaskbarList));
     if (SUCCEEDED(hr)) {
-        std::cout<<"CoCreateInstance succeeded"<<std::endl;
+        // std::cout<<"CoCreateInstance succeeded"<<std::endl;
         hr = pTaskbarList->HrInit();
         if (FAILED(hr)) {
             std::cout<<"HrInit failed"<<std::endl;
@@ -67,9 +67,9 @@ void SafeCoCreateInstance(ITaskbarList3* &pTaskbarList, void (*progressThreadFn)
             pTaskbarList = nullptr;
         }
         else {
-            std::cout<<"HrInit succeeded"<<std::endl;
+            // std::cout<<"HrInit succeeded"<<std::endl;
             if(progressThreadFn == nullptr)
-                std::cout<<"Null function pointer for progress thread function"<<std::endl;
+                /*std::cout<<"Null function pointer for progress thread function"<<std::endl*/;
             else {
                 std::thread progressThread(progressThreadFn,hWnd);
                 progressThread.detach();

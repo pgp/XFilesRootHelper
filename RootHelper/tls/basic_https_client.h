@@ -9,6 +9,7 @@
 #include "../desc/NetworkDescriptorFactory.h"
 #include "../desc/FileDescriptorFactory.h"
 #include "botan_rh_rclient.h"
+#include "../progressHook.h"
 
 // Web source: https://stackoverflow.com/questions/3152241/case-insensitive-stdstring-find
 size_t findStringIC(const std::string& strHaystack, const std::string& strNeedle) {
@@ -263,6 +264,8 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
         PRINTUNIFIEDERROR("PARSED CONTENT LENGTH IS: %" PRIu64 "\n",parsedContentLength);
     }
 
+    auto&& progressHook = getProgressHook(parsedContentLength);
+
     tmp_ = TOUTF(httpFilename);
     writeStringWithLen(local_fd,tmp_); // send guessed filename (or send back received one) in order for the GUI to locate it once completed
     local_fd.writeAllOrExit(&parsedContentLength,sizeof(uint64_t)); // send total size
@@ -285,7 +288,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
 
         if(currentProgress-last_progress>1000000) {
             last_progress = currentProgress;
-            SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %%",currentProgress,((100.0*currentProgress)/parsedContentLength));
+            progressHook.publish(currentProgress);
             if(downloadToFile)
                 local_fd.writeAllOrExit(&currentProgress,sizeof(uint64_t)); // send progress only when writing to file
         }

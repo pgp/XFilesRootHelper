@@ -25,12 +25,12 @@ public:
 
     void publish(uint64_t current) override {
         currentSize = current;
-        SAMELINEPRINT("Progress: %" PRIu64 "", currentSize);
+        SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %%", currentSize, ((100.0*currentSize)/totalSize));
     }
 
     void publishDelta(uint64_t delta) override {
         currentSize += delta;
-        SAMELINEPRINT("Progress: %" PRIu64 "", currentSize);
+        SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %%", currentSize, ((100.0*currentSize)/totalSize));
     }
 };
 
@@ -54,13 +54,13 @@ public:
     void publish(uint64_t current) override {
         currentSize = current;
         /*HRESULT hr = */pTaskbarList->SetProgressValue(hWnd, currentSize, totalSize);
-        SAMELINEPRINT("Progress: %" PRIu64 "",currentSize);
+        SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %%", currentSize, ((100.0*currentSize)/totalSize));
     }
 
     void publishDelta(uint64_t delta) override {
         currentSize += delta;
         /*HRESULT hr = */pTaskbarList->SetProgressValue(hWnd, currentSize, totalSize);
-        SAMELINEPRINT("Progress: %" PRIu64 "",currentSize);
+        SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %%", currentSize, ((100.0*currentSize)/totalSize));
     }
 };
 

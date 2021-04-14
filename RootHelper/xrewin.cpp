@@ -9,6 +9,15 @@
 
 int wmain(int argc, const wchar_t* argv[]) {
     initLogging();
+    CoInitialize(nullptr);
+    console_hwnd = GetConsoleHwnd();
+    if(!console_hwnd) {
+        std::cout<<"Cannot get console HWND"<<std::endl;
+        _Exit(-1);
+    }
+    SafeCoCreateInstance(console_pTaskbarList,nullptr,console_hwnd);
+    registerExitRoutines();
+    print_roothelper_version();
 
     if(argc >= 2 && mode_is_help(TOUTF(argv[1]))) {
         auto&& x = TOUTF(argv[0]);
@@ -27,18 +36,6 @@ int wmain(int argc, const wchar_t* argv[]) {
         }
     }
 
-    CoInitialize(nullptr);
-
-    console_hwnd = GetConsoleHwnd();
-    if(!console_hwnd) {
-        std::cout<<"Cannot get console HWND"<<std::endl;
-        exit(-1);
-    }
-    SafeCoCreateInstance(console_pTaskbarList,nullptr,console_hwnd);
-
     initDefaultHomePaths();
-    registerExitRoutines();
-    print_roothelper_version();
-
     return xreMain(argc,argv,getSystemPathSeparator());
 }
