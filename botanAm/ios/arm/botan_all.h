@@ -1,5 +1,5 @@
 /*
-* Botan 2.15.0 Amalgamation
+* Botan 2.18.0 Amalgamation
 * (C) 1999-2020 The Botan Authors
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -10,7 +10,6 @@
 
 #include <algorithm>
 #include <array>
-#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -21,12 +20,9 @@
 #include <initializer_list>
 #include <iosfwd>
 #include <istream>
-#include <iterator>
-#include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
-#include <ostream>
 #include <set>
 #include <stddef.h>
 #include <string>
@@ -36,7 +32,9 @@
 #include <vector>
 
 /*
-* This file was automatically generated running
+* Build configuration for Botan 2.18.0
+*
+* Automatically generated from
 * 'configure.py --amalgamation --disable-modules=pkcs11,tls_10 --disable-cc-tests --without-os-feature=thread_local --cpu=arm --os=ios --cc=clang'
 *
 * Target
@@ -46,13 +44,14 @@
 */
 
 #define BOTAN_VERSION_MAJOR 2
-#define BOTAN_VERSION_MINOR 15
+#define BOTAN_VERSION_MINOR 18
 #define BOTAN_VERSION_PATCH 0
-#define BOTAN_VERSION_DATESTAMP 20200707
+#define BOTAN_VERSION_DATESTAMP 20210415
+
 
 #define BOTAN_VERSION_RELEASE_TYPE "release"
 
-#define BOTAN_VERSION_VC_REVISION "git:3ed6eaa3c1236aed844f5475e2df8b89b3286ac4"
+#define BOTAN_VERSION_VC_REVISION "git:21c71f73883820f51d7adce25f6c1f54a243c3a4"
 
 #define BOTAN_DISTRIBUTION_INFO "unspecified"
 
@@ -181,9 +180,10 @@
 #define BOTAN_HAS_EMSA_RAW 20131128
 #define BOTAN_HAS_EMSA_X931 20140118
 #define BOTAN_HAS_ENTROPY_SOURCE 20151120
-#define BOTAN_HAS_FFI 20191214
+#define BOTAN_HAS_FFI 20210220
 #define BOTAN_HAS_FILTERS 20160415
 #define BOTAN_HAS_FPE_FE1 20131128
+#define BOTAN_HAS_GHASH 20201002
 #define BOTAN_HAS_GMAC 20160207
 #define BOTAN_HAS_GOST_28147_89 20131128
 #define BOTAN_HAS_GOST_34_10_2001 20131128
@@ -297,7 +297,7 @@
 #define BOTAN_HAS_X509 20180911
 #define BOTAN_HAS_X509_CERTIFICATES 20151023
 #define BOTAN_HAS_X942_PRF 20131128
-#define BOTAN_HAS_XMSS_RFC8391 20190623
+#define BOTAN_HAS_XMSS_RFC8391 20201101
 #define BOTAN_HAS_XTEA 20131128
 
 
@@ -533,7 +533,7 @@
 * Define BOTAN_MALLOC_FN
 */
 #if defined(__ibmxl__)
-  // XLC pretends to be both Clang and GCC, but is neither
+  /* XLC pretends to be both Clang and GCC, but is neither */
   #define BOTAN_MALLOC_FN __attribute__ ((malloc))
 #elif defined(__GNUC__)
   #define BOTAN_MALLOC_FN __attribute__ ((malloc, alloc_size(1,2)))
@@ -546,32 +546,23 @@
 /*
 * Define BOTAN_DEPRECATED
 */
-#if !defined(BOTAN_NO_DEPRECATED_WARNINGS)
+#if !defined(BOTAN_NO_DEPRECATED_WARNINGS) && !defined(BOTAN_IS_BEING_BUILT) && !defined(BOTAN_AMALGAMATION_H_)
 
   #if defined(__clang__)
     #define BOTAN_DEPRECATED(msg) __attribute__ ((deprecated(msg)))
     #define BOTAN_DEPRECATED_HEADER(hdr) _Pragma("message \"this header is deprecated\"")
-
-    #if !defined(BOTAN_IS_BEING_BUILT) && !defined(BOTAN_AMALGAMATION_H_)
-      #define BOTAN_FUTURE_INTERNAL_HEADER(hdr) _Pragma("message \"this header will be made internal in the future\"")
-    #endif
+    #define BOTAN_FUTURE_INTERNAL_HEADER(hdr) _Pragma("message \"this header will be made internal in the future\"")
 
   #elif defined(_MSC_VER)
     #define BOTAN_DEPRECATED(msg) __declspec(deprecated(msg))
     #define BOTAN_DEPRECATED_HEADER(hdr) __pragma(message("this header is deprecated"))
-
-    #if !defined(BOTAN_IS_BEING_BUILT) && !defined(BOTAN_AMALGAMATION_H_)
-      #define BOTAN_FUTURE_INTERNAL_HEADER(hdr) __pragma(message("this header will be made internal in the future"))
-    #endif
+    #define BOTAN_FUTURE_INTERNAL_HEADER(hdr) __pragma(message("this header will be made internal in the future"))
 
   #elif defined(__GNUC__)
     /* msg supported since GCC 4.5, earliest we support is 4.8 */
     #define BOTAN_DEPRECATED(msg) __attribute__ ((deprecated(msg)))
     #define BOTAN_DEPRECATED_HEADER(hdr) _Pragma("GCC warning \"this header is deprecated\"")
-
-    #if !defined(BOTAN_IS_BEING_BUILT) && !defined(BOTAN_AMALGAMATION_H_)
-      #define BOTAN_FUTURE_INTERNAL_HEADER(hdr) _Pragma("GCC warning \"this header will be made internal in the future\"")
-    #endif
+    #define BOTAN_FUTURE_INTERNAL_HEADER(hdr) _Pragma("GCC warning \"this header will be made internal in the future\"")
   #endif
 
 #endif
@@ -1120,6 +1111,35 @@ template<typename T> inline bool same_mem(const T* p1, const T* p2, size_t n)
    return difference == 0;
    }
 
+template<typename T, typename Alloc>
+size_t buffer_insert(std::vector<T, Alloc>& buf,
+                     size_t buf_offset,
+                     const T input[],
+                     size_t input_length)
+   {
+   BOTAN_ASSERT_NOMSG(buf_offset <= buf.size());
+   const size_t to_copy = std::min(input_length, buf.size() - buf_offset);
+   if(to_copy > 0)
+      {
+      copy_mem(&buf[buf_offset], input, to_copy);
+      }
+   return to_copy;
+   }
+
+template<typename T, typename Alloc, typename Alloc2>
+size_t buffer_insert(std::vector<T, Alloc>& buf,
+                     size_t buf_offset,
+                     const std::vector<T, Alloc2>& input)
+   {
+   BOTAN_ASSERT_NOMSG(buf_offset <= buf.size());
+   const size_t to_copy = std::min(input.size(), buf.size() - buf_offset);
+   if(to_copy > 0)
+      {
+      copy_mem(&buf[buf_offset], input.data(), to_copy);
+      }
+   return to_copy;
+   }
+
 /**
 * XOR arrays. Postcondition out[i] = in[i] ^ out[i] forall i = 0...length
 * @param out the input/output buffer
@@ -1285,38 +1305,7 @@ template<typename T> using SecureVector = secure_vector<T>;
 template<typename T>
 std::vector<T> unlock(const secure_vector<T>& in)
    {
-   std::vector<T> out(in.size());
-   copy_mem(out.data(), in.data(), in.size());
-   return out;
-   }
-
-template<typename T, typename Alloc>
-size_t buffer_insert(std::vector<T, Alloc>& buf,
-                     size_t buf_offset,
-                     const T input[],
-                     size_t input_length)
-   {
-   BOTAN_ASSERT_NOMSG(buf_offset <= buf.size());
-   const size_t to_copy = std::min(input_length, buf.size() - buf_offset);
-   if(to_copy > 0)
-      {
-      copy_mem(&buf[buf_offset], input, to_copy);
-      }
-   return to_copy;
-   }
-
-template<typename T, typename Alloc, typename Alloc2>
-size_t buffer_insert(std::vector<T, Alloc>& buf,
-                     size_t buf_offset,
-                     const std::vector<T, Alloc2>& input)
-   {
-   BOTAN_ASSERT_NOMSG(buf_offset <= buf.size());
-   const size_t to_copy = std::min(input.size(), buf.size() - buf_offset);
-   if(to_copy > 0)
-      {
-      copy_mem(&buf[buf_offset], input.data(), to_copy);
-      }
-   return to_copy;
+   return std::vector<T>(in.begin(), in.end());
    }
 
 template<typename T, typename Alloc, typename Alloc2>
@@ -1324,12 +1313,8 @@ std::vector<T, Alloc>&
 operator+=(std::vector<T, Alloc>& out,
            const std::vector<T, Alloc2>& in)
    {
-   const size_t copy_offset = out.size();
-   out.resize(out.size() + in.size());
-   if(in.size() > 0)
-      {
-      copy_mem(&out[copy_offset], in.data(), in.size());
-      }
+   out.reserve(out.size() + in.size());
+   out.insert(out.end(), in.begin(), in.end());
    return out;
    }
 
@@ -1344,12 +1329,8 @@ template<typename T, typename Alloc, typename L>
 std::vector<T, Alloc>& operator+=(std::vector<T, Alloc>& out,
                                   const std::pair<const T*, L>& in)
    {
-   const size_t copy_offset = out.size();
-   out.resize(out.size() + in.second);
-   if(in.second > 0)
-      {
-      copy_mem(&out[copy_offset], in.first, in.second);
-      }
+   out.reserve(out.size() + in.second);
+   out.insert(out.end(), in.first, in.first + in.second);
    return out;
    }
 
@@ -1357,12 +1338,8 @@ template<typename T, typename Alloc, typename L>
 std::vector<T, Alloc>& operator+=(std::vector<T, Alloc>& out,
                                   const std::pair<T*, L>& in)
    {
-   const size_t copy_offset = out.size();
-   out.resize(out.size() + in.second);
-   if(in.second > 0)
-      {
-      copy_mem(&out[copy_offset], in.first, in.second);
-      }
+   out.reserve(out.size() + in.second);
+   out.insert(out.end(), in.first, in.first + in.second);
    return out;
    }
 
@@ -1660,93 +1637,6 @@ class BOTAN_PUBLIC_API(2,0) Adler32 final : public HashFunction
 namespace Botan {
 
 /**
-* Represents the length requirements on an algorithm key
-*/
-class BOTAN_PUBLIC_API(2,0) Key_Length_Specification final
-   {
-   public:
-      /**
-      * Constructor for fixed length keys
-      * @param keylen the supported key length
-      */
-      explicit Key_Length_Specification(size_t keylen) :
-         m_min_keylen(keylen),
-         m_max_keylen(keylen),
-         m_keylen_mod(1)
-         {
-         }
-
-      /**
-      * Constructor for variable length keys
-      * @param min_k the smallest supported key length
-      * @param max_k the largest supported key length
-      * @param k_mod the number of bytes the key must be a multiple of
-      */
-      Key_Length_Specification(size_t min_k,
-                               size_t max_k,
-                               size_t k_mod = 1) :
-         m_min_keylen(min_k),
-         m_max_keylen(max_k ? max_k : min_k),
-         m_keylen_mod(k_mod)
-         {
-         }
-
-      /**
-      * @param length is a key length in bytes
-      * @return true iff this length is a valid length for this algo
-      */
-      bool valid_keylength(size_t length) const
-         {
-         return ((length >= m_min_keylen) &&
-                 (length <= m_max_keylen) &&
-                 (length % m_keylen_mod == 0));
-         }
-
-      /**
-      * @return minimum key length in bytes
-      */
-      size_t minimum_keylength() const
-         {
-         return m_min_keylen;
-         }
-
-      /**
-      * @return maximum key length in bytes
-      */
-      size_t maximum_keylength() const
-         {
-         return m_max_keylen;
-         }
-
-      /**
-      * @return key length multiple in bytes
-      */
-      size_t keylength_multiple() const
-         {
-         return m_keylen_mod;
-         }
-
-      /*
-      * Multiplies all length requirements with the given factor
-      * @param n the multiplication factor
-      * @return a key length specification multiplied by the factor
-      */
-      Key_Length_Specification multiple(size_t n) const
-         {
-         return Key_Length_Specification(n * m_min_keylen,
-                                         n * m_max_keylen,
-                                         n * m_keylen_mod);
-         }
-
-   private:
-      size_t m_min_keylen, m_max_keylen, m_keylen_mod;
-   };
-
-}
-
-namespace Botan {
-
-/**
 * Octet String
 */
 class BOTAN_PUBLIC_API(2,0) OctetString final
@@ -1883,6 +1773,89 @@ using InitializationVector = OctetString;
 namespace Botan {
 
 /**
+* Represents the length requirements on an algorithm key
+*/
+class BOTAN_PUBLIC_API(2,0) Key_Length_Specification final
+   {
+   public:
+      /**
+      * Constructor for fixed length keys
+      * @param keylen the supported key length
+      */
+      explicit Key_Length_Specification(size_t keylen) :
+         m_min_keylen(keylen),
+         m_max_keylen(keylen),
+         m_keylen_mod(1)
+         {
+         }
+
+      /**
+      * Constructor for variable length keys
+      * @param min_k the smallest supported key length
+      * @param max_k the largest supported key length
+      * @param k_mod the number of bytes the key must be a multiple of
+      */
+      Key_Length_Specification(size_t min_k,
+                               size_t max_k,
+                               size_t k_mod = 1) :
+         m_min_keylen(min_k),
+         m_max_keylen(max_k ? max_k : min_k),
+         m_keylen_mod(k_mod)
+         {
+         }
+
+      /**
+      * @param length is a key length in bytes
+      * @return true iff this length is a valid length for this algo
+      */
+      bool valid_keylength(size_t length) const
+         {
+         return ((length >= m_min_keylen) &&
+                 (length <= m_max_keylen) &&
+                 (length % m_keylen_mod == 0));
+         }
+
+      /**
+      * @return minimum key length in bytes
+      */
+      size_t minimum_keylength() const
+         {
+         return m_min_keylen;
+         }
+
+      /**
+      * @return maximum key length in bytes
+      */
+      size_t maximum_keylength() const
+         {
+         return m_max_keylen;
+         }
+
+      /**
+      * @return key length multiple in bytes
+      */
+      size_t keylength_multiple() const
+         {
+         return m_keylen_mod;
+         }
+
+      /*
+      * Multiplies all length requirements with the given factor
+      * @param n the multiplication factor
+      * @return a key length specification multiplied by the factor
+      */
+      Key_Length_Specification multiple(size_t n) const
+         {
+         return Key_Length_Specification(n * m_min_keylen,
+                                         n * m_max_keylen,
+                                         n * m_keylen_mod);
+         }
+
+   private:
+      size_t m_min_keylen, m_max_keylen, m_keylen_mod;
+   };
+
+/**
 * This class represents a symmetric algorithm object.
 */
 class BOTAN_PUBLIC_API(2,0) SymmetricAlgorithm
@@ -1901,7 +1874,7 @@ class BOTAN_PUBLIC_API(2,0) SymmetricAlgorithm
       virtual Key_Length_Specification key_spec() const = 0;
 
       /**
-      * @return minimum allowed key length
+      * @return maximum allowed key length
       */
       size_t maximum_keylength() const
          {
@@ -1909,7 +1882,7 @@ class BOTAN_PUBLIC_API(2,0) SymmetricAlgorithm
          }
 
       /**
-      * @return maximum allowed key length
+      * @return minimum allowed key length
       */
       size_t minimum_keylength() const
          {
@@ -2631,6 +2604,32 @@ class BOTAN_PUBLIC_API(2,0) AEAD_Mode : public Cipher_Mode
       virtual void set_associated_data(const uint8_t ad[], size_t ad_len) = 0;
 
       /**
+      * Set associated data that is not included in the ciphertext but
+      * that should be authenticated. Must be called after set_key and
+      * before start.
+      *
+      * Unless reset by another call, the associated data is kept
+      * between messages. Thus, if the AD does not change, calling
+      * once (after set_key) is the optimum.
+      *
+      * Some AEADs (namely SIV) support multiple AD inputs. For
+      * all other modes only nominal AD input 0 is supported; all
+      * other values of i will cause an exception.
+      *
+      * @param ad the associated data
+      * @param ad_len length of add in bytes
+      */
+      virtual void set_associated_data_n(size_t i, const uint8_t ad[], size_t ad_len);
+
+      /**
+      * Returns the maximum supported number of associated data inputs which
+      * can be provided to set_associated_data_n
+      *
+      * If returns 0, then no associated data is supported.
+      */
+      virtual size_t maximum_associated_data_inputs() const { return 1; }
+
+      /**
       * Most AEADs require the key to be set prior to setting the AD
       * A few allow the AD to be set even before the cipher is keyed.
       * Such ciphers would return false from this function.
@@ -3046,371 +3045,6 @@ class BOTAN_PUBLIC_API(2,0) AES_256 final : public Block_Cipher_Fixed_Params<16,
 
 namespace Botan {
 
-class BER_Decoder;
-class DER_Encoder;
-
-/**
-* ASN.1 Type and Class Tags
-* This will become an enum class in a future major release
-*/
-enum ASN1_Tag : uint32_t {
-   UNIVERSAL        = 0x00,
-   APPLICATION      = 0x40,
-   CONTEXT_SPECIFIC = 0x80,
-
-   CONSTRUCTED      = 0x20,
-
-   PRIVATE          = CONSTRUCTED | CONTEXT_SPECIFIC,
-
-   EOC              = 0x00,
-   BOOLEAN          = 0x01,
-   INTEGER          = 0x02,
-   BIT_STRING       = 0x03,
-   OCTET_STRING     = 0x04,
-   NULL_TAG         = 0x05,
-   OBJECT_ID        = 0x06,
-   ENUMERATED       = 0x0A,
-   SEQUENCE         = 0x10,
-   SET              = 0x11,
-
-   UTF8_STRING      = 0x0C,
-   NUMERIC_STRING   = 0x12,
-   PRINTABLE_STRING = 0x13,
-   T61_STRING       = 0x14,
-   IA5_STRING       = 0x16,
-   VISIBLE_STRING   = 0x1A,
-   UNIVERSAL_STRING = 0x1C,
-   BMP_STRING       = 0x1E,
-
-   UTC_TIME                = 0x17,
-   GENERALIZED_TIME        = 0x18,
-   UTC_OR_GENERALIZED_TIME = 0x19,
-
-   NO_OBJECT        = 0xFF00,
-   DIRECTORY_STRING = 0xFF01
-};
-
-std::string BOTAN_UNSTABLE_API asn1_tag_to_string(ASN1_Tag type);
-std::string BOTAN_UNSTABLE_API asn1_class_to_string(ASN1_Tag type);
-
-/**
-* Basic ASN.1 Object Interface
-*/
-class BOTAN_PUBLIC_API(2,0) ASN1_Object
-   {
-   public:
-      /**
-      * Encode whatever this object is into to
-      * @param to the DER_Encoder that will be written to
-      */
-      virtual void encode_into(DER_Encoder& to) const = 0;
-
-      /**
-      * Decode whatever this object is from from
-      * @param from the BER_Decoder that will be read from
-      */
-      virtual void decode_from(BER_Decoder& from) = 0;
-
-      /**
-      * Return the encoding of this object. This is a convenience
-      * method when just one object needs to be serialized. Use
-      * DER_Encoder for complicated encodings.
-      */
-      std::vector<uint8_t> BER_encode() const;
-
-      ASN1_Object() = default;
-      ASN1_Object(const ASN1_Object&) = default;
-      ASN1_Object & operator=(const ASN1_Object&) = default;
-      virtual ~ASN1_Object() = default;
-   };
-
-/**
-* BER Encoded Object
-*/
-class BOTAN_PUBLIC_API(2,0) BER_Object final
-   {
-   public:
-      BER_Object() : type_tag(NO_OBJECT), class_tag(UNIVERSAL) {}
-
-      BER_Object(const BER_Object& other) = default;
-
-      BER_Object& operator=(const BER_Object& other) = default;
-
-      BER_Object(BER_Object&& other) = default;
-
-      BER_Object& operator=(BER_Object&& other) = default;
-
-      bool is_set() const { return type_tag != NO_OBJECT; }
-
-      ASN1_Tag tagging() const { return ASN1_Tag(type() | get_class()); }
-
-      ASN1_Tag type() const { return type_tag; }
-      ASN1_Tag get_class() const { return class_tag; }
-
-      const uint8_t* bits() const { return value.data(); }
-
-      size_t length() const { return value.size(); }
-
-      void assert_is_a(ASN1_Tag type_tag, ASN1_Tag class_tag,
-                       const std::string& descr = "object") const;
-
-      bool is_a(ASN1_Tag type_tag, ASN1_Tag class_tag) const;
-
-      bool is_a(int type_tag, ASN1_Tag class_tag) const;
-
-   BOTAN_DEPRECATED_PUBLIC_MEMBER_VARIABLES:
-      /*
-      * The following member variables are public for historical reasons, but
-      * will be made private in a future major release. Use the accessor
-      * functions above.
-      */
-      ASN1_Tag type_tag, class_tag;
-      secure_vector<uint8_t> value;
-
-   private:
-
-      friend class BER_Decoder;
-
-      void set_tagging(ASN1_Tag type_tag, ASN1_Tag class_tag);
-
-      uint8_t* mutable_bits(size_t length)
-         {
-         value.resize(length);
-         return value.data();
-         }
-   };
-
-/*
-* ASN.1 Utility Functions
-*/
-class DataSource;
-
-namespace ASN1 {
-
-std::vector<uint8_t> put_in_sequence(const std::vector<uint8_t>& val);
-std::vector<uint8_t> put_in_sequence(const uint8_t bits[], size_t len);
-std::string to_string(const BER_Object& obj);
-
-/**
-* Heuristics tests; is this object possibly BER?
-* @param src a data source that will be peeked at but not modified
-*/
-bool maybe_BER(DataSource& src);
-
-}
-
-/**
-* General BER Decoding Error Exception
-*/
-class BOTAN_PUBLIC_API(2,0) BER_Decoding_Error : public Decoding_Error
-   {
-   public:
-      explicit BER_Decoding_Error(const std::string&);
-   };
-
-/**
-* Exception For Incorrect BER Taggings
-*/
-class BOTAN_PUBLIC_API(2,0) BER_Bad_Tag final : public BER_Decoding_Error
-   {
-   public:
-      BER_Bad_Tag(const std::string& msg, ASN1_Tag tag);
-      BER_Bad_Tag(const std::string& msg, ASN1_Tag tag1, ASN1_Tag tag2);
-   };
-
-}
-
-namespace Botan {
-
-/**
-* This class represents ASN.1 object identifiers.
-*/
-class BOTAN_PUBLIC_API(2,0) OID final : public ASN1_Object
-   {
-   public:
-
-      /**
-      * Create an uninitialied OID object
-      */
-      explicit OID() {}
-
-      /**
-      * Construct an OID from a string.
-      * @param str a string in the form "a.b.c" etc., where a,b,c are numbers
-      */
-      explicit OID(const std::string& str);
-
-      /**
-      * Initialize an OID from a sequence of integer values
-      */
-      explicit OID(std::initializer_list<uint32_t> init) : m_id(init) {}
-
-      /**
-      * Initialize an OID from a vector of integer values
-      */
-      explicit OID(std::vector<uint32_t>&& init) : m_id(init) {}
-
-      /**
-      * Construct an OID from a string.
-      * @param str a string in the form "a.b.c" etc., where a,b,c are numbers
-      *        or any known OID name (for example "RSA" or "X509v3.SubjectKeyIdentifier")
-      */
-      static OID from_string(const std::string& str);
-
-      void encode_into(class DER_Encoder&) const override;
-      void decode_from(class BER_Decoder&) override;
-
-      /**
-      * Find out whether this OID is empty
-      * @return true is no OID value is set
-      */
-      bool empty() const { return m_id.empty(); }
-
-      /**
-      * Find out whether this OID has a value
-      * @return true is this OID has a value
-      */
-      bool has_value() const { return (m_id.empty() == false); }
-
-      /**
-      * Get this OID as list (vector) of its components.
-      * @return vector representing this OID
-      */
-      const std::vector<uint32_t>& get_components() const { return m_id; }
-
-      const std::vector<uint32_t>& get_id() const { return get_components(); }
-
-      /**
-      * Get this OID as a string
-      * @return string representing this OID
-      */
-      std::string BOTAN_DEPRECATED("Use OID::to_string") as_string() const
-         {
-         return this->to_string();
-         }
-
-      /**
-      * Get this OID as a dotted-decimal string
-      * @return string representing this OID
-      */
-      std::string to_string() const;
-
-      /**
-      * If there is a known name associated with this OID, return that.
-      * Otherwise return the result of to_string
-      */
-      std::string to_formatted_string() const;
-
-      /**
-      * Compare two OIDs.
-      * @return true if they are equal, false otherwise
-      */
-      bool operator==(const OID& other) const
-         {
-         return m_id == other.m_id;
-         }
-
-      /**
-      * Reset this instance to an empty OID.
-      */
-      void BOTAN_DEPRECATED("Avoid mutation of OIDs") clear() { m_id.clear(); }
-
-      /**
-      * Add a component to this OID.
-      * @param new_comp the new component to add to the end of this OID
-      * @return reference to *this
-      */
-      BOTAN_DEPRECATED("Avoid mutation of OIDs") OID& operator+=(uint32_t new_comp)
-         {
-         m_id.push_back(new_comp);
-         return (*this);
-         }
-
-   private:
-      std::vector<uint32_t> m_id;
-   };
-
-/**
-* Append another component onto the OID.
-* @param oid the OID to add the new component to
-* @param new_comp the new component to add
-*/
-OID BOTAN_PUBLIC_API(2,0) operator+(const OID& oid, uint32_t new_comp);
-
-/**
-* Compare two OIDs.
-* @param a the first OID
-* @param b the second OID
-* @return true if a is not equal to b
-*/
-inline bool operator!=(const OID& a, const OID& b)
-   {
-   return !(a == b);
-   }
-
-/**
-* Compare two OIDs.
-* @param a the first OID
-* @param b the second OID
-* @return true if a is lexicographically smaller than b
-*/
-bool BOTAN_PUBLIC_API(2,0) operator<(const OID& a, const OID& b);
-
-}
-
-namespace Botan {
-
-/**
-* Algorithm Identifier
-*/
-class BOTAN_PUBLIC_API(2,0) AlgorithmIdentifier final : public ASN1_Object
-   {
-   public:
-      enum Encoding_Option { USE_NULL_PARAM, USE_EMPTY_PARAM };
-
-      void encode_into(class DER_Encoder&) const override;
-      void decode_from(class BER_Decoder&) override;
-
-      AlgorithmIdentifier() = default;
-
-      AlgorithmIdentifier(const OID& oid, Encoding_Option enc);
-      AlgorithmIdentifier(const std::string& oid_name, Encoding_Option enc);
-
-      AlgorithmIdentifier(const OID& oid, const std::vector<uint8_t>& params);
-      AlgorithmIdentifier(const std::string& oid_name, const std::vector<uint8_t>& params);
-
-      const OID& get_oid() const { return oid; }
-      const std::vector<uint8_t>& get_parameters() const { return parameters; }
-
-      bool parameters_are_null() const;
-      bool parameters_are_empty() const { return parameters.empty(); }
-
-      bool parameters_are_null_or_empty() const
-         {
-         return parameters_are_empty() || parameters_are_null();
-         }
-
-   BOTAN_DEPRECATED_PUBLIC_MEMBER_VARIABLES:
-      /*
-      * These values are public for historical reasons, but in a future release
-      * they will be made private. Do not access them.
-      */
-      OID oid;
-      std::vector<uint8_t> parameters;
-   };
-
-/*
-* Comparison Operations
-*/
-bool BOTAN_PUBLIC_API(2,0) operator==(const AlgorithmIdentifier&,
-                                      const AlgorithmIdentifier&);
-bool BOTAN_PUBLIC_API(2,0) operator!=(const AlgorithmIdentifier&,
-                                      const AlgorithmIdentifier&);
-
-}
-
-namespace Botan {
-
 /**
 * Base class for password based key derivation functions.
 *
@@ -3726,6 +3360,376 @@ class BOTAN_PUBLIC_API(2,3) ARIA_256 final : public Block_Cipher_Fixed_Params<16
 
 namespace Botan {
 
+class BER_Decoder;
+class DER_Encoder;
+
+/**
+* ASN.1 Type and Class Tags
+* This will become an enum class in a future major release
+*/
+enum ASN1_Tag : uint32_t {
+   UNIVERSAL        = 0x00,
+   APPLICATION      = 0x40,
+   CONTEXT_SPECIFIC = 0x80,
+
+   CONSTRUCTED      = 0x20,
+
+   PRIVATE          = CONSTRUCTED | CONTEXT_SPECIFIC,
+
+   EOC              = 0x00,
+   BOOLEAN          = 0x01,
+   INTEGER          = 0x02,
+   BIT_STRING       = 0x03,
+   OCTET_STRING     = 0x04,
+   NULL_TAG         = 0x05,
+   OBJECT_ID        = 0x06,
+   ENUMERATED       = 0x0A,
+   SEQUENCE         = 0x10,
+   SET              = 0x11,
+
+   UTF8_STRING      = 0x0C,
+   NUMERIC_STRING   = 0x12,
+   PRINTABLE_STRING = 0x13,
+   T61_STRING       = 0x14,
+   IA5_STRING       = 0x16,
+   VISIBLE_STRING   = 0x1A,
+   UNIVERSAL_STRING = 0x1C,
+   BMP_STRING       = 0x1E,
+
+   UTC_TIME                = 0x17,
+   GENERALIZED_TIME        = 0x18,
+   UTC_OR_GENERALIZED_TIME = 0x19,
+
+   NO_OBJECT        = 0xFF00,
+   DIRECTORY_STRING = 0xFF01
+};
+
+std::string BOTAN_UNSTABLE_API asn1_tag_to_string(ASN1_Tag type);
+std::string BOTAN_UNSTABLE_API asn1_class_to_string(ASN1_Tag type);
+
+/**
+* Basic ASN.1 Object Interface
+*/
+class BOTAN_PUBLIC_API(2,0) ASN1_Object
+   {
+   public:
+      /**
+      * Encode whatever this object is into to
+      * @param to the DER_Encoder that will be written to
+      */
+      virtual void encode_into(DER_Encoder& to) const = 0;
+
+      /**
+      * Decode whatever this object is from from
+      * @param from the BER_Decoder that will be read from
+      */
+      virtual void decode_from(BER_Decoder& from) = 0;
+
+      /**
+      * Return the encoding of this object. This is a convenience
+      * method when just one object needs to be serialized. Use
+      * DER_Encoder for complicated encodings.
+      */
+      std::vector<uint8_t> BER_encode() const;
+
+      ASN1_Object() = default;
+      ASN1_Object(const ASN1_Object&) = default;
+      ASN1_Object & operator=(const ASN1_Object&) = default;
+      virtual ~ASN1_Object() = default;
+   };
+
+/**
+* BER Encoded Object
+*/
+class BOTAN_PUBLIC_API(2,0) BER_Object final
+   {
+   public:
+      BER_Object() : type_tag(NO_OBJECT), class_tag(UNIVERSAL) {}
+
+      BER_Object(const BER_Object& other) = default;
+
+      BER_Object& operator=(const BER_Object& other) = default;
+
+      BER_Object(BER_Object&& other) = default;
+
+      BER_Object& operator=(BER_Object&& other) = default;
+
+      bool is_set() const { return type_tag != NO_OBJECT; }
+
+      ASN1_Tag tagging() const { return ASN1_Tag(type() | get_class()); }
+
+      ASN1_Tag type() const { return type_tag; }
+      ASN1_Tag get_class() const { return class_tag; }
+
+      const uint8_t* bits() const { return value.data(); }
+
+      size_t length() const { return value.size(); }
+
+      void assert_is_a(ASN1_Tag type_tag, ASN1_Tag class_tag,
+                       const std::string& descr = "object") const;
+
+      bool is_a(ASN1_Tag type_tag, ASN1_Tag class_tag) const;
+
+      bool is_a(int type_tag, ASN1_Tag class_tag) const;
+
+   BOTAN_DEPRECATED_PUBLIC_MEMBER_VARIABLES:
+      /*
+      * The following member variables are public for historical reasons, but
+      * will be made private in a future major release. Use the accessor
+      * functions above.
+      */
+      ASN1_Tag type_tag, class_tag;
+      secure_vector<uint8_t> value;
+
+   private:
+
+      friend class BER_Decoder;
+
+      void set_tagging(ASN1_Tag type_tag, ASN1_Tag class_tag);
+
+      uint8_t* mutable_bits(size_t length)
+         {
+         value.resize(length);
+         return value.data();
+         }
+   };
+
+/*
+* ASN.1 Utility Functions
+*/
+class DataSource;
+
+namespace ASN1 {
+
+std::vector<uint8_t> put_in_sequence(const std::vector<uint8_t>& val);
+std::vector<uint8_t> put_in_sequence(const uint8_t bits[], size_t len);
+std::string to_string(const BER_Object& obj);
+
+/**
+* Heuristics tests; is this object possibly BER?
+* @param src a data source that will be peeked at but not modified
+*/
+bool maybe_BER(DataSource& src);
+
+}
+
+/**
+* General BER Decoding Error Exception
+*/
+class BOTAN_PUBLIC_API(2,0) BER_Decoding_Error : public Decoding_Error
+   {
+   public:
+      explicit BER_Decoding_Error(const std::string&);
+   };
+
+/**
+* Exception For Incorrect BER Taggings
+*/
+class BOTAN_PUBLIC_API(2,0) BER_Bad_Tag final : public BER_Decoding_Error
+   {
+   public:
+      BER_Bad_Tag(const std::string& msg, ASN1_Tag tag);
+      BER_Bad_Tag(const std::string& msg, ASN1_Tag tag1, ASN1_Tag tag2);
+   };
+
+/**
+* This class represents ASN.1 object identifiers.
+*/
+class BOTAN_PUBLIC_API(2,0) OID final : public ASN1_Object
+   {
+   public:
+
+      /**
+      * Create an uninitialied OID object
+      */
+      explicit OID() {}
+
+      /**
+      * Construct an OID from a string.
+      * @param str a string in the form "a.b.c" etc., where a,b,c are numbers
+      */
+      explicit OID(const std::string& str);
+
+      /**
+      * Initialize an OID from a sequence of integer values
+      */
+      explicit OID(std::initializer_list<uint32_t> init) : m_id(init) {}
+
+      /**
+      * Initialize an OID from a vector of integer values
+      */
+      explicit OID(std::vector<uint32_t>&& init) : m_id(init) {}
+
+      /**
+      * Construct an OID from a string.
+      * @param str a string in the form "a.b.c" etc., where a,b,c are numbers
+      *        or any known OID name (for example "RSA" or "X509v3.SubjectKeyIdentifier")
+      */
+      static OID from_string(const std::string& str);
+
+      void encode_into(class DER_Encoder&) const override;
+      void decode_from(class BER_Decoder&) override;
+
+      /**
+      * Find out whether this OID is empty
+      * @return true is no OID value is set
+      */
+      bool empty() const { return m_id.empty(); }
+
+      /**
+      * Find out whether this OID has a value
+      * @return true is this OID has a value
+      */
+      bool has_value() const { return (m_id.empty() == false); }
+
+      /**
+      * Get this OID as list (vector) of its components.
+      * @return vector representing this OID
+      */
+      const std::vector<uint32_t>& get_components() const { return m_id; }
+
+      const std::vector<uint32_t>& get_id() const { return get_components(); }
+
+      /**
+      * Get this OID as a string
+      * @return string representing this OID
+      */
+      std::string BOTAN_DEPRECATED("Use OID::to_string") as_string() const
+         {
+         return this->to_string();
+         }
+
+      /**
+      * Get this OID as a dotted-decimal string
+      * @return string representing this OID
+      */
+      std::string to_string() const;
+
+      /**
+      * If there is a known name associated with this OID, return that.
+      * Otherwise return the result of to_string
+      */
+      std::string to_formatted_string() const;
+
+      /**
+      * Compare two OIDs.
+      * @return true if they are equal, false otherwise
+      */
+      bool operator==(const OID& other) const
+         {
+         return m_id == other.m_id;
+         }
+
+      /**
+      * Reset this instance to an empty OID.
+      */
+      void BOTAN_DEPRECATED("Avoid mutation of OIDs") clear() { m_id.clear(); }
+
+      /**
+      * Add a component to this OID.
+      * @param new_comp the new component to add to the end of this OID
+      * @return reference to *this
+      */
+      BOTAN_DEPRECATED("Avoid mutation of OIDs") OID& operator+=(uint32_t new_comp)
+         {
+         m_id.push_back(new_comp);
+         return (*this);
+         }
+
+   private:
+      std::vector<uint32_t> m_id;
+   };
+
+/**
+* Append another component onto the OID.
+* @param oid the OID to add the new component to
+* @param new_comp the new component to add
+*/
+OID BOTAN_PUBLIC_API(2,0) operator+(const OID& oid, uint32_t new_comp);
+
+/**
+* Compare two OIDs.
+* @param a the first OID
+* @param b the second OID
+* @return true if a is not equal to b
+*/
+inline bool operator!=(const OID& a, const OID& b)
+   {
+   return !(a == b);
+   }
+
+/**
+* Compare two OIDs.
+* @param a the first OID
+* @param b the second OID
+* @return true if a is lexicographically smaller than b
+*/
+bool BOTAN_PUBLIC_API(2,0) operator<(const OID& a, const OID& b);
+
+/**
+* Time (GeneralizedTime/UniversalTime)
+*/
+class BOTAN_PUBLIC_API(2,0) ASN1_Time final : public ASN1_Object
+   {
+   public:
+      /// DER encode a ASN1_Time
+      void encode_into(DER_Encoder&) const override;
+
+      // Decode a BER encoded ASN1_Time
+      void decode_from(BER_Decoder&) override;
+
+      /// Return an internal string representation of the time
+      std::string to_string() const;
+
+      /// Returns a human friendly string replesentation of no particular formatting
+      std::string readable_string() const;
+
+      /// Return if the time has been set somehow
+      bool time_is_set() const;
+
+      ///  Compare this time against another
+      int32_t cmp(const ASN1_Time& other) const;
+
+      /// Create an invalid ASN1_Time
+      ASN1_Time() = default;
+
+      /// Create a ASN1_Time from a time point
+      explicit ASN1_Time(const std::chrono::system_clock::time_point& time);
+
+      /// Create an ASN1_Time from string
+      ASN1_Time(const std::string& t_spec, ASN1_Tag tag);
+
+      /// Returns a STL timepoint object
+      std::chrono::system_clock::time_point to_std_timepoint() const;
+
+      /// Return time since epoch
+      uint64_t time_since_epoch() const;
+
+   private:
+      void set_to(const std::string& t_spec, ASN1_Tag);
+      bool passes_sanity_check() const;
+
+      uint32_t m_year = 0;
+      uint32_t m_month = 0;
+      uint32_t m_day = 0;
+      uint32_t m_hour = 0;
+      uint32_t m_minute = 0;
+      uint32_t m_second = 0;
+      ASN1_Tag m_tag = NO_OBJECT;
+   };
+
+/*
+* Comparison Operations
+*/
+bool BOTAN_PUBLIC_API(2,0) operator==(const ASN1_Time&, const ASN1_Time&);
+bool BOTAN_PUBLIC_API(2,0) operator!=(const ASN1_Time&, const ASN1_Time&);
+bool BOTAN_PUBLIC_API(2,0) operator<=(const ASN1_Time&, const ASN1_Time&);
+bool BOTAN_PUBLIC_API(2,0) operator>=(const ASN1_Time&, const ASN1_Time&);
+bool BOTAN_PUBLIC_API(2,0) operator<(const ASN1_Time&, const ASN1_Time&);
+bool BOTAN_PUBLIC_API(2,0) operator>(const ASN1_Time&, const ASN1_Time&);
+
+typedef ASN1_Time X509_Time;
+
 /**
 * ASN.1 string type
 * This class normalizes all inputs to a UTF-8 std::string
@@ -3764,157 +3768,35 @@ class BOTAN_PUBLIC_API(2,0) ASN1_String final : public ASN1_Object
       ASN1_Tag m_tag;
    };
 
-}
-
-namespace Botan {
-
 /**
-* Distinguished Name
+* Algorithm Identifier
 */
-class BOTAN_PUBLIC_API(2,0) X509_DN final : public ASN1_Object
+class BOTAN_PUBLIC_API(2,0) AlgorithmIdentifier final : public ASN1_Object
    {
    public:
-      X509_DN() = default;
-
-      explicit X509_DN(const std::multimap<OID, std::string>& args)
-         {
-         for(auto i : args)
-            add_attribute(i.first, i.second);
-         }
-
-      explicit X509_DN(const std::multimap<std::string, std::string>& args)
-         {
-         for(auto i : args)
-            add_attribute(i.first, i.second);
-         }
+      enum Encoding_Option { USE_NULL_PARAM, USE_EMPTY_PARAM };
 
       void encode_into(class DER_Encoder&) const override;
       void decode_from(class BER_Decoder&) override;
 
-      bool has_field(const OID& oid) const;
-      ASN1_String get_first_attribute(const OID& oid) const;
+      AlgorithmIdentifier() = default;
 
-      /*
-      * Return the BER encoded data, if any
-      */
-      const std::vector<uint8_t>& get_bits() const { return m_dn_bits; }
+      AlgorithmIdentifier(const OID& oid, Encoding_Option enc);
+      AlgorithmIdentifier(const std::string& oid_name, Encoding_Option enc);
 
-      bool empty() const { return m_rdn.empty(); }
-
-      std::string to_string() const;
-
-      const std::vector<std::pair<OID,ASN1_String>>& dn_info() const { return m_rdn; }
-
-      std::multimap<OID, std::string> get_attributes() const;
-      std::multimap<std::string, std::string> contents() const;
-
-      bool has_field(const std::string& attr) const;
-      std::vector<std::string> get_attribute(const std::string& attr) const;
-      std::string get_first_attribute(const std::string& attr) const;
-
-      void add_attribute(const std::string& key, const std::string& val);
-
-      void add_attribute(const OID& oid, const std::string& val)
-         {
-         add_attribute(oid, ASN1_String(val));
-         }
-
-      void add_attribute(const OID& oid, const ASN1_String& val);
-
-      static std::string deref_info_field(const std::string& key);
-
-      /**
-      * Lookup upper bounds in characters for the length of distinguished name fields
-      * as given in RFC 5280, Appendix A.
-      *
-      * @param oid the oid of the DN to lookup
-      * @return the upper bound, or zero if no ub is known to Botan
-      */
-      static size_t lookup_ub(const OID& oid);
-
-   private:
-      std::vector<std::pair<OID,ASN1_String>> m_rdn;
-      std::vector<uint8_t> m_dn_bits;
-   };
-
-bool BOTAN_PUBLIC_API(2,0) operator==(const X509_DN& dn1, const X509_DN& dn2);
-bool BOTAN_PUBLIC_API(2,0) operator!=(const X509_DN& dn1, const X509_DN& dn2);
-
-/*
-The ordering here is arbitrary and may change from release to release.
-It is intended for allowing DNs as keys in std::map and similiar containers
-*/
-bool BOTAN_PUBLIC_API(2,0) operator<(const X509_DN& dn1, const X509_DN& dn2);
-
-BOTAN_PUBLIC_API(2,0) std::ostream& operator<<(std::ostream& out, const X509_DN& dn);
-BOTAN_PUBLIC_API(2,0) std::istream& operator>>(std::istream& in, X509_DN& dn);
-
-}
-
-namespace Botan {
-
-/**
-* Alternative Name
-*/
-class BOTAN_PUBLIC_API(2,0) AlternativeName final : public ASN1_Object
-   {
-   public:
-      void encode_into(class DER_Encoder&) const override;
-      void decode_from(class BER_Decoder&) override;
-
-      std::multimap<std::string, std::string> contents() const;
-
-      bool has_field(const std::string& attr) const;
-      std::vector<std::string> get_attribute(const std::string& attr) const;
-
-      std::string get_first_attribute(const std::string& attr) const;
-
-      void add_attribute(const std::string& type, const std::string& value);
-      void add_othername(const OID& oid, const std::string& value, ASN1_Tag type);
-
-      const std::multimap<std::string, std::string>& get_attributes() const
-         {
-         return m_alt_info;
-         }
-
-      const std::multimap<OID, ASN1_String>& get_othernames() const
-         {
-         return m_othernames;
-         }
-
-      X509_DN dn() const;
-
-      bool has_items() const;
-
-      AlternativeName(const std::string& email_addr = "",
-                      const std::string& uri = "",
-                      const std::string& dns = "",
-                      const std::string& ip_address = "");
-   private:
-      std::multimap<std::string, std::string> m_alt_info;
-      std::multimap<OID, ASN1_String> m_othernames;
-   };
-
-}
-
-namespace Botan {
-
-/**
-* Attribute
-*/
-class BOTAN_PUBLIC_API(2,0) Attribute final : public ASN1_Object
-   {
-   public:
-      void encode_into(class DER_Encoder& to) const override;
-      void decode_from(class BER_Decoder& from) override;
-
-      Attribute() = default;
-      Attribute(const OID&, const std::vector<uint8_t>&);
-      Attribute(const std::string&, const std::vector<uint8_t>&);
+      AlgorithmIdentifier(const OID& oid, const std::vector<uint8_t>& params);
+      AlgorithmIdentifier(const std::string& oid_name, const std::vector<uint8_t>& params);
 
       const OID& get_oid() const { return oid; }
-
       const std::vector<uint8_t>& get_parameters() const { return parameters; }
+
+      bool parameters_are_null() const;
+      bool parameters_are_empty() const { return parameters.empty(); }
+
+      bool parameters_are_null_or_empty() const
+         {
+         return parameters_are_empty() || parameters_are_null();
+         }
 
    BOTAN_DEPRECATED_PUBLIC_MEMBER_VARIABLES:
       /*
@@ -3924,6 +3806,14 @@ class BOTAN_PUBLIC_API(2,0) Attribute final : public ASN1_Object
       OID oid;
       std::vector<uint8_t> parameters;
    };
+
+/*
+* Comparison Operations
+*/
+bool BOTAN_PUBLIC_API(2,0) operator==(const AlgorithmIdentifier&,
+                                      const AlgorithmIdentifier&);
+bool BOTAN_PUBLIC_API(2,0) operator!=(const AlgorithmIdentifier&,
+                                      const AlgorithmIdentifier&);
 
 }
 
@@ -4037,114 +3927,6 @@ class BOTAN_PUBLIC_API(2,4) ASN1_Pretty_Printer final : public ASN1_Formatter
 
 }
 
-namespace Botan {
-
-/**
-* X.509 Time
-*/
-class BOTAN_PUBLIC_API(2,0) X509_Time final : public ASN1_Object
-   {
-   public:
-      /// DER encode a X509_Time
-      void encode_into(DER_Encoder&) const override;
-
-      // Decode a BER encoded X509_Time
-      void decode_from(BER_Decoder&) override;
-
-      /// Return an internal string representation of the time
-      std::string to_string() const;
-
-      /// Returns a human friendly string replesentation of no particular formatting
-      std::string readable_string() const;
-
-      /// Return if the time has been set somehow
-      bool time_is_set() const;
-
-      ///  Compare this time against another
-      int32_t cmp(const X509_Time& other) const;
-
-      /// Create an invalid X509_Time
-      X509_Time() = default;
-
-      /// Create a X509_Time from a time point
-      explicit X509_Time(const std::chrono::system_clock::time_point& time);
-
-      /// Create an X509_Time from string
-      X509_Time(const std::string& t_spec, ASN1_Tag tag);
-
-      /// Returns a STL timepoint object
-      std::chrono::system_clock::time_point to_std_timepoint() const;
-
-      /// Return time since epoch
-      uint64_t time_since_epoch() const;
-
-   private:
-      void set_to(const std::string& t_spec, ASN1_Tag);
-      bool passes_sanity_check() const;
-
-      uint32_t m_year = 0;
-      uint32_t m_month = 0;
-      uint32_t m_day = 0;
-      uint32_t m_hour = 0;
-      uint32_t m_minute = 0;
-      uint32_t m_second = 0;
-      ASN1_Tag m_tag = NO_OBJECT;
-   };
-
-/*
-* Comparison Operations
-*/
-bool BOTAN_PUBLIC_API(2,0) operator==(const X509_Time&, const X509_Time&);
-bool BOTAN_PUBLIC_API(2,0) operator!=(const X509_Time&, const X509_Time&);
-bool BOTAN_PUBLIC_API(2,0) operator<=(const X509_Time&, const X509_Time&);
-bool BOTAN_PUBLIC_API(2,0) operator>=(const X509_Time&, const X509_Time&);
-bool BOTAN_PUBLIC_API(2,0) operator<(const X509_Time&, const X509_Time&);
-bool BOTAN_PUBLIC_API(2,0) operator>(const X509_Time&, const X509_Time&);
-
-typedef X509_Time ASN1_Time;
-
-}
-
-//BOTAN_FUTURE_INTERNAL_HEADER(atomic.h)
-
-namespace Botan {
-
-template <typename T>
-/**
- * Simple helper class to expand std::atomic with copy constructor and copy
- * assignment operator, i.e. for use as element in a container like
- * std::vector. The construction of instances of this wrapper is NOT atomic
- * and needs to be properly guarded.
- **/
-class Atomic final
-   {
-   public:
-      Atomic() = default;
-      Atomic(const Atomic& data) : m_data(data.m_data.load()) {}
-      Atomic(const std::atomic<T>& data) : m_data(data.load()) {}
-      ~Atomic() = default;
-
-      Atomic& operator=(const Atomic& a)
-         {
-         m_data.store(a.m_data.load());
-         return *this;
-         }
-
-      Atomic& operator=(const std::atomic<T>& a)
-         {
-         m_data.store(a.load());
-         return *this;
-         }
-
-      operator std::atomic<T>& () { return m_data; }
-      operator T() { return m_data.load(); }
-
-   private:
-      std::atomic<T> m_data;
-   };
-
-}
-
 #if defined(BOTAN_TARGET_OS_HAS_THREADS)
 
 
@@ -4152,6 +3934,7 @@ namespace Botan {
 
 template<typename T> using lock_guard_type = std::lock_guard<T>;
 typedef std::mutex mutex_type;
+typedef std::recursive_mutex recursive_mutex_type;
 
 }
 
@@ -4184,6 +3967,7 @@ class noop_mutex final
    };
 
 typedef noop_mutex mutex_type;
+typedef noop_mutex recursive_mutex_type;
 template<typename T> using lock_guard_type = lock_guard<T>;
 
 }
@@ -4243,6 +4027,7 @@ class BOTAN_PUBLIC_API(2,0) RandomNumberGenerator
       */
       template<typename T> void add_entropy_T(const T& t)
          {
+         static_assert(std::is_standard_layout<T>::value && std::is_trivial<T>::value, "add_entropy_T data must be POD");
          this->add_entropy(reinterpret_cast<const uint8_t*>(&t), sizeof(T));
          }
 
@@ -4401,6 +4186,10 @@ class BOTAN_PUBLIC_API(2,0) Null_RNG final : public RandomNumberGenerator
 * Wraps access to a RNG in a mutex
 * Note that most of the time it's much better to use a RNG per thread
 * otherwise the RNG will act as an unnecessary contention point
+*
+* Since 2.16.0 all Stateful_RNG instances have an internal lock, so
+* this class is no longer needed. It will be removed in a future major
+* release.
 */
 class BOTAN_PUBLIC_API(2,0) Serialized_RNG final : public RandomNumberGenerator
    {
@@ -4449,8 +4238,12 @@ class BOTAN_PUBLIC_API(2,0) Serialized_RNG final : public RandomNumberGenerator
          m_rng->add_entropy(in, len);
          }
 
-      BOTAN_DEPRECATED("Use Serialized_RNG(new AutoSeeded_RNG)") Serialized_RNG();
+      BOTAN_DEPRECATED("Use Serialized_RNG(new AutoSeeded_RNG) instead") Serialized_RNG();
 
+      /*
+      * Since 2.16.0 this is no longer needed for any RNG type. This
+      * class will be removed in a future major release.
+      */
       explicit Serialized_RNG(RandomNumberGenerator* rng) : m_rng(rng) {}
    private:
       mutable mutex_type m_mutex;
@@ -5237,7 +5030,7 @@ class BOTAN_PUBLIC_API(2,0) BER_Decoder final
                                      ASN1_Tag type_tag,
                                      ASN1_Tag class_tag = CONTEXT_SPECIFIC)
          {
-         static_assert(std::is_pod<T>::value, "Type must be POD");
+         static_assert(std::is_standard_layout<T>::value && std::is_trivial<T>::value, "Type must be POD");
 
          BER_Object obj = get_next_object();
          obj.assert_is_a(type_tag, class_tag);
@@ -6603,6 +6396,7 @@ BigInt BOTAN_PUBLIC_API(2,8) operator*(const BigInt& x, word y);
 inline BigInt operator*(word x, const BigInt& y) { return y*x; }
 
 BigInt BOTAN_PUBLIC_API(2,0) operator/(const BigInt& x, const BigInt& d);
+BigInt BOTAN_PUBLIC_API(2,0) operator/(const BigInt& x, word m);
 BigInt BOTAN_PUBLIC_API(2,0) operator%(const BigInt& x, const BigInt& m);
 word   BOTAN_PUBLIC_API(2,0) operator%(const BigInt& x, word m);
 BigInt BOTAN_PUBLIC_API(2,0) operator<<(const BigInt& x, size_t n);
@@ -6711,9 +6505,10 @@ class RandomNumberGenerator;
 * @param c an integer
 * @return (a*b)+c
 */
-BigInt BOTAN_PUBLIC_API(2,0) mul_add(const BigInt& a,
-                                     const BigInt& b,
-                                     const BigInt& c);
+BigInt BOTAN_PUBLIC_API(2,0) BOTAN_DEPRECATED("Just use (a*b)+c")
+   mul_add(const BigInt& a,
+           const BigInt& b,
+           const BigInt& c);
 
 /**
 * Fused subtract-multiply
@@ -6722,9 +6517,10 @@ BigInt BOTAN_PUBLIC_API(2,0) mul_add(const BigInt& a,
 * @param c an integer
 * @return (a-b)*c
 */
-BigInt BOTAN_PUBLIC_API(2,0) sub_mul(const BigInt& a,
-                                     const BigInt& b,
-                                     const BigInt& c);
+BigInt BOTAN_PUBLIC_API(2,0) BOTAN_DEPRECATED("Just use (a-b)*c")
+   sub_mul(const BigInt& a,
+           const BigInt& b,
+           const BigInt& c);
 
 /**
 * Fused multiply-subtract
@@ -6733,9 +6529,10 @@ BigInt BOTAN_PUBLIC_API(2,0) sub_mul(const BigInt& a,
 * @param c an integer
 * @return (a*b)-c
 */
-BigInt BOTAN_PUBLIC_API(2,0) mul_sub(const BigInt& a,
-                                     const BigInt& b,
-                                     const BigInt& c);
+BigInt BOTAN_PUBLIC_API(2,0) BOTAN_DEPRECATED("Just use (a*b)-c")
+   mul_sub(const BigInt& a,
+           const BigInt& b,
+           const BigInt& c);
 
 /**
 * Return the absolute value
@@ -6792,21 +6589,23 @@ BigInt BOTAN_DEPRECATED_API("Use inverse_mod") inverse_euclid(const BigInt& x, c
 /**
 * Deprecated modular inversion function. Use inverse_mod instead.
 */
-BigInt BOTAN_DEPRECATED_API("Use inverse_mod") ct_inverse_mod_odd_modulus(const BigInt& n, const BigInt& mod);
+BigInt BOTAN_DEPRECATED_API("Use inverse_mod") ct_inverse_mod_odd_modulus(const BigInt& x, const BigInt& modulus);
 
 /**
 * Return a^-1 * 2^k mod b
 * Returns k, between n and 2n
 * Not const time
 */
-size_t BOTAN_PUBLIC_API(2,0) almost_montgomery_inverse(BigInt& result,
-                                                       const BigInt& a,
-                                                       const BigInt& b);
+size_t BOTAN_PUBLIC_API(2,0) BOTAN_DEPRECATED("Use inverse_mod")
+   almost_montgomery_inverse(BigInt& result,
+                             const BigInt& a,
+                             const BigInt& b);
 
 /**
 * Call almost_montgomery_inverse and correct the result to a^-1 mod b
 */
-BigInt BOTAN_PUBLIC_API(2,0) normalized_montgomery_inverse(const BigInt& a, const BigInt& b);
+BigInt BOTAN_PUBLIC_API(2,0) BOTAN_DEPRECATED("Use inverse_mod")
+   normalized_montgomery_inverse(const BigInt& a, const BigInt& b);
 
 
 /**
@@ -6833,7 +6632,7 @@ BigInt BOTAN_PUBLIC_API(2,0) power_mod(const BigInt& b,
 
 /**
 * Compute the square root of x modulo a prime using the
-* Shanks-Tonnelli algorithm
+* Tonelli-Shanks algorithm
 *
 * @param x the input
 * @param p the prime
@@ -6846,13 +6645,14 @@ BigInt BOTAN_PUBLIC_API(2,0) ressol(const BigInt& x, const BigInt& p);
 * is even. If input is odd, then input and 2^n are relatively prime
 * and an inverse exists.
 */
-word BOTAN_PUBLIC_API(2,0) monty_inverse(word input);
+word BOTAN_PUBLIC_API(2,0) BOTAN_DEPRECATED("Use inverse_mod")
+   monty_inverse(word input);
 
 /**
-* @param x a positive integer
-* @return count of the zero bits in x, or, equivalently, the largest
-*         value of n such that 2^n divides x evenly. Returns zero if
-*         n is less than or equal to zero.
+* @param x an integer
+* @return count of the low zero bits in x, or, equivalently, the
+*         largest value of n such that 2^n divides x evenly. Returns
+*         zero if x is equal to zero.
 */
 size_t BOTAN_PUBLIC_API(2,0) low_zero_bits(const BigInt& x);
 
@@ -6878,13 +6678,16 @@ bool BOTAN_PUBLIC_API(2,0) is_prime(const BigInt& n,
 */
 BigInt BOTAN_PUBLIC_API(2,8) is_perfect_square(const BigInt& x);
 
-inline bool quick_check_prime(const BigInt& n, RandomNumberGenerator& rng)
+inline bool BOTAN_DEPRECATED("Use is_prime")
+   quick_check_prime(const BigInt& n, RandomNumberGenerator& rng)
    { return is_prime(n, rng, 32); }
 
-inline bool check_prime(const BigInt& n, RandomNumberGenerator& rng)
+inline bool BOTAN_DEPRECATED("Use is_prime")
+   check_prime(const BigInt& n, RandomNumberGenerator& rng)
    { return is_prime(n, rng, 56); }
 
-inline bool verify_prime(const BigInt& n, RandomNumberGenerator& rng)
+inline bool BOTAN_DEPRECATED("Use is_prime")
+   verify_prime(const BigInt& n, RandomNumberGenerator& rng)
    { return is_prime(n, rng, 80); }
 
 /**
@@ -6938,7 +6741,7 @@ BigInt BOTAN_PUBLIC_API(2,0) random_safe_prime(RandomNumberGenerator& rng,
 * @param qbits how long q will be in bits
 * @return random seed used to generate this parameter set
 */
-std::vector<uint8_t> BOTAN_PUBLIC_API(2,0)
+std::vector<uint8_t> BOTAN_PUBLIC_API(2,0) BOTAN_DEPRECATED("Use DL_Group")
 generate_dsa_primes(RandomNumberGenerator& rng,
                     BigInt& p_out, BigInt& q_out,
                     size_t pbits, size_t qbits);
@@ -6955,7 +6758,7 @@ generate_dsa_primes(RandomNumberGenerator& rng,
 * @return true if seed generated a valid DSA parameter set, otherwise
           false. p_out and q_out are only valid if true was returned.
 */
-bool BOTAN_PUBLIC_API(2,0)
+bool BOTAN_PUBLIC_API(2,0) BOTAN_DEPRECATED("Use DL_Group")
 generate_dsa_primes(RandomNumberGenerator& rng,
                     BigInt& p_out, BigInt& q_out,
                     size_t pbits, size_t qbits,
@@ -6968,7 +6771,7 @@ generate_dsa_primes(RandomNumberGenerator& rng,
 const size_t PRIME_TABLE_SIZE = 6541;
 
 /**
-* A const array of all primes less than 65535
+* A const array of all odd primes less than 65535
 */
 extern const uint16_t BOTAN_PUBLIC_API(2,0) PRIMES[];
 
@@ -8217,6 +8020,45 @@ enum class Certificate_Status_Code {
 */
 BOTAN_PUBLIC_API(2,0) const char* to_string(Certificate_Status_Code code);
 
+/**
+* X.509v3 Key Constraints.
+* If updating update copy in ffi.h
+*/
+enum Key_Constraints {
+   NO_CONSTRAINTS     = 0,
+   DIGITAL_SIGNATURE  = 1 << 15,
+   NON_REPUDIATION    = 1 << 14,
+   KEY_ENCIPHERMENT   = 1 << 13,
+   DATA_ENCIPHERMENT  = 1 << 12,
+   KEY_AGREEMENT      = 1 << 11,
+   KEY_CERT_SIGN      = 1 << 10,
+   CRL_SIGN           = 1 << 9,
+   ENCIPHER_ONLY      = 1 << 8,
+   DECIPHER_ONLY      = 1 << 7
+};
+
+/**
+* X.509v2 CRL Reason Code.
+* This will become an enum class in a future major release
+*/
+enum CRL_Code : uint32_t {
+   UNSPECIFIED            = 0,
+   KEY_COMPROMISE         = 1,
+   CA_COMPROMISE          = 2,
+   AFFILIATION_CHANGED    = 3,
+   SUPERSEDED             = 4,
+   CESSATION_OF_OPERATION = 5,
+   CERTIFICATE_HOLD       = 6,
+   REMOVE_FROM_CRL        = 8,
+   PRIVLEDGE_WITHDRAWN    = 9,
+   PRIVILEGE_WITHDRAWN    = 9,
+   AA_COMPROMISE          = 10,
+
+   DELETE_CRL_ENTRY       = 0xFF00,
+   OCSP_GOOD              = 0xFF01,
+   OCSP_UNKNOWN           = 0xFF02
+};
+
 }
 
 namespace Botan {
@@ -8347,606 +8189,14 @@ class BOTAN_PUBLIC_API(2,0) X509_Object : public ASN1_Object
    };
 
 }
-namespace Botan {
-
-namespace PK_Ops {
-
-class Encryption;
-class Decryption;
-class Verification;
-class Signature;
-class Key_Agreement;
-class KEM_Encryption;
-class KEM_Decryption;
-
-}
-
-}
-
-namespace Botan {
-
-class RandomNumberGenerator;
-
-/**
-* The two types of signature format supported by Botan.
-*/
-enum Signature_Format { IEEE_1363, DER_SEQUENCE };
-
-/**
-* Public Key Base Class.
-*/
-class BOTAN_PUBLIC_API(2,0) Public_Key
-   {
-   public:
-      Public_Key() =default;
-      Public_Key(const Public_Key& other) = default;
-      Public_Key& operator=(const Public_Key& other) = default;
-      virtual ~Public_Key() = default;
-
-      /**
-      * Get the name of the underlying public key scheme.
-      * @return name of the public key scheme
-      */
-      virtual std::string algo_name() const = 0;
-
-      /**
-      * Return the estimated strength of the underlying key against
-      * the best currently known attack. Note that this ignores anything
-      * but pure attacks against the key itself and do not take into
-      * account padding schemes, usage mistakes, etc which might reduce
-      * the strength. However it does suffice to provide an upper bound.
-      *
-      * @return estimated strength in bits
-      */
-      virtual size_t estimated_strength() const = 0;
-
-      /**
-      * Return an integer value best approximating the length of the
-      * primary security parameter. For example for RSA this will be
-      * the size of the modulus, for ECDSA the size of the ECC group,
-      * and for McEliece the size of the code will be returned.
-      */
-      virtual size_t key_length() const = 0;
-
-      /**
-      * Get the OID of the underlying public key scheme.
-      * @return OID of the public key scheme
-      */
-      virtual OID get_oid() const;
-
-      /**
-      * Test the key values for consistency.
-      * @param rng rng to use
-      * @param strong whether to perform strong and lengthy version
-      * of the test
-      * @return true if the test is passed
-      */
-      virtual bool check_key(RandomNumberGenerator& rng,
-                             bool strong) const = 0;
-
-
-      /**
-      * @return X.509 AlgorithmIdentifier for this key
-      */
-      virtual AlgorithmIdentifier algorithm_identifier() const = 0;
-
-      /**
-      * @return BER encoded public key bits
-      */
-      virtual std::vector<uint8_t> public_key_bits() const = 0;
-
-      /**
-      * @return X.509 subject key encoding for this key object
-      */
-      std::vector<uint8_t> subject_public_key() const;
-
-      /**
-       * @return Hash of the subject public key
-       */
-      std::string fingerprint_public(const std::string& alg = "SHA-256") const;
-
-      // Internal or non-public declarations follow
-
-      /**
-      * Returns more than 1 if the output of this algorithm
-      * (ciphertext, signature) should be treated as more than one
-      * value. This is used for algorithms like DSA and ECDSA, where
-      * the (r,s) output pair can be encoded as either a plain binary
-      * list or a TLV tagged DER encoding depending on the protocol.
-      *
-      * This function is public but applications should have few
-      * reasons to ever call this.
-      *
-      * @return number of message parts
-      */
-      virtual size_t message_parts() const { return 1; }
-
-      /**
-      * Returns how large each of the message parts refered to
-      * by message_parts() is
-      *
-      * This function is public but applications should have few
-      * reasons to ever call this.
-      *
-      * @return size of the message parts in bits
-      */
-      virtual size_t message_part_size() const { return 0; }
-
-      virtual Signature_Format default_x509_signature_format() const
-         {
-         return (this->message_parts() >= 2) ? DER_SEQUENCE : IEEE_1363;
-         }
-
-      /**
-      * This is an internal library function exposed on key types.
-      * In almost all cases applications should use wrappers in pubkey.h
-      *
-      * Return an encryption operation for this key/params or throw
-      *
-      * @param rng a random number generator. The PK_Op may maintain a
-      * reference to the RNG and use it many times. The rng must outlive
-      * any operations which reference it.
-      * @param params additional parameters
-      * @param provider the provider to use
-      */
-      virtual std::unique_ptr<PK_Ops::Encryption>
-         create_encryption_op(RandomNumberGenerator& rng,
-                              const std::string& params,
-                              const std::string& provider) const;
-
-      /**
-      * This is an internal library function exposed on key types.
-      * In almost all cases applications should use wrappers in pubkey.h
-      *
-      * Return a KEM encryption operation for this key/params or throw
-      *
-      * @param rng a random number generator. The PK_Op may maintain a
-      * reference to the RNG and use it many times. The rng must outlive
-      * any operations which reference it.
-      * @param params additional parameters
-      * @param provider the provider to use
-      */
-      virtual std::unique_ptr<PK_Ops::KEM_Encryption>
-         create_kem_encryption_op(RandomNumberGenerator& rng,
-                                  const std::string& params,
-                                  const std::string& provider) const;
-
-      /**
-      * This is an internal library function exposed on key types.
-      * In almost all cases applications should use wrappers in pubkey.h
-      *
-      * Return a verification operation for this key/params or throw
-      * @param params additional parameters
-      * @param provider the provider to use
-      */
-      virtual std::unique_ptr<PK_Ops::Verification>
-         create_verification_op(const std::string& params,
-                                const std::string& provider) const;
-   };
-
-/**
-* Private Key Base Class
-*/
-class BOTAN_PUBLIC_API(2,0) Private_Key : public virtual Public_Key
-   {
-   public:
-      Private_Key() = default;
-      Private_Key(const Private_Key& other) = default;
-      Private_Key& operator=(const Private_Key& other) = default;
-      virtual ~Private_Key() = default;
-
-      virtual bool stateful_operation() const { return false; }
-
-      /**
-      * @return BER encoded private key bits
-      */
-      virtual secure_vector<uint8_t> private_key_bits() const = 0;
-
-      /**
-      * @return PKCS #8 private key encoding for this key object
-      */
-      secure_vector<uint8_t> private_key_info() const;
-
-      /**
-      * @return PKCS #8 AlgorithmIdentifier for this key
-      * Might be different from the X.509 identifier, but normally is not
-      */
-      virtual AlgorithmIdentifier pkcs8_algorithm_identifier() const
-         { return algorithm_identifier(); }
-
-      // Internal or non-public declarations follow
-
-      /**
-       * @return Hash of the PKCS #8 encoding for this key object
-       */
-      std::string fingerprint_private(const std::string& alg) const;
-
-      BOTAN_DEPRECATED("Use fingerprint_private or fingerprint_public")
-         inline std::string fingerprint(const std::string& alg) const
-         {
-         return fingerprint_private(alg); // match behavior in previous versions
-         }
-
-      /**
-      * This is an internal library function exposed on key types.
-      * In almost all cases applications should use wrappers in pubkey.h
-      *
-      * Return an decryption operation for this key/params or throw
-      *
-      * @param rng a random number generator. The PK_Op may maintain a
-      * reference to the RNG and use it many times. The rng must outlive
-      * any operations which reference it.
-      * @param params additional parameters
-      * @param provider the provider to use
-      *
-      */
-      virtual std::unique_ptr<PK_Ops::Decryption>
-         create_decryption_op(RandomNumberGenerator& rng,
-                              const std::string& params,
-                              const std::string& provider) const;
-
-      /**
-      * This is an internal library function exposed on key types.
-      * In almost all cases applications should use wrappers in pubkey.h
-      *
-      * Return a KEM decryption operation for this key/params or throw
-      *
-      * @param rng a random number generator. The PK_Op may maintain a
-      * reference to the RNG and use it many times. The rng must outlive
-      * any operations which reference it.
-      * @param params additional parameters
-      * @param provider the provider to use
-      */
-      virtual std::unique_ptr<PK_Ops::KEM_Decryption>
-         create_kem_decryption_op(RandomNumberGenerator& rng,
-                                  const std::string& params,
-                                  const std::string& provider) const;
-
-      /**
-      * This is an internal library function exposed on key types.
-      * In almost all cases applications should use wrappers in pubkey.h
-      *
-      * Return a signature operation for this key/params or throw
-      *
-      * @param rng a random number generator. The PK_Op may maintain a
-      * reference to the RNG and use it many times. The rng must outlive
-      * any operations which reference it.
-      * @param params additional parameters
-      * @param provider the provider to use
-      */
-      virtual std::unique_ptr<PK_Ops::Signature>
-         create_signature_op(RandomNumberGenerator& rng,
-                             const std::string& params,
-                             const std::string& provider) const;
-
-      /**
-      * This is an internal library function exposed on key types.
-      * In almost all cases applications should use wrappers in pubkey.h
-      *
-      * Return a key agreement operation for this key/params or throw
-      *
-      * @param rng a random number generator. The PK_Op may maintain a
-      * reference to the RNG and use it many times. The rng must outlive
-      * any operations which reference it.
-      * @param params additional parameters
-      * @param provider the provider to use
-      */
-      virtual std::unique_ptr<PK_Ops::Key_Agreement>
-         create_key_agreement_op(RandomNumberGenerator& rng,
-                                 const std::string& params,
-                                 const std::string& provider) const;
-   };
-
-/**
-* PK Secret Value Derivation Key
-*/
-class BOTAN_PUBLIC_API(2,0) PK_Key_Agreement_Key : public virtual Private_Key
-   {
-   public:
-      /*
-      * @return public component of this key
-      */
-      virtual std::vector<uint8_t> public_value() const = 0;
-
-      PK_Key_Agreement_Key() = default;
-      PK_Key_Agreement_Key(const PK_Key_Agreement_Key&) = default;
-      PK_Key_Agreement_Key& operator=(const PK_Key_Agreement_Key&) = default;
-      virtual ~PK_Key_Agreement_Key() = default;
-   };
-
-/*
-* Old compat typedefs
-* TODO: remove these?
-*/
-typedef PK_Key_Agreement_Key PK_KA_Key;
-typedef Public_Key X509_PublicKey;
-typedef Private_Key PKCS8_PrivateKey;
-
-std::string BOTAN_PUBLIC_API(2,4)
-   create_hex_fingerprint(const uint8_t bits[], size_t len,
-                          const std::string& hash_name);
-
-template<typename Alloc>
-std::string create_hex_fingerprint(const std::vector<uint8_t, Alloc>& vec,
-                                   const std::string& hash_name)
-   {
-   return create_hex_fingerprint(vec.data(), vec.size(), hash_name);
-   }
-
-
-}
-
-namespace Botan {
-
-class RandomNumberGenerator;
-class DataSource;
-
-/**
-* The two types of X509 encoding supported by Botan.
-* This enum is not used anymore, and will be removed in a future major release.
-*/
-enum X509_Encoding { RAW_BER, PEM };
-
-/**
-* This namespace contains functions for handling X.509 public keys
-*/
-namespace X509 {
-
-/**
-* BER encode a key
-* @param key the public key to encode
-* @return BER encoding of this key
-*/
-BOTAN_PUBLIC_API(2,0) std::vector<uint8_t> BER_encode(const Public_Key& key);
-
-/**
-* PEM encode a public key into a string.
-* @param key the key to encode
-* @return PEM encoded key
-*/
-BOTAN_PUBLIC_API(2,0) std::string PEM_encode(const Public_Key& key);
-
-/**
-* Create a public key from a data source.
-* @param source the source providing the DER or PEM encoded key
-* @return new public key object
-*/
-BOTAN_PUBLIC_API(2,0) Public_Key* load_key(DataSource& source);
-
-#if defined(BOTAN_TARGET_OS_HAS_FILESYSTEM)
-/**
-* Create a public key from a file
-* @param filename pathname to the file to load
-* @return new public key object
-*/
-BOTAN_PUBLIC_API(2,0) Public_Key* load_key(const std::string& filename);
-#endif
-
-/**
-* Create a public key from a memory region.
-* @param enc the memory region containing the DER or PEM encoded key
-* @return new public key object
-*/
-BOTAN_PUBLIC_API(2,0) Public_Key* load_key(const std::vector<uint8_t>& enc);
-
-/**
-* Copy a key.
-* @param key the public key to copy
-* @return new public key object
-*/
-BOTAN_PUBLIC_API(2,0) Public_Key* copy_key(const Public_Key& key);
-
-}
-
-}
-
-namespace Botan {
-
-/**
-* X.509v3 Key Constraints.
-* If updating update copy in ffi.h
-*/
-enum Key_Constraints {
-   NO_CONSTRAINTS     = 0,
-   DIGITAL_SIGNATURE  = 1 << 15,
-   NON_REPUDIATION    = 1 << 14,
-   KEY_ENCIPHERMENT   = 1 << 13,
-   DATA_ENCIPHERMENT  = 1 << 12,
-   KEY_AGREEMENT      = 1 << 11,
-   KEY_CERT_SIGN      = 1 << 10,
-   CRL_SIGN           = 1 << 9,
-   ENCIPHER_ONLY      = 1 << 8,
-   DECIPHER_ONLY      = 1 << 7
-};
-
-class Public_Key;
-
-/**
-* Check that key constraints are permitted for a specific public key.
-* @param pub_key the public key on which the constraints shall be enforced on
-* @param constraints the constraints that shall be enforced on the key
-* @throw Invalid_Argument if the given constraints are not permitted for this key
-*/
-BOTAN_PUBLIC_API(2,0) void verify_cert_constraints_valid_for_key_type(const Public_Key& pub_key,
-                                                                Key_Constraints constraints);
-
-std::string BOTAN_PUBLIC_API(2,0) key_constraints_to_string(Key_Constraints);
-
-}
-
-namespace Botan {
-
-class BER_Encoder;
-class DER_Encoder;
-class X509_Certificate;
-
-/**
-* @brief X.509 GeneralName Type
-*
-* Handles parsing GeneralName types in their BER and canonical string
-* encoding. Allows matching GeneralNames against each other using
-* the rules laid out in the RFC 5280, sec. 4.2.1.10 (Name Contraints).
-*/
-class BOTAN_PUBLIC_API(2,0) GeneralName final : public ASN1_Object
-   {
-   public:
-      enum MatchResult : int
-            {
-            All,
-            Some,
-            None,
-            NotFound,
-            UnknownType,
-            };
-
-      /**
-      * Creates an empty GeneralName.
-      */
-      GeneralName() = default;
-
-      /**
-      * Creates a new GeneralName for its string format.
-      * @param str type and name, colon-separated, e.g., "DNS:google.com"
-      */
-      GeneralName(const std::string& str);
-
-      void encode_into(DER_Encoder&) const override;
-
-      void decode_from(BER_Decoder&) override;
-
-      /**
-      * @return Type of the name. Can be DN, DNS, IP, RFC822 or URI.
-      */
-      const std::string& type() const { return m_type; }
-
-      /**
-      * @return The name as string. Format depends on type.
-      */
-      const std::string& name() const { return m_name; }
-
-      /**
-      * Checks whether a given certificate (partially) matches this name.
-      * @param cert certificate to be matched
-      * @return the match result
-      */
-      MatchResult matches(const X509_Certificate& cert) const;
-
-   private:
-      std::string m_type;
-      std::string m_name;
-
-      bool matches_dns(const std::string&) const;
-      bool matches_dn(const std::string&) const;
-      bool matches_ip(const std::string&) const;
-   };
-
-std::ostream& operator<<(std::ostream& os, const GeneralName& gn);
-
-/**
-* @brief A single Name Constraint
-*
-* The Name Constraint extension adds a minimum and maximum path
-* length to a GeneralName to form a constraint. The length limits
-* are currently unused.
-*/
-class BOTAN_PUBLIC_API(2,0) GeneralSubtree final : public ASN1_Object
-   {
-   public:
-      /**
-      * Creates an empty name constraint.
-      */
-      GeneralSubtree() : m_base(), m_minimum(0), m_maximum(std::numeric_limits<std::size_t>::max())
-      {}
-
-      /***
-      * Creates a new name constraint.
-      * @param base name
-      * @param min minimum path length
-      * @param max maximum path length
-      */
-      GeneralSubtree(const GeneralName& base, size_t min, size_t max)
-      : m_base(base), m_minimum(min), m_maximum(max)
-      {}
-
-      /**
-      * Creates a new name constraint for its string format.
-      * @param str name constraint
-      */
-      GeneralSubtree(const std::string& str);
-
-      void encode_into(DER_Encoder&) const override;
-
-      void decode_from(BER_Decoder&) override;
-
-      /**
-      * @return name
-      */
-      const GeneralName& base() const { return m_base; }
-
-      /**
-      * @return minimum path length
-      */
-      size_t minimum() const { return m_minimum; }
-
-      /**
-      * @return maximum path length
-      */
-      size_t maximum() const { return m_maximum; }
-
-   private:
-      GeneralName m_base;
-      size_t m_minimum;
-      size_t m_maximum;
-   };
-
-std::ostream& operator<<(std::ostream& os, const GeneralSubtree& gs);
-
-/**
-* @brief Name Constraints
-*
-* Wraps the Name Constraints associated with a certificate.
-*/
-class BOTAN_PUBLIC_API(2,0) NameConstraints final
-   {
-   public:
-      /**
-      * Creates an empty name NameConstraints.
-      */
-      NameConstraints() : m_permitted_subtrees(), m_excluded_subtrees() {}
-
-      /**
-      * Creates NameConstraints from a list of permitted and excluded subtrees.
-      * @param permitted_subtrees names for which the certificate is permitted
-      * @param excluded_subtrees names for which the certificate is not permitted
-      */
-      NameConstraints(std::vector<GeneralSubtree>&& permitted_subtrees,
-                    std::vector<GeneralSubtree>&& excluded_subtrees)
-      : m_permitted_subtrees(permitted_subtrees), m_excluded_subtrees(excluded_subtrees)
-      {}
-
-      /**
-      * @return permitted names
-      */
-      const std::vector<GeneralSubtree>& permitted() const { return m_permitted_subtrees; }
-
-      /**
-      * @return excluded names
-      */
-      const std::vector<GeneralSubtree>& excluded() const { return m_excluded_subtrees; }
-
-   private:
-      std::vector<GeneralSubtree> m_permitted_subtrees;
-      std::vector<GeneralSubtree> m_excluded_subtrees;
-};
-
-}
 
 namespace Botan {
 
 class Public_Key;
 class X509_DN;
-class AlternativeName;
 class Extensions;
+class AlternativeName;
+class NameConstraints;
 
 enum class Usage_Type
    {
@@ -8971,12 +8221,11 @@ class BOTAN_PUBLIC_API(2,0) X509_Certificate : public X509_Object
       * with the subject of this certificate. This object is owned
       * by the caller.
       *
+      * Prefer load_subject_public_key in new code
+      *
       * @return public key
       */
-      Public_Key* subject_public_key() const
-         {
-         return load_subject_public_key().release();
-         }
+      Public_Key* subject_public_key() const;
 
       /**
       * Create a public key object associated with the public key bits in this
@@ -9392,29 +8641,10 @@ namespace Botan {
 
 class Extensions;
 class X509_Certificate;
+class X509_DN;
+
 struct CRL_Entry_Data;
-
-/**
-* X.509v2 CRL Reason Code.
-* This will become an enum class in a future major release
-*/
-enum CRL_Code : uint32_t {
-   UNSPECIFIED            = 0,
-   KEY_COMPROMISE         = 1,
-   CA_COMPROMISE          = 2,
-   AFFILIATION_CHANGED    = 3,
-   SUPERSEDED             = 4,
-   CESSATION_OF_OPERATION = 5,
-   CERTIFICATE_HOLD       = 6,
-   REMOVE_FROM_CRL        = 8,
-   PRIVLEDGE_WITHDRAWN    = 9,
-   PRIVILEGE_WITHDRAWN    = 9,
-   AA_COMPROMISE          = 10,
-
-   DELETE_CRL_ENTRY       = 0xFF00,
-   OCSP_GOOD              = 0xFF01,
-   OCSP_UNKNOWN           = 0xFF02
-};
+struct CRL_Data;
 
 /**
 * This class represents CRL entries
@@ -9478,15 +8708,6 @@ BOTAN_PUBLIC_API(2,0) bool operator==(const CRL_Entry&, const CRL_Entry&);
 * Test two CRL entries for inequality in at least one field.
 */
 BOTAN_PUBLIC_API(2,0) bool operator!=(const CRL_Entry&, const CRL_Entry&);
-
-}
-
-namespace Botan {
-
-class Extensions;
-class X509_Certificate;
-
-struct CRL_Data;
 
 /**
 * This class represents X.509 Certificate Revocation Lists (CRLs).
@@ -10479,6 +9700,13 @@ class BOTAN_PUBLIC_API(2,0) Stateful_RNG : public RandomNumberGenerator
       void reseed_from_rng(RandomNumberGenerator& rng,
                            size_t poll_bits = BOTAN_RNG_RESEED_POLL_BITS) override final;
 
+      void add_entropy(const uint8_t input[], size_t input_len) override final;
+
+      void randomize(uint8_t output[], size_t output_len) override final;
+
+      void randomize_with_input(uint8_t output[], size_t output_len,
+                                const uint8_t input[], size_t input_len) override final;
+
       /**
       * Overrides default implementation and also includes the current
       * process ID and the reseed counter.
@@ -10513,18 +9741,23 @@ class BOTAN_PUBLIC_API(2,0) Stateful_RNG : public RandomNumberGenerator
 
       size_t reseed_interval() const { return m_reseed_interval; }
 
-      void clear() override;
+      void clear() override final;
 
    protected:
       void reseed_check();
 
-      /**
-      * Called by a subclass to notify that a reseed has been
-      * successfully performed.
-      */
-      void reset_reseed_counter() { m_reseed_counter = 1; }
+      virtual void generate_output(uint8_t output[], size_t output_len,
+                                   const uint8_t input[], size_t input_len) = 0;
+
+      virtual void update(const uint8_t input[], size_t input_len) = 0;
+
+      virtual void clear_state() = 0;
 
    private:
+      void reset_reseed_counter();
+
+      mutable recursive_mutex_type m_mutex;
+
       // A non-owned and possibly null pointer to shared RNG
       RandomNumberGenerator* m_underlying_rng = nullptr;
 
@@ -10636,21 +9869,17 @@ class BOTAN_PUBLIC_API(2,3) ChaCha_RNG final : public Stateful_RNG
 
       std::string name() const override { return "ChaCha_RNG"; }
 
-      void clear() override;
-
-      void randomize(uint8_t output[], size_t output_len) override;
-
-      void randomize_with_input(uint8_t output[], size_t output_len,
-                                const uint8_t input[], size_t input_len) override;
-
-      void add_entropy(const uint8_t input[], size_t input_len) override;
-
       size_t security_level() const override;
 
       size_t max_number_of_bytes_per_request() const override { return 0; }
 
    private:
-      void update(const uint8_t input[], size_t input_len);
+      void update(const uint8_t input[], size_t input_len) override;
+
+      void generate_output(uint8_t output[], size_t output_len,
+                           const uint8_t input[], size_t input_len) override;
+
+      void clear_state() override;
 
       std::unique_ptr<MessageAuthenticationCode> m_hmac;
       std::unique_ptr<StreamCipher> m_chacha;
@@ -10909,25 +10138,33 @@ class BOTAN_PUBLIC_API(2,1) CPUID final
          // These values have no relation to cpuid bitfields
 
          // SIMD instruction sets
-         CPUID_SSE2_BIT    = (1ULL << 0),
-         CPUID_SSSE3_BIT   = (1ULL << 1),
-         CPUID_SSE41_BIT   = (1ULL << 2),
-         CPUID_SSE42_BIT   = (1ULL << 3),
-         CPUID_AVX2_BIT    = (1ULL << 4),
-         CPUID_AVX512F_BIT = (1ULL << 5),
+         CPUID_SSE2_BIT       = (1ULL << 0),
+         CPUID_SSSE3_BIT      = (1ULL << 1),
+         CPUID_SSE41_BIT      = (1ULL << 2),
+         CPUID_SSE42_BIT      = (1ULL << 3),
+         CPUID_AVX2_BIT       = (1ULL << 4),
+         CPUID_AVX512F_BIT    = (1ULL << 5),
 
-         // Misc useful instructions
-         CPUID_RDTSC_BIT   = (1ULL << 10),
-         CPUID_BMI2_BIT    = (1ULL << 11),
-         CPUID_ADX_BIT     = (1ULL << 12),
-         CPUID_BMI1_BIT    = (1ULL << 13),
+         CPUID_AVX512DQ_BIT   = (1ULL << 6),
+         CPUID_AVX512BW_BIT   = (1ULL << 7),
+
+         // Ice Lake profile: AVX-512 F, DQ, BW, IFMA, VBMI, VBMI2, BITALG
+         CPUID_AVX512_ICL_BIT = (1ULL << 11),
 
          // Crypto-specific ISAs
-         CPUID_AESNI_BIT   = (1ULL << 16),
-         CPUID_CLMUL_BIT   = (1ULL << 17),
-         CPUID_RDRAND_BIT  = (1ULL << 18),
-         CPUID_RDSEED_BIT  = (1ULL << 19),
-         CPUID_SHA_BIT     = (1ULL << 20),
+         CPUID_AESNI_BIT        = (1ULL << 16),
+         CPUID_CLMUL_BIT        = (1ULL << 17),
+         CPUID_RDRAND_BIT       = (1ULL << 18),
+         CPUID_RDSEED_BIT       = (1ULL << 19),
+         CPUID_SHA_BIT          = (1ULL << 20),
+         CPUID_AVX512_AES_BIT   = (1ULL << 21),
+         CPUID_AVX512_CLMUL_BIT = (1ULL << 22),
+
+         // Misc useful instructions
+         CPUID_RDTSC_BIT      = (1ULL << 48),
+         CPUID_ADX_BIT        = (1ULL << 49),
+         CPUID_BMI1_BIT       = (1ULL << 50),
+         CPUID_BMI2_BIT       = (1ULL << 51),
 #endif
 
 #if defined(BOTAN_TARGET_CPU_IS_PPC_FAMILY)
@@ -11079,6 +10316,36 @@ class BOTAN_PUBLIC_API(2,1) CPUID final
       */
       static bool has_avx512f()
          { return has_cpuid_bit(CPUID_AVX512F_BIT); }
+
+      /**
+      * Check if the processor supports AVX-512DQ
+      */
+      static bool has_avx512dq()
+         { return has_cpuid_bit(CPUID_AVX512DQ_BIT); }
+
+      /**
+      * Check if the processor supports AVX-512BW
+      */
+      static bool has_avx512bw()
+         { return has_cpuid_bit(CPUID_AVX512BW_BIT); }
+
+      /**
+      * Check if the processor supports AVX-512 Ice Lake profile
+      */
+      static bool has_avx512_icelake()
+         { return has_cpuid_bit(CPUID_AVX512_ICL_BIT); }
+
+      /**
+      * Check if the processor supports AVX-512 AES (VAES)
+      */
+      static bool has_avx512_aes()
+         { return has_cpuid_bit(CPUID_AVX512_AES_BIT); }
+
+      /**
+      * Check if the processor supports AVX-512 VPCLMULQDQ
+      */
+      static bool has_avx512_clmul()
+         { return has_cpuid_bit(CPUID_AVX512_CLMUL_BIT); }
 
       /**
       * Check if the processor supports BMI1
@@ -11306,6 +10573,334 @@ class BOTAN_PUBLIC_API(2,0) CRC32 final : public HashFunction
       void final_result(uint8_t[]) override;
       uint32_t m_crc;
    };
+
+}
+namespace Botan {
+
+namespace PK_Ops {
+
+class Encryption;
+class Decryption;
+class Verification;
+class Signature;
+class Key_Agreement;
+class KEM_Encryption;
+class KEM_Decryption;
+
+}
+
+}
+
+namespace Botan {
+
+class RandomNumberGenerator;
+
+/**
+* The two types of signature format supported by Botan.
+*/
+enum Signature_Format { IEEE_1363, DER_SEQUENCE };
+
+/**
+* Public Key Base Class.
+*/
+class BOTAN_PUBLIC_API(2,0) Public_Key
+   {
+   public:
+      Public_Key() =default;
+      Public_Key(const Public_Key& other) = default;
+      Public_Key& operator=(const Public_Key& other) = default;
+      virtual ~Public_Key() = default;
+
+      /**
+      * Get the name of the underlying public key scheme.
+      * @return name of the public key scheme
+      */
+      virtual std::string algo_name() const = 0;
+
+      /**
+      * Return the estimated strength of the underlying key against
+      * the best currently known attack. Note that this ignores anything
+      * but pure attacks against the key itself and do not take into
+      * account padding schemes, usage mistakes, etc which might reduce
+      * the strength. However it does suffice to provide an upper bound.
+      *
+      * @return estimated strength in bits
+      */
+      virtual size_t estimated_strength() const = 0;
+
+      /**
+      * Return an integer value best approximating the length of the
+      * primary security parameter. For example for RSA this will be
+      * the size of the modulus, for ECDSA the size of the ECC group,
+      * and for McEliece the size of the code will be returned.
+      */
+      virtual size_t key_length() const = 0;
+
+      /**
+      * Get the OID of the underlying public key scheme.
+      * @return OID of the public key scheme
+      */
+      virtual OID get_oid() const;
+
+      /**
+      * Test the key values for consistency.
+      * @param rng rng to use
+      * @param strong whether to perform strong and lengthy version
+      * of the test
+      * @return true if the test is passed
+      */
+      virtual bool check_key(RandomNumberGenerator& rng,
+                             bool strong) const = 0;
+
+
+      /**
+      * @return X.509 AlgorithmIdentifier for this key
+      */
+      virtual AlgorithmIdentifier algorithm_identifier() const = 0;
+
+      /**
+      * @return BER encoded public key bits
+      */
+      virtual std::vector<uint8_t> public_key_bits() const = 0;
+
+      /**
+      * @return X.509 subject key encoding for this key object
+      */
+      std::vector<uint8_t> subject_public_key() const;
+
+      /**
+       * @return Hash of the subject public key
+       */
+      std::string fingerprint_public(const std::string& alg = "SHA-256") const;
+
+      // Internal or non-public declarations follow
+
+      /**
+      * Returns more than 1 if the output of this algorithm
+      * (ciphertext, signature) should be treated as more than one
+      * value. This is used for algorithms like DSA and ECDSA, where
+      * the (r,s) output pair can be encoded as either a plain binary
+      * list or a TLV tagged DER encoding depending on the protocol.
+      *
+      * This function is public but applications should have few
+      * reasons to ever call this.
+      *
+      * @return number of message parts
+      */
+      virtual size_t message_parts() const { return 1; }
+
+      /**
+      * Returns how large each of the message parts refered to
+      * by message_parts() is
+      *
+      * This function is public but applications should have few
+      * reasons to ever call this.
+      *
+      * @return size of the message parts in bits
+      */
+      virtual size_t message_part_size() const { return 0; }
+
+      virtual Signature_Format default_x509_signature_format() const
+         {
+         return (this->message_parts() >= 2) ? DER_SEQUENCE : IEEE_1363;
+         }
+
+      /**
+      * This is an internal library function exposed on key types.
+      * In almost all cases applications should use wrappers in pubkey.h
+      *
+      * Return an encryption operation for this key/params or throw
+      *
+      * @param rng a random number generator. The PK_Op may maintain a
+      * reference to the RNG and use it many times. The rng must outlive
+      * any operations which reference it.
+      * @param params additional parameters
+      * @param provider the provider to use
+      */
+      virtual std::unique_ptr<PK_Ops::Encryption>
+         create_encryption_op(RandomNumberGenerator& rng,
+                              const std::string& params,
+                              const std::string& provider) const;
+
+      /**
+      * This is an internal library function exposed on key types.
+      * In almost all cases applications should use wrappers in pubkey.h
+      *
+      * Return a KEM encryption operation for this key/params or throw
+      *
+      * @param rng a random number generator. The PK_Op may maintain a
+      * reference to the RNG and use it many times. The rng must outlive
+      * any operations which reference it.
+      * @param params additional parameters
+      * @param provider the provider to use
+      */
+      virtual std::unique_ptr<PK_Ops::KEM_Encryption>
+         create_kem_encryption_op(RandomNumberGenerator& rng,
+                                  const std::string& params,
+                                  const std::string& provider) const;
+
+      /**
+      * This is an internal library function exposed on key types.
+      * In almost all cases applications should use wrappers in pubkey.h
+      *
+      * Return a verification operation for this key/params or throw
+      * @param params additional parameters
+      * @param provider the provider to use
+      */
+      virtual std::unique_ptr<PK_Ops::Verification>
+         create_verification_op(const std::string& params,
+                                const std::string& provider) const;
+   };
+
+/**
+* Private Key Base Class
+*/
+class BOTAN_PUBLIC_API(2,0) Private_Key : public virtual Public_Key
+   {
+   public:
+      Private_Key() = default;
+      Private_Key(const Private_Key& other) = default;
+      Private_Key& operator=(const Private_Key& other) = default;
+      virtual ~Private_Key() = default;
+
+      virtual bool stateful_operation() const { return false; }
+
+      /**
+      * @return BER encoded private key bits
+      */
+      virtual secure_vector<uint8_t> private_key_bits() const = 0;
+
+      /**
+      * @return PKCS #8 private key encoding for this key object
+      */
+      secure_vector<uint8_t> private_key_info() const;
+
+      /**
+      * @return PKCS #8 AlgorithmIdentifier for this key
+      * Might be different from the X.509 identifier, but normally is not
+      */
+      virtual AlgorithmIdentifier pkcs8_algorithm_identifier() const
+         { return algorithm_identifier(); }
+
+      // Internal or non-public declarations follow
+
+      /**
+       * @return Hash of the PKCS #8 encoding for this key object
+       */
+      std::string fingerprint_private(const std::string& alg) const;
+
+      BOTAN_DEPRECATED("Use fingerprint_private or fingerprint_public")
+         inline std::string fingerprint(const std::string& alg) const
+         {
+         return fingerprint_private(alg); // match behavior in previous versions
+         }
+
+      /**
+      * This is an internal library function exposed on key types.
+      * In almost all cases applications should use wrappers in pubkey.h
+      *
+      * Return an decryption operation for this key/params or throw
+      *
+      * @param rng a random number generator. The PK_Op may maintain a
+      * reference to the RNG and use it many times. The rng must outlive
+      * any operations which reference it.
+      * @param params additional parameters
+      * @param provider the provider to use
+      *
+      */
+      virtual std::unique_ptr<PK_Ops::Decryption>
+         create_decryption_op(RandomNumberGenerator& rng,
+                              const std::string& params,
+                              const std::string& provider) const;
+
+      /**
+      * This is an internal library function exposed on key types.
+      * In almost all cases applications should use wrappers in pubkey.h
+      *
+      * Return a KEM decryption operation for this key/params or throw
+      *
+      * @param rng a random number generator. The PK_Op may maintain a
+      * reference to the RNG and use it many times. The rng must outlive
+      * any operations which reference it.
+      * @param params additional parameters
+      * @param provider the provider to use
+      */
+      virtual std::unique_ptr<PK_Ops::KEM_Decryption>
+         create_kem_decryption_op(RandomNumberGenerator& rng,
+                                  const std::string& params,
+                                  const std::string& provider) const;
+
+      /**
+      * This is an internal library function exposed on key types.
+      * In almost all cases applications should use wrappers in pubkey.h
+      *
+      * Return a signature operation for this key/params or throw
+      *
+      * @param rng a random number generator. The PK_Op may maintain a
+      * reference to the RNG and use it many times. The rng must outlive
+      * any operations which reference it.
+      * @param params additional parameters
+      * @param provider the provider to use
+      */
+      virtual std::unique_ptr<PK_Ops::Signature>
+         create_signature_op(RandomNumberGenerator& rng,
+                             const std::string& params,
+                             const std::string& provider) const;
+
+      /**
+      * This is an internal library function exposed on key types.
+      * In almost all cases applications should use wrappers in pubkey.h
+      *
+      * Return a key agreement operation for this key/params or throw
+      *
+      * @param rng a random number generator. The PK_Op may maintain a
+      * reference to the RNG and use it many times. The rng must outlive
+      * any operations which reference it.
+      * @param params additional parameters
+      * @param provider the provider to use
+      */
+      virtual std::unique_ptr<PK_Ops::Key_Agreement>
+         create_key_agreement_op(RandomNumberGenerator& rng,
+                                 const std::string& params,
+                                 const std::string& provider) const;
+   };
+
+/**
+* PK Secret Value Derivation Key
+*/
+class BOTAN_PUBLIC_API(2,0) PK_Key_Agreement_Key : public virtual Private_Key
+   {
+   public:
+      /*
+      * @return public component of this key
+      */
+      virtual std::vector<uint8_t> public_value() const = 0;
+
+      PK_Key_Agreement_Key() = default;
+      PK_Key_Agreement_Key(const PK_Key_Agreement_Key&) = default;
+      PK_Key_Agreement_Key& operator=(const PK_Key_Agreement_Key&) = default;
+      virtual ~PK_Key_Agreement_Key() = default;
+   };
+
+/*
+* Old compat typedefs
+* TODO: remove these?
+*/
+typedef PK_Key_Agreement_Key PK_KA_Key;
+typedef Public_Key X509_PublicKey;
+typedef Private_Key PKCS8_PrivateKey;
+
+std::string BOTAN_PUBLIC_API(2,4)
+   create_hex_fingerprint(const uint8_t bits[], size_t len,
+                          const std::string& hash_name);
+
+template<typename Alloc>
+std::string create_hex_fingerprint(const std::vector<uint8_t, Alloc>& vec,
+                                   const std::string& hash_name)
+   {
+   return create_hex_fingerprint(vec.data(), vec.size(), hash_name);
+   }
+
 
 }
 
@@ -12218,6 +11813,597 @@ class BOTAN_PUBLIC_API(2,0) DataSink_Stream final : public DataSink
 
 }
 
+namespace Botan {
+
+class X509_Certificate;
+class Data_Store;
+class Public_Key;
+
+/**
+* Check that key constraints are permitted for a specific public key.
+* @param pub_key the public key on which the constraints shall be enforced on
+* @param constraints the constraints that shall be enforced on the key
+* @throw Invalid_Argument if the given constraints are not permitted for this key
+*/
+BOTAN_PUBLIC_API(2,0) void verify_cert_constraints_valid_for_key_type(const Public_Key& pub_key,
+                                                                      Key_Constraints constraints);
+
+std::string BOTAN_PUBLIC_API(2,0) key_constraints_to_string(Key_Constraints);
+
+/**
+* Distinguished Name
+*/
+class BOTAN_PUBLIC_API(2,0) X509_DN final : public ASN1_Object
+   {
+   public:
+      X509_DN() = default;
+
+      explicit X509_DN(const std::multimap<OID, std::string>& args)
+         {
+         for(auto i : args)
+            add_attribute(i.first, i.second);
+         }
+
+      explicit X509_DN(const std::multimap<std::string, std::string>& args)
+         {
+         for(auto i : args)
+            add_attribute(i.first, i.second);
+         }
+
+      void encode_into(DER_Encoder&) const override;
+      void decode_from(BER_Decoder&) override;
+
+      bool has_field(const OID& oid) const;
+      ASN1_String get_first_attribute(const OID& oid) const;
+
+      /*
+      * Return the BER encoded data, if any
+      */
+      const std::vector<uint8_t>& get_bits() const { return m_dn_bits; }
+
+      bool empty() const { return m_rdn.empty(); }
+
+      std::string to_string() const;
+
+      const std::vector<std::pair<OID,ASN1_String>>& dn_info() const { return m_rdn; }
+
+      std::multimap<OID, std::string> get_attributes() const;
+      std::multimap<std::string, std::string> contents() const;
+
+      bool has_field(const std::string& attr) const;
+      std::vector<std::string> get_attribute(const std::string& attr) const;
+      std::string get_first_attribute(const std::string& attr) const;
+
+      void add_attribute(const std::string& key, const std::string& val);
+
+      void add_attribute(const OID& oid, const std::string& val)
+         {
+         add_attribute(oid, ASN1_String(val));
+         }
+
+      void add_attribute(const OID& oid, const ASN1_String& val);
+
+      static std::string deref_info_field(const std::string& key);
+
+      /**
+      * Lookup upper bounds in characters for the length of distinguished name fields
+      * as given in RFC 5280, Appendix A.
+      *
+      * @param oid the oid of the DN to lookup
+      * @return the upper bound, or zero if no ub is known to Botan
+      */
+      static size_t lookup_ub(const OID& oid);
+
+   private:
+      std::vector<std::pair<OID,ASN1_String>> m_rdn;
+      std::vector<uint8_t> m_dn_bits;
+   };
+
+bool BOTAN_PUBLIC_API(2,0) operator==(const X509_DN& dn1, const X509_DN& dn2);
+bool BOTAN_PUBLIC_API(2,0) operator!=(const X509_DN& dn1, const X509_DN& dn2);
+
+/*
+The ordering here is arbitrary and may change from release to release.
+It is intended for allowing DNs as keys in std::map and similiar containers
+*/
+bool BOTAN_PUBLIC_API(2,0) operator<(const X509_DN& dn1, const X509_DN& dn2);
+
+BOTAN_PUBLIC_API(2,0) std::ostream& operator<<(std::ostream& out, const X509_DN& dn);
+BOTAN_PUBLIC_API(2,0) std::istream& operator>>(std::istream& in, X509_DN& dn);
+
+/**
+* Alternative Name
+*/
+class BOTAN_PUBLIC_API(2,0) AlternativeName final : public ASN1_Object
+   {
+   public:
+      void encode_into(DER_Encoder&) const override;
+      void decode_from(BER_Decoder&) override;
+
+      std::multimap<std::string, std::string> contents() const;
+
+      bool has_field(const std::string& attr) const;
+      std::vector<std::string> get_attribute(const std::string& attr) const;
+
+      std::string get_first_attribute(const std::string& attr) const;
+
+      void add_attribute(const std::string& type, const std::string& value);
+      void add_othername(const OID& oid, const std::string& value, ASN1_Tag type);
+
+      const std::multimap<std::string, std::string>& get_attributes() const
+         {
+         return m_alt_info;
+         }
+
+      const std::multimap<OID, ASN1_String>& get_othernames() const
+         {
+         return m_othernames;
+         }
+
+      X509_DN dn() const;
+
+      bool has_items() const;
+
+      AlternativeName(const std::string& email_addr = "",
+                      const std::string& uri = "",
+                      const std::string& dns = "",
+                      const std::string& ip_address = "");
+   private:
+      std::multimap<std::string, std::string> m_alt_info;
+      std::multimap<OID, ASN1_String> m_othernames;
+   };
+
+/**
+* Attribute
+*/
+class BOTAN_PUBLIC_API(2,0) Attribute final : public ASN1_Object
+   {
+   public:
+      void encode_into(DER_Encoder& to) const override;
+      void decode_from(BER_Decoder& from) override;
+
+      Attribute() = default;
+      Attribute(const OID&, const std::vector<uint8_t>&);
+      Attribute(const std::string&, const std::vector<uint8_t>&);
+
+      const OID& get_oid() const { return oid; }
+
+      const std::vector<uint8_t>& get_parameters() const { return parameters; }
+
+   BOTAN_DEPRECATED_PUBLIC_MEMBER_VARIABLES:
+      /*
+      * These values are public for historical reasons, but in a future release
+      * they will be made private. Do not access them.
+      */
+      OID oid;
+      std::vector<uint8_t> parameters;
+   };
+
+/**
+* @brief X.509 GeneralName Type
+*
+* Handles parsing GeneralName types in their BER and canonical string
+* encoding. Allows matching GeneralNames against each other using
+* the rules laid out in the RFC 5280, sec. 4.2.1.10 (Name Contraints).
+*/
+class BOTAN_PUBLIC_API(2,0) GeneralName final : public ASN1_Object
+   {
+   public:
+      enum MatchResult : int
+            {
+            All,
+            Some,
+            None,
+            NotFound,
+            UnknownType,
+            };
+
+      /**
+      * Creates an empty GeneralName.
+      */
+      GeneralName() = default;
+
+      /**
+      * Creates a new GeneralName for its string format.
+      * @param str type and name, colon-separated, e.g., "DNS:google.com"
+      */
+      GeneralName(const std::string& str);
+
+      void encode_into(DER_Encoder&) const override;
+
+      void decode_from(BER_Decoder&) override;
+
+      /**
+      * @return Type of the name. Can be DN, DNS, IP, RFC822 or URI.
+      */
+      const std::string& type() const { return m_type; }
+
+      /**
+      * @return The name as string. Format depends on type.
+      */
+      const std::string& name() const { return m_name; }
+
+      /**
+      * Checks whether a given certificate (partially) matches this name.
+      * @param cert certificate to be matched
+      * @return the match result
+      */
+      MatchResult matches(const X509_Certificate& cert) const;
+
+   private:
+      std::string m_type;
+      std::string m_name;
+
+      bool matches_dns(const std::string&) const;
+      bool matches_dn(const std::string&) const;
+      bool matches_ip(const std::string&) const;
+   };
+
+std::ostream& operator<<(std::ostream& os, const GeneralName& gn);
+
+/**
+* @brief A single Name Constraint
+*
+* The Name Constraint extension adds a minimum and maximum path
+* length to a GeneralName to form a constraint. The length limits
+* are currently unused.
+*/
+class BOTAN_PUBLIC_API(2,0) GeneralSubtree final : public ASN1_Object
+   {
+   public:
+      /**
+      * Creates an empty name constraint.
+      */
+      GeneralSubtree() : m_base(), m_minimum(0), m_maximum(std::numeric_limits<std::size_t>::max())
+      {}
+
+      /***
+      * Creates a new name constraint.
+      * @param base name
+      * @param min minimum path length
+      * @param max maximum path length
+      */
+      GeneralSubtree(const GeneralName& base, size_t min, size_t max)
+      : m_base(base), m_minimum(min), m_maximum(max)
+      {}
+
+      /**
+      * Creates a new name constraint for its string format.
+      * @param str name constraint
+      */
+      GeneralSubtree(const std::string& str);
+
+      void encode_into(DER_Encoder&) const override;
+
+      void decode_from(BER_Decoder&) override;
+
+      /**
+      * @return name
+      */
+      const GeneralName& base() const { return m_base; }
+
+      /**
+      * @return minimum path length
+      */
+      size_t minimum() const { return m_minimum; }
+
+      /**
+      * @return maximum path length
+      */
+      size_t maximum() const { return m_maximum; }
+
+   private:
+      GeneralName m_base;
+      size_t m_minimum;
+      size_t m_maximum;
+   };
+
+std::ostream& operator<<(std::ostream& os, const GeneralSubtree& gs);
+
+/**
+* @brief Name Constraints
+*
+* Wraps the Name Constraints associated with a certificate.
+*/
+class BOTAN_PUBLIC_API(2,0) NameConstraints final
+   {
+   public:
+      /**
+      * Creates an empty name NameConstraints.
+      */
+      NameConstraints() : m_permitted_subtrees(), m_excluded_subtrees() {}
+
+      /**
+      * Creates NameConstraints from a list of permitted and excluded subtrees.
+      * @param permitted_subtrees names for which the certificate is permitted
+      * @param excluded_subtrees names for which the certificate is not permitted
+      */
+      NameConstraints(std::vector<GeneralSubtree>&& permitted_subtrees,
+                    std::vector<GeneralSubtree>&& excluded_subtrees)
+      : m_permitted_subtrees(permitted_subtrees), m_excluded_subtrees(excluded_subtrees)
+      {}
+
+      /**
+      * @return permitted names
+      */
+      const std::vector<GeneralSubtree>& permitted() const { return m_permitted_subtrees; }
+
+      /**
+      * @return excluded names
+      */
+      const std::vector<GeneralSubtree>& excluded() const { return m_excluded_subtrees; }
+
+   private:
+      std::vector<GeneralSubtree> m_permitted_subtrees;
+      std::vector<GeneralSubtree> m_excluded_subtrees;
+   };
+
+/**
+* X.509 Certificate Extension
+*/
+class BOTAN_PUBLIC_API(2,0) Certificate_Extension
+   {
+   public:
+      /**
+      * @return OID representing this extension
+      */
+      virtual OID oid_of() const = 0;
+
+      /*
+      * @return specific OID name
+      * If possible OIDS table should match oid_name to OIDS, ie
+      * OID::from_string(ext->oid_name()) == ext->oid_of()
+      * Should return empty string if OID is not known
+      */
+      virtual std::string oid_name() const = 0;
+
+      /**
+      * Make a copy of this extension
+      * @return copy of this
+      */
+      virtual Certificate_Extension* copy() const = 0;
+
+      /*
+      * Add the contents of this extension into the information
+      * for the subject and/or issuer, as necessary.
+      * @param subject the subject info
+      * @param issuer the issuer info
+      */
+      virtual void contents_to(Data_Store& subject,
+                               Data_Store& issuer) const = 0;
+
+      /*
+      * Callback visited during path validation.
+      *
+      * An extension can implement this callback to inspect
+      * the path during path validation.
+      *
+      * If an error occurs during validation of this extension,
+      * an appropriate status code shall be added to cert_status.
+      *
+      * @param subject Subject certificate that contains this extension
+      * @param issuer Issuer certificate
+      * @param status Certificate validation status codes for subject certificate
+      * @param cert_path Certificate path which is currently validated
+      * @param pos Position of subject certificate in cert_path
+      */
+      virtual void validate(const X509_Certificate& subject, const X509_Certificate& issuer,
+            const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path,
+            std::vector<std::set<Certificate_Status_Code>>& cert_status,
+            size_t pos);
+
+      virtual ~Certificate_Extension() = default;
+   protected:
+      friend class Extensions;
+      virtual bool should_encode() const { return true; }
+      virtual std::vector<uint8_t> encode_inner() const = 0;
+      virtual void decode_inner(const std::vector<uint8_t>&) = 0;
+   };
+
+/**
+* X.509 Certificate Extension List
+*/
+class BOTAN_PUBLIC_API(2,0) Extensions final : public ASN1_Object
+   {
+   public:
+      /**
+      * Look up an object in the extensions, based on OID Returns
+      * nullptr if not set, if the extension was either absent or not
+      * handled. The pointer returned is owned by the Extensions
+      * object.
+      * This would be better with an optional<T> return value
+      */
+      const Certificate_Extension* get_extension_object(const OID& oid) const;
+
+      template<typename T>
+      const T* get_extension_object_as(const OID& oid = T::static_oid()) const
+         {
+         if(const Certificate_Extension* extn = get_extension_object(oid))
+            {
+            // Unknown_Extension oid_name is empty
+            if(extn->oid_name().empty())
+               {
+               return nullptr;
+               }
+            else if(const T* extn_as_T = dynamic_cast<const T*>(extn))
+               {
+               return extn_as_T;
+               }
+            else
+               {
+               throw Decoding_Error("Exception::get_extension_object_as dynamic_cast failed");
+               }
+            }
+
+         return nullptr;
+         }
+
+      /**
+      * Return the set of extensions in the order they appeared in the certificate
+      * (or as they were added, if constructed)
+      */
+      const std::vector<OID>& get_extension_oids() const
+         {
+         return m_extension_oids;
+         }
+
+      /**
+      * Return true if an extension was set
+      */
+      bool extension_set(const OID& oid) const;
+
+      /**
+      * Return true if an extesion was set and marked critical
+      */
+      bool critical_extension_set(const OID& oid) const;
+
+      /**
+      * Return the raw bytes of the extension
+      * Will throw if OID was not set as an extension.
+      */
+      std::vector<uint8_t> get_extension_bits(const OID& oid) const;
+
+      void encode_into(class DER_Encoder&) const override;
+      void decode_from(class BER_Decoder&) override;
+      void contents_to(Data_Store&, Data_Store&) const;
+
+      /**
+      * Adds a new extension to the list.
+      * @param extn pointer to the certificate extension (Extensions takes ownership)
+      * @param critical whether this extension should be marked as critical
+      * @throw Invalid_Argument if the extension is already present in the list
+      */
+      void add(Certificate_Extension* extn, bool critical = false);
+
+      /**
+      * Adds a new extension to the list unless it already exists. If the extension
+      * already exists within the Extensions object, the extn pointer will be deleted.
+      *
+      * @param extn pointer to the certificate extension (Extensions takes ownership)
+      * @param critical whether this extension should be marked as critical
+      * @return true if the object was added false if the extension was already used
+      */
+      bool add_new(Certificate_Extension* extn, bool critical = false);
+
+      /**
+      * Adds an extension to the list or replaces it.
+      * @param extn the certificate extension
+      * @param critical whether this extension should be marked as critical
+      */
+      void replace(Certificate_Extension* extn, bool critical = false);
+
+      /**
+      * Remove an extension from the list. Returns true if the
+      * extension had been set, false otherwise.
+      */
+      bool remove(const OID& oid);
+
+      /**
+      * Searches for an extension by OID and returns the result.
+      * Only the known extensions types declared in this header
+      * are searched for by this function.
+      * @return Copy of extension with oid, nullptr if not found.
+      * Can avoid creating a copy by using get_extension_object function
+      */
+      std::unique_ptr<Certificate_Extension> get(const OID& oid) const;
+
+      /**
+      * Searches for an extension by OID and returns the result decoding
+      * it to some arbitrary extension type chosen by the application.
+      *
+      * Only the unknown extensions, that is, extensions types that
+      * are not declared in this header, are searched for by this
+      * function.
+      *
+      * @return Pointer to new extension with oid, nullptr if not found.
+      */
+      template<typename T>
+      std::unique_ptr<T> get_raw(const OID& oid) const
+         {
+         auto extn_info = m_extension_info.find(oid);
+
+         if(extn_info != m_extension_info.end())
+            {
+            // Unknown_Extension oid_name is empty
+            if(extn_info->second.obj().oid_name() == "")
+               {
+               std::unique_ptr<T> ext(new T);
+               ext->decode_inner(extn_info->second.bits());
+               return ext;
+               }
+            }
+         return nullptr;
+         }
+
+      /**
+      * Returns a copy of the list of extensions together with the corresponding
+      * criticality flag. All extensions are encoded as some object, falling back
+      * to Unknown_Extension class which simply allows reading the bytes as well
+      * as the criticality flag.
+      */
+      std::vector<std::pair<std::unique_ptr<Certificate_Extension>, bool>> extensions() const;
+
+      /**
+      * Returns the list of extensions as raw, encoded bytes
+      * together with the corresponding criticality flag.
+      * Contains all extensions, including any extensions encoded as Unknown_Extension
+      */
+      std::map<OID, std::pair<std::vector<uint8_t>, bool>> extensions_raw() const;
+
+      Extensions() {}
+
+      Extensions(const Extensions&) = default;
+      Extensions& operator=(const Extensions&) = default;
+
+      Extensions(Extensions&&) = default;
+      Extensions& operator=(Extensions&&) = default;
+
+   private:
+      static std::unique_ptr<Certificate_Extension>
+         create_extn_obj(const OID& oid,
+                         bool critical,
+                         const std::vector<uint8_t>& body);
+
+      class Extensions_Info
+         {
+         public:
+            Extensions_Info(bool critical,
+                            Certificate_Extension* ext) :
+               m_obj(ext),
+               m_bits(m_obj->encode_inner()),
+               m_critical(critical)
+               {
+               }
+
+            Extensions_Info(bool critical,
+                            const std::vector<uint8_t>& encoding,
+                            Certificate_Extension* ext) :
+               m_obj(ext),
+               m_bits(encoding),
+               m_critical(critical)
+               {
+               }
+
+            bool is_critical() const { return m_critical; }
+            const std::vector<uint8_t>& bits() const { return m_bits; }
+            const Certificate_Extension& obj() const
+               {
+               BOTAN_ASSERT_NONNULL(m_obj.get());
+               return *m_obj.get();
+               }
+
+         private:
+            std::shared_ptr<Certificate_Extension> m_obj;
+            std::vector<uint8_t> m_bits;
+            bool m_critical = false;
+         };
+
+      std::vector<OID> m_extension_oids;
+      std::map<OID, Extensions_Info> m_extension_info;
+   };
+
+}
+
 BOTAN_FUTURE_INTERNAL_HEADER(datastor.h)
 
 namespace Botan {
@@ -12289,7 +12475,6 @@ create_alt_name(const Data_Store& info);
 namespace Botan {
 
 class BigInt;
-class ASN1_Object;
 
 /**
 * General DER Encoding Object
@@ -12582,6 +12767,12 @@ namespace Botan {
 class Montgomery_Params;
 class DL_Group_Data;
 
+enum class DL_Group_Source {
+   Builtin,
+   RandomlyGenerated,
+   ExternalSource,
+};
+
 /**
 * This class represents discrete logarithm groups. It holds a prime
 * modulus p, a generator g, and (optionally) a prime q which is a
@@ -12618,12 +12809,18 @@ class BOTAN_PUBLIC_API(2,0) DL_Group final
 
       /**
       * Construct a DL group that is registered in the configuration.
-      * @param name the name that is configured in the global configuration
-      * for the desired group. If no configuration file is specified,
-      * the default values from the file policy.cpp will be used. For instance,
-      * use "modp/ietf/3072".
+      * @param name the name of the group, for example "modp/ietf/3072"
+      *
+      * @warning This constructor also accepts PEM inputs. This behavior is
+      * deprecated and will be removed in a future major release. Instead
+      * use DL_Group_from_PEM function
       */
       explicit DL_Group(const std::string& name);
+
+      /*
+      * Read a PEM representation
+      */
+      static DL_Group DL_Group_from_PEM(const std::string& pem);
 
       /**
       * Create a new group randomly.
@@ -12676,7 +12873,7 @@ class BOTAN_PUBLIC_API(2,0) DL_Group final
       * Decode a BER-encoded DL group param
       */
       template<typename Alloc>
-      DL_Group(const std::vector<uint8_t, Alloc>& ber, Format format) :
+         DL_Group(const std::vector<uint8_t, Alloc>& ber, Format format) :
          DL_Group(ber.data(), ber.size(), format) {}
 
       /**
@@ -12866,6 +13063,8 @@ class BOTAN_PUBLIC_API(2,0) DL_Group final
       * Decode a DER/BER encoded group into this instance.
       * @param ber a vector containing the DER/BER encoded group
       * @param format the format of the encoded group
+      *
+      * @warning avoid this. Instead use the DL_Group constructor
       */
       void BER_decode(const std::vector<uint8_t>& ber, Format format);
 
@@ -12873,7 +13072,9 @@ class BOTAN_PUBLIC_API(2,0) DL_Group final
       * Decode a PEM encoded group into this instance.
       * @param pem the PEM encoding of the group
       */
-      void PEM_decode(const std::string& pem);
+      void BOTAN_DEPRECATED("Use DL_Group_from_PEM") PEM_decode(const std::string& pem);
+
+      DL_Group_Source source() const;
 
       /**
       * Return PEM representation of named DL group
@@ -12895,7 +13096,9 @@ class BOTAN_PUBLIC_API(2,0) DL_Group final
                                                                const char* g_str);
 
       static std::shared_ptr<DL_Group_Data>
-         BER_decode_DL_group(const uint8_t data[], size_t data_len, DL_Group::Format format);
+         BER_decode_DL_group(const uint8_t data[], size_t data_len,
+                             DL_Group::Format format,
+                             DL_Group_Source source);
 
       const DL_Group_Data& data() const;
       std::shared_ptr<DL_Group_Data> m_data;
@@ -13108,10 +13311,10 @@ namespace Botan {
 * @param q will be set to x / y
 * @param r will be set to x % y
 */
-void BOTAN_PUBLIC_API(2,0) divide(const BigInt& x,
-                                  const BigInt& y,
-                                  BigInt& q,
-                                  BigInt& r);
+void BOTAN_UNSTABLE_API vartime_divide(const BigInt& x,
+                                       const BigInt& y,
+                                       BigInt& q,
+                                       BigInt& r);
 
 /**
 * BigInt division, const time variant
@@ -13128,6 +13331,14 @@ void BOTAN_PUBLIC_API(2,9) ct_divide(const BigInt& x,
                                      const BigInt& y,
                                      BigInt& q,
                                      BigInt& r);
+
+inline void divide(const BigInt& x,
+                   const BigInt& y,
+                   BigInt& q,
+                   BigInt& r)
+   {
+   ct_divide(x, y, q, r);
+   }
 
 /**
 * BigInt division, const time variant
@@ -14933,6 +15144,11 @@ enum EC_Group_Encoding {
    EC_DOMPAR_ENC_OID = 2
 };
 
+enum class EC_Group_Source {
+   Builtin,
+   ExternalSource,
+};
+
 class CurveGFp;
 
 class EC_Group_Data;
@@ -14990,9 +15206,14 @@ class BOTAN_PUBLIC_API(2,0) EC_Group final
 
       /**
       * Decode a BER encoded ECC domain parameter set
-      * @param ber_encoding the bytes of the BER encoding
+      * @param ber the bytes of the BER encoding
+      * @param ber_len the length of ber
       */
-      explicit EC_Group(const std::vector<uint8_t>& ber_encoding);
+      explicit EC_Group(const uint8_t ber[], size_t ber_len);
+
+      template<typename Alloc>
+         EC_Group(const std::vector<uint8_t, Alloc>& ber) :
+         EC_Group(ber.data(), ber.size()) {}
 
       /**
       * Create an EC domain by OID (or throw if unknown)
@@ -15004,8 +15225,13 @@ class BOTAN_PUBLIC_API(2,0) EC_Group final
       * Create an EC domain from PEM encoding (as from PEM_encode), or
       * from an OID name (eg "secp256r1", or "1.2.840.10045.3.1.7")
       * @param pem_or_oid PEM-encoded data, or an OID
+
+      * @warning Support for PEM in this function is deprecated. Use
+      * EC_Group_from_PEM
       */
       explicit EC_Group(const std::string& pem_or_oid);
+
+      static EC_Group EC_Group_from_PEM(const std::string& pem);
 
       /**
       * Create an uninitialized EC_Group
@@ -15236,6 +15462,8 @@ class BOTAN_PUBLIC_API(2,0) EC_Group final
 
       bool operator==(const EC_Group& other) const;
 
+      EC_Group_Source source() const;
+
       /**
       * Return PEM representation of named EC group
       * Deprecated: Use EC_Group(name).PEM_encode() if this is needed
@@ -15257,7 +15485,8 @@ class BOTAN_PUBLIC_API(2,0) EC_Group final
    private:
       static EC_Group_Data_Map& ec_group_data();
 
-      static std::shared_ptr<EC_Group_Data> BER_decode_EC_group(const uint8_t bits[], size_t len);
+      static std::shared_ptr<EC_Group_Data> BER_decode_EC_group(const uint8_t bits[], size_t len,
+                                                                EC_Group_Source source);
 
       static std::shared_ptr<EC_Group_Data>
          load_EC_group_info(const char* p,
@@ -16946,6 +17175,20 @@ typedef struct botan_rng_struct* botan_rng_t;
 * Set rng_type to null to let the library choose some default.
 */
 BOTAN_PUBLIC_API(2,0) int botan_rng_init(botan_rng_t* rng, const char* rng_type);
+
+/**
+* Initialize a custom random number generator from a set of callback functions
+* @param rng rng object
+* @param rng_name name of the rng
+* @param context An application-specific context passed to the callback functions
+* @param get_cb Callback for getting random bytes from the rng, return 0 for success
+* @param add_entry_cb Callback for adding entropy to the rng, return 0 for success, may be NULL
+* @param destroy_cb Callback called when rng is destroyed, may be NULL
+*/
+BOTAN_PUBLIC_API(2,18) int botan_rng_init_custom(botan_rng_t* rng_out, const char* rng_name, void* context,
+                                                 int(* get_cb)(void* context, uint8_t* out, size_t out_len),
+                                                 int(* add_entropy_cb)(void* context, const uint8_t input[], size_t length),
+                                                 void(* destroy_cb)(void* context));
 
 /**
 * Get random bytes from a random number generator
@@ -19799,8 +20042,7 @@ class BOTAN_PUBLIC_API(2,0) GCM_Decryption final : public GCM_Mode
 
 }
 
-// fixme - still used in mceliece.h
-//BOTAN_FUTURE_INTERNAL_HEADER(gf2m_small_m.h)
+BOTAN_FUTURE_INTERNAL_HEADER(gf2m_small_m.h)
 
 namespace Botan {
 
@@ -20065,11 +20307,26 @@ class BOTAN_PUBLIC_API(2,0) GHASH final : public SymmetricAlgorithm
       void add_final_block(secure_vector<uint8_t>& x,
                            size_t ad_len, size_t pt_len);
    private:
+
+#if defined(BOTAN_HAS_GHASH_CLMUL_CPU)
+      static void ghash_precompute_cpu(const uint8_t H[16], uint64_t H_pow[4*2]);
+
+      static void ghash_multiply_cpu(uint8_t x[16],
+                                     const uint64_t H_pow[4*2],
+                                     const uint8_t input[], size_t blocks);
+#endif
+
+#if defined(BOTAN_HAS_GHASH_CLMUL_VPERM)
+      static void ghash_multiply_vperm(uint8_t x[16],
+                                       const uint64_t HM[256],
+                                       const uint8_t input[], size_t blocks);
+#endif
+
       void key_schedule(const uint8_t key[], size_t key_len) override;
 
-      void gcm_multiply(secure_vector<uint8_t>& x,
-                        const uint8_t input[],
-                        size_t blocks);
+      void ghash_multiply(secure_vector<uint8_t>& x,
+                          const uint8_t input[],
+                          size_t blocks);
 
       static const size_t GCM_BS = 16;
 
@@ -20657,6 +20914,11 @@ class BOTAN_PUBLIC_API(2,0) HMAC_DRBG final : public Stateful_RNG
       explicit HMAC_DRBG(std::unique_ptr<MessageAuthenticationCode> prf);
 
       /**
+      * Constructor taking a string for the hash
+      */
+      explicit HMAC_DRBG(const std::string& hmac_hash);
+
+      /**
       * Initialize an HMAC_DRBG instance with the given MAC as PRF (normally HMAC)
       *
       * Automatic reseeding from @p underlying_rng will take place after
@@ -20742,27 +21004,7 @@ class BOTAN_PUBLIC_API(2,0) HMAC_DRBG final : public Stateful_RNG
                 size_t reseed_interval = BOTAN_RNG_DEFAULT_RESEED_INTERVAL,
                 size_t max_number_of_bytes_per_request = 64 * 1024);
 
-      /**
-      * Constructor taking a string for the hash
-      */
-      explicit HMAC_DRBG(const std::string& hmac_hash) :
-         Stateful_RNG(),
-         m_mac(MessageAuthenticationCode::create_or_throw("HMAC(" + hmac_hash + ")")),
-         m_max_number_of_bytes_per_request(64 * 1024)
-         {
-         clear();
-         }
-
       std::string name() const override;
-
-      void clear() override;
-
-      void randomize(uint8_t output[], size_t output_len) override;
-
-      void randomize_with_input(uint8_t output[], size_t output_len,
-                                const uint8_t input[], size_t input_len) override;
-
-      void add_entropy(const uint8_t input[], size_t input_len) override;
 
       size_t security_level() const override;
 
@@ -20770,61 +21012,17 @@ class BOTAN_PUBLIC_API(2,0) HMAC_DRBG final : public Stateful_RNG
          { return m_max_number_of_bytes_per_request; }
 
    private:
-      void update(const uint8_t input[], size_t input_len);
+      void update(const uint8_t input[], size_t input_len) override;
+
+      void generate_output(uint8_t output[], size_t output_len,
+                           const uint8_t input[], size_t input_len) override;
+
+      void clear_state() override;
 
       std::unique_ptr<MessageAuthenticationCode> m_mac;
       secure_vector<uint8_t> m_V;
       const size_t m_max_number_of_bytes_per_request;
-   };
-
-}
-
-namespace Botan {
-
-/**
-* HOTP one time passwords (RFC 4226)
-*/
-class BOTAN_PUBLIC_API(2,2) HOTP final
-   {
-   public:
-      /**
-      * @param key the secret key shared between client and server
-      * @param hash_algo the hash algorithm to use, should be SHA-1 or SHA-256
-      * @param digits the number of digits in the OTP (must be 6, 7, or 8)
-      */
-      HOTP(const SymmetricKey& key, const std::string& hash_algo = "SHA-1", size_t digits = 6) :
-         HOTP(key.begin(), key.size(), hash_algo, digits) {}
-
-      /**
-      * @param key the secret key shared between client and server
-      * @param key_len length of key param
-      * @param hash_algo the hash algorithm to use, should be SHA-1 or SHA-256
-      * @param digits the number of digits in the OTP (must be 6, 7, or 8)
-      */
-      HOTP(const uint8_t key[], size_t key_len,
-           const std::string& hash_algo = "SHA-1",
-           size_t digits = 6);
-
-      /**
-      * Generate the HOTP for a particular counter value
-      * @warning if the counter value is repeated the OTP ceases to be one-time
-      */
-      uint32_t generate_hotp(uint64_t counter);
-
-      /**
-      * Check an OTP value using a starting counter and a resync range
-      * @param otp the client provided OTP
-      * @param starting_counter the server's guess as to the current counter state
-      * @param resync_range if 0 then only HOTP(starting_counter) is accepted
-      * If larger than 0, up to resync_range values after HOTP are also checked.
-      * @return (valid,next_counter). If the OTP does not validate, always
-      * returns (false,starting_counter). Otherwise returns (true,next_counter)
-      * where next_counter is at most starting_counter + resync_range + 1
-      */
-      std::pair<bool,uint64_t> verify_hotp(uint32_t otp, uint64_t starting_counter, size_t resync_range = 0);
-   private:
-      std::unique_ptr<MessageAuthenticationCode> m_mac;
-      uint32_t m_digit_mod;
+      const size_t m_security_level;
    };
 
 }
@@ -20885,7 +21083,7 @@ class Response final
 
 BOTAN_PUBLIC_API(2,0) std::ostream& operator<<(std::ostream& o, const Response& resp);
 
-typedef std::function<std::string (const std::string&, const std::string&)> http_exch_fn;
+typedef std::function<std::string (const std::string&, const std::string&, const std::string&)> http_exch_fn;
 
 BOTAN_PUBLIC_API(2,0) Response http_sync(http_exch_fn fn,
                                          const std::string& verb,
@@ -22048,9 +22246,14 @@ BOTAN_PUBLIC_API(2,0) mceies_decrypt(const McEliece_PrivateKey& privkey,
 
 }
 
+// Currently must be visible for MSVC
 //BOTAN_FUTURE_INTERNAL_HEADER(polyn_gf2m.h)
 
 namespace Botan {
+
+typedef uint16_t gf2m;
+
+class GF2m_Field;
 
 class RandomNumberGenerator;
 
@@ -22200,6 +22403,10 @@ secure_vector<gf2m> find_roots_gf2m_decomp(const polyn_gf2m & polyn, size_t code
 
 namespace Botan {
 
+typedef uint16_t gf2m;
+
+class polyn_gf2m;
+
 class BOTAN_PUBLIC_API(2,0) McEliece_PublicKey : public virtual Public_Key
    {
    public:
@@ -22276,9 +22483,11 @@ class BOTAN_PUBLIC_API(2,0) McEliece_PrivateKey final : public virtual McEliece_
                           std::vector<gf2m> const& inverse_support,
                           std::vector<uint8_t> const& public_matrix );
 
+      ~McEliece_PrivateKey();
+
       bool check_key(RandomNumberGenerator& rng, bool strong) const override;
 
-      polyn_gf2m const& get_goppa_polyn() const { return m_g; }
+      polyn_gf2m const& get_goppa_polyn() const;
       std::vector<uint32_t> const& get_H_coeffs() const { return m_coeffs; }
       std::vector<gf2m> const& get_Linv() const { return m_Linv; }
       std::vector<polyn_gf2m> const& get_sqrtmod() const { return m_sqrtmod; }
@@ -22298,7 +22507,7 @@ class BOTAN_PUBLIC_API(2,0) McEliece_PrivateKey final : public virtual McEliece_
                                   const std::string& params,
                                   const std::string& provider) const override;
    private:
-      polyn_gf2m m_g;
+      std::vector<polyn_gf2m> m_g; // single element
       std::vector<polyn_gf2m> m_sqrtmod;
       std::vector<gf2m> m_Linv;
       std::vector<uint32_t> m_coeffs;
@@ -22485,6 +22694,7 @@ class BOTAN_PUBLIC_API(2,0) MISTY1 final : public Block_Cipher_Fixed_Params<8, 1
    };
 
 }
+BOTAN_FUTURE_INTERNAL_HEADER(monty.h)
 
 namespace Botan {
 
@@ -23040,6 +23250,8 @@ class BOTAN_PUBLIC_API(2,0) OCB_Decryption final : public OCB_Mode
 
 namespace Botan {
 
+class Certificate_Store;
+
 namespace OCSP {
 
 class BOTAN_PUBLIC_API(2,0) CertID final : public ASN1_Object
@@ -23086,16 +23298,6 @@ class BOTAN_PUBLIC_API(2,0) SingleResponse final : public ASN1_Object
       X509_Time m_thisupdate;
       X509_Time m_nextupdate;
    };
-
-}
-
-}
-
-namespace Botan {
-
-class Certificate_Store;
-
-namespace OCSP {
 
 /**
 * An OCSP request.
@@ -23434,6 +23636,109 @@ inline OID BOTAN_DEPRECATED("Use str2oid_or_empty") str2oid(const std::string& n
    }
 
 }
+
+}
+
+namespace Botan {
+
+/**
+* HOTP one time passwords (RFC 4226)
+*/
+class BOTAN_PUBLIC_API(2,2) HOTP final
+   {
+   public:
+      /**
+      * @param key the secret key shared between client and server
+      * @param hash_algo the hash algorithm to use, should be SHA-1 or SHA-256
+      * @param digits the number of digits in the OTP (must be 6, 7, or 8)
+      */
+      HOTP(const SymmetricKey& key, const std::string& hash_algo = "SHA-1", size_t digits = 6) :
+         HOTP(key.begin(), key.size(), hash_algo, digits) {}
+
+      /**
+      * @param key the secret key shared between client and server
+      * @param key_len length of key param
+      * @param hash_algo the hash algorithm to use, should be SHA-1 or SHA-256
+      * @param digits the number of digits in the OTP (must be 6, 7, or 8)
+      */
+      HOTP(const uint8_t key[], size_t key_len,
+           const std::string& hash_algo = "SHA-1",
+           size_t digits = 6);
+
+      /**
+      * Generate the HOTP for a particular counter value
+      * @warning if the counter value is repeated the OTP ceases to be one-time
+      */
+      uint32_t generate_hotp(uint64_t counter);
+
+      /**
+      * Check an OTP value using a starting counter and a resync range
+      * @param otp the client provided OTP
+      * @param starting_counter the server's guess as to the current counter state
+      * @param resync_range if 0 then only HOTP(starting_counter) is accepted
+      * If larger than 0, up to resync_range values after HOTP are also checked.
+      * @return (valid,next_counter). If the OTP does not validate, always
+      * returns (false,starting_counter). Otherwise returns (true,next_counter)
+      * where next_counter is at most starting_counter + resync_range + 1
+      */
+      std::pair<bool,uint64_t> verify_hotp(uint32_t otp, uint64_t starting_counter, size_t resync_range = 0);
+   private:
+      std::unique_ptr<MessageAuthenticationCode> m_mac;
+      uint32_t m_digit_mod;
+   };
+
+/**
+* TOTP (time based) one time passwords (RFC 6238)
+*/
+class BOTAN_PUBLIC_API(2,2) TOTP final
+   {
+   public:
+      /**
+      * @param key the secret key shared between client and server
+      * @param hash_algo the hash algorithm to use, should be SHA-1, SHA-256 or SHA-512
+      * @param digits the number of digits in the OTP (must be 6, 7, or 8)
+      * @param time_step granularity of OTP in seconds
+      */
+      TOTP(const SymmetricKey& key,
+           const std::string& hash_algo = "SHA-1",
+           size_t digits = 6, size_t time_step = 30) :
+         TOTP(key.begin(), key.size(), hash_algo, digits, time_step) {}
+
+      /**
+      * @param key the secret key shared between client and server
+      * @param key_len length of key
+      * @param hash_algo the hash algorithm to use, should be SHA-1, SHA-256 or SHA-512
+      * @param digits the number of digits in the OTP (must be 6, 7, or 8)
+      * @param time_step granularity of OTP in seconds
+      */
+      TOTP(const uint8_t key[], size_t key_len,
+           const std::string& hash_algo = "SHA-1",
+           size_t digits = 6,
+           size_t time_step = 30);
+
+      /**
+      * Convert the provided time_point to a Unix timestamp and call generate_totp
+      */
+      uint32_t generate_totp(std::chrono::system_clock::time_point time_point);
+
+      /**
+      * Generate the OTP corresponding the the provided "Unix timestamp" (ie
+      * number of seconds since midnight Jan 1, 1970)
+      */
+      uint32_t generate_totp(uint64_t unix_time);
+
+      bool verify_totp(uint32_t otp,
+                       std::chrono::system_clock::time_point time,
+                       size_t clock_drift_accepted = 0);
+
+      bool verify_totp(uint32_t otp, uint64_t unix_time,
+                       size_t clock_drift_accepted = 0);
+
+   private:
+      HOTP m_hotp;
+      size_t m_time_step;
+      std::chrono::system_clock::time_point m_unix_epoch;
+   };
 
 }
 
@@ -24558,9 +24863,12 @@ class BOTAN_PUBLIC_API(2,0) KEM_Decryption
 
 namespace Botan {
 
+struct PKCS10_Data;
+
 class Private_Key;
 class Extensions;
-struct PKCS10_Data;
+class X509_DN;
+class AlternativeName;
 
 /**
 * PKCS #10 Certificate Request.
@@ -25313,9 +25621,7 @@ class BOTAN_PUBLIC_API(2,4) Encrypted_PSK_Database : public PSK_Database
       secure_vector<uint8_t> m_wrap_key;
    };
 
-}
-
-namespace Botan {
+class SQL_Database;
 
 class BOTAN_PUBLIC_API(2,4) Encrypted_PSK_Database_SQL : public Encrypted_PSK_Database
    {
@@ -25324,6 +25630,7 @@ class BOTAN_PUBLIC_API(2,4) Encrypted_PSK_Database_SQL : public Encrypted_PSK_Da
                                  std::shared_ptr<SQL_Database> db,
                                  const std::string& table_name);
 
+      ~Encrypted_PSK_Database_SQL();
    private:
       void kv_set(const std::string& index, const std::string& value) override;
       std::string kv_get(const std::string& index) const override;
@@ -25621,14 +25928,20 @@ inline T rotr_var(T input, size_t rot)
 template<>
 inline uint32_t rotl_var(uint32_t input, size_t rot)
    {
-   asm("roll %1,%0" : "+r" (input) : "c" (static_cast<uint8_t>(rot)));
+   asm("roll %1,%0"
+       : "+r" (input)
+       : "c" (static_cast<uint8_t>(rot))
+       : "cc");
    return input;
    }
 
 template<>
 inline uint32_t rotr_var(uint32_t input, size_t rot)
    {
-   asm("rorl %1,%0" : "+r" (input) : "c" (static_cast<uint8_t>(rot)));
+   asm("rorl %1,%0"
+       : "+r" (input)
+       : "c" (static_cast<uint8_t>(rot))
+       : "cc");
    return input;
    }
 
@@ -26918,7 +27231,9 @@ class BOTAN_PUBLIC_API(2,0) SIV_Mode : public AEAD_Mode
       * @param ad associated data
       * @param ad_len length of associated data in bytes
       */
-      void set_associated_data_n(size_t n, const uint8_t ad[], size_t ad_len);
+      void set_associated_data_n(size_t n, const uint8_t ad[], size_t ad_len) override;
+
+      size_t maximum_associated_data_inputs() const override;
 
       void set_associated_data(const uint8_t ad[], size_t ad_len) override
          {
@@ -33468,63 +33783,6 @@ class BOTAN_PUBLIC_API(2,0) Session_Manager_SQL : public Session_Manager
 
 namespace Botan {
 
-/**
-* TOTP (time based) one time passwords (RFC 6238)
-*/
-class BOTAN_PUBLIC_API(2,2) TOTP final
-   {
-   public:
-      /**
-      * @param key the secret key shared between client and server
-      * @param hash_algo the hash algorithm to use, should be SHA-1, SHA-256 or SHA-512
-      * @param digits the number of digits in the OTP (must be 6, 7, or 8)
-      * @param time_step granularity of OTP in seconds
-      */
-      TOTP(const SymmetricKey& key,
-           const std::string& hash_algo = "SHA-1",
-           size_t digits = 6, size_t time_step = 30) :
-         TOTP(key.begin(), key.size(), hash_algo, digits, time_step) {}
-
-      /**
-      * @param key the secret key shared between client and server
-      * @param key_len length of key
-      * @param hash_algo the hash algorithm to use, should be SHA-1, SHA-256 or SHA-512
-      * @param digits the number of digits in the OTP (must be 6, 7, or 8)
-      * @param time_step granularity of OTP in seconds
-      */
-      TOTP(const uint8_t key[], size_t key_len,
-           const std::string& hash_algo = "SHA-1",
-           size_t digits = 6,
-           size_t time_step = 30);
-
-      /**
-      * Convert the provided time_point to a Unix timestamp and call generate_totp
-      */
-      uint32_t generate_totp(std::chrono::system_clock::time_point time_point);
-
-      /**
-      * Generate the OTP corresponding the the provided "Unix timestamp" (ie
-      * number of seconds since midnight Jan 1, 1970)
-      */
-      uint32_t generate_totp(uint64_t unix_time);
-
-      bool verify_totp(uint32_t otp,
-                       std::chrono::system_clock::time_point time,
-                       size_t clock_drift_accepted = 0);
-
-      bool verify_totp(uint32_t otp, uint64_t unix_time,
-                       size_t clock_drift_accepted = 0);
-
-   private:
-      HOTP m_hotp;
-      size_t m_time_step;
-      std::chrono::system_clock::time_point m_unix_epoch;
-   };
-
-}
-
-namespace Botan {
-
 class RandomNumberGenerator;
 
 /**
@@ -33823,6 +34081,7 @@ class BOTAN_PUBLIC_API(2,0) Whirlpool final : public MDx_HashFunction
    };
 
 }
+BOTAN_FUTURE_INTERNAL_HEADER(workfactor.h)
 
 namespace Botan {
 
@@ -34109,270 +34368,6 @@ namespace Botan {
 
 class Data_Store;
 class X509_Certificate;
-
-/**
-* X.509 Certificate Extension
-*/
-class BOTAN_PUBLIC_API(2,0) Certificate_Extension
-   {
-   public:
-      /**
-      * @return OID representing this extension
-      */
-      virtual OID oid_of() const = 0;
-
-      /*
-      * @return specific OID name
-      * If possible OIDS table should match oid_name to OIDS, ie
-      * OID::from_string(ext->oid_name()) == ext->oid_of()
-      * Should return empty string if OID is not known
-      */
-      virtual std::string oid_name() const = 0;
-
-      /**
-      * Make a copy of this extension
-      * @return copy of this
-      */
-      virtual Certificate_Extension* copy() const = 0;
-
-      /*
-      * Add the contents of this extension into the information
-      * for the subject and/or issuer, as necessary.
-      * @param subject the subject info
-      * @param issuer the issuer info
-      */
-      virtual void contents_to(Data_Store& subject,
-                               Data_Store& issuer) const = 0;
-
-      /*
-      * Callback visited during path validation.
-      *
-      * An extension can implement this callback to inspect
-      * the path during path validation.
-      *
-      * If an error occurs during validation of this extension,
-      * an appropriate status code shall be added to cert_status.
-      *
-      * @param subject Subject certificate that contains this extension
-      * @param issuer Issuer certificate
-      * @param status Certificate validation status codes for subject certificate
-      * @param cert_path Certificate path which is currently validated
-      * @param pos Position of subject certificate in cert_path
-      */
-      virtual void validate(const X509_Certificate& subject, const X509_Certificate& issuer,
-            const std::vector<std::shared_ptr<const X509_Certificate>>& cert_path,
-            std::vector<std::set<Certificate_Status_Code>>& cert_status,
-            size_t pos);
-
-      virtual ~Certificate_Extension() = default;
-   protected:
-      friend class Extensions;
-      virtual bool should_encode() const { return true; }
-      virtual std::vector<uint8_t> encode_inner() const = 0;
-      virtual void decode_inner(const std::vector<uint8_t>&) = 0;
-   };
-
-/**
-* X.509 Certificate Extension List
-*/
-class BOTAN_PUBLIC_API(2,0) Extensions final : public ASN1_Object
-   {
-   public:
-      /**
-      * Look up an object in the extensions, based on OID Returns
-      * nullptr if not set, if the extension was either absent or not
-      * handled. The pointer returned is owned by the Extensions
-      * object.
-      * This would be better with an optional<T> return value
-      */
-      const Certificate_Extension* get_extension_object(const OID& oid) const;
-
-      template<typename T>
-      const T* get_extension_object_as(const OID& oid = T::static_oid()) const
-         {
-         if(const Certificate_Extension* extn = get_extension_object(oid))
-            {
-            // Unknown_Extension oid_name is empty
-            if(extn->oid_name().empty())
-               {
-               return nullptr;
-               }
-            else if(const T* extn_as_T = dynamic_cast<const T*>(extn))
-               {
-               return extn_as_T;
-               }
-            else
-               {
-               throw Decoding_Error("Exception::get_extension_object_as dynamic_cast failed");
-               }
-            }
-
-         return nullptr;
-         }
-
-      /**
-      * Return the set of extensions in the order they appeared in the certificate
-      * (or as they were added, if constructed)
-      */
-      const std::vector<OID>& get_extension_oids() const
-         {
-         return m_extension_oids;
-         }
-
-      /**
-      * Return true if an extension was set
-      */
-      bool extension_set(const OID& oid) const;
-
-      /**
-      * Return true if an extesion was set and marked critical
-      */
-      bool critical_extension_set(const OID& oid) const;
-
-      /**
-      * Return the raw bytes of the extension
-      * Will throw if OID was not set as an extension.
-      */
-      std::vector<uint8_t> get_extension_bits(const OID& oid) const;
-
-      void encode_into(class DER_Encoder&) const override;
-      void decode_from(class BER_Decoder&) override;
-      void contents_to(Data_Store&, Data_Store&) const;
-
-      /**
-      * Adds a new extension to the list.
-      * @param extn pointer to the certificate extension (Extensions takes ownership)
-      * @param critical whether this extension should be marked as critical
-      * @throw Invalid_Argument if the extension is already present in the list
-      */
-      void add(Certificate_Extension* extn, bool critical = false);
-
-      /**
-      * Adds a new extension to the list unless it already exists. If the extension
-      * already exists within the Extensions object, the extn pointer will be deleted.
-      *
-      * @param extn pointer to the certificate extension (Extensions takes ownership)
-      * @param critical whether this extension should be marked as critical
-      * @return true if the object was added false if the extension was already used
-      */
-      bool add_new(Certificate_Extension* extn, bool critical = false);
-
-      /**
-      * Adds an extension to the list or replaces it.
-      * @param extn the certificate extension
-      * @param critical whether this extension should be marked as critical
-      */
-      void replace(Certificate_Extension* extn, bool critical = false);
-
-      /**
-      * Remove an extension from the list. Returns true if the
-      * extension had been set, false otherwise.
-      */
-      bool remove(const OID& oid);
-
-      /**
-      * Searches for an extension by OID and returns the result.
-      * Only the known extensions types declared in this header
-      * are searched for by this function.
-      * @return Copy of extension with oid, nullptr if not found.
-      * Can avoid creating a copy by using get_extension_object function
-      */
-      std::unique_ptr<Certificate_Extension> get(const OID& oid) const;
-
-      /**
-      * Searches for an extension by OID and returns the result decoding
-      * it to some arbitrary extension type chosen by the application.
-      *
-      * Only the unknown extensions, that is, extensions types that
-      * are not declared in this header, are searched for by this
-      * function.
-      *
-      * @return Pointer to new extension with oid, nullptr if not found.
-      */
-      template<typename T>
-      std::unique_ptr<T> get_raw(const OID& oid) const
-         {
-         auto extn_info = m_extension_info.find(oid);
-
-         if(extn_info != m_extension_info.end())
-            {
-            // Unknown_Extension oid_name is empty
-            if(extn_info->second.obj().oid_name() == "")
-               {
-               std::unique_ptr<T> ext(new T);
-               ext->decode_inner(extn_info->second.bits());
-               return ext;
-               }
-            }
-         return nullptr;
-         }
-
-      /**
-      * Returns a copy of the list of extensions together with the corresponding
-      * criticality flag. All extensions are encoded as some object, falling back
-      * to Unknown_Extension class which simply allows reading the bytes as well
-      * as the criticality flag.
-      */
-      std::vector<std::pair<std::unique_ptr<Certificate_Extension>, bool>> extensions() const;
-
-      /**
-      * Returns the list of extensions as raw, encoded bytes
-      * together with the corresponding criticality flag.
-      * Contains all extensions, including any extensions encoded as Unknown_Extension
-      */
-      std::map<OID, std::pair<std::vector<uint8_t>, bool>> extensions_raw() const;
-
-      Extensions() {}
-
-      Extensions(const Extensions&) = default;
-      Extensions& operator=(const Extensions&) = default;
-
-      Extensions(Extensions&&) = default;
-      Extensions& operator=(Extensions&&) = default;
-
-   private:
-      static std::unique_ptr<Certificate_Extension>
-         create_extn_obj(const OID& oid,
-                         bool critical,
-                         const std::vector<uint8_t>& body);
-
-      class Extensions_Info
-         {
-         public:
-            Extensions_Info(bool critical,
-                            Certificate_Extension* ext) :
-               m_obj(ext),
-               m_bits(m_obj->encode_inner()),
-               m_critical(critical)
-               {
-               }
-
-            Extensions_Info(bool critical,
-                            const std::vector<uint8_t>& encoding,
-                            Certificate_Extension* ext) :
-               m_obj(ext),
-               m_bits(encoding),
-               m_critical(critical)
-               {
-               }
-
-            bool is_critical() const { return m_critical; }
-            const std::vector<uint8_t>& bits() const { return m_bits; }
-            const Certificate_Extension& obj() const
-               {
-               BOTAN_ASSERT_NONNULL(m_obj.get());
-               return *m_obj.get();
-               }
-
-         private:
-            std::shared_ptr<Certificate_Extension> m_obj;
-            std::vector<uint8_t> m_bits;
-            bool m_critical = false;
-         };
-
-      std::vector<OID> m_extension_oids;
-      std::map<OID, Extensions_Info> m_extension_info;
-   };
 
 namespace Cert_Extension {
 
@@ -34881,6 +34876,70 @@ class BOTAN_PUBLIC_API(2,4) Unknown_Extension final : public Certificate_Extensi
    };
 
    }
+
+}
+
+namespace Botan {
+
+class RandomNumberGenerator;
+class DataSource;
+
+/**
+* The two types of X509 encoding supported by Botan.
+* This enum is not used anymore, and will be removed in a future major release.
+*/
+enum X509_Encoding { RAW_BER, PEM };
+
+/**
+* This namespace contains functions for handling X.509 public keys
+*/
+namespace X509 {
+
+/**
+* BER encode a key
+* @param key the public key to encode
+* @return BER encoding of this key
+*/
+BOTAN_PUBLIC_API(2,0) std::vector<uint8_t> BER_encode(const Public_Key& key);
+
+/**
+* PEM encode a public key into a string.
+* @param key the key to encode
+* @return PEM encoded key
+*/
+BOTAN_PUBLIC_API(2,0) std::string PEM_encode(const Public_Key& key);
+
+/**
+* Create a public key from a data source.
+* @param source the source providing the DER or PEM encoded key
+* @return new public key object
+*/
+BOTAN_PUBLIC_API(2,0) Public_Key* load_key(DataSource& source);
+
+#if defined(BOTAN_TARGET_OS_HAS_FILESYSTEM)
+/**
+* Create a public key from a file
+* @param filename pathname to the file to load
+* @return new public key object
+*/
+BOTAN_PUBLIC_API(2,0) Public_Key* load_key(const std::string& filename);
+#endif
+
+/**
+* Create a public key from a memory region.
+* @param enc the memory region containing the DER or PEM encoded key
+* @return new public key object
+*/
+BOTAN_PUBLIC_API(2,0) Public_Key* load_key(const std::vector<uint8_t>& enc);
+
+/**
+* Copy a key.
+* @param key the public key to copy
+* @return new public key object
+*/
+BOTAN_PUBLIC_API(2,0) Public_Key* copy_key(const Public_Key& key);
+
+}
 
 }
 
@@ -35584,948 +35643,6 @@ class BOTAN_PUBLIC_API(2,0) ANSI_X919_MAC final : public MessageAuthenticationCo
 
 }
 
-//BOTAN_FUTURE_INTERNAL_HEADER(xmss_tools.h)
-
-namespace Botan {
-
-/**
- * Helper tools for low level byte operations required
- * for the XMSS implementation.
- **/
-class XMSS_Tools final
-   {
-   public:
-      XMSS_Tools(const XMSS_Tools&) = delete;
-      void operator=(const XMSS_Tools&) = delete;
-
-      /**
-       * Concatenates the byte representation in big-endian order of any
-       * integral value to a secure_vector.
-       *
-       * @param target Vector to concatenate the byte representation of the
-       *               integral value to.
-       * @param src integral value to concatenate.
-       **/
-      template<typename T,
-               typename U = typename std::enable_if<std::is_integral<T>::value,
-                     void>::type>
-      static void concat(secure_vector<uint8_t>& target, const T& src);
-
-      /**
-       * Concatenates the last n bytes of the byte representation in big-endian
-       * order of any integral value to a to a secure_vector.
-       *
-       * @param target Vector to concatenate the byte representation of the
-       *               integral value to.
-       * @param src Integral value to concatenate.
-       * @param len number of bytes to concatenate. This value must be smaller
-       *            or equal to the size of type T.
-       **/
-      template <typename T,
-                typename U = typename std::enable_if<std::is_integral<T>::value,
-                void>::type>
-      static void concat(secure_vector<uint8_t>& target, const T& src, size_t len);
-
-   private:
-      XMSS_Tools();
-   };
-
-template <typename T, typename U>
-void XMSS_Tools::concat(secure_vector<uint8_t>& target, const T& src)
-   {
-   const uint8_t* src_bytes = reinterpret_cast<const uint8_t*>(&src);
-   if(CPUID::is_little_endian())
-      {
-      std::reverse_copy(src_bytes,
-                        src_bytes + sizeof(src),
-                        std::back_inserter(target));
-      }
-   else
-      {
-      std::copy(src_bytes,
-                src_bytes + sizeof(src),
-                std::back_inserter(target));
-      }
-   }
-
-
-template <typename T, typename U>
-void XMSS_Tools::concat(secure_vector<uint8_t>& target,
-                        const T& src,
-                        size_t len)
-   {
-   size_t c = static_cast<size_t>(std::min(len, sizeof(src)));
-   if(len > sizeof(src))
-      {
-      target.resize(target.size() + len - sizeof(src), 0);
-      }
-
-   const uint8_t* src_bytes = reinterpret_cast<const uint8_t*>(&src);
-   if(CPUID::is_little_endian())
-      {
-      std::reverse_copy(src_bytes,
-                        src_bytes + c,
-                        std::back_inserter(target));
-      }
-   else
-      {
-      std::copy(src_bytes + sizeof(src) - c,
-                src_bytes + sizeof(src),
-                std::back_inserter(target));
-      }
-   }
-}
-
-namespace Botan {
-
-/**
- * Descibes a signature method for XMSS Winternitz One Time Signatures,
- * as defined in:
- * [1] XMSS: Extended Hash-Based Signatures,
- *     Request for Comments: 8391
- *     Release: May 2018.
- *     https://datatracker.ietf.org/doc/rfc8391/
- **/
-class XMSS_WOTS_Parameters final
-   {
-   public:
-      enum ots_algorithm_t
-         {
-         WOTSP_SHA2_256 = 0x00000001,
-         WOTSP_SHA2_512 = 0x00000002,
-         WOTSP_SHAKE_256 = 0x00000003,
-         WOTSP_SHAKE_512 = 0x00000004
-         };
-
-      XMSS_WOTS_Parameters(const std::string& algo_name);
-      XMSS_WOTS_Parameters(ots_algorithm_t ots_spec);
-
-      static ots_algorithm_t xmss_wots_id_from_string(const std::string& param_set);
-
-      /**
-       * Algorithm 1: convert input string to base.
-       *
-       * @param msg Input string (referred to as X in [1]).
-       * @param out_size size of message in base w.
-       *
-       * @return Input string converted to the given base.
-       **/
-      secure_vector<uint8_t> base_w(const secure_vector<uint8_t>& msg, size_t out_size) const;
-
-      secure_vector<uint8_t> base_w(size_t value) const;
-
-      void append_checksum(secure_vector<uint8_t>& data);
-
-      /**
-       * @return XMSS WOTS registry name for the chosen parameter set.
-       **/
-      const std::string& name() const
-         {
-         return m_name;
-         }
-
-      /**
-       * @return Botan name for the hash function used.
-       **/
-      const std::string& hash_function_name() const
-         {
-         return m_hash_name;
-         }
-
-      /**
-       * Retrieves the uniform length of a message, and the size of
-       * each node. This correlates to XMSS parameter "n" defined
-       * in [1].
-       *
-       * @return element length in bytes.
-       **/
-      size_t element_size() const { return m_element_size; }
-
-      /**
-       * The Winternitz parameter.
-       *
-       * @return numeric base used for internal representation of
-       *         data.
-       **/
-      size_t wots_parameter() const { return m_w; }
-
-      size_t len() const { return m_len; }
-
-      size_t len_1() const { return m_len_1; }
-
-      size_t len_2() const { return m_len_2; }
-
-      size_t lg_w() const { return m_lg_w; }
-
-      ots_algorithm_t oid() const { return m_oid; }
-
-      size_t estimated_strength() const { return m_strength; }
-
-      bool operator==(const XMSS_WOTS_Parameters& p) const
-         {
-         return m_oid == p.m_oid;
-         }
-
-   private:
-      static const std::map<std::string, ots_algorithm_t> m_oid_name_lut;
-      ots_algorithm_t m_oid;
-      std::string m_name;
-      std::string m_hash_name;
-      size_t m_element_size;
-      size_t m_w;
-      size_t m_len_1;
-      size_t m_len_2;
-      size_t m_len;
-      size_t m_strength;
-      uint8_t m_lg_w;
-   };
-
-}
-
-namespace Botan {
-
-/**
- * Descibes a signature method for XMSS, as defined in:
- * [1] XMSS: Extended Hash-Based Signatures,
- *     Request for Comments: 8391
- *     Release: May 2018.
- *     https://datatracker.ietf.org/doc/rfc8391/
- **/
-class BOTAN_PUBLIC_API(2,0) XMSS_Parameters
-   {
-   public:
-      enum xmss_algorithm_t
-         {
-         XMSS_SHA2_10_256 = 0x00000001,
-         XMSS_SHA2_16_256 = 0x00000002,
-         XMSS_SHA2_20_256 = 0x00000003,
-         XMSS_SHA2_10_512 = 0x00000004,
-         XMSS_SHA2_16_512 = 0x00000005,
-         XMSS_SHA2_20_512 = 0x00000006,
-         XMSS_SHAKE_10_256 = 0x00000007,
-         XMSS_SHAKE_16_256 = 0x00000008,
-         XMSS_SHAKE_20_256 = 0x00000009,
-         XMSS_SHAKE_10_512 = 0x0000000a,
-         XMSS_SHAKE_16_512 = 0x0000000b,
-         XMSS_SHAKE_20_512 = 0x0000000c
-         };
-
-      static xmss_algorithm_t xmss_id_from_string(const std::string& algo_name);
-
-      XMSS_Parameters(const std::string& algo_name);
-      XMSS_Parameters(xmss_algorithm_t oid);
-
-      /**
-       * @return XMSS registry name for the chosen parameter set.
-       **/
-      const std::string& name() const
-         {
-         return m_name;
-         }
-
-      const std::string& hash_function_name() const
-         {
-         return m_hash_name;
-         }
-
-      /**
-       * Retrieves the uniform length of a message, and the size of
-       * each node. This correlates to XMSS parameter "n" defined
-       * in [1].
-       *
-       * @return element length in bytes.
-       **/
-      size_t element_size() const { return m_element_size; }
-
-      /**
-       * @returns The height (number of levels - 1) of the tree
-       **/
-      size_t tree_height() const { return m_tree_height; }
-
-      /**
-       * The Winternitz parameter.
-       *
-       * @return numeric base used for internal representation of
-       *         data.
-       **/
-      size_t wots_parameter() const { return m_w; }
-
-      size_t len() const { return m_len; }
-
-      xmss_algorithm_t oid() const { return m_oid; }
-
-      XMSS_WOTS_Parameters::ots_algorithm_t ots_oid() const
-         {
-         return m_wots_oid;
-         }
-
-      /**
-       * Returns the estimated pre-quantum security level of
-       * the chosen algorithm.
-       **/
-      size_t estimated_strength() const
-         {
-         return m_strength;
-         }
-
-      bool operator==(const XMSS_Parameters& p) const
-         {
-         return m_oid == p.m_oid;
-         }
-
-   private:
-      xmss_algorithm_t m_oid;
-      XMSS_WOTS_Parameters::ots_algorithm_t m_wots_oid;
-      std::string m_name;
-      std::string m_hash_name;
-      size_t m_element_size;
-      size_t m_tree_height;
-      size_t m_w;
-      size_t m_len;
-      size_t m_strength;
-   };
-
-}
-
-namespace Botan {
-
-class XMSS_Verification_Operation;
-
-/**
- * An XMSS: Extended Hash-Based Signature public key.
- *
- * [1] XMSS: Extended Hash-Based Signatures,
- *     Request for Comments: 8391
- *     Release: May 2018.
- *     https://datatracker.ietf.org/doc/rfc8391/
- **/
-class BOTAN_PUBLIC_API(2,0) XMSS_PublicKey : public virtual Public_Key
-   {
-   public:
-      /**
-       * Creates a new XMSS public key for the chosen XMSS signature method.
-       * New public and prf seeds are generated using rng. The appropriate WOTS
-       * signature method will be automatically set based on the chosen XMSS
-       * signature method.
-       *
-       * @param xmss_oid Identifier for the selected XMSS signature method.
-       * @param rng A random number generator to use for key generation.
-       **/
-      XMSS_PublicKey(XMSS_Parameters::xmss_algorithm_t xmss_oid,
-                     RandomNumberGenerator& rng)
-         : m_xmss_params(xmss_oid), m_wots_params(m_xmss_params.ots_oid()),
-           m_root(m_xmss_params.element_size()),
-           m_public_seed(rng.random_vec(m_xmss_params.element_size())) {}
-
-      /**
-       * Loads a public key.
-       *
-       * Public key must be encoded as in RFC
-       * draft-vangeest-x509-hash-sigs-03.
-       *
-       * @param key_bits DER encoded public key bits
-       */
-      XMSS_PublicKey(const std::vector<uint8_t>& key_bits);
-
-      /**
-       * Creates a new XMSS public key for a chosen XMSS signature method as
-       * well as pre-computed root node and public_seed values.
-       *
-       * @param xmss_oid Identifier for the selected XMSS signature method.
-       * @param root Root node value.
-       * @param public_seed Public seed value.
-       **/
-      XMSS_PublicKey(XMSS_Parameters::xmss_algorithm_t xmss_oid,
-                     const secure_vector<uint8_t>& root,
-                     const secure_vector<uint8_t>& public_seed)
-         : m_xmss_params(xmss_oid), m_wots_params(m_xmss_params.ots_oid()),
-           m_root(root), m_public_seed(public_seed) {}
-
-      /**
-       * Creates a new XMSS public key for a chosen XMSS signature method as
-       * well as pre-computed root node and public_seed values.
-       *
-       * @param xmss_oid Identifier for the selected XMSS signature method.
-       * @param root Root node value.
-       * @param public_seed Public seed value.
-       **/
-      XMSS_PublicKey(XMSS_Parameters::xmss_algorithm_t xmss_oid,
-                     secure_vector<uint8_t>&& root,
-                     secure_vector<uint8_t>&& public_seed)
-         : m_xmss_params(xmss_oid), m_wots_params(m_xmss_params.ots_oid()),
-           m_root(std::move(root)), m_public_seed(std::move(public_seed)) {}
-
-      /**
-       * Retrieves the chosen XMSS signature method.
-       *
-       * @return XMSS signature method identifier.
-       **/
-      XMSS_Parameters::xmss_algorithm_t xmss_oid() const
-         {
-         return m_xmss_params.oid();
-         }
-
-      /**
-       * Sets the chosen XMSS signature method
-       **/
-      void set_xmss_oid(XMSS_Parameters::xmss_algorithm_t xmss_oid)
-         {
-         m_xmss_params = XMSS_Parameters(xmss_oid);
-         m_wots_params = XMSS_WOTS_Parameters(m_xmss_params.ots_oid());
-         }
-
-      /**
-       * Retrieves the XMSS parameters determined by the chosen XMSS Signature
-       * method.
-       *
-       * @return XMSS parameters.
-       **/
-      const XMSS_Parameters& xmss_parameters() const
-         {
-         return m_xmss_params;
-         }
-
-      /**
-       * Retrieves the XMSS parameters determined by the chosen XMSS Signature
-       * method.
-       *
-       * @return XMSS parameters.
-       **/
-      std::string xmss_hash_function() const
-         {
-         return m_xmss_params.hash_function_name();
-         }
-
-      /**
-       * Retrieves the Winternitz One Time Signature (WOTS) method,
-       * corresponding to the chosen XMSS signature method.
-       *
-       * @return XMSS WOTS signature method identifier.
-       **/
-      XMSS_WOTS_Parameters::ots_algorithm_t wots_oid() const
-         {
-         return m_wots_params.oid();
-         }
-
-      /**
-       * Retrieves the Winternitz One Time Signature (WOTS) parameters
-       * corresponding to the chosen XMSS signature method.
-       *
-       * @return XMSS WOTS signature method parameters.
-       **/
-      const XMSS_WOTS_Parameters& wots_parameters() const
-         {
-         return m_wots_params;
-         }
-
-      secure_vector<uint8_t>& root()
-         {
-         return m_root;
-         }
-
-      void set_root(const secure_vector<uint8_t>& root)
-         {
-         m_root = root;
-         }
-
-      void set_root(secure_vector<uint8_t>&& root)
-         {
-         m_root = std::move(root);
-         }
-
-      const secure_vector<uint8_t>& root() const
-         {
-         return m_root;
-         }
-
-      virtual secure_vector<uint8_t>& public_seed()
-         {
-         return m_public_seed;
-         }
-
-      virtual void set_public_seed(const secure_vector<uint8_t>& public_seed)
-         {
-         m_public_seed = public_seed;
-         }
-
-      virtual void set_public_seed(secure_vector<uint8_t>&& public_seed)
-         {
-         m_public_seed = std::move(public_seed);
-         }
-
-      virtual const secure_vector<uint8_t>& public_seed() const
-         {
-         return m_public_seed;
-         }
-
-      std::string algo_name() const override
-         {
-         return "XMSS";
-         }
-
-      AlgorithmIdentifier algorithm_identifier() const override
-         {
-         return AlgorithmIdentifier(get_oid(), AlgorithmIdentifier::USE_EMPTY_PARAM);
-         }
-
-      bool check_key(RandomNumberGenerator&, bool) const override
-         {
-         return true;
-         }
-
-      std::unique_ptr<PK_Ops::Verification>
-      create_verification_op(const std::string&,
-                             const std::string& provider) const override;
-
-      size_t estimated_strength() const override
-         {
-         return m_xmss_params.estimated_strength();
-         }
-
-      size_t key_length() const override
-         {
-         return m_xmss_params.estimated_strength();
-         }
-
-      /**
-       * Returns the encoded public key as defined in RFC
-       * draft-vangeest-x509-hash-sigs-03.
-       *
-       * @return encoded public key bits
-       **/
-      std::vector<uint8_t> public_key_bits() const override
-         {
-         std::vector<uint8_t> output;
-         DER_Encoder(output).encode(raw_public_key(), OCTET_STRING);
-         return output;
-         }
-
-      /**
-       * Size in bytes of the serialized XMSS public key produced by
-       * raw_public_key().
-       *
-       * @return size in bytes of serialized Public Key.
-       **/
-      virtual size_t size() const
-         {
-         return sizeof(uint32_t) + 2 * m_xmss_params.element_size();
-         }
-
-      /**
-       * Generates a byte sequence representing the XMSS
-       * public key, as defined in [1] (p. 23, "XMSS Public Key")
-       *
-       * @return 4-byte OID, followed by n-byte root node, followed by
-       *         public seed.
-       **/
-      virtual std::vector<uint8_t> raw_public_key() const;
-
-   protected:
-      std::vector<uint8_t> m_raw_key;
-      XMSS_Parameters m_xmss_params;
-      XMSS_WOTS_Parameters m_wots_params;
-      secure_vector<uint8_t> m_root;
-      secure_vector<uint8_t> m_public_seed;
-
-   private:
-      XMSS_Parameters::xmss_algorithm_t deserialize_xmss_oid(
-         const std::vector<uint8_t>& raw_key);
-   };
-
-}
-
-namespace Botan {
-
-/**
- * Generic XMSS Address type holding 256 Bits of data. Properties
- * of all three address formats L-Tree-Address, Hash-Tree-Address,
- * OTS-Hash-Address can be called depending on the type currently
- * assigned to the XMSS address using set_type().
- **/
-class XMSS_Address final
-   {
-   public:
-      /**
-       * Distinct types an XMSS_Address can represent. The available types
-       * are specified in [1] - 2.5 Hash Function Address Scheme.
-       **/
-      enum class Type : uint8_t
-         {
-         None = 255,
-         OTS_Hash_Address = 0,
-         LTree_Address = 1,
-         Hash_Tree_Address = 2
-         };
-
-      /**
-       * The available modes for an XMSS Address:
-       *   - Key_Mode: Used to generate the key.
-       *   - Mask_Mode: Sets the n-byte bitmask (OTS-Hash-Address)
-       *   - Mask_MSB_Mode: Used to generate the b most significant bytes of
-       *     the 2n-byte bitmask (LTree Address and Hash Tree Address).
-       *   - Mask_LSB_Mode: Used to generated the b least significant bytes
-       *     of the 2n-byte bitmask. (LTree Address and Hash Tree Address).
-       **/
-      enum class Key_Mask : uint8_t
-         {
-         Key_Mode = 0,
-         Mask_Mode = 1,
-         Mask_MSB_Mode = 1,
-         Mask_LSB_Mode = 2
-         };
-
-      /**
-       * Layer Address for XMSS is constantly zero and can not be changed this
-       * property is only of relevance to XMSS_MT.
-       *
-       * @return Layer address, which is constant 0 for XMSS.
-       **/
-      uint8_t get_layer_addr() const { return 0; }
-
-      /**
-       * Layer Address for XMSS is constantly zero and can not be changed this
-       * property is only of relevance to XMSS_MT. Calling this method for
-       * XMSS will result in an error.
-       **/
-      void set_layer_addr()
-         {
-         BOTAN_ASSERT(false, "Only available in XMSS_MT.");
-         }
-
-      /**
-       * Tree Address for XMSS is constantly zero and can not be changed this
-       * property is only of relevance to XMSS_MT.
-       *
-       * @return Tree address, which is constant 0 for XMSS.
-       **/
-      uint64_t get_tree_addr() const { return 0; }
-
-      /**
-       * Tree Address for XMSS is constantly zero and can not be changed this
-       * property is only of relevance to XMSS_MT. Calling this method for
-       * XMSS will result in an error.
-       **/
-      void set_tree_addr()
-         {
-         BOTAN_ASSERT(false, "Only available in XMSS_MT.");
-         }
-
-      /**
-       * retrieves the logical type currently assigned to the XMSS Address
-       * instance.
-       *
-       * @return Type of the address (OTS_Hash_Address, LTree_Address or
-       *         Hash_Tree_Address)
-       **/
-      Type get_type() const
-         {
-         return static_cast<Type>(m_data[15]);
-         }
-
-      /**
-       * Changes the logical type currently assigned to the XMSS Address
-       * instance. Please note that changing the type will automatically
-       * reset the 128 LSBs of the Address to zero. This affects the
-       * key_mask_mode property as well as all properties identified by
-       * XMSS_Address::Property.
-       *
-       * @param type Type that shall be assigned to the address
-       *        (OTS_Hash_Address, LTree_Address or Hash_Tree_Address)
-       **/
-      void set_type(Type type)
-         {
-         m_data[15] = static_cast<uint8_t>(type);
-         std::fill(m_data.begin() + 16, m_data.end(), static_cast<uint8_t>(0));
-         }
-
-      /**
-       * Retrieves the mode the address os currently set to. (See
-       * XMSS_Address::Key_Mask for details.)
-       *
-       * @return currently active mode
-       **/
-      Key_Mask get_key_mask_mode() const
-         {
-         return Key_Mask(m_data[31]);
-         }
-
-      /**
-       * Changes the mode the address currently used address mode.
-       * (XMSS_Address::Key_Mask for details.)
-       *
-       * @param value Target mode.
-       **/
-      void set_key_mask_mode(Key_Mask value)
-         {
-         BOTAN_ASSERT(value != Key_Mask::Mask_LSB_Mode ||
-                      get_type() != Type::OTS_Hash_Address,
-                      "Invalid Key_Mask for current XMSS_Address::Type.");
-         m_data[31] = static_cast<uint8_t>(value);
-         }
-
-      /**
-       * Retrieve the index of the OTS key pair within the tree. A call to
-       * this method is only valid, if the address type is set to
-       * Type::OTS_Hash_Address.
-       *
-       * @return index of OTS key pair.
-       **/
-      uint32_t get_ots_address() const
-         {
-         BOTAN_ASSERT(get_type() == Type::OTS_Hash_Address,
-                      "get_ots_address() requires XMSS_Address::Type::"
-                      "OTS_Hash_Address.");
-         return get_hi32(2);
-         }
-
-      /**
-       * Sets the index of the OTS key pair within the tree. A call to this
-       * method is only valid, if the address type is set to
-       * Type::OTS_Hash_Address.
-       *
-       * @param value index of OTS key pair.
-       **/
-      void set_ots_address(uint32_t value)
-         {
-         BOTAN_ASSERT(get_type() == Type::OTS_Hash_Address,
-                      "set_ots_address() requires XMSS_Address::Type::"
-                      "OTS_Hash_Address.");
-         set_hi32(2, value);
-         }
-
-      /**
-       * Retrieves the index of the leaf computed with this LTree. A call to
-       * this method is only valid, if the address type is set to
-       * Type::LTree_Address.
-       *
-       * @return index of the leaf.
-       **/
-      uint32_t get_ltree_address() const
-         {
-         BOTAN_ASSERT(get_type() == Type::LTree_Address,
-                      "set_ltree_address() requires XMSS_Address::Type::"
-                      "LTree_Address.");
-         return get_hi32(2);
-         }
-
-      /**
-       * Sets the index of the leaf computed with this LTree. A call to this
-       * method is only valid, if the address type is set to
-       * Type::LTree_Address.
-       *
-       * @param value index of the leaf.
-       **/
-      void set_ltree_address(uint32_t value)
-         {
-         BOTAN_ASSERT(get_type() == Type::LTree_Address,
-                      "set_ltree_address() requires XMSS_Address::Type::"
-                      "LTree_Address.");
-         set_hi32(2, value);
-         }
-
-      /**
-       * Retrieve the chain address. A call to this method is only valid, if
-       * the address type is set to Type::OTS_Hash_Address.
-       *
-       * @return chain address.
-       **/
-      uint32_t get_chain_address() const
-         {
-         BOTAN_ASSERT(get_type() == Type::OTS_Hash_Address,
-                      "get_chain_address() requires XMSS_Address::Type::"
-                      "OTS_Hash_Address.");
-         return get_lo32(2);
-         }
-
-      /**
-       * Set the chain address. A call to this method is only valid, if
-       * the address type is set to Type::OTS_Hash_Address.
-       **/
-      void set_chain_address(uint32_t value)
-         {
-         BOTAN_ASSERT(get_type() == Type::OTS_Hash_Address,
-                      "set_chain_address() requires XMSS_Address::Type::"
-                      "OTS_Hash_Address.");
-         set_lo32(2, value);
-         }
-
-      /**
-       * Retrieves the height of the tree node to be computed within the
-       * tree. A call to this method is only valid, if the address type is
-       * set to Type::LTree_Address or Type::Hash_Tree_Address.
-       *
-       * @return height of the tree node.
-       **/
-      uint32_t get_tree_height() const
-         {
-         BOTAN_ASSERT(get_type() == Type::LTree_Address ||
-                      get_type() == Type::Hash_Tree_Address,
-                      "get_tree_height() requires XMSS_Address::Type::"
-                      "LTree_Address or XMSS_Address::Type::Hash_Tree_Address.");
-         return get_lo32(2);
-         }
-
-      /**
-       * Sets the height of the tree node to be computed within the
-       * tree. A call to this method is only valid, if the address type is
-       * set to Type::LTree_Address or Type::Hash_Tree_Address.
-       *
-       * @param value height of the tree node.
-       **/
-      void set_tree_height(uint32_t value)
-         {
-         BOTAN_ASSERT(get_type() == Type::LTree_Address ||
-                      get_type() == Type::Hash_Tree_Address,
-                      "set_tree_height() requires XMSS_Address::Type::"
-                      "LTree_Address or XMSS_Address::Type::Hash_Tree_Address.");
-         set_lo32(2, value);
-         }
-
-      /**
-       * Retrieves the address of the hash function call within the chain.
-       * A call to this method is only valid, if the address type is
-       * set to Type::OTS_Hash_Address.
-       *
-       * @return address of the hash function call within chain.
-       **/
-      uint32_t get_hash_address() const
-         {
-         BOTAN_ASSERT(get_type() == Type::OTS_Hash_Address,
-                      "get_hash_address() requires XMSS_Address::Type::"
-                      "OTS_Hash_Address.");
-         return get_hi32(3);
-         }
-
-      /**
-       * Sets the address of the hash function call within the chain.
-       * A call to this method is only valid, if the address type is
-       * set to Type::OTS_Hash_Address.
-       *
-       * @param value address of the hash function call within chain.
-       **/
-      void set_hash_address(uint32_t value)
-         {
-         BOTAN_ASSERT(get_type() == Type::OTS_Hash_Address,
-                      "set_hash_address() requires XMSS_Address::Type::"
-                      "OTS_Hash_Address.");
-         set_hi32(3, value);
-         }
-
-      /**
-       * Retrieves the index of the tree node at current tree height in the
-       * tree. A call to this method is only valid, if the address type is
-       * set to Type::LTree_Address or Type::Hash_Tree_Address.
-       *
-       * @return index of the tree node at current height.
-       **/
-      uint32_t get_tree_index() const
-         {
-         BOTAN_ASSERT(get_type() == Type::LTree_Address ||
-                      get_type() == Type::Hash_Tree_Address,
-                      "get_tree_index() requires XMSS_Address::Type::"
-                      "LTree_Address or XMSS_Address::Type::Hash_Tree_Address.");
-         return get_hi32(3);
-         }
-
-      /**
-       * Sets the index of the tree node at current tree height in the
-       * tree. A call to this method is only valid, if the address type is
-       * set to Type::LTree_Address or Type::Hash_Tree_Address.
-       *
-       * @param value index of the tree node at current height.
-       **/
-      void set_tree_index(uint32_t value)
-         {
-         BOTAN_ASSERT(get_type() == Type::LTree_Address ||
-                      get_type() == Type::Hash_Tree_Address,
-                      "set_tree_index() requires XMSS_Address::Type::"
-                      "LTree_Address or XMSS_Address::Type::Hash_Tree_Address.");
-         set_hi32(3, value);
-         }
-
-      const secure_vector<uint8_t>& bytes() const
-         {
-         return m_data;
-         }
-
-      secure_vector<uint8_t>& bytes()
-         {
-         return m_data;
-         }
-
-      /**
-       * @return the size of an XMSS_Address
-       **/
-      size_t size() const
-         {
-         return m_data.size();
-         }
-
-      XMSS_Address()
-         : m_data(m_address_size)
-         {
-         set_type(Type::None);
-         }
-
-      XMSS_Address(Type type)
-         : m_data(m_address_size)
-         {
-         set_type(type);
-         }
-
-      XMSS_Address(const secure_vector<uint8_t>& data) : m_data(data)
-         {
-         BOTAN_ASSERT(m_data.size() == m_address_size,
-                      "XMSS_Address must be of 256 bits size.");
-         }
-
-      XMSS_Address(secure_vector<uint8_t>&& data) : m_data(std::move(data))
-         {
-         BOTAN_ASSERT(m_data.size() == m_address_size,
-                      "XMSS_Address must be of 256 bits size.");
-         }
-
-   protected:
-      secure_vector<uint8_t> m_data;
-
-   private:
-      static const size_t m_address_size = 32;
-
-      inline uint32_t get_hi32(size_t offset) const
-         {
-         return ((0x000000FF & m_data[8 * offset + 3])       |
-                 (0x000000FF & m_data[8 * offset + 2]) <<  8 |
-                 (0x000000FF & m_data[8 * offset + 1]) << 16 |
-                 (0x000000FF & m_data[8 * offset    ]) << 24);
-         }
-
-      inline void set_hi32(size_t offset, uint32_t value)
-         {
-         m_data[offset * 8    ] = ((value >> 24) & 0xFF);
-         m_data[offset * 8 + 1] = ((value >> 16) & 0xFF);
-         m_data[offset * 8 + 2] = ((value >>  8) & 0xFF);
-         m_data[offset * 8 + 3] = ((value      ) & 0xFF);
-         }
-
-      inline uint32_t get_lo32(size_t offset) const
-         {
-         return ((0x000000FF & m_data[8 * offset + 7])       |
-                 (0x000000FF & m_data[8 * offset + 6]) <<  8 |
-                 (0x000000FF & m_data[8 * offset + 5]) << 16 |
-                 (0x000000FF & m_data[8 * offset + 4]) << 24);
-         }
-
-      inline void set_lo32(size_t offset, uint32_t value)
-         {
-         m_data[offset * 8 + 4] = ((value >> 24) & 0xFF);
-         m_data[offset * 8 + 5] = ((value >> 16) & 0xFF);
-         m_data[offset * 8 + 6] = ((value >>  8) & 0xFF);
-         m_data[offset * 8 + 7] = ((value      ) & 0xFF);
-         }
-   };
-
-}
-
 //BOTAN_FUTURE_INTERNAL_HEADER(xmss_hash.h)
 
 namespace Botan {
@@ -36670,6 +35787,110 @@ class XMSS_Hash final
 }
 
 namespace Botan {
+
+/**
+ * Descibes a signature method for XMSS Winternitz One Time Signatures,
+ * as defined in:
+ * [1] XMSS: Extended Hash-Based Signatures,
+ *     Request for Comments: 8391
+ *     Release: May 2018.
+ *     https://datatracker.ietf.org/doc/rfc8391/
+ **/
+class XMSS_WOTS_Parameters final
+   {
+   public:
+      enum ots_algorithm_t
+         {
+         WOTSP_SHA2_256 = 0x00000001,
+         WOTSP_SHA2_512 = 0x00000002,
+         WOTSP_SHAKE_256 = 0x00000003,
+         WOTSP_SHAKE_512 = 0x00000004
+         };
+
+      XMSS_WOTS_Parameters(const std::string& algo_name);
+      XMSS_WOTS_Parameters(ots_algorithm_t ots_spec);
+
+      static ots_algorithm_t xmss_wots_id_from_string(const std::string& param_set);
+
+      /**
+       * Algorithm 1: convert input string to base.
+       *
+       * @param msg Input string (referred to as X in [1]).
+       * @param out_size size of message in base w.
+       *
+       * @return Input string converted to the given base.
+       **/
+      secure_vector<uint8_t> base_w(const secure_vector<uint8_t>& msg, size_t out_size) const;
+
+      secure_vector<uint8_t> base_w(size_t value) const;
+
+      void append_checksum(secure_vector<uint8_t>& data);
+
+      /**
+       * @return XMSS WOTS registry name for the chosen parameter set.
+       **/
+      const std::string& name() const
+         {
+         return m_name;
+         }
+
+      /**
+       * @return Botan name for the hash function used.
+       **/
+      const std::string& hash_function_name() const
+         {
+         return m_hash_name;
+         }
+
+      /**
+       * Retrieves the uniform length of a message, and the size of
+       * each node. This correlates to XMSS parameter "n" defined
+       * in [1].
+       *
+       * @return element length in bytes.
+       **/
+      size_t element_size() const { return m_element_size; }
+
+      /**
+       * The Winternitz parameter.
+       *
+       * @return numeric base used for internal representation of
+       *         data.
+       **/
+      size_t wots_parameter() const { return m_w; }
+
+      size_t len() const { return m_len; }
+
+      size_t len_1() const { return m_len_1; }
+
+      size_t len_2() const { return m_len_2; }
+
+      size_t lg_w() const { return m_lg_w; }
+
+      ots_algorithm_t oid() const { return m_oid; }
+
+      size_t estimated_strength() const { return m_strength; }
+
+      bool operator==(const XMSS_WOTS_Parameters& p) const
+         {
+         return m_oid == p.m_oid;
+         }
+
+   private:
+      static const std::map<std::string, ots_algorithm_t> m_oid_name_lut;
+      ots_algorithm_t m_oid;
+      std::string m_name;
+      std::string m_hash_name;
+      size_t m_element_size;
+      size_t m_w;
+      size_t m_len_1;
+      size_t m_len_2;
+      size_t m_len;
+      size_t m_strength;
+      uint8_t m_lg_w;
+   };
+
+class XMSS_Address;
 
 typedef std::vector<secure_vector<uint8_t>> wots_keysig_t;
 
@@ -36995,10 +36216,6 @@ class XMSS_WOTS_PublicKey : virtual public Public_Key
          const secure_vector<uint8_t>& public_seed);
    };
 
-}
-
-namespace Botan {
-
 /** A Winternitz One Time Signature private key for use with Extended Hash-Based
  * Signatures.
  **/
@@ -37100,13 +36317,7 @@ class XMSS_WOTS_PrivateKey final : public virtual XMSS_WOTS_PublicKey,
        *
        * @return WOTS secret key.
        **/
-      wots_keysig_t at(size_t i, XMSS_Hash& hash)
-         {
-         secure_vector<uint8_t> idx_bytes;
-         XMSS_Tools::concat(idx_bytes, i, m_wots_params.element_size());
-         hash.h(idx_bytes, m_private_seed, idx_bytes);
-         return generate(idx_bytes, hash);
-         }
+      wots_keysig_t at(size_t i, XMSS_Hash& hash);
 
       /**
        * Retrieves the i-th WOTS private key using pseudo random key
@@ -37135,12 +36346,7 @@ class XMSS_WOTS_PrivateKey final : public virtual XMSS_WOTS_PublicKey,
        *
        * @return WOTS secret key.
        **/
-      wots_keysig_t at(const XMSS_Address& adrs, XMSS_Hash& hash)
-         {
-         secure_vector<uint8_t> result;
-         hash.prf(result, m_private_seed, adrs.bytes());
-         return generate(result, hash);
-         }
+      wots_keysig_t at(const XMSS_Address& adrs, XMSS_Hash& hash);
 
       inline wots_keysig_t operator[](const XMSS_Address& adrs)
          {
@@ -37310,95 +36516,352 @@ class XMSS_WOTS_PrivateKey final : public virtual XMSS_WOTS_PublicKey,
 
 }
 
-//BOTAN_FUTURE_INTERNAL_HEADER(xmss_index_registry.h)
-
 namespace Botan {
 
 /**
- * A registry for XMSS private keys, keeps track of the leaf index for
- * independend copies of the same key.
+ * Descibes a signature method for XMSS, as defined in:
+ * [1] XMSS: Extended Hash-Based Signatures,
+ *     Request for Comments: 8391
+ *     Release: May 2018.
+ *     https://datatracker.ietf.org/doc/rfc8391/
  **/
-class XMSS_Index_Registry final
+class BOTAN_PUBLIC_API(2,0) XMSS_Parameters
    {
    public:
-      XMSS_Index_Registry(const XMSS_Index_Registry&) = delete;
-      XMSS_Index_Registry& operator=(const XMSS_Index_Registry&) = delete;
+      enum xmss_algorithm_t
+         {
+         XMSS_SHA2_10_256 = 0x00000001,
+         XMSS_SHA2_16_256 = 0x00000002,
+         XMSS_SHA2_20_256 = 0x00000003,
+         XMSS_SHA2_10_512 = 0x00000004,
+         XMSS_SHA2_16_512 = 0x00000005,
+         XMSS_SHA2_20_512 = 0x00000006,
+         XMSS_SHAKE_10_256 = 0x00000007,
+         XMSS_SHAKE_16_256 = 0x00000008,
+         XMSS_SHAKE_20_256 = 0x00000009,
+         XMSS_SHAKE_10_512 = 0x0000000a,
+         XMSS_SHAKE_16_512 = 0x0000000b,
+         XMSS_SHAKE_20_512 = 0x0000000c
+         };
+
+      static xmss_algorithm_t xmss_id_from_string(const std::string& algo_name);
+
+      XMSS_Parameters(const std::string& algo_name);
+      XMSS_Parameters(xmss_algorithm_t oid);
 
       /**
-       * Retrieves a handle to the process-wide unique XMSS index registry.
-       *
-       * @return Reference to unique XMSS index registry.
+       * @return XMSS registry name for the chosen parameter set.
        **/
-      static XMSS_Index_Registry& get_instance()
+      const std::string& name() const
          {
-         static XMSS_Index_Registry self;
-         return self;
+         return m_name;
+         }
+
+      const std::string& hash_function_name() const
+         {
+         return m_hash_name;
          }
 
       /**
-       * Retrieves the last unused leaf index for the private key identified
-       * by private_seed and prf. The leaf index will be updated properly
-       * across independent copies of private_key.
+       * Retrieves the uniform length of a message, and the size of
+       * each node. This correlates to XMSS parameter "n" defined
+       * in [1].
        *
-       * @param private_seed Part of the unique identifier for an
-       *                     XMSS_PrivateKey.
-       * @param prf Part of the unique identifier for an XMSS_PrivateKey.
-       *
-       * @return last unused leaf index for private_key.
+       * @return element length in bytes.
        **/
-      std::shared_ptr<Atomic<size_t>>
-                                   get(const secure_vector<uint8_t>& private_seed,
-                                       const secure_vector<uint8_t>& prf);
+      size_t element_size() const { return m_element_size; }
+
+      /**
+       * @returns The height (number of levels - 1) of the tree
+       **/
+      size_t tree_height() const { return m_tree_height; }
+
+      /**
+       * The Winternitz parameter.
+       *
+       * @return numeric base used for internal representation of
+       *         data.
+       **/
+      size_t wots_parameter() const { return m_w; }
+
+      size_t len() const { return m_len; }
+
+      xmss_algorithm_t oid() const { return m_oid; }
+
+      XMSS_WOTS_Parameters::ots_algorithm_t ots_oid() const
+         {
+         return m_wots_oid;
+         }
+
+      /**
+       * Returns the estimated pre-quantum security level of
+       * the chosen algorithm.
+       **/
+      size_t estimated_strength() const
+         {
+         return m_strength;
+         }
+
+      bool operator==(const XMSS_Parameters& p) const
+         {
+         return m_oid == p.m_oid;
+         }
 
    private:
-      XMSS_Index_Registry() = default;
-
-      static const std::string m_index_hash_function;
-
-      /**
-       * Creates a unique 64-bit id for an XMSS_Private key, by interpreting
-       * the first 64-bit of HASH(PRIVATE_SEED || PRF) as 64 bit integer
-       * value.
-       *
-       * @return unique integral identifier for an XMSS private key.
-       **/
-      uint64_t make_key_id(const secure_vector<uint8_t>& private_seed,
-                           const secure_vector<uint8_t>& prf) const;
-
-      /**
-       * Retrieves the index position of a key within the registry or
-       * max(size_t) if key has not been found.
-       *
-       * @param id unique id of the XMSS private key (see make_key_id()).
-       *
-       * @return index position of key or max(size_t) if key not found.
-       **/
-      size_t get(uint64_t id) const;
-
-      /**
-       * If XMSS_PrivateKey identified by id is already registered, the
-       * position of the according registry entry is returned. If last_unused
-       * is bigger than the last unused index stored for the key identified by
-       * id the unused leaf index for this key is set to last_unused. If no key
-       * matching id is registed yet, an entry of id is added, with the last
-       * unused leaf index initialized to the value of last_unused.
-       *
-       * @last_unused Initial value for the last unused leaf index of the
-       *              registered key.
-       *
-       * @return positon of leaf index registry entry for key identified
-       *         by id.
-       **/
-      size_t add(uint64_t id, size_t last_unused = 0);
-
-      std::vector<uint64_t> m_key_ids;
-      std::vector<std::shared_ptr<Atomic<size_t>>> m_leaf_indices;
-      mutex_type m_mutex;
+      xmss_algorithm_t m_oid;
+      XMSS_WOTS_Parameters::ots_algorithm_t m_wots_oid;
+      std::string m_name;
+      std::string m_hash_name;
+      size_t m_element_size;
+      size_t m_tree_height;
+      size_t m_w;
+      size_t m_len;
+      size_t m_strength;
    };
 
 }
 
 namespace Botan {
+
+class RandomNumberGenerator;
+class XMSS_Verification_Operation;
+
+/**
+ * An XMSS: Extended Hash-Based Signature public key.
+ *
+ * [1] XMSS: Extended Hash-Based Signatures,
+ *     Request for Comments: 8391
+ *     Release: May 2018.
+ *     https://datatracker.ietf.org/doc/rfc8391/
+ **/
+class BOTAN_PUBLIC_API(2,0) XMSS_PublicKey : public virtual Public_Key
+   {
+   public:
+      /**
+       * Creates a new XMSS public key for the chosen XMSS signature method.
+       * New public and prf seeds are generated using rng. The appropriate WOTS
+       * signature method will be automatically set based on the chosen XMSS
+       * signature method.
+       *
+       * @param xmss_oid Identifier for the selected XMSS signature method.
+       * @param rng A random number generator to use for key generation.
+       **/
+      XMSS_PublicKey(XMSS_Parameters::xmss_algorithm_t xmss_oid,
+                     RandomNumberGenerator& rng);
+
+      /**
+       * Loads a public key.
+       *
+       * Public key must be encoded as in RFC
+       * draft-vangeest-x509-hash-sigs-03.
+       *
+       * @param key_bits DER encoded public key bits
+       */
+      XMSS_PublicKey(const std::vector<uint8_t>& key_bits);
+
+      /**
+       * Creates a new XMSS public key for a chosen XMSS signature method as
+       * well as pre-computed root node and public_seed values.
+       *
+       * @param xmss_oid Identifier for the selected XMSS signature method.
+       * @param root Root node value.
+       * @param public_seed Public seed value.
+       **/
+      XMSS_PublicKey(XMSS_Parameters::xmss_algorithm_t xmss_oid,
+                     const secure_vector<uint8_t>& root,
+                     const secure_vector<uint8_t>& public_seed)
+         : m_xmss_params(xmss_oid), m_wots_params(m_xmss_params.ots_oid()),
+           m_root(root), m_public_seed(public_seed) {}
+
+      /**
+       * Creates a new XMSS public key for a chosen XMSS signature method as
+       * well as pre-computed root node and public_seed values.
+       *
+       * @param xmss_oid Identifier for the selected XMSS signature method.
+       * @param root Root node value.
+       * @param public_seed Public seed value.
+       **/
+      XMSS_PublicKey(XMSS_Parameters::xmss_algorithm_t xmss_oid,
+                     secure_vector<uint8_t>&& root,
+                     secure_vector<uint8_t>&& public_seed)
+         : m_xmss_params(xmss_oid), m_wots_params(m_xmss_params.ots_oid()),
+           m_root(std::move(root)), m_public_seed(std::move(public_seed)) {}
+
+      /**
+       * Retrieves the chosen XMSS signature method.
+       *
+       * @return XMSS signature method identifier.
+       **/
+      XMSS_Parameters::xmss_algorithm_t xmss_oid() const
+         {
+         return m_xmss_params.oid();
+         }
+
+      /**
+       * Sets the chosen XMSS signature method
+       **/
+      void set_xmss_oid(XMSS_Parameters::xmss_algorithm_t xmss_oid)
+         {
+         m_xmss_params = XMSS_Parameters(xmss_oid);
+         m_wots_params = XMSS_WOTS_Parameters(m_xmss_params.ots_oid());
+         }
+
+      /**
+       * Retrieves the XMSS parameters determined by the chosen XMSS Signature
+       * method.
+       *
+       * @return XMSS parameters.
+       **/
+      const XMSS_Parameters& xmss_parameters() const
+         {
+         return m_xmss_params;
+         }
+
+      /**
+       * Retrieves the XMSS parameters determined by the chosen XMSS Signature
+       * method.
+       *
+       * @return XMSS parameters.
+       **/
+      std::string xmss_hash_function() const
+         {
+         return m_xmss_params.hash_function_name();
+         }
+
+      /**
+       * Retrieves the Winternitz One Time Signature (WOTS) method,
+       * corresponding to the chosen XMSS signature method.
+       *
+       * @return XMSS WOTS signature method identifier.
+       **/
+      XMSS_WOTS_Parameters::ots_algorithm_t wots_oid() const
+         {
+         return m_wots_params.oid();
+         }
+
+      /**
+       * Retrieves the Winternitz One Time Signature (WOTS) parameters
+       * corresponding to the chosen XMSS signature method.
+       *
+       * @return XMSS WOTS signature method parameters.
+       **/
+      const XMSS_WOTS_Parameters& wots_parameters() const
+         {
+         return m_wots_params;
+         }
+
+      secure_vector<uint8_t>& root()
+         {
+         return m_root;
+         }
+
+      void set_root(const secure_vector<uint8_t>& root)
+         {
+         m_root = root;
+         }
+
+      void set_root(secure_vector<uint8_t>&& root)
+         {
+         m_root = std::move(root);
+         }
+
+      const secure_vector<uint8_t>& root() const
+         {
+         return m_root;
+         }
+
+      virtual secure_vector<uint8_t>& public_seed()
+         {
+         return m_public_seed;
+         }
+
+      virtual void set_public_seed(const secure_vector<uint8_t>& public_seed)
+         {
+         m_public_seed = public_seed;
+         }
+
+      virtual void set_public_seed(secure_vector<uint8_t>&& public_seed)
+         {
+         m_public_seed = std::move(public_seed);
+         }
+
+      virtual const secure_vector<uint8_t>& public_seed() const
+         {
+         return m_public_seed;
+         }
+
+      std::string algo_name() const override
+         {
+         return "XMSS";
+         }
+
+      AlgorithmIdentifier algorithm_identifier() const override
+         {
+         return AlgorithmIdentifier(get_oid(), AlgorithmIdentifier::USE_EMPTY_PARAM);
+         }
+
+      bool check_key(RandomNumberGenerator&, bool) const override
+         {
+         return true;
+         }
+
+      std::unique_ptr<PK_Ops::Verification>
+      create_verification_op(const std::string&,
+                             const std::string& provider) const override;
+
+      size_t estimated_strength() const override
+         {
+         return m_xmss_params.estimated_strength();
+         }
+
+      size_t key_length() const override
+         {
+         return m_xmss_params.estimated_strength();
+         }
+
+      /**
+       * Returns the encoded public key as defined in RFC
+       * draft-vangeest-x509-hash-sigs-03.
+       *
+       * @return encoded public key bits
+       **/
+      std::vector<uint8_t> public_key_bits() const override;
+
+      /**
+       * Size in bytes of the serialized XMSS public key produced by
+       * raw_public_key().
+       *
+       * @return size in bytes of serialized Public Key.
+       **/
+      virtual size_t size() const
+         {
+         return sizeof(uint32_t) + 2 * m_xmss_params.element_size();
+         }
+
+      /**
+       * Generates a byte sequence representing the XMSS
+       * public key, as defined in [1] (p. 23, "XMSS Public Key")
+       *
+       * @return 4-byte OID, followed by n-byte root node, followed by
+       *         public seed.
+       **/
+      virtual std::vector<uint8_t> raw_public_key() const;
+
+   protected:
+      std::vector<uint8_t> m_raw_key;
+      XMSS_Parameters m_xmss_params;
+      XMSS_WOTS_Parameters m_wots_params;
+      secure_vector<uint8_t> m_root;
+      secure_vector<uint8_t> m_public_seed;
+
+   private:
+      XMSS_Parameters::xmss_algorithm_t deserialize_xmss_oid(
+         const std::vector<uint8_t>& raw_key);
+   };
+
+template<typename> class Atomic;
+
+class XMSS_Index_Registry;
 
 /**
  * An XMSS: Extended Hash-Based Signature private key.
@@ -37454,17 +36917,7 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PrivateKey final : public virtual XMSS_PublicKe
                       const secure_vector<uint8_t>& wots_priv_seed,
                       const secure_vector<uint8_t>& prf,
                       const secure_vector<uint8_t>& root,
-                      const secure_vector<uint8_t>& public_seed)
-         : XMSS_PublicKey(xmss_algo_id, root, public_seed),
-           m_wots_priv_key(XMSS_PublicKey::m_xmss_params.ots_oid(),
-                           public_seed,
-                           wots_priv_seed),
-           m_hash(XMSS_PublicKey::m_xmss_params.hash_function_name()),
-           m_prf(prf),
-           m_index_reg(XMSS_Index_Registry::get_instance())
-         {
-         set_unused_leaf_index(idx_leaf);
-         }
+                      const secure_vector<uint8_t>& public_seed);
 
       bool stateful_operation() const override { return true; }
 
@@ -37475,10 +36928,7 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PrivateKey final : public virtual XMSS_PublicKe
        *
        * @return Index of the last unused leaf.
        **/
-      size_t unused_leaf_index() const
-         {
-         return *recover_global_leaf_index();
-         }
+      size_t unused_leaf_index() const;
 
       /**
        * Sets the last unused leaf index of the private key. The leaf index
@@ -37487,38 +36937,9 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PrivateKey final : public virtual XMSS_PublicKe
        *
        * @param idx Index of the last unused leaf.
        **/
-      void set_unused_leaf_index(size_t idx)
-         {
-         if(idx >= (1ull << XMSS_PublicKey::m_xmss_params.tree_height()))
-            {
-            throw Decoding_Error("XMSS private key leaf index out of bounds");
-            }
-         else
-            {
-            std::atomic<size_t>& index =
-               static_cast<std::atomic<size_t>&>(*recover_global_leaf_index());
-            size_t current = 0;
+      void set_unused_leaf_index(size_t idx);
 
-            do
-               {
-               current = index.load();
-               if(current > idx)
-                  { return; }
-               }
-            while(!index.compare_exchange_strong(current, idx));
-            }
-         }
-
-      size_t reserve_unused_leaf_index()
-         {
-         size_t idx = (static_cast<std::atomic<size_t>&>(
-                          *recover_global_leaf_index())).fetch_add(1);
-         if(idx >= (1ull << XMSS_PublicKey::m_xmss_params.tree_height()))
-            {
-            throw Decoding_Error("XMSS private key, one time signatures exhaused");
-            }
-         return idx;
-         }
+      size_t reserve_unused_leaf_index();
 
       /**
        * Winternitz One Time Signature Scheme key utilized for signing
@@ -37575,10 +36996,7 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PrivateKey final : public virtual XMSS_PublicKe
                           const std::string&,
                           const std::string& provider) const override;
 
-      secure_vector<uint8_t> private_key_bits() const override
-         {
-         return DER_Encoder().encode(raw_private_key(), OCTET_STRING).get_contents();
-         }
+      secure_vector<uint8_t> private_key_bits() const override;
 
       size_t size() const override
          {
@@ -37641,70 +37059,6 @@ class BOTAN_PUBLIC_API(2,0) XMSS_PrivateKey final : public virtual XMSS_PublicKe
       XMSS_Hash m_hash;
       secure_vector<uint8_t> m_prf;
       XMSS_Index_Registry& m_index_reg;
-   };
-
-}
-
-BOTAN_FUTURE_INTERNAL_HEADER(xmss_common_ops.h)
-
-namespace Botan {
-
-typedef std::vector<secure_vector<uint8_t>> wots_keysig_t;
-
-/**
- * Operations shared by XMSS signature generation and verification operations.
- **/
-class XMSS_Common_Ops
-   {
-   public:
-      /**
-        * Algorithm 7: "RAND_HASH"
-        *
-        * Generates a randomized hash.
-        *
-        * This overload is used in multithreaded scenarios, where it is
-        * required to provide seperate instances of XMSS_Hash to each
-        * thread.
-        *
-        * @param[out] result The resulting randomized hash.
-        * @param[in] left Left half of the hash function input.
-        * @param[in] right Right half of the hash function input.
-        * @param[in] adrs Adress of the hash function call.
-        * @param[in] seed The seed for G.
-        * @param[in] hash Instance of XMSS_Hash, that may only by the thead
-        *            executing generate_public_key.
-        **/
-      static void randomize_tree_hash(
-         secure_vector<uint8_t>& result,
-         const secure_vector<uint8_t>& left,
-         const secure_vector<uint8_t>& right,
-         XMSS_Address& adrs,
-         const secure_vector<uint8_t>& seed,
-         XMSS_Hash& hash,
-         const XMSS_Parameters& params);
-
-      /**
-       * Algorithm 8: "ltree"
-       * Create an L-tree used to compute the leaves of the binary hash tree.
-       * Takes a WOTS+ public key and compresses it to a single n-byte value.
-       *
-       * This overload is used in multithreaded scenarios, where it is
-       * required to provide seperate instances of XMSS_Hash to each thread.
-       *
-       * @param[out] result Public key compressed to a single n-byte value
-       *             pk[0].
-       * @param[in] pk Winternitz One Time Signatures+ public key.
-       * @param[in] adrs Address encoding the address of the L-Tree
-       * @param[in] seed The seed generated during the public key generation.
-       * @param[in] hash Instance of XMSS_Hash, that may only be used by the
-       *            thead executing create_l_tree.
-      **/
-      static void create_l_tree(secure_vector<uint8_t>& result,
-                                wots_keysig_t pk,
-                                XMSS_Address& adrs,
-                                const secure_vector<uint8_t>& seed,
-                                XMSS_Hash& hash,
-                                const XMSS_Parameters& params);
    };
 
 }

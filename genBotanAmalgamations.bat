@@ -2,7 +2,7 @@ setlocal enableextensions
 
 REM dummy line
 
-set BOTAN_SRC_DIR=c:\Windows\Temp\Botan-2.15.0
+set BOTAN_SRC_DIR=c:\Windows\Temp\Botan-2.18.0
 
 set BOTAN_DEST_ANDROID_DIR=%cd%\botanAm\android
 set BOTAN_DEST_IOS_DIR=%cd%\botanAm\ios
