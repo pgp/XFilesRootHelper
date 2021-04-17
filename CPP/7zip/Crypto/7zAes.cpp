@@ -76,6 +76,15 @@ void CKeyInfo::CalcKey()
   }
 }
 
+#ifndef _WIN32
+void fillArrayWithRandomBytes(void* b, size_t size) {
+  int f = ::open("/dev/urandom", O_RDONLY);
+  if(f < 0) _Exit(-3);
+  if(::read(f, b, size) < size) _Exit(-4);
+  ::close(f);
+}
+#endif
+
 bool CKeyInfoCache::GetKey(CKeyInfo &key)
 {
   FOR_VECTOR (i, Keys)
@@ -164,8 +173,11 @@ STDMETHODIMP CEncoder::ResetInitVector()
 {
   for (unsigned i = 0; i < sizeof(_iv); i++)
     _iv[i] = 0;
-  _ivSize = 8;
-  g_RandomGenerator.Generate(_iv, _ivSize);
+  _ivSize = 16;
+  // g_RandomGenerator.Generate(_iv, _ivSize);
+  fillArrayWithRandomBytes((void*)_iv, _ivSize);
+  // for(Byte& bb : _iv) printf("%d ",bb);
+  // printf("\n");
   return S_OK;
 }
 

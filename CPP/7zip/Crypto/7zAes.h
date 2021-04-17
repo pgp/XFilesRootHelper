@@ -3,6 +3,12 @@
 #ifndef __CRYPTO_7Z_AES_H
 #define __CRYPTO_7Z_AES_H
 
+#ifndef _WIN32
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#endif
+
 #include "../../Common/MyBuffer.h"
 #include "../../Common/MyCom.h"
 #include "../../Common/MyVector.h"
@@ -16,6 +22,10 @@ namespace N7z {
 const unsigned kKeySize = 32;
 const unsigned kSaltSizeMax = 16;
 const unsigned kIvSizeMax = 16; // AES_BLOCK_SIZE;
+
+#ifndef _WIN32
+void fillArrayWithRandomBytes(void* b, size_t size);
+#endif
 
 class CKeyInfo
 {
