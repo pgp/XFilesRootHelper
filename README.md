@@ -6,7 +6,7 @@ The native library/executable file operations helper for XFiles, which can also 
 
 Precompiled binaries are available for Windows 7+ (x64) and Linux (x64) in the [Release](https://github.com/pgp/XFilesRootHelper/releases) section. If you plan to build from source instead, just continue reading.
 
-## Build instructions (step-by-step)
+### Build instructions (step-by-step)
 **Android**
 - Follow instructions described in main [XFiles](https://github.com/pgp/XFiles) repository's README in order to generate the executable library needed for the Android app
 
@@ -15,7 +15,7 @@ Precompiled binaries are available for Windows 7+ (x64) and Linux (x64) in the [
     ```shell
     sudo apt install build-essential cmake libx11-dev
     ```
-- From a bash shell:
+- From a bash shell, either run `./build.sh --full`, or the following:
     ```shell
     export CC=gcc
     export CXX=g++
