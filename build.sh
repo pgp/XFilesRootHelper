@@ -27,8 +27,8 @@ function usage
 "Options:"
 "  --help, -h     Print help."
 "  --full, -f     Deletes CMake files and runs a full build."
-"  --install, -i  Tries to install in /usr/local after build. Needs sudo."
-"  --uninstall, -u  Tries to remove installed files from /usr/local. Needs sudo."
+"  --install, -i  Tries to install in /usr/{bin, lib} after build. Needs sudo."
+"  --uninstall, -u  Tries to remove installed files from /usr/{bin, lib}. Needs sudo."
     )
 
     printf "%s\n" "${txt[@]}"
@@ -91,22 +91,22 @@ function fullbuild
     cmake -H. -Bbuild
     cmake --build build -- -j$cpus
 
-  cd ..
+    cd ..
     cp -f cert/* bin/
 }
 
 function install
 {
-  echo "Installing into /usr/local"
-    cp bin/r /usr/local/bin/
-    cp bin/lib7z.so cert/dummykey.pem cert/dummycrt.pem /usr/local/lib/
+    echo "Installing into /usr/{bin, lib}"
+    cp bin/r /usr/bin/
+    cp bin/lib7z.so cert/dummykey.pem cert/dummycrt.pem /usr/lib/
 }
 
 function uninstall
 {
-    echo "Uninstalling from /usr/local, if installed"
-    rm -f /usr/local/bin/r
-    rm -f /usr/local/lib/{lib7z.so,dummykey.pem,dummycrt.pem}
+    echo "Uninstalling from /usr/{bin, lib}, if installed"
+    rm -f /usr/bin/r
+    rm -f /usr/lib/{lib7z.so,dummykey.pem,dummycrt.pem}
 }
 
 

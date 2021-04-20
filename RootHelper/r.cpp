@@ -1418,9 +1418,21 @@ void rhMain(int uid=rh_default_uid, std::string name=rh_uds_default_name) {
 #endif
 
 	// TODO Remember that also JNI wrapper needs to call this!
-    if (!lib.Load(NDLL::GetModuleDirPrefix() + FTEXT(kDllName)))
+#ifndef _WIN32
+	std::vector<std::wstring> searchPaths{L"./", L"/usr/lib/"};
+#else
+    std::vector<std::wstring> searchPaths{L"./"};
+#endif
+	for(auto& s : searchPaths) {
+        auto p = s + FTEXT(kDllName);
+	    if(lib.Load(p.c_str())) {
+            lib7zLoaded = true;
+            std::wcout<<L"Loaded 7-zip library from "<<p<<std::endl;
+            break;
+        }
+    }
+    if(!lib7zLoaded)
         PRINTUNIFIEDERROR("Cannot load p7zip library. List archive, compress and extract operations won't be available\n");
-    else lib7zLoaded = true;
 
     // Main code of PGP's rootHelper
 	signal(SIGPIPE,SIG_IGN);
