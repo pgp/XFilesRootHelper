@@ -1418,6 +1418,7 @@ void rhMain(int uid=rh_default_uid, std::string name=rh_uds_default_name) {
 #endif
 
 	// TODO Remember that also JNI wrapper needs to call this!
+#ifndef ANDROID_NDK
 #ifndef _WIN32
 	std::vector<std::wstring> searchPaths{L"./", L"/usr/lib/"};
 #else
@@ -1431,6 +1432,10 @@ void rhMain(int uid=rh_default_uid, std::string name=rh_uds_default_name) {
             break;
         }
     }
+#else
+    auto p = std::wstring(L"./") + FTEXT(kDllName);
+    if(lib.Load(p.c_str())) lib7zLoaded = true;
+#endif
     if(!lib7zLoaded)
         PRINTUNIFIEDERROR("Cannot load p7zip library. List archive, compress and extract operations won't be available\n");
 
