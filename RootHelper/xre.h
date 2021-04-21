@@ -34,6 +34,9 @@ SOCKET Accept(SOCKET &serv, struct sockaddr_in &client_info) {
 	const std::string RH_TLS_KEY_STRING = "dummykey.pem";
 #endif
 
+Botan::System_RNG sysRng;
+Basic_Credentials_Manager* credsManager;
+
 //////////////////////////////////////////////////
 //////////////////////////////////////////////////
 //////////////////////////////////////////////////
@@ -205,7 +208,7 @@ std::string getIPAndPortFromDesc(struct sockaddr_in& client) {
 
 void tlsServerSession(SOCKET remoteCl, std::string s) {
     WinsockDescriptor wsd(remoteCl);
-    TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,wsd);
+    TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,wsd); // TODO @@@@@@@@@@@@@@@ pass credsManager pointer
     tlsServer.go();
     //~ on_server_session_exit_func(wsd,s);
     on_server_session_exit_func(s);
@@ -321,11 +324,11 @@ void tlsServerSession(int remoteCl) {
 		// for tls, send handshake info (hash of shared secret) over rhss_local
 	
 		PosixDescriptor pd_rhss_local(rhss_local);
-		TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,pd_remoteCl,&pd_rhss_local,&connectInfo);
+		TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,pd_remoteCl,&pd_rhss_local,&connectInfo); // @@@@@@@@@@@@@@@ TODO pass credsManager pointer
 		tlsServer.go();
 	}
 	else {
-		TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,pd_remoteCl);
+		TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,pd_remoteCl); // @@@@@@@@@@@@@@@ TODO pass credsManager pointer (can be null, but must not stop https client from working)
 		tlsServer.go();
 	}
 	
@@ -445,9 +448,32 @@ inline void registerExitRoutines() {
 }
 
 bool xreAvailable() {
+#ifndef ANDROID_NDK
+#ifndef _WIN32
+	std::vector<std::string> searchPaths{"./", "/usr/lib/"};
+#else
+    std::vector<std::string> searchPaths{".\\", "%SYSTEMROOT%\\System32\\"};
+#endif
+	for(auto& s : searchPaths) {
+        auto crt = s + RH_TLS_CERT_STRING;
+        auto key = s + RH_TLS_KEY_STRING;
+        auto&& crt1 = FROMUTF(crt);
+        auto&& key1 = FROMUTF(key);
+	    if(existsIsFileIsDir_(crt1) == 1 &&
+	       existsIsFileIsDir_(key1) == 1) {
+            credsManager = new Basic_Credentials_Manager(sysRng, crt, key);
+            PRINTUNIFIED("Loaded dummy cert/key from %s\n",s.c_str());
+            return true;
+        }
+    }
+    PRINTUNIFIEDERROR("Dummy cert/key files not found\n");
+    return false;
+#else
     bool b = existsIsFileIsDir_(FROMUTF(RH_TLS_CERT_STRING)) == 1 && existsIsFileIsDir_(FROMUTF(RH_TLS_KEY_STRING)) == 1;
-    if(!b) PRINTUNIFIEDERROR("Dummy cert/key files not found\n");
+    if(b) credsManager = new Basic_Credentials_Manager(sysRng, RH_TLS_CERT_STRING, RH_TLS_KEY_STRING);
+    else PRINTUNIFIEDERROR("Dummy cert/key files not found\n");
     return b;
+#endif
 }
 
 /**
