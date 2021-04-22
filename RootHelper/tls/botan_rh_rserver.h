@@ -31,7 +31,7 @@ private:
 	const std::string& server_key;
 	TlsServerEventLoopFn eventLoopFn;
 	std::unique_ptr<RingBuffer> inRb;
-	Basic_Credentials_Manager* creds;
+	Basic_Credentials_Manager* creds; // server_crt and server_key are ignored, if this is supplied in constructor
 	Botan::TLS::Server* server;
 
 	std::string lastError() {
@@ -54,6 +54,7 @@ public:
 				const std::string& server_crt_,
 				const std::string& server_key_,
 				IDescriptor& Gsock_,
+                Basic_Credentials_Manager* creds_ = nullptr,
 				IDescriptor* local_sock_fd_ = nullptr,
 				std::vector<uint8_t>* serializedClientInfo_ = nullptr) :
 			eventLoopFn(eventLoopFn_),
@@ -61,7 +62,7 @@ public:
 			server_key(server_key_),
 			Gsock(Gsock_),
 			local_sock_fd(local_sock_fd_),
-			creds(nullptr),
+			creds(creds_),
 			server(nullptr) {
 		if (local_sock_fd_ && serializedClientInfo_) { // NON-STANDALONE MODE
 			serializedClientInfo = *serializedClientInfo_;
@@ -135,13 +136,14 @@ public:
 		Botan::TLS::Policy policy;
 
 		// TODO should not give exception, try with noexcept non-pointer local variable and test on all platforms with missing certificate files
-		try {creds = new Basic_Credentials_Manager(rng_, server_crt, server_key);}
-        catch(std::exception& e) {
-			PRINTUNIFIED("Server cert path is: %s\n",server_crt.c_str());
-			PRINTUNIFIED("Server key path is: %s\n",server_key.c_str());
-            PRINTUNIFIEDERROR("Exception in loading TLS server crt/key: %s\n",e.what());
-            exit(-1);
-        }
+        if(creds == nullptr) // do not create if already provided
+            try {creds = new Basic_Credentials_Manager(rng_, server_crt, server_key);}
+            catch(std::exception& e) {
+                PRINTUNIFIED("Server cert path is: %s\n",server_crt.c_str());
+                PRINTUNIFIED("Server key path is: %s\n",server_key.c_str());
+                PRINTUNIFIEDERROR("Exception in loading TLS server crt/key: %s\n",e.what());
+                exit(-1);
+            }
 
 		server = new Botan::TLS::Server(*this,
 										session_mgr,

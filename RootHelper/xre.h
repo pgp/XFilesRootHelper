@@ -208,7 +208,7 @@ std::string getIPAndPortFromDesc(struct sockaddr_in& client) {
 
 void tlsServerSession(SOCKET remoteCl, std::string s) {
     WinsockDescriptor wsd(remoteCl);
-    TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,wsd); // TODO @@@@@@@@@@@@@@@ pass credsManager pointer
+    TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,wsd,credsManager);
     tlsServer.go();
     //~ on_server_session_exit_func(wsd,s);
     on_server_session_exit_func(s);
@@ -324,11 +324,11 @@ void tlsServerSession(int remoteCl) {
 		// for tls, send handshake info (hash of shared secret) over rhss_local
 	
 		PosixDescriptor pd_rhss_local(rhss_local);
-		TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,pd_remoteCl,&pd_rhss_local,&connectInfo); // @@@@@@@@@@@@@@@ TODO pass credsManager pointer
+		TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,pd_remoteCl, credsManager, &pd_rhss_local,&connectInfo);
 		tlsServer.go();
 	}
 	else {
-		TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,pd_remoteCl); // @@@@@@@@@@@@@@@ TODO pass credsManager pointer (can be null, but must not stop https client from working)
+		TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,pd_remoteCl, credsManager);
 		tlsServer.go();
 	}
 	
