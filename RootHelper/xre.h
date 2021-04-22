@@ -448,12 +448,13 @@ inline void registerExitRoutines() {
 }
 
 bool xreAvailable() {
-#ifndef ANDROID_NDK
-#ifndef _WIN32
-	std::vector<std::string> searchPaths{"./", "/usr/lib/"};
+#if defined(ANDROID_NDK) || defined(_WIN32) // try to load only from current directory
+    bool b = existsIsFileIsDir_(FROMUTF(RH_TLS_CERT_STRING)) == 1 && existsIsFileIsDir_(FROMUTF(RH_TLS_KEY_STRING)) == 1;
+    if(b) credsManager = new Basic_Credentials_Manager(sysRng, RH_TLS_CERT_STRING, RH_TLS_KEY_STRING);
+    else PRINTUNIFIEDERROR("Dummy cert/key files not found\n");
+    return b;
 #else
-    std::vector<std::string> searchPaths{".\\", "%SYSTEMROOT%\\System32\\"};
-#endif
+	const std::vector<std::string> searchPaths{"./", "/usr/lib/"};
 	for(auto& s : searchPaths) {
         auto crt = s + RH_TLS_CERT_STRING;
         auto key = s + RH_TLS_KEY_STRING;
@@ -468,11 +469,6 @@ bool xreAvailable() {
     }
     PRINTUNIFIEDERROR("Dummy cert/key files not found\n");
     return false;
-#else
-    bool b = existsIsFileIsDir_(FROMUTF(RH_TLS_CERT_STRING)) == 1 && existsIsFileIsDir_(FROMUTF(RH_TLS_KEY_STRING)) == 1;
-    if(b) credsManager = new Basic_Credentials_Manager(sysRng, RH_TLS_CERT_STRING, RH_TLS_KEY_STRING);
-    else PRINTUNIFIEDERROR("Dummy cert/key files not found\n");
-    return b;
 #endif
 }
 

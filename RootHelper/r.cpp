@@ -1417,25 +1417,21 @@ void rhMain(int uid=rh_default_uid, std::string name=rh_uds_default_name) {
 	strcat(LOG_TAG_WITH_SOCKET_ADDR+strlen(PROGRAM_NAME)+1,SOCKET_ADDR);
 #endif
 
-	// TODO Remember that also JNI wrapper needs to call this!
-#ifndef ANDROID_NDK
-#ifndef _WIN32
-	std::vector<std::wstring> searchPaths{L"./", L"/usr/lib/"};
+#if defined(ANDROID_NDK) || defined(_WIN32) // actually, windows doesn't load p7zip
+    const auto p = std::wstring(L"./") + FTEXT(kDllName);
+    if(lib.Load(p.c_str())) lib7zLoaded = true;
 #else
-    std::vector<std::wstring> searchPaths{L"./"};
-#endif
-	for(auto& s : searchPaths) {
+    const std::vector<std::wstring> searchPaths{L"./", L"/usr/lib/"};
+    for(auto& s : searchPaths) {
         auto p = s + FTEXT(kDllName);
-	    if(lib.Load(p.c_str())) {
+        if(lib.Load(p.c_str())) {
             lib7zLoaded = true;
-            std::wcout<<L"Loaded 7-zip library from "<<p<<std::endl;
+            std::wcout<<L"Loaded p7zip library from "<<p<<std::endl;
             break;
         }
     }
-#else
-    auto p = std::wstring(L"./") + FTEXT(kDllName);
-    if(lib.Load(p.c_str())) lib7zLoaded = true;
 #endif
+
     if(!lib7zLoaded)
         PRINTUNIFIEDERROR("Cannot load p7zip library. List archive, compress and extract operations won't be available\n");
 
