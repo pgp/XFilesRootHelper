@@ -27,7 +27,7 @@ IF "%NUMBER_OF_PROCESSORS%"=="" (
 :stdbuild
 cd CMAKE
 call :detectcpus
-cmake --build winbuild -- -j%ERRORLEVEL%
+cmake --build winbuild -- -j%ERRORLEVEL% || EXIT /B
 robocopy ..\cert ..\bin /s /e
 cd ..
 EXIT /B 0
@@ -40,9 +40,9 @@ md ..\bin
 rd /S /Q winbuild
 set CC=c:\MinGW\bin\gcc.exe
 set CXX=c:\MinGW\bin\g++.exe
-cmake -G "MinGW Makefiles" -DCMAKE_SH="CMAKE_SH-NOTFOUND" -H. -Bwinbuild
+cmake -G "MinGW Makefiles" -DCMAKE_SH="CMAKE_SH-NOTFOUND" -H. -Bwinbuild || EXIT /B
 call :detectcpus
-cmake --build winbuild -- -j%ERRORLEVEL%
+cmake --build winbuild -- -j%ERRORLEVEL% || EXIT /B
 robocopy ..\cert ..\bin /s /e
 cd ..
 EXIT /B 0

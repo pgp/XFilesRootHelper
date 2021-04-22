@@ -448,20 +448,43 @@ inline void registerExitRoutines() {
 }
 
 bool xreAvailable() {
-#if defined(ANDROID_NDK) || defined(_WIN32) // try to load only from current directory
-    bool b = existsIsFileIsDir_(FROMUTF(RH_TLS_CERT_STRING)) == 1 && existsIsFileIsDir_(FROMUTF(RH_TLS_KEY_STRING)) == 1;
-    if(b) credsManager = new Basic_Credentials_Manager(sysRng, RH_TLS_CERT_STRING, RH_TLS_KEY_STRING);
-    else PRINTUNIFIEDERROR("Dummy cert/key files not found\n");
-    return b;
+#if defined(ANDROID_NDK) // under Android, try to load only from working directory
+	bool b = existsIsFileIsDir_(FROMUTF(RH_TLS_CERT_STRING)) == 1 && existsIsFileIsDir_(FROMUTF(RH_TLS_KEY_STRING)) == 1;
+	if(b) credsManager = new Basic_Credentials_Manager(sysRng, RH_TLS_CERT_STRING, RH_TLS_KEY_STRING);
+	else PRINTUNIFIEDERROR("Dummy cert/key files not found\n");
+	return b;
+#elif defined(_WIN32) // under Windows, try to load only from executable's directory
+	constexpr uint16_t EXEPATHLEN = 4096;
+	wchar_t executablePath[EXEPATHLEN]{};
+	
+	if(!GetModuleFileNameW(nullptr, executablePath, EXEPATHLEN)) {
+		std::cout<<"Cannot retrieve executable directory\n"<<std::endl;
+		return false;
+	}
+	// get parent dir
+	for(int i=EXEPATHLEN-1;i>=0;i--) {
+		wchar_t* c = executablePath+i;
+		if(*c == L'\\' || *c == L'/') break;
+		else if(*c != L'\0') *c = L'\0';
+	}
+	// std::wcout<<L"executable path is "<<executablePath<<std::endl;
+	std::wstring w(executablePath);
+	auto&& p1 = w + FROMUTF(RH_TLS_CERT_STRING);
+	auto&& p2 = w + FROMUTF(RH_TLS_KEY_STRING);
+
+	bool b = existsIsFileIsDir_(p1) == 1 && existsIsFileIsDir_(p2) == 1;
+	if(b) credsManager = new Basic_Credentials_Manager(sysRng, TOUTF(p1), TOUTF(p2));
+	else PRINTUNIFIEDERROR("Dummy cert/key files not found\n");
+	return b;
 #else
-	const std::vector<std::string> searchPaths{"./", "/usr/lib/"};
-	for(auto& s : searchPaths) {
+    const std::vector<std::string> searchPaths{"./", "/usr/lib/"};
+    for(auto& s : searchPaths) {
         auto crt = s + RH_TLS_CERT_STRING;
         auto key = s + RH_TLS_KEY_STRING;
         auto&& crt1 = FROMUTF(crt);
         auto&& key1 = FROMUTF(key);
-	    if(existsIsFileIsDir_(crt1) == 1 &&
-	       existsIsFileIsDir_(key1) == 1) {
+        if(existsIsFileIsDir_(crt1) == 1 &&
+           existsIsFileIsDir_(key1) == 1) {
             credsManager = new Basic_Credentials_Manager(sysRng, crt, key);
             PRINTUNIFIED("Loaded dummy cert/key from %s\n",s.c_str());
             return true;
