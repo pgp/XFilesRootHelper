@@ -32,6 +32,7 @@ private:
 	TlsServerEventLoopFn eventLoopFn;
 	std::unique_ptr<RingBuffer> inRb;
 	Basic_Credentials_Manager* creds; // server_crt and server_key are ignored, if this is supplied in constructor
+	const bool lcreds;
 	Botan::TLS::Server* server;
 
 	std::string lastError() {
@@ -63,6 +64,7 @@ public:
 			Gsock(Gsock_),
 			local_sock_fd(local_sock_fd_),
 			creds(creds_),
+			lcreds(creds_ == nullptr),
 			server(nullptr) {
 		if (local_sock_fd_ && serializedClientInfo_) { // NON-STANDALONE MODE
 			serializedClientInfo = *serializedClientInfo_;
@@ -190,7 +192,7 @@ public:
 			delete server;
 			server = nullptr;
 		}
-		if (creds) {
+		if (creds && lcreds) {
 			delete creds;
 			creds = nullptr;
 		}
