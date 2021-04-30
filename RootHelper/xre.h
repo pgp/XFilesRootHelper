@@ -454,15 +454,14 @@ bool xreAvailable() {
 	else PRINTUNIFIEDERROR("Dummy cert/key files not found\n");
 	return b;
 #elif defined(_WIN32) // under Windows, try to load only from executable's directory
-	constexpr uint16_t EXEPATHLEN = 4096;
-	wchar_t executablePath[EXEPATHLEN]{};
+	wchar_t executablePath[PATH_MAX_LEN]{};
 	
-	if(!GetModuleFileNameW(nullptr, executablePath, EXEPATHLEN)) {
+	if(!GetModuleFileNameW(nullptr, executablePath, PATH_MAX_LEN)) {
 		std::cout<<"Cannot retrieve executable directory\n"<<std::endl;
 		return false;
 	}
 	// get parent dir
-	for(int i=EXEPATHLEN-1;i>=0;i--) {
+	for(int i=PATH_MAX_LEN-1;i>=0;i--) {
 		wchar_t* c = executablePath+i;
 		if(*c == L'\\' || *c == L'/') break;
 		else if(*c != L'\0') *c = L'\0';

@@ -2,6 +2,7 @@
 #define __RH_PATH_UTILS__
 
 #include "unifiedlogging.h"
+#include <cstdlib>
 #include <algorithm>
 
 #ifdef _WIN32
@@ -154,6 +155,24 @@ std::string pathConcat(const std::string& dir, const std::string& filename) {
     if (dir.back()=='/') // non-standard path, ending with '/'
         return dir + filename;
     else return dir+"/"+filename;
+}
+#endif
+
+constexpr uint16_t PATH_MAX_LEN = 4096;
+
+#ifdef _WIN32
+std::wstring canonicalize_path(const std::wstring& path) {
+}
+#else
+std::string canonicalize_path(const std::string& path) {
+    std::string s(PATH_MAX_LEN,0);
+    auto* p = realpath(path.c_str(),(char*)(s.c_str()));
+    if(p == nullptr) {
+        PRINTUNIFIEDERROR("Unable to canonicalize path: %s", path.c_str());
+        return "";
+    }
+    s.resize(strlen(p));
+    return s;
 }
 #endif
 
