@@ -24,30 +24,35 @@ const char* help_args = R"HELP1(Usage:
 )HELP1";
 
 inline bool prog_is_xre(const std::string& arg) { // match *xre* and *XRE*
-	return  arg.find("xre") != std::string::npos ||
-			arg.find("XRE") != std::string::npos;
+    return  arg.find("xre") != std::string::npos ||
+            arg.find("XRE") != std::string::npos;
 }
 
 inline bool mode_is_help(const std::string& arg) {
-	return  arg == "--help" ||
-			arg == "/?";
+#ifdef _WIN32
+    return arg == "--help" || arg == "/?";
+#else
+    return arg == "--help";
+#endif
 }
 
 inline bool mode_is_xre(const std::string& arg) {
-	return 	arg == "--xre";
+    return arg == "--xre";
 }
 
 // TODO to be replaced with a proper argument parser
 template<typename C,typename STR>
 std::vector<STR> getXREPaths(int argc, C* argv[], bool& enableAnnounce, const STR& placeholder) {
     std::vector<STR> paths(3);
-    
-	STR&& homePrefix = FROMUTF("--homePath=");
+
+    STR&& homePrefix = FROMUTF("--homePath=");
     STR&& announcePrefix = FROMUTF("--announcedPath=");
     STR&& exposePrefix = FROMUTF("--exposedPath=");
     STR&& noAnnounceOption = FROMUTF("--noAnnounce");
-    
-	for (int i=0; i<argc; i++) {
+
+    const std::unordered_map<int,STR*> mm{{0,&homePrefix},{1,&announcePrefix},{2,&exposePrefix}};
+
+    for (int i=0; i<argc; i++) {
         STR p = argv[i];
 
         if(noAnnounceOption==p) {
@@ -55,38 +60,24 @@ std::vector<STR> getXREPaths(int argc, C* argv[], bool& enableAnnounce, const ST
             enableAnnounce = false;
             continue;
         }
-        // TODO refactor with a for loop
-        if(p.rfind(homePrefix,0)==0) {
-            paths[0] = p.substr(homePrefix.length());
-            if(!paths[0].empty()) {
-                auto&& tmp = canonicalize_path(paths[0]);
-                if(!tmp.empty()) paths[0] = tmp;
+
+        for(const auto& kv : mm) {
+            if(p.rfind(*(kv.second),0)==0) {
+                paths[kv.first] = p.substr((*(kv.second)).length());
+                if(!paths[kv.first].empty()) {
+                    auto&& tmp = canonicalize_path(paths[kv.first]);
+                    if(!tmp.empty()) paths[kv.first] = tmp;
+                }
+                break;
             }
-            continue;
-        }
-        if(p.rfind(announcePrefix,0)==0) {
-            paths[1] = p.substr(announcePrefix.length());
-            if(!paths[1].empty()) {
-                auto&& tmp = canonicalize_path(paths[1]);
-                if(!tmp.empty()) paths[1] = tmp;
-            }
-            continue;
-        }
-        if(p.rfind(exposePrefix,0)==0) {
-            paths[2] = p.substr(exposePrefix.length());
-            if(!paths[2].empty()) {
-                auto&& tmp = canonicalize_path(paths[2]);
-                if(!tmp.empty()) paths[2] = tmp;
-            }
-            continue;
         }
     }
     return paths;
 }
 
 void print_help(const char* program_name) {
-	PRINTUNIFIED(help_args,program_name,program_name,program_name,program_name,program_name);
-	_Exit(0);
+    PRINTUNIFIED(help_args,program_name,program_name,program_name,program_name,program_name);
+    _Exit(0);
 }
 
 constexpr int rh_default_uid = 0;
