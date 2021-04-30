@@ -162,6 +162,15 @@ constexpr uint16_t PATH_MAX_LEN = 4096;
 
 #ifdef _WIN32
 std::wstring canonicalize_path(const std::wstring& path) {
+    std::wstring w(PATH_MAX_LEN,0);
+    auto* p = _wfullpath((wchar_t*)(w.c_str()),path.c_str(),PATH_MAX_LEN);
+    if(p == nullptr) {
+        auto&& cp = TOUTF(path);
+        PRINTUNIFIEDERROR("Unable to canonicalize path: %s", cp.c_str());
+        return L"";
+    }
+    w.resize(wcslen(p));
+    return w;
 }
 #else
 std::string canonicalize_path(const std::string& path) {
