@@ -275,8 +275,14 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 	// END DEBUG
 	
 	// read common request
-	std::string basepath = readStringWithLen(inOutDesc);
-	PRINTUNIFIED("received base path to look up in is:\t%s\n", basepath.c_str());
+	std::vector<std::string> basePaths;
+	for(;;) {
+		auto&& basepath = readStringWithLen(inOutDesc);
+		if(basepath.empty()) break;
+		PRINTUNIFIED("received base path to look up in is:\t%s\n", basepath.c_str());
+		basePaths.emplace_back(basepath);
+	}
+
 	std::string namepattern = readStringWithLen(inOutDesc);
 	if (!namepattern.empty())
 		PRINTUNIFIED("received name pattern to search is:\t%s\n", namepattern.c_str());
@@ -300,21 +306,60 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 	// check flags
 	if(b1(flags)) { // search in base folder only
 		PRINTUNIFIED("Entering plain listing...\n");
-		DIR *d;
-		struct dirent *dir;
-		d = opendir(basepath.c_str());
-		if(d) {
-			while ((dir = readdir(d)) != nullptr) {
-				// exclude current (.) and parent (..) directory
-				if (strcmp(dir->d_name, ".") == 0 ||
-					strcmp(dir->d_name, "..") == 0) continue;
-					
+		for(auto& basepath: basePaths) {
+			DIR *d;
+			struct dirent *dir;
+			d = opendir(basepath.c_str());
+			if(d) {
+				while ((dir = readdir(d)) != nullptr) {
+					// exclude current (.) and parent (..) directory
+					if (strcmp(dir->d_name, ".") == 0 ||
+						strcmp(dir->d_name, "..") == 0) continue;
+
+					if (currentSearchInOutDesc == nullptr) {
+						PRINTUNIFIEDERROR("Search interrupted,exiting...\n");
+						threadExit();
+					}
+
+					std::string haystack = std::string(dir->d_name);
+					std::string needle = namepattern;
+					if (b2(searchFlags)) {
+						toUppercaseString(haystack);
+						toUppercaseString(needle);
+					}
+					if (haystack.find(needle) != std::string::npos) {
+						find_resp_t findEntry{};
+
+						std::string filepathname = pathConcat(basepath,dir->d_name);
+						if (assemble_ls_resp_from_filepath(filepathname,dir->d_name,findEntry.fileItem, true)!=0) {
+							PRINTUNIFIEDERROR("Unable to stat file path: %s\n",filepathname.c_str());
+							continue;
+						}
+
+						// no content around nor content offset
+						if (writefind_resp(inOutDesc,findEntry) < 0) {
+							threadExit();
+						}
+					}
+				}
+				closedir(d);
+			}
+		}
+	}
+	else { // search in subfolders
+		PRINTUNIFIED("Entering recursive listing...\n");
+		for(auto& basepath : basePaths) {
+			auto &&dirIt = itf.createIterator(basepath, FULL, true, SMART_SYMLINK_RESOLUTION);
+			while (dirIt.next()) {
+				std::string curEntString = dirIt.getCurrent();
+				std::string curEntName = dirIt.getCurrentFilename();
+
 				if (currentSearchInOutDesc == nullptr) {
 					PRINTUNIFIEDERROR("Search interrupted,exiting...\n");
 					threadExit();
 				}
-				
-				std::string haystack = std::string(dir->d_name);
+
+				std::string haystack = curEntName;
 				std::string needle = namepattern;
 				if (b2(searchFlags)) {
 					toUppercaseString(haystack);
@@ -322,51 +367,16 @@ void findNamesAndContent(IDescriptor& inOutDesc, uint8_t flags) {
 				}
 				if (haystack.find(needle) != std::string::npos) {
 					find_resp_t findEntry{};
-					
-					std::string filepathname = pathConcat(basepath,dir->d_name);
-					if (assemble_ls_resp_from_filepath(filepathname,dir->d_name,findEntry.fileItem, true)!=0) {
-						PRINTUNIFIEDERROR("Unable to stat file path: %s\n",filepathname.c_str());
+
+					if (assemble_ls_resp_from_filepath(curEntString, curEntString, findEntry.fileItem, true) != 0) {
+						PRINTUNIFIEDERROR("Unable to stat file path: %s\n", curEntString.c_str());
 						continue;
 					}
-					
+
 					// no content around nor content offset
-					if (writefind_resp(inOutDesc,findEntry) < 0) {
+					if (writefind_resp(inOutDesc, findEntry) < 0) {
 						threadExit();
 					}
-				}
-			}
-			closedir(d);
-		}
-	}
-	else { // search in subfolders
-		PRINTUNIFIED("Entering recursive listing...\n");
-		auto&& dirIt = itf.createIterator(basepath, FULL, true, SMART_SYMLINK_RESOLUTION);
-		while (dirIt.next()) {
-			std::string curEntString = dirIt.getCurrent();
-			std::string curEntName = dirIt.getCurrentFilename();
-			
-			if (currentSearchInOutDesc == nullptr) {
-				PRINTUNIFIEDERROR("Search interrupted,exiting...\n");
-				threadExit();
-			}
-			
-			std::string haystack = curEntName;
-			std::string needle = namepattern;
-			if (b2(searchFlags)) {
-				toUppercaseString(haystack);
-				toUppercaseString(needle);
-			}
-			if (haystack.find(needle) != std::string::npos) {
-				find_resp_t findEntry{};
-				
-				if (assemble_ls_resp_from_filepath(curEntString,curEntString,findEntry.fileItem, true)!=0) {
-					PRINTUNIFIEDERROR("Unable to stat file path: %s\n",curEntString.c_str());
-					continue;
-				}
-				
-				// no content around nor content offset
-				if (writefind_resp(inOutDesc,findEntry) < 0) {
-					threadExit();
 				}
 			}
 		}
