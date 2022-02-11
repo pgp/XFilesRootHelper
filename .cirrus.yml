@@ -20,7 +20,8 @@ osx_task:
     CIRRUS_CLONE_DEPTH: 1
   install_script:
     - brew install gcc cmake
-    - curl -L -O https://dl.bintray.com/xquartz/downloads/XQuartz-2.7.11.dmg
+    - curl -L -O https://github.com/pgp/BinRels/releases/download/bin-xqtz2711/xqtz.zip
+    - unzip xqtz.zip
     - hdiutil mount XQuartz-2.7.11.dmg
     - sudo installer -store -pkg /Volumes/XQuartz-2.7.11/XQuartz.pkg -target /
     - hdiutil unmount /Volumes/XQuartz-2.7.11
