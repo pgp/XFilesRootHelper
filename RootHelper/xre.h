@@ -86,6 +86,104 @@ void on_server_session_exit_func(const std::string& clientIPAndPortOfThisServerS
 //////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////
 
+#ifdef _WIN32
+
+void LeftDown() {
+    INPUT Input{0};
+    Input.type      = INPUT_MOUSE;
+    Input.mi.dwFlags  = MOUSEEVENTF_LEFTDOWN;
+    ::SendInput(1,&Input,sizeof(INPUT));
+}
+
+void LeftUp() {
+	INPUT Input{0};
+    Input.type      = INPUT_MOUSE;
+    Input.mi.dwFlags  = MOUSEEVENTF_LEFTUP;
+    ::SendInput(1,&Input,sizeof(INPUT));
+}
+
+void RightDown() {
+    INPUT Input{0};
+    Input.type      = INPUT_MOUSE;
+    Input.mi.dwFlags  = MOUSEEVENTF_RIGHTDOWN;
+    ::SendInput(1,&Input,sizeof(INPUT));
+}
+
+void RightUp() {
+    INPUT Input{0};
+    Input.type      = INPUT_MOUSE;
+    Input.mi.dwFlags  = MOUSEEVENTF_RIGHTUP;
+    ::SendInput(1,&Input,sizeof(INPUT));
+}
+#endif
+
+void controlCursor(IDescriptor& cl) {
+#ifdef _WIN32
+	constexpr static uint8_t START_MOVE = 0xF0;
+    constexpr static uint8_t MOVE = 0xF1;
+    constexpr static uint8_t LEFTCLICK = 0xF2;
+    constexpr static uint8_t RIGHTCLICK = 0xF3;
+    constexpr static uint8_t LEFTDOWN = 0xF4;
+    constexpr static uint8_t LEFTUP = 0xF5;
+    constexpr static uint8_t RIGHTDOWN = 0xF6;
+    constexpr static uint8_t RIGHTUP = 0xF7;
+    uint8_t cursorControlCode;
+	POINT p{};
+	int16_t dx,dy; // win32 state
+	int16_t x,y; // from client
+    for(;;) {
+        cl.readAllOrExit(&cursorControlCode,sizeof(uint8_t));
+        switch(cursorControlCode) {
+			case START_MOVE:
+				// receive x,y
+				cl.readAllOrExit(&x,sizeof(int16_t));
+                cl.readAllOrExit(&y,sizeof(int16_t));
+				// store difference between firstly received coordinates and current ones
+				GetCursorPos(&p);
+				dx = p.x - x;
+				dy = p.y - y;
+				PRINTUNIFIED("START_MOVE: x: %d, y: %d, dx: %d, dy: %d\n",x,y,dx,dy);
+				break;
+            case MOVE:
+                // receive x,y
+				cl.readAllOrExit(&x,sizeof(int16_t));
+                cl.readAllOrExit(&y,sizeof(int16_t));
+                PRINTUNIFIED("MOVE: x: %d, y: %d\n",x,y);
+				SetCursorPos(x+dx,y+dy);
+                break;
+			case LEFTDOWN:
+				LeftDown();
+				break;
+			case LEFTUP:
+				LeftUp();
+				break;
+            case LEFTCLICK:
+                LeftDown();
+				LeftUp();
+                break;
+			case RIGHTDOWN:
+				RightDown();
+				break;
+			case RIGHTUP:
+				RightUp();
+				break;
+            case RIGHTCLICK:
+                RightDown();
+				RightUp();
+                break;
+            default:
+                PRINTUNIFIEDERROR("Unknown cursor control code: %u\n",cursorControlCode);
+                threadExit();
+        }
+    }
+#else
+    // not implemented
+    errno = 1234;
+    sendErrorResponse(cl);
+    threadExit();
+#endif
+}
+
 // compatible signature with TlsServerEventLoopFn function type declared in botan_rh_rserver.h
 void tlsServerSessionEventLoop(RingBuffer& inRb, Botan::TLS::Server& server) {
 
@@ -127,6 +225,9 @@ void tlsServerSessionEventLoop(RingBuffer& inRb, Botan::TLS::Server& server) {
                     break;
                 case ControlCodes::ACTION_HASH:
                     hashFile(rcl);
+                    break;
+                case ControlCodes::ACTION_OTHER:
+                    controlCursor(rcl);
                     break;
                 default: // unlike local ones do at the current time, remote sessions should serve more than one request... On wrong data received, close session and disconnect client
                     PRINTUNIFIED("unexpected data received, disconnected client\n");
