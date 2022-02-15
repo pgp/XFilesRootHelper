@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <string>
 #include <cctype>
+#include "../Utils.h"
 #include "../iowrappers_common.h"
 #include "../desc/NetworkDescriptorFactory.h"
 #include "../desc/FileDescriptorFactory.h"
@@ -426,6 +427,151 @@ std::pair<std::string,std::string> ssh_keygen_internal(uint32_t keySize) {
     std::string pub_s = Botan::X509::PEM_encode(prv);
     PRINTUNIFIED("Encoding complete");
     return std::make_pair(prv_s,pub_s);
+}
+
+// methods for uploading to x0.at
+const std::string CRLF = "\r\n";
+
+// TODO no more IP, but domain name
+#define IP         "https://x0.at"
+#define RECEIVER   "/"
+#define COMPNAME   "compname"
+#define PROGRAM    "program"
+#define FILENAME   "file"
+// TODO generate random boundary, this one is taken by a curl example run
+#define BOUNDARY   "------------------------8cd1393e5e60aebf"
+#define DUMMY_FILE "dummy.txt"
+
+/***** multipart form data *****/
+// body header
+std::string bodyHeader() {
+    std::stringstream body;
+
+    // first we add the args
+    body << "--" << std::string(BOUNDARY) << CRLF;
+    body << "Content-Disposition: form-data; name=\"" << std::string(COMPNAME) << "\"" << CRLF << CRLF;
+    body << "example" << CRLF;
+    body << "--" << std::string(BOUNDARY) << CRLF;
+    body << "Content-Disposition: form-data; name=\"" << std::string(PROGRAM) << "\"" << CRLF << CRLF;
+    body << "Chrome" << CRLF;
+
+    // now we add the file
+    body << "--" << std::string(BOUNDARY) << CRLF;
+    body << "Content-Disposition: form-data; name=\"" << std::string(FILENAME) << "\"; filename=\"" << std::string(DUMMY_FILE) << "\"" << CRLF;
+    body << "Content-Type: application/octet-stream" << CRLF << CRLF;
+    return body.str();
+}
+
+// body trailer
+std::string bodyTrailer() {
+    std::stringstream body;
+    body << CRLF << "--" << std::string(BOUNDARY) << "--" << CRLF << CRLF;
+    return body.str();
+}
+
+void tlsClientUrlUpload_x0at_EventLoop(TLS_Client& client_wrapper) {
+    TLSDescriptor rcl(client_wrapper.inRb,*(client_wrapper.client));
+    try {
+        if(client_wrapper.sniHost.empty()) {
+            PRINTUNIFIEDERROR("sniHost field is empty");
+            threadExit();
+        }
+        PRINTUNIFIED("In TLS URL Upload event loop (x0.at)");
+        auto&& bh = bodyHeader();
+        auto&& bt = bodyTrailer();
+        // client_wrapper.downloadPath is actually uploadPath
+        auto fsize = osGetSize(client_wrapper.downloadPath);
+        auto wrappedBodyLen = bh.size() + fsize + bt.size();
+        auto&& fileToUpload = fdfactory.create(client_wrapper.downloadPath, FileOpenMode::READ);
+
+        std::string postHeader = "POST / HTTP/1.1\r\n"
+                              "Host: x0.at\r\n"
+                              "Content-Length: "+std::to_string(wrappedBodyLen)+"\r\n"
+                              "User-Agent: XFilesHTTPClient/1.0.0\r\n"
+                              "Accept: */*\r\n"
+                              "Connection: close\r\n"
+                              "Content-Type: multipart/form-data; boundary="+BOUNDARY+"\r\n\r\n";
+
+        rcl.writeAllOrExit(postHeader.c_str(),postHeader.size());
+        rcl.writeAllOrExit(bh.c_str(),bh.size());
+        // FIXME duplicated code from downloadRemoteItems, refactor into a function
+        /********* quotient + remainder IO loop *********/
+        uint64_t currentProgress = 0;
+        uint64_t quotient = fsize / REMOTE_IO_CHUNK_SIZE;
+        uint64_t remainder = fsize % REMOTE_IO_CHUNK_SIZE;
+        auto&& progressHook = getProgressHook(fsize);
+
+        PRINTUNIFIED("Chunk info: quotient is %" PRIu64 ", remainder is %" PRIu64 "\n",quotient,remainder);
+        std::vector<uint8_t> buffer(REMOTE_IO_CHUNK_SIZE);
+        uint8_t* v = &buffer[0];
+        for(uint64_t i=0;i<quotient;i++) {
+            fileToUpload.readAllOrExit(v,REMOTE_IO_CHUNK_SIZE);
+            rcl.writeAllOrExit(v,REMOTE_IO_CHUNK_SIZE);
+
+            // send progress information back to local socket
+            currentProgress += REMOTE_IO_CHUNK_SIZE;
+
+            client_wrapper.local_sock_fd.writeAllOrExit(&currentProgress,sizeof(uint64_t));
+            progressHook.publishDelta(REMOTE_IO_CHUNK_SIZE);
+        }
+
+        if (remainder != 0) {
+            fileToUpload.readAllOrExit(v,remainder);
+            rcl.writeAllOrExit(v,remainder);
+
+            // send progress information back to local socket
+            currentProgress += remainder;
+
+            client_wrapper.local_sock_fd.writeAllOrExit(&currentProgress,sizeof(uint64_t));
+            progressHook.publishDelta(remainder);
+        }
+        /********* end quotient + remainder IO loop *********/
+        rcl.writeAllOrExit(bt.c_str(),bt.size());
+
+        std::string hdrs;
+
+        const std::string dp1 = "/dev/shm";
+        const std::string tfl = "out_x0at.txt";
+        const std::string url1 = "x0.at/";
+
+        // TODO check client_wrapper.httpRet == 200 and propagate response (download link)
+        client_wrapper.httpRet = parseHttpResponseHeadersAndBody(rcl,
+                                                                 client_wrapper.local_sock_fd,
+                                                                 dp1,
+                                                                 tfl,
+                                                                 hdrs,
+                                                                 url1,
+                                                                 true);
+    }
+    catch (threadExitThrowable& i) {
+        PRINTUNIFIEDERROR("T2 ...\n");
+    }
+    catch (std::exception& e) {
+        PRINTUNIFIEDERROR("exception: %s\n",e.what());
+    }
+    PRINTUNIFIEDERROR("[tlsClientUrlUpload_x0at_EventLoop] No housekeeping and return\n");
+}
+
+template<typename STR>
+int httpsUrlUpload_x0at_internal(IDescriptor& cl,
+                              const STR& sourcePathForUpload,
+                              RingBuffer& inRb) {
+    std::string domainOnly = "x0.at";
+    std::string postString = "/"; // TODO postString
+    auto port = 443;
+    auto&& remoteCl = netfactory.create(domainOnly, port);
+    if(!remoteCl) {
+        sendErrorResponse(cl);
+        return -1;
+    }
+
+    PRINTUNIFIED("Remote client session connected to server %s, port %d\n", domainOnly.c_str(), port);
+    sendOkResponse(cl); // OK, from now on java client can communicate with remote server using this local socket
+
+    TLS_Client tlsClient(tlsClientUrlUpload_x0at_EventLoop,inRb,cl,remoteCl, true, domainOnly, postString, port, sourcePathForUpload, "/dev/shm/out_x0at.txt", true);
+    tlsClient.go();
+    remoteCl.close();
+    return tlsClient.httpRet;
 }
 
 #endif /* __BASIC_HTTPS_CLIENT__ */

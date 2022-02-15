@@ -62,6 +62,32 @@ int downloadFromArgs(int argc, const C* argv[]) {
 }
 
 template<typename C>
+int upload_x0at_FromArgs(int argc, const C* argv[]) {
+    // argv[1] already checked == "upx0at"
+    if(argc < 3) {
+        std::string x = TOUTF(argv[0]);
+        PRINTUNIFIED("Usage: %s upx0at /your/src/path/file.bin\n", x.c_str());
+        _Exit(0);
+    }
+#ifdef _WIN32
+    { // FIXME call common init method BEFORE invoking cli parser
+        // Initialize Winsock
+        WSADATA wsaData;
+        auto iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
+        if (iResult != 0) {
+            printf("WSAStartup failed with error: %d\n", iResult);
+            _Exit(572);
+        }
+    };
+#endif
+    RingBuffer inRb;
+    SinkDescriptor cl;
+    std::string srcPath = TOUTF(argv[2]);
+    auto httpRet = httpsUrlUpload_x0at_internal(cl,srcPath,inRb);
+    return httpRet==200?0:httpRet;
+}
+
+template<typename C>
 int sshKeygenFromArgs(int argc, const C* argv[]) {
     std::string keyType;
     if(argc < 3) goto errorLabel;
@@ -180,6 +206,7 @@ int createFileFromArgs(int argc, const C* argv[]) {
 
 const std::unordered_map<std::string,std::pair<ControlCodes,cliFunction>> allowedFromCli = {
         {"download", {ControlCodes::ACTION_HTTPS_URL_DOWNLOAD, downloadFromArgs}},
+        {"upx0at", {ControlCodes::ACTION_HTTPS_URL_UPLOAD, upload_x0at_FromArgs}},
         {"ssh-keygen", {ControlCodes::ACTION_SSH_KEYGEN, sshKeygenFromArgs}},
         {"hashNames", {ControlCodes::ACTION_HASH, hashFromArgs}},
         {"hash", {ControlCodes::ACTION_HASH, hashFromArgs}},
