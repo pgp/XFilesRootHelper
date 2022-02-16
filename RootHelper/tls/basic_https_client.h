@@ -438,12 +438,24 @@ const std::string CRLF = "\r\n";
 #define COMPNAME   "compname"
 #define PROGRAM    "program"
 #define FILENAME   "file"
-// TODO generate random boundary, this one is taken by a curl example run
-const std::string BOUNDARY = "------------------------8cd1393e5e60aebf";
+
+std::string genRandomBoundary() {
+    // 16 random bytes
+    std::vector<uint8_t> p1(16);
+    botan_rng_t rng{};
+    botan_rng_init(&rng, nullptr);
+
+    botan_rng_get(rng,&p1[0],16);
+    botan_rng_destroy(rng);
+
+    // expand to 32 hex chars
+    std::string BOUNDARY = "--------" + Botan::hex_encode(p1);
+    return BOUNDARY;
+}
 
 /***** multipart form data *****/
 // body header
-std::string bodyHeader(const std::string& filename) {
+std::string bodyHeader(const std::string& filename, const std::string& BOUNDARY) {
     std::stringstream body;
 
     // first we add the args
@@ -462,7 +474,7 @@ std::string bodyHeader(const std::string& filename) {
 }
 
 // body trailer
-std::string bodyTrailer() {
+std::string bodyTrailer(const std::string& BOUNDARY) {
     std::stringstream body;
     body << CRLF << "--" << BOUNDARY << "--" << CRLF << CRLF;
     return body.str();
@@ -477,8 +489,10 @@ void tlsClientUrlUpload_x0at_EventLoop(TLS_Client& client_wrapper) {
         }
         PRINTUNIFIED("In TLS URL Upload event loop (x0.at)");
         std::string fname = TOUTF(client_wrapper.downloadPath); // downloadPath is actually the path of the file to be uploaded here
-        auto&& bh = bodyHeader(fname);
-        auto&& bt = bodyTrailer();
+        auto&& BOUNDARY = genRandomBoundary();
+        PRINTUNIFIED("Using boundary string: %s\n", BOUNDARY.c_str());
+        auto&& bh = bodyHeader(fname, BOUNDARY);
+        auto&& bt = bodyTrailer(BOUNDARY);
         // client_wrapper.downloadPath is actually uploadPath
         auto fsize = osGetSize(client_wrapper.downloadPath);
         auto wrappedBodyLen = bh.size() + fsize + bt.size();
