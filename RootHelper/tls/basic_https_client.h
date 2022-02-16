@@ -439,25 +439,24 @@ const std::string CRLF = "\r\n";
 #define PROGRAM    "program"
 #define FILENAME   "file"
 // TODO generate random boundary, this one is taken by a curl example run
-#define BOUNDARY   "------------------------8cd1393e5e60aebf"
-#define DUMMY_FILE "dummy.txt"
+const std::string BOUNDARY = "------------------------8cd1393e5e60aebf";
 
 /***** multipart form data *****/
 // body header
-std::string bodyHeader() {
+std::string bodyHeader(const std::string& filename) {
     std::stringstream body;
 
     // first we add the args
-    body << "--" << std::string(BOUNDARY) << CRLF;
+    body << "--" << BOUNDARY << CRLF;
     body << "Content-Disposition: form-data; name=\"" << std::string(COMPNAME) << "\"" << CRLF << CRLF;
     body << "example" << CRLF;
-    body << "--" << std::string(BOUNDARY) << CRLF;
+    body << "--" << BOUNDARY << CRLF;
     body << "Content-Disposition: form-data; name=\"" << std::string(PROGRAM) << "\"" << CRLF << CRLF;
     body << "Chrome" << CRLF;
 
     // now we add the file
-    body << "--" << std::string(BOUNDARY) << CRLF;
-    body << "Content-Disposition: form-data; name=\"" << std::string(FILENAME) << "\"; filename=\"" << std::string(DUMMY_FILE) << "\"" << CRLF;
+    body << "--" << BOUNDARY << CRLF;
+    body << "Content-Disposition: form-data; name=\"" << std::string(FILENAME) << "\"; filename=\"" << filename << "\"" << CRLF;
     body << "Content-Type: application/octet-stream" << CRLF << CRLF;
     return body.str();
 }
@@ -465,7 +464,7 @@ std::string bodyHeader() {
 // body trailer
 std::string bodyTrailer() {
     std::stringstream body;
-    body << CRLF << "--" << std::string(BOUNDARY) << "--" << CRLF << CRLF;
+    body << CRLF << "--" << BOUNDARY << "--" << CRLF << CRLF;
     return body.str();
 }
 
@@ -477,7 +476,8 @@ void tlsClientUrlUpload_x0at_EventLoop(TLS_Client& client_wrapper) {
             threadExit();
         }
         PRINTUNIFIED("In TLS URL Upload event loop (x0.at)");
-        auto&& bh = bodyHeader();
+        std::string fname = TOUTF(client_wrapper.downloadPath); // downloadPath is actually the path of the file to be uploaded here
+        auto&& bh = bodyHeader(fname);
         auto&& bt = bodyTrailer();
         // client_wrapper.downloadPath is actually uploadPath
         auto fsize = osGetSize(client_wrapper.downloadPath);
