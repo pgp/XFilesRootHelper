@@ -225,8 +225,8 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
     local_fd.writeAllOrExit(&endOfRedirects,sizeof(uint8_t));
 
     PRINTUNIFIED("Finding a valid filename to download to, if not explicitly provided...\n");
-    auto httpFilename = targetFilename.empty()?FROMUTF(getHttpFilename(hdrs,url)):targetFilename;
-    auto tmp_ = TOUTF(httpFilename);
+    STR httpFilename = targetFilename.empty()?FROMUTF(getHttpFilename(hdrs,url)):targetFilename;
+    std::string tmp_ = TOUTF(httpFilename);
     PRINTUNIFIED("Assigned download filename is %s\n",tmp_.c_str());
     auto destFullPath = downloadPath.empty() ? httpFilename : downloadPath + getSystemPathSeparator() + httpFilename;
     tmp_ = TOUTF(destFullPath);
@@ -530,8 +530,13 @@ void tlsClientUrlUpload_x0at_EventLoop(TLS_Client& client_wrapper) {
 
         std::string hdrs;
 
+#ifdef _WIN32
+        const std::wstring dp1 = L"C:\\Windows\\Temp";
+        const std::wstring tfl = L"out_x0at.txt";
+#else
         const std::string dp1 = "/dev/shm";
         const std::string tfl = "out_x0at.txt";
+#endif
         const std::string url1 = "x0.at/";
 
         // TODO check client_wrapper.httpRet == 200 and propagate response (download link)
@@ -557,7 +562,7 @@ int httpsUrlUpload_x0at_internal(IDescriptor& cl,
                               const STR& sourcePathForUpload,
                               RingBuffer& inRb) {
     std::string domainOnly = "x0.at";
-    std::string postString = "/"; // TODO postString
+    std::string postString = "/";
     auto port = 443;
     auto&& remoteCl = netfactory.create(domainOnly, port);
     if(!remoteCl) {
@@ -565,10 +570,16 @@ int httpsUrlUpload_x0at_internal(IDescriptor& cl,
         return -1;
     }
 
+#ifdef _WIN32
+    STR generatedLinkSavePath = L"C:\\Windows\\Temp\\out_x0at.txt";
+#else
+    STR generatedLinkSavePath = "/dev/shm/out_x0at.txt";
+#endif
+
     PRINTUNIFIED("Remote client session connected to server %s, port %d\n", domainOnly.c_str(), port);
     sendOkResponse(cl); // OK, from now on java client can communicate with remote server using this local socket
 
-    TLS_Client tlsClient(tlsClientUrlUpload_x0at_EventLoop,inRb,cl,remoteCl, true, domainOnly, postString, port, sourcePathForUpload, "/dev/shm/out_x0at.txt", true);
+    TLS_Client tlsClient(tlsClientUrlUpload_x0at_EventLoop,inRb,cl,remoteCl, true, domainOnly, postString, port, sourcePathForUpload, generatedLinkSavePath, true);
     tlsClient.go();
     remoteCl.close();
     return tlsClient.httpRet;

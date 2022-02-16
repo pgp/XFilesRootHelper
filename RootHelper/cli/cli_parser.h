@@ -82,7 +82,7 @@ int upload_x0at_FromArgs(int argc, const C* argv[]) {
 #endif
     RingBuffer inRb;
     SinkDescriptor cl;
-    std::string srcPath = TOUTF(argv[2]);
+    auto&& srcPath = STRNAMESPACE(argv[2]);
     auto httpRet = httpsUrlUpload_x0at_internal(cl,srcPath,inRb);
     return httpRet==200?0:httpRet;
 }
