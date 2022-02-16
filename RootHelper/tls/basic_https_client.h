@@ -458,15 +458,6 @@ std::string genRandomBoundary() {
 std::string bodyHeader(const std::string& filename, const std::string& BOUNDARY) {
     std::stringstream body;
 
-    // first we add the args
-    body << "--" << BOUNDARY << CRLF;
-    body << "Content-Disposition: form-data; name=\"" << std::string(COMPNAME) << "\"" << CRLF << CRLF;
-    body << "example" << CRLF;
-    body << "--" << BOUNDARY << CRLF;
-    body << "Content-Disposition: form-data; name=\"" << std::string(PROGRAM) << "\"" << CRLF << CRLF;
-    body << "Chrome" << CRLF;
-
-    // now we add the file
     body << "--" << BOUNDARY << CRLF;
     body << "Content-Disposition: form-data; name=\"" << std::string(FILENAME) << "\"; filename=\"" << filename << "\"" << CRLF;
     body << "Content-Type: application/octet-stream" << CRLF << CRLF;
