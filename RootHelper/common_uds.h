@@ -65,7 +65,7 @@ enum class ControlCodes : uint8_t {
 // use 1-string of 5 bits (0x1F = 31 = 11111b)
 // action: exit or cancel (flags: 000 exit, 111: cancel)
 
-	ACTION_OTHER = 0x1E,
+	ACTION_OTHER = 0x1E, // only sub-action present: remote control ( -> RemoteTrackpad )
     ACTION_EXIT = 0x1F // cannot use 0x00 as exit request code, since a client connecting and disconnecting without sending any request will appear as if it has sent 0x00 (FIN byte?)
     
 };

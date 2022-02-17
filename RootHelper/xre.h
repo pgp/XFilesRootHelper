@@ -226,9 +226,18 @@ void tlsServerSessionEventLoop(RingBuffer& inRb, Botan::TLS::Server& server) {
                 case ControlCodes::ACTION_HASH:
                     hashFile(rcl);
                     break;
-                case ControlCodes::ACTION_OTHER:
-                    controlCursor(rcl);
+                case ControlCodes::ACTION_OTHER: {
+                    uint16_t ao;
+                    rcl.readAllOrExit(&ao,sizeof(uint16_t));
+                    switch(ao) {
+                        case 0x21:
+                            controlCursor(rcl);
+                            break;
+                        default:
+                            PRINTUNIFIEDERROR("Unknown other-action code: %u\n",ao);
+                    }
                     break;
+                }
                 default: // unlike local ones do at the current time, remote sessions should serve more than one request... On wrong data received, close session and disconnect client
                     PRINTUNIFIED("unexpected data received, disconnected client\n");
                     threadExit();
