@@ -60,7 +60,7 @@ enum class ControlCodes : uint8_t {
     ACTION_LINK = 0x17,
 
     ACTION_HTTPS_URL_DOWNLOAD = 0x18,
-    ACTION_HTTPS_URL_UPLOAD = 0x19, // for uploading files to some services (x0.at for now, and possibly other ones in the future)
+    ACTION_CLOUD_SERVICES = 0x19, // for uploading/downloading files to/from some services (use 2 further bytes to discern, only x0.at for now, and possibly other ones in the future)
 
 // use 1-string of 5 bits (0x1F = 31 = 11111b)
 // action: exit or cancel (flags: 000 exit, 111: cancel)

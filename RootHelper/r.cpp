@@ -1241,6 +1241,19 @@ void httpsUrlDownload(IDescriptor& cl, const uint8_t flags) { // cl is local soc
     cl.close();
 }
 
+void x0atUpload(IDescriptor& cl) { // cl is local socket
+	// receive source path
+	std::string uploadPath = readStringWithLen(cl);
+
+	PRINTUNIFIED("Received source path over local socket:\n%s\n", uploadPath.c_str());
+
+	RingBuffer inRb;
+	auto httpRet = httpsUrlUpload_x0at_internal(cl,uploadPath,inRb,false);
+
+	// at the end, close the sockets
+	cl.close();
+}
+
 // rsa and ed25519 keys are supported
 void ssh_keygen(IDescriptor& inOutDesc, uint8_t flags) {
     std::pair<std::string,std::string> keyPair;
@@ -1274,6 +1287,7 @@ void ssh_keygen(IDescriptor& inOutDesc, uint8_t flags) {
 // request types to be served in a new thread
 void serveRequest(int intcl, request_type rq) {
 	PosixDescriptor cl(intcl);
+	uint16_t cs;
 	
 	switch (static_cast<ControlCodes>(rq.request)) {
 	    case ControlCodes::ACTION_COMPRESS:
@@ -1368,6 +1382,17 @@ void serveRequest(int intcl, request_type rq) {
 
         case ControlCodes::ACTION_HTTPS_URL_DOWNLOAD:
             httpsUrlDownload(cl, rq.flags);
+            threadExit(); // no request continuation, one URL download per local thread
+            break;
+        case ControlCodes::ACTION_CLOUD_SERVICES:
+			cl.readAllOrExit(&cs, sizeof(uint16_t));
+			switch(cs) {
+				case 0x12: // upload to x0.at
+					x0atUpload(cl);
+					break;
+				default:
+					PRINTUNIFIED("Unexpected cloud service id received\n");
+			}
             threadExit(); // no request continuation, one URL download per local thread
             break;
 		default:

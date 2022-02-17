@@ -204,9 +204,10 @@ int createFileFromArgs(int argc, const C* argv[]) {
     return (fileSize != 0)?createRandomFile(filename, fileSize):createEmptyFile(filename, fileSize);
 }
 
+// enum ControlCodes in this map is not used at the current time, it's there just for readability
 const std::unordered_map<std::string,std::pair<ControlCodes,cliFunction>> allowedFromCli = {
         {"download", {ControlCodes::ACTION_HTTPS_URL_DOWNLOAD, downloadFromArgs}},
-        {"upx0at", {ControlCodes::ACTION_HTTPS_URL_UPLOAD, upload_x0at_FromArgs}},
+        {"upx0at", {ControlCodes::ACTION_CLOUD_SERVICES, upload_x0at_FromArgs}},
         {"ssh-keygen", {ControlCodes::ACTION_SSH_KEYGEN, sshKeygenFromArgs}},
         {"hashNames", {ControlCodes::ACTION_HASH, hashFromArgs}},
         {"hash", {ControlCodes::ACTION_HASH, hashFromArgs}},
