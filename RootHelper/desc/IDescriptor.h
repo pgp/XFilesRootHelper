@@ -26,7 +26,8 @@
 // both binary
 enum class FileOpenMode {
     READ, // "rb"
-    WRITE // "wb"
+    WRITE, // "wb"
+    XCL // "xb" (open for writing only if not existing, fail otherwise)
 };
 
 // interface, only pure virtual functions

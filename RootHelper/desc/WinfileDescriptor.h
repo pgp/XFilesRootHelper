@@ -17,6 +17,8 @@ public:
 public:
     explicit WinfileDescriptor(HANDLE hFile_) : hFile(hFile_) {}
 
+    // TODO check all usages of FileOpenMode::WRITE now that behaviour is changed (i.e. file is created unconditionally),
+    // replace with FileOpenMode::XCL when needed
     WinfileDescriptor(const std::wstring& path, FileOpenMode openFormat) {
         switch(openFormat) {
             case FileOpenMode::READ:
@@ -27,7 +29,11 @@ public:
                 //~ hFile = CreateFileW(path.c_str(),GENERIC_WRITE,EXCLUSIVE_RW_ACCESS,
                                    //~ nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,nullptr);
                 hFile = CreateFileW(path.c_str(),GENERIC_WRITE,EXCLUSIVE_RW_ACCESS,
-                                   nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL,nullptr);
+                                   nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,nullptr);
+                break;
+            case FileOpenMode::XCL:
+                hFile = CreateFileW(path.c_str(),GENERIC_WRITE,EXCLUSIVE_RW_ACCESS,
+                                    nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL,nullptr);
                 break;
         }
 

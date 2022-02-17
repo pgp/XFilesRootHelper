@@ -96,6 +96,7 @@ std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
             PRINTUNIFIED("Content-Disposition header found\n");
             // try parsing using regex
             auto&& z = parseContentDispLine(line);
+            // TODO simplify using early returns, remove duplicated std::replace
             if(z.empty()) {
                 PRINTUNIFIED("Regex failed, using manual split\n");
                 auto rawIdx = line.find('=');
@@ -471,6 +472,14 @@ std::string bodyTrailer(const std::string& BOUNDARY) {
     return body.str();
 }
 
+#ifdef _WIN32
+const std::wstring dp1 = L"C:\\Windows\\Temp\\";
+const std::wstring tfl = L"out_x0at.txt";
+#else
+const std::string dp1 = "/tmp/";
+const std::string tfl = "out_x0at.txt";
+#endif
+
 void tlsClientUrlUpload_x0at_EventLoop(TLS_Client& client_wrapper) {
     TLSDescriptor rcl(client_wrapper.inRb,*(client_wrapper.client));
     try {
@@ -535,13 +544,6 @@ void tlsClientUrlUpload_x0at_EventLoop(TLS_Client& client_wrapper) {
 
         std::string hdrs;
 
-#ifdef _WIN32
-        const std::wstring dp1 = L"C:\\Windows\\Temp";
-        const std::wstring tfl = L"out_x0at.txt";
-#else
-        const std::string dp1 = "/dev/shm";
-        const std::string tfl = "out_x0at.txt";
-#endif
         const std::string url1 = "x0.at/";
 
         // TODO check client_wrapper.httpRet == 200 and propagate response (download link)
@@ -565,7 +567,8 @@ void tlsClientUrlUpload_x0at_EventLoop(TLS_Client& client_wrapper) {
 template<typename STR>
 int httpsUrlUpload_x0at_internal(IDescriptor& cl,
                               const STR& sourcePathForUpload,
-                              RingBuffer& inRb) {
+                              RingBuffer& inRb,
+                              bool upload_from_cli) {
     std::string domainOnly = "x0.at";
     std::string postString = "/";
     auto port = 443;
@@ -575,18 +578,30 @@ int httpsUrlUpload_x0at_internal(IDescriptor& cl,
         return -1;
     }
 
-#ifdef _WIN32
-    STR generatedLinkSavePath = L"C:\\Windows\\Temp\\out_x0at.txt";
-#else
-    STR generatedLinkSavePath = "/dev/shm/out_x0at.txt";
-#endif
-
     PRINTUNIFIED("Remote client session connected to server %s, port %d\n", domainOnly.c_str(), port);
     sendOkResponse(cl); // OK, from now on java client can communicate with remote server using this local socket
 
-    TLS_Client tlsClient(tlsClientUrlUpload_x0at_EventLoop,inRb,cl,remoteCl, true, domainOnly, postString, port, sourcePathForUpload, generatedLinkSavePath, true);
+    TLS_Client tlsClient(tlsClientUrlUpload_x0at_EventLoop,inRb,cl,remoteCl, true, domainOnly, postString, port, sourcePathForUpload, STRNAMESPACE(), true);
     tlsClient.go();
     remoteCl.close();
+    if(upload_from_cli) {
+        if(tlsClient.httpRet == 200) {
+            // read from downloaded link file
+            auto generatedLinkPath = dp1 + tfl;
+            auto&& generatedLinkFd = fdfactory.create(generatedLinkPath, FileOpenMode::READ);
+            // read up to 4096 bytes, expect a download link to be brief
+            if(generatedLinkFd) {
+                char buffer[4096]{};
+                generatedLinkFd.readAll(buffer, 4096);
+                PRINTUNIFIED("Generated download link is: %s\n", buffer);
+                return tlsClient.httpRet;
+            }
+            PRINTUNIFIED("Unable to open generated download link file\n");
+        }
+        else {
+            PRINTUNIFIED("Upload failed, unable to generate a download link\n");
+        }
+    }
     return tlsClient.httpRet;
 }
 
