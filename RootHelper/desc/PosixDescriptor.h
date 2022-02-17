@@ -13,8 +13,6 @@ class PosixDescriptor : public IDescriptor {
 public:
     int desc;
 public:
-    // TODO check all usages of FileOpenMode::WRITE now that behaviour is changed (i.e. file is created unconditionally),
-    // replace with FileOpenMode::XCL when needed
     // OK with std::string, won't work with std::wstring, just to try templates
     template <typename STR>
     PosixDescriptor(const STR& path, FileOpenMode openFormat) {

@@ -146,7 +146,7 @@ std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
 
 // template<typename STR>
 // void dumpToFile(const std::string& content, const STR& path) {
-    // auto&& out = fdfactory.create(path, FileOpenMode::WRITE);
+    // auto&& out = fdfactory.create(path, FileOpenMode::XCL);
     // out.writeAllOrExit(content.c_str(),content.size());
 // }
 

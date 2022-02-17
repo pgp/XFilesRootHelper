@@ -17,8 +17,6 @@ public:
 public:
     explicit WinfileDescriptor(HANDLE hFile_) : hFile(hFile_) {}
 
-    // TODO check all usages of FileOpenMode::WRITE now that behaviour is changed (i.e. file is created unconditionally),
-    // replace with FileOpenMode::XCL when needed
     WinfileDescriptor(const std::wstring& path, FileOpenMode openFormat) {
         switch(openFormat) {
             case FileOpenMode::READ:

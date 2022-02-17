@@ -494,7 +494,7 @@ void readOrWriteFile(IDescriptor& inOutDesc, uint8_t flags) {
 		// UNATTENDED READ: on remote connection close, close the file
 		PRINTUNIFIED("Receive from client, write to file\n");
 		
-		auto&& fd = fdfactory.create(filepath,FileOpenMode::WRITE);
+		auto&& fd = fdfactory.create(filepath,FileOpenMode::XCL);
 		if (!fd) {
 			sendErrorResponse(inOutDesc);
 			return;

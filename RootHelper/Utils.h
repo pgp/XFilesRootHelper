@@ -944,7 +944,7 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
                 threadExit();
             }
 
-            auto&& fd = fdfactory.create(filepath,FileOpenMode::WRITE);
+            auto&& fd = fdfactory.create(filepath,FileOpenMode::XCL);
             if (!fd) {
                 PRINTUNIFIEDERROR("Cannot open output file %s for writing, errno is %d, exiting thread...\n",fileitem.file.c_str(),fd.error);
                 rcl.close();
@@ -1211,7 +1211,7 @@ int createRandomFile(const STR& path, uint64_t size) {
     int i,j;
 
     // generate random data by hashing and write to file
-    auto&& fd = fdfactory.create(path,FileOpenMode::WRITE);
+    auto&& fd = fdfactory.create(path,FileOpenMode::XCL);
     if(!fd) return fd.error;
     
     // quotient
@@ -1258,7 +1258,7 @@ int createRandomFile(const STR& path, uint64_t size) {
     botan_cipher_init(&enc, "ChaCha", Botan::ENCRYPTION);
     //~ botan_cipher_init(&enc, "SHACAL2/CTR", Botan::ENCRYPTION);
 
-    auto&& fd = fdfactory.create(path,FileOpenMode::WRITE);
+    auto&& fd = fdfactory.create(path,FileOpenMode::XCL);
     if(!fd) return fd.error;
 
     /********* quotient + remainder IO loop *********/
@@ -1300,7 +1300,7 @@ int createRandomFile(const STR& path, uint64_t size) {
 
 template<typename STR>
 int createEmptyFile(const STR& path, uint64_t size) {
-    auto&& fd = fdfactory.create(path,FileOpenMode::WRITE);
+    auto&& fd = fdfactory.create(path,FileOpenMode::XCL);
     if (!fd) return -1;
 
     std::vector<uint8_t> emptyChunk(COPY_CHUNK_SIZE,0);
@@ -1384,7 +1384,7 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
 
             // create file
             PRINTUNIFIEDERROR("creating %s after parent dir\n",filepath.c_str());
-            auto&& fd = fdfactory.create(filepath,FileOpenMode::WRITE);
+            auto&& fd = fdfactory.create(filepath,FileOpenMode::XCL);
             if (!fd) {
                 sendErrorResponse(inOutDesc); return;
             }
