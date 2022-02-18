@@ -542,6 +542,9 @@ void tlsClientUrlUpload_x0at_EventLoop(TLS_Client& client_wrapper) {
         /********* end quotient + remainder IO loop *********/
         rcl.writeAllOrExit(bt.c_str(),bt.size());
 
+        // end-of-upload indication
+        client_wrapper.local_sock_fd.writeAllOrExit(&maxuint,sizeof(uint64_t));
+
         std::string hdrs;
 
         const std::string url1 = "x0.at/";
@@ -553,7 +556,7 @@ void tlsClientUrlUpload_x0at_EventLoop(TLS_Client& client_wrapper) {
                                                                  tfl,
                                                                  hdrs,
                                                                  url1,
-                                                                 true);
+                                                                 client_wrapper.downloadToFile); // @@@ TODO propagate downloadToFile through clientwrapper
     }
     catch (threadExitThrowable& i) {
         PRINTUNIFIEDERROR("T2 ...\n");
@@ -568,7 +571,7 @@ template<typename STR>
 int httpsUrlUpload_x0at_internal(IDescriptor& cl,
                               const STR& sourcePathForUpload,
                               RingBuffer& inRb,
-                              bool upload_from_cli) {
+                              bool uploadFromCli) {
     std::string domainOnly = "x0.at";
     std::string postString = "/";
     auto port = 443;
@@ -581,10 +584,10 @@ int httpsUrlUpload_x0at_internal(IDescriptor& cl,
     PRINTUNIFIED("Remote client session connected to server %s, port %d\n", domainOnly.c_str(), port);
     sendOkResponse(cl); // OK, from now on java client can communicate with remote server using this local socket
 
-    TLS_Client tlsClient(tlsClientUrlUpload_x0at_EventLoop,inRb,cl,remoteCl, true, domainOnly, postString, port, sourcePathForUpload, STRNAMESPACE(), true);
+    TLS_Client tlsClient(tlsClientUrlUpload_x0at_EventLoop,inRb,cl,remoteCl, true, domainOnly, postString, port, sourcePathForUpload, STRNAMESPACE(), uploadFromCli);
     tlsClient.go();
     remoteCl.close();
-    if(upload_from_cli) {
+    if(uploadFromCli) {
         if(tlsClient.httpRet == 200) {
             // read from downloaded link file
             auto generatedLinkPath = dp1 + tfl;
