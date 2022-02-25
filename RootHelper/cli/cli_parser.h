@@ -44,22 +44,22 @@ int downloadFromArgs(int argc, const C* argv[]) {
     // detect filename from Content-Disposition header if not passed as argument
     auto destFilename = STRNAMESPACE() + ((argc>=5)?argv[4]:STRNAMESPACE());
     int port = 443;
-    auto httpRet = httpsUrlDownload_internal(cl,targetUrl,port,destDir,destFilename,inRb,redirectUrl,true);
+    int httpRet = -1;
 
     // HTTP redirect limit
     for(int i=0;i<5;i++) {
-        if(httpRet == 200) break;
+        httpRet = httpsUrlDownload_internal1(cl,targetUrl,port,destDir,destFilename,inRb,redirectUrl,true);
+        if(httpRet == 200) return 0;
         if(httpRet != 301 && httpRet != 302) {
             errno = httpRet;
             sendErrorResponse(cl);
-            break;
+            return httpRet;
         }
         inRb.reset();
-        std::string target = redirectUrl;
-        httpRet = httpsUrlDownload_internal(cl,target,port,destDir,destFilename,inRb,redirectUrl,true);
+        targetUrl = redirectUrl;
     }
 
-    return httpRet==200?0:httpRet;
+    return httpRet;
 }
 
 template<typename C>
