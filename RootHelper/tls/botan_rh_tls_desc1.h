@@ -154,9 +154,9 @@ public:
 // TODO remove ABC suffix
 class TLSDescriptorABC : public IDescriptor {
 private:
-	RingBuffer inRb;
-	IDescriptor& netsock;
-	
+    RingBuffer& inRb;
+    IDescriptor& netsock;
+
 	std::thread incomingRbThread; // initialized empty, to start use assignment operator=
 
 	// |- converted to pointer
@@ -177,18 +177,20 @@ private:
 	// |- converted to pointers, from local variables;
 	Botan::TLS::Session_Manager_In_Memory* session_mgr;
 	TLS_CallbacksABC* callbacks; // formerly, TLS_Client, subclass of Botan::TLS::Callbacks
-	
+
 public:
-	TLSDescriptorABC(IDescriptor& netsock_,
-					int serverPort_,
-					bool verifyCertificates_ = false,
-					std::string sniHost_ = "")
-	  : netsock(netsock_),
-		serverPort(serverPort_),
-		verifyCertificates(verifyCertificates_),
-		sniHost(std::move(sniHost_)),
-		version(Botan::TLS::Protocol_Version::Version_Code::TLS_V12)
-	 {}
+    TLSDescriptorABC(IDescriptor& netsock_,
+                     RingBuffer& inRb_,
+                     int serverPort_,
+                     bool verifyCertificates_ = false,
+                     std::string sniHost_ = "")
+            : netsock(netsock_),
+              inRb(inRb_),
+              serverPort(serverPort_),
+              verifyCertificates(verifyCertificates_),
+              sniHost(std::move(sniHost_)),
+              version(Botan::TLS::Protocol_Version::Version_Code::TLS_V12)
+    {}
 	
 	~TLSDescriptorABC() {
 		cleanup();

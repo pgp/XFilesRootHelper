@@ -109,7 +109,8 @@ int tls1_FromArgs(int argc, const C* argv[]) {
         PRINTUNIFIEDERROR("Unable to connect to %s\n",domainOnly.c_str());
         return -1;
     }
-    TLSDescriptorABC tlsd(remoteCl,port,true,domainOnly);
+    RingBuffer rb;
+    TLSDescriptorABC tlsd(remoteCl,rb,port,true,domainOnly);
     tlsd.setup();
     std::string fullGetString = "GET "+getString+" HTTP/1.0\r\nHost: "+domainOnly+"\r\n"
             "User-Agent: XFilesHTTPSClient/1.0.0\r\n"
