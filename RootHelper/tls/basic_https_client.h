@@ -10,6 +10,7 @@
 #include "../desc/NetworkDescriptorFactory.h"
 #include "../desc/FileDescriptorFactory.h"
 #include "botan_rh_rclient.h"
+#include "botan_rh_tls_desc1.h"
 #include "../progressHook.h"
 
 // Web source: https://stackoverflow.com/questions/3152241/case-insensitive-stdstring-find
@@ -413,6 +414,99 @@ int httpsUrlDownload_internal(IDescriptor& cl,
 
     remoteCl.close();
     return tlsClient.httpRet;
+}
+
+template<typename STR>
+int httpsUrlDownload_internal1(IDescriptor& cl,
+                              std::string& targetUrl,
+                              uint16_t port,
+                              const STR& downloadPath,
+                              const STR& targetFilename,
+                              RingBuffer& inRb,
+                              std::string& redirectUrl,
+                              const bool downloadToFile) {
+    if(targetUrl.find("http://")==0)
+        throw std::runtime_error("Plain HTTP not allowed");
+    else if(targetUrl.find("https://")==0)
+        targetUrl = targetUrl.substr(8);
+
+    auto slashIdx = targetUrl.find('/');
+    auto domainOnly = slashIdx==std::string::npos?targetUrl:targetUrl.substr(0,slashIdx);
+    std::string getString = slashIdx==std::string::npos?"":targetUrl.substr(slashIdx);
+
+    auto&& remoteCl = netfactory.create(domainOnly, port);
+    if(!remoteCl) {
+        sendErrorResponse(cl);
+        return -1;
+    }
+
+    if(domainOnly.empty() || downloadPath.empty()) {
+        if(downloadToFile) {
+            PRINTUNIFIEDERROR("sniHost field or download path is empty");
+            sendErrorResponse(cl);
+            return -1;
+        }
+    }
+
+    RingBuffer rb;
+    TLSDescriptorABC tlsd(remoteCl, rb, port, true, domainOnly);
+    auto sharedHash = tlsd.setup();
+    if(sharedHash.empty()) {
+        PRINTUNIFIEDERROR("Error during TLS connection setup\n");
+        sendErrorResponse(cl);
+        return -1;
+    }
+
+    PRINTUNIFIED("TLS connection established with server %s, port %d\n",domainOnly.c_str(),port);
+    sendOkResponse(cl); // OK, from now on java client can communicate with remote server using this local socket
+
+    if(cl.write(&sharedHash[0],sharedHash.size()) < sharedHash.size()) {
+        PRINTUNIFIEDERROR("Unable to atomic write connect info to local socket");
+        threadExit();
+    }
+
+    try {
+        PRINTUNIFIED("Performing HTTPS request, getString is %s ...\n",getString.c_str());
+        auto&& getString1 = (getString.empty() || getString[0] != '/') ? "/"+getString : getString;
+        std::string request = "GET "+getString1+" HTTP/1.0\r\nHost: "+domainOnly+"\r\n"
+                                                                    "User-Agent: XFilesHTTPSClient/1.0.0\r\n"
+                                                                    "Accept: */*\r\n"
+                                                                    "Connection: close\r\n\r\n";
+        tlsd.writeAllOrExit(request.c_str(),request.length());
+
+        // read both header and body into file
+        std::string hdrs;
+        auto httpRet = parseHttpResponseHeadersAndBody(tlsd,
+                                                       cl,
+                                                       downloadPath,
+                                                       targetFilename,
+                                                       hdrs,
+                                                       domainOnly+"/"+getString, // ~ url
+                                                       downloadToFile);
+        if (httpRet == 301 || httpRet == 302) {
+            // get redirect domain
+            const std::string locLabel = "\nLocation: ";
+            auto redirectLocIdx = findStringIC(hdrs,locLabel);
+            if(redirectLocIdx == std::string::npos) throw std::runtime_error("Malformed redirect response");
+            auto locationtag = hdrs.substr(redirectLocIdx+locLabel.size());
+            redirectLocIdx = locationtag.find("\r\n");
+            if(redirectLocIdx == std::string::npos) throw std::runtime_error("Malformed redirect response after location tag");
+            locationtag = locationtag.substr(0,redirectLocIdx);
+            PRINTUNIFIED("Redirect location is %s\n",locationtag.c_str());
+            redirectUrl = locationtag;
+        }
+        PRINTUNIFIED("[https-client] returned http 200\n");
+        return httpRet;
+    }
+    catch (threadExitThrowable& i) {
+        PRINTUNIFIEDERROR("T2 ...\n");
+    }
+    catch (std::exception& e) {
+        PRINTUNIFIEDERROR("exception: %s\n",e.what());
+    }
+    PRINTUNIFIEDERROR("[https-client] generic error\n");
+    remoteCl.shutdown();
+    return -1;
 }
 
 // private key in OpenSSL PKCS8 format, will only work with OpenSSH (incompatible with other SSH clients/libraries)

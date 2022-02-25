@@ -64,6 +64,7 @@ public:
     IDescriptor& Gsock;
 
     bool setupAborted = false;
+    Botan::secure_vector<uint8_t> sharedHash;
 
     void tls_verify_cert_chain(
             const std::vector<Botan::X509_Certificate>& cert_chain,
@@ -114,7 +115,7 @@ public:
         // NEW: SHA256 -> 32 bytes binary data ////////////////////
         std::unique_ptr<Botan::HashFunction> sha256(Botan::HashFunction::create("SHA-256"));
         sha256->update(master_secret.data(),master_secret.size());
-        Botan::secure_vector<uint8_t> sharedHash = sha256->final();
+        sharedHash = sha256->final();
 
         PRINTUNIFIED("Master secret's hash for this session is:\n%s\n",Botan::hex_encode(sharedHash).c_str());
 
@@ -208,7 +209,7 @@ public:
 		}
 	}
 
-	bool setup() {
+    Botan::secure_vector<uint8_t> setup() {
 		// moved from TLS_Client.go() method
 		session_mgr = new Botan::TLS::Session_Manager_In_Memory(rng_);
 		
@@ -235,12 +236,12 @@ public:
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             if(callbacks->setupAborted || i>50) { // wait till 5 seconds for connection establishment
                 PRINTUNIFIEDERROR("Client closed during connection setup, or connection timeout\n");
-                return false; // TODO ************************************************ join incomingRbThread, a.k.a. cleanup
+                return callbacks->sharedHash; // TODO ************************************************ join incomingRbThread, a.k.a. cleanup
             }
             i++;
         }
         PRINTUNIFIED("\nTLS channel ready\n");
-        return true;
+        return callbacks->sharedHash;
 	}
 
     void cleanup() {
