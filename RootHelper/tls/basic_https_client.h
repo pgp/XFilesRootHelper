@@ -448,8 +448,7 @@ int httpsUrlDownload_internal1(IDescriptor& cl,
         }
     }
 
-    RingBuffer rb;
-    TLSDescriptorABC tlsd(remoteCl, rb, port, true, domainOnly);
+    TLSDescriptorABC tlsd(remoteCl, inRb, port, true, domainOnly);
     auto sharedHash = tlsd.setup();
     if(sharedHash.empty()) {
         PRINTUNIFIEDERROR("Error during TLS connection setup\n");
@@ -700,6 +699,138 @@ int httpsUrlUpload_x0at_internal(IDescriptor& cl,
         }
     }
     return tlsClient.httpRet;
+}
+
+template<typename STR>
+int httpsUrlUpload_x0at_internal1(IDescriptor& cl,
+                              const STR& sourcePathForUpload,
+                              RingBuffer& inRb,
+                              bool uploadFromCli) {
+    std::string domainOnly = "x0.at";
+    std::string postString = "/";
+    int httpRet = -1;
+    auto port = 443;
+    auto&& remoteCl = netfactory.create(domainOnly, port);
+    if(!remoteCl) {
+        sendErrorResponse(cl);
+        return -1;
+    }
+
+    TLSDescriptorABC tlsd(remoteCl, inRb, port, true, domainOnly);
+    auto sharedHash = tlsd.setup();
+    if(sharedHash.empty()) {
+        PRINTUNIFIEDERROR("Error during TLS connection setup\n");
+        sendErrorResponse(cl);
+        return -1;
+    }
+
+    PRINTUNIFIED("TLS connection established with server %s, port %d\n",domainOnly.c_str(),port);
+    sendOkResponse(cl);
+    
+    if(cl.write(&sharedHash[0],sharedHash.size()) < sharedHash.size()) {
+		PRINTUNIFIEDERROR("Unable to atomic write connect info to local socket");
+		threadExit();
+	}
+
+    try {
+        PRINTUNIFIED("Posting file to x0.at\n");
+        std::string fname = TOUTF(sourcePathForUpload); // downloadPath is actually the path of the file to be uploaded here
+        auto&& BOUNDARY = genRandomBoundary();
+        PRINTUNIFIED("Using boundary string: %s\n", BOUNDARY.c_str());
+        auto&& bh = bodyHeader(fname, BOUNDARY);
+        auto&& bt = bodyTrailer(BOUNDARY);
+
+        auto fsize = osGetSize(sourcePathForUpload);
+        auto wrappedBodyLen = bh.size() + fsize + bt.size();
+        auto&& fileToUpload = fdfactory.create(sourcePathForUpload, FileOpenMode::READ);
+
+        std::string postHeader = "POST / HTTP/1.1\r\n"
+                              "Host: x0.at\r\n"
+                              "Content-Length: "+std::to_string(wrappedBodyLen)+"\r\n"
+                              "User-Agent: XFilesHTTPClient/1.0.0\r\n"
+                              "Accept: */*\r\n"
+                              "Connection: close\r\n"
+                              "Content-Type: multipart/form-data; boundary="+BOUNDARY+"\r\n\r\n";
+
+        tlsd.writeAllOrExit(postHeader.c_str(),postHeader.size());
+        tlsd.writeAllOrExit(bh.c_str(),bh.size());
+        // FIXME duplicated code from downloadRemoteItems, refactor into a function
+        /********* quotient + remainder IO loop *********/
+        uint64_t currentProgress = 0;
+        uint64_t quotient = fsize / REMOTE_IO_CHUNK_SIZE;
+        uint64_t remainder = fsize % REMOTE_IO_CHUNK_SIZE;
+        auto&& progressHook = getProgressHook(fsize);
+
+        PRINTUNIFIED("Chunk info: quotient is %" PRIu64 ", remainder is %" PRIu64 "\n",quotient,remainder);
+        std::vector<uint8_t> buffer(REMOTE_IO_CHUNK_SIZE);
+        uint8_t* v = &buffer[0];
+        for(uint64_t i=0;i<quotient;i++) {
+            fileToUpload.readAllOrExit(v,REMOTE_IO_CHUNK_SIZE);
+            tlsd.writeAllOrExit(v,REMOTE_IO_CHUNK_SIZE);
+
+            // send progress information back to local socket
+            currentProgress += REMOTE_IO_CHUNK_SIZE;
+
+            cl.writeAllOrExit(&currentProgress,sizeof(uint64_t));
+            progressHook.publishDelta(REMOTE_IO_CHUNK_SIZE);
+        }
+
+        if(remainder != 0) {
+            fileToUpload.readAllOrExit(v,remainder);
+            tlsd.writeAllOrExit(v,remainder);
+
+            // send progress information back to local socket
+            currentProgress += remainder;
+
+            cl.writeAllOrExit(&currentProgress,sizeof(uint64_t));
+            progressHook.publishDelta(remainder);
+        }
+        /********* end quotient + remainder IO loop *********/
+        tlsd.writeAllOrExit(bt.c_str(),bt.size());
+
+        // end-of-upload indication
+        cl.writeAllOrExit(&maxuint,sizeof(uint64_t));
+
+        std::string hdrs;
+
+        httpRet = parseHttpResponseHeadersAndBody(tlsd,
+                                                  cl,
+                                                  dp1,
+                                                  tfl,
+                                                  hdrs,
+                                                  domainOnly+postString,
+                                                  uploadFromCli); // uploadFromCli ia actually downloadToFile
+    }
+    catch (threadExitThrowable& i) {
+        PRINTUNIFIEDERROR("T2 ...\n");
+        return -1;
+    }
+    catch (std::exception& e) {
+        PRINTUNIFIEDERROR("exception: %s\n",e.what());
+        return -1;
+    }
+    
+    if(uploadFromCli) {
+        if(httpRet == 200) { // @@@ http ret from x0.at, after upload
+            // read from downloaded link file
+            auto generatedLinkPath = dp1 + tfl;
+            auto&& generatedLinkFd = fdfactory.create(generatedLinkPath, FileOpenMode::READ);
+            // read up to 4096 bytes, expect a download link to be brief
+            if(generatedLinkFd) {
+                char buffer[4096]{};
+                generatedLinkFd.readAll(buffer, 4096);
+                PRINTUNIFIED("Generated download link is: %s\n", buffer);
+                return httpRet;
+            }
+            PRINTUNIFIED("Unable to open generated download link file\n");
+        }
+        else {
+            PRINTUNIFIED("Upload failed, unable to generate a download link\n");
+        }
+    }
+
+    remoteCl.shutdown();
+    return httpRet;
 }
 
 #endif /* __BASIC_HTTPS_CLIENT__ */

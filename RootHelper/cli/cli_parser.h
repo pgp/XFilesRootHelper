@@ -84,7 +84,7 @@ int upload_x0at_FromArgs(int argc, const C* argv[]) {
     RingBuffer inRb;
     SinkDescriptor cl;
     auto&& srcPath = STRNAMESPACE(argv[2]);
-    auto httpRet = httpsUrlUpload_x0at_internal(cl,srcPath,inRb,true);
+    auto httpRet = httpsUrlUpload_x0at_internal1(cl,srcPath,inRb,true);
     return httpRet==200?0:httpRet;
 }
 
