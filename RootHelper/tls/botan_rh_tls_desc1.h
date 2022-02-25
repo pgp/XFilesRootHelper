@@ -18,6 +18,7 @@ void incomingRbMemberFnABC(IDescriptor& netsock, Botan::TLS::Channel& channel, R
 		if (readBytes <= 0) {
 			PRINTUNIFIEDERROR(readBytes==0?"networkSocket EOF\n":"networkSocket read error\n");
 			// netsock.close();
+            // FIXME this won't work when tlsdesc destructor is called, inRb.close() is nilpotent, no modification of brokenConnection will happen after the first close
 			inRb.close(readBytes<0); // propagate broken connection information to ringbuffer
 			return;
 		}
@@ -227,7 +228,6 @@ public:
                                         protocols_to_offer);
 
 		incomingRbThread = std::thread{incomingRbMemberFnABC, std::ref(netsock), std::ref(*channel), std::ref(inRb)}; // thread is started here
-		incomingRbThread.detach(); // TODO try to join instead of detaching
 		
 		PRINTUNIFIED("Waiting for TLS channel to be ready");
         int i=0;
@@ -265,6 +265,7 @@ public:
 
         finishClose:
         netsock.shutdown();
+        incomingRbThread.join();
     }
 
 	inline ssize_t read(void* buf, size_t count) override { return inRb.read(buf,count); }
