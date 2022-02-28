@@ -46,10 +46,10 @@ public:
         CoInitialize(nullptr);
     }
 
-    ~MfcProgressHook() override {
+    // ~MfcProgressHook() override {
         // pTaskbarList->SetProgressState(hWnd,TBPF_NOPROGRESS);
-        pTaskbarList->Release();
-    }
+        // pTaskbarList->Release(); // releasing pTaskbarList twice (in x0.at upload for example, when two progress hooks are used) causes access violation on windows 7 (works fine in win8 and win10 instead)
+    // }
 
     void publish(uint64_t current) override {
         currentSize = current;
