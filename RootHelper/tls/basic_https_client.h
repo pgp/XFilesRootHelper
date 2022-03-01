@@ -740,7 +740,8 @@ int httpsUrlUpload_x0at_internal1(IDescriptor& cl,
         auto&& bh = bodyHeader(fname, BOUNDARY);
         auto&& bt = bodyTrailer(BOUNDARY);
 
-        auto fsize = osGetSize(sourcePathForUpload);
+        uint64_t fsize = osGetSize(sourcePathForUpload);
+        cl.writeAllOrExit(&fsize,sizeof(uint64_t));
         auto wrappedBodyLen = bh.size() + fsize + bt.size();
         auto&& fileToUpload = fdfactory.create(sourcePathForUpload, FileOpenMode::READ);
 
