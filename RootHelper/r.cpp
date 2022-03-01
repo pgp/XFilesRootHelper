@@ -1223,10 +1223,11 @@ void httpsUrlDownload(IDescriptor& cl, const uint8_t flags) { // cl is local soc
 
     RingBuffer inRb;
     std::string redirectUrl;
-    auto httpRet = httpsUrlDownload_internal(cl,target,port,downloadPath,targetFilename,inRb,redirectUrl,downloadToFile);
+    int httpRet = -1;
     
     // HTTP redirect limit
     for(int i=0;i<5;i++) {
+        httpRet = httpsUrlDownload_internal1(cl,target,port,downloadPath,targetFilename,inRb,redirectUrl,downloadToFile);
         if(httpRet == 200) break;
         if(httpRet != 301 && httpRet != 302) {
             errno = httpRet;
@@ -1235,7 +1236,6 @@ void httpsUrlDownload(IDescriptor& cl, const uint8_t flags) { // cl is local soc
         }
         inRb.reset();
         target = redirectUrl;
-        httpRet = httpsUrlDownload_internal(cl,target,port,downloadPath,targetFilename,inRb,redirectUrl,downloadToFile);
     }
 
     // at the end, close the sockets
