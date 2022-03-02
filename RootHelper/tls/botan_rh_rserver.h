@@ -136,30 +136,27 @@ public:
 		try {
 			PRINTUNIFIED("In TLS server loop\n");
 			while(!server.is_closed()) {
-				try {
-					uint8_t buf[4096]{};
-					ssize_t got = Gsock.read(buf, sizeof(buf));
-					if(got == -1) {
-						PRINTUNIFIEDERROR("Error in socket read - %s\n",lastError().c_str());
-						threadExit();
-					}
-					if(got == 0) {
-						PRINTUNIFIED("EOF on socket\n");
-						threadExit();
-					}
-					server.received_data(buf, got);
+				uint8_t buf[4096]{};
+				ssize_t got = Gsock.read(buf, sizeof(buf));
+				if(got == -1) {
+					PRINTUNIFIEDERROR("Error in socket read - %s\n",lastError().c_str());
+					threadExit();
 				}
-				catch(std::exception& e) {
-					PRINTUNIFIEDERROR("Connection problem: %s\n",e.what());
-					break;
+				if(got == 0) {
+					PRINTUNIFIED("EOF on socket\n");
+					threadExit();
 				}
+				server.received_data(buf, got);
 			}
 		}
 		catch(Botan::Exception& e) {
 			PRINTUNIFIEDERROR("Security exception: %s\n",e.what());
 		}
-		catch (threadExitThrowable& i) {
-            PRINTUNIFIEDERROR("T1 Unconditional housekeeping and return\n");
+		catch(std::exception& e) {
+			PRINTUNIFIEDERROR("Connection problem: %s\n",e.what());
+		}
+		catch(threadExitThrowable& i) {
+			PRINTUNIFIEDERROR("T1 Unconditional housekeeping and return\n");
 		}
 		cleanup();
 		mainEventLoopThread.join();
