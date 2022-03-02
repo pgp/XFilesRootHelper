@@ -177,7 +177,7 @@ private:
 	Botan::TLS::Policy policy; // also, PostQuantumPolicy and ClassicPolicy
 	
 	// |- converted to pointers, from local variables;
-	Botan::TLS::Session_Manager_In_Memory* session_mgr;
+	Botan::TLS::Session_Manager_In_Memory session_mgr;
 	TLS_CallbacksABC* callbacks; // formerly, TLS_Client, subclass of Botan::TLS::Callbacks
 
 public:
@@ -191,6 +191,7 @@ public:
               serverPort(serverPort_),
               verifyCertificates(verifyCertificates_),
               sniHost(std::move(sniHost_)),
+              session_mgr(rng_),
               version(Botan::TLS::Protocol_Version::Version_Code::TLS_V12)
     {}
 	
@@ -200,10 +201,6 @@ public:
 			delete channel;
 			channel = nullptr;
 		}
-		if(session_mgr != nullptr) {
-			delete session_mgr;
-			session_mgr = nullptr;
-		}
 		if(callbacks != nullptr) {
 			delete callbacks;
 			callbacks = nullptr;
@@ -211,15 +208,12 @@ public:
 	}
 
     Botan::secure_vector<uint8_t> setup() {
-		// moved from TLS_Client.go() method
-		session_mgr = new Botan::TLS::Session_Manager_In_Memory(rng_);
-		
 		// ------------------------------------
 		callbacks = new TLS_CallbacksABC(inRb, netsock, verifyCertificates);
 		// ------------------------------------
 		
 		channel = new Botan::TLS::Client(*callbacks,
-                                        *session_mgr,
+                                        session_mgr,
                                         creds,
                                         policy,
                                         rng_,
