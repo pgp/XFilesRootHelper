@@ -111,6 +111,8 @@ public:
     bool tls_session_established(const Botan::TLS::Session& session) override {
         PRINTUNIFIED("Handshake complete, %s using %s\n",session.version().to_string().c_str(),
                      session.ciphersuite().to_string().c_str());
+        // auto&& session_id = session.session_id();
+        // auto&& session_ticket = session.session_ticket();
         auto master_secret = session.master_secret();
 
         // NEW: SHA256 -> 32 bytes binary data ////////////////////
@@ -119,9 +121,6 @@ public:
         sharedHash = sha256->final();
 
         PRINTUNIFIED("Master secret's hash for this session is:\n%s\n",Botan::hex_encode(sharedHash).c_str());
-
-        // TODO is tls_session_established called within go() method? or before? In the first case, we have to notify some way
-
         return false;
     }
 

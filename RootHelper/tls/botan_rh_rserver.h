@@ -90,10 +90,9 @@ public:
 	bool tls_session_established(const Botan::TLS::Session &session) override {
 		PRINTUNIFIED("Handshake complete, %s using %s\n",session.version().to_string().c_str(),
 							session.ciphersuite().to_string().c_str());
-		
-		auto&& session_id = session.session_id();
-		auto&& session_ticket = session.session_ticket();
-		auto&& master_secret = session.master_secret();
+		// auto&& session_id = session.session_id();
+		// auto&& session_ticket = session.session_ticket();
+		auto master_secret = session.master_secret();
 
 		// NEW: SHA256 -> 32 bytes binary data ////////////////////
 		std::unique_ptr<Botan::HashFunction> sha256(Botan::HashFunction::create("SHA-256"));
