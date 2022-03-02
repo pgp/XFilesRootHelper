@@ -51,13 +51,13 @@ private:
 	}
 
 public:
-	TLS_Server (TlsServerEventLoopFn eventLoopFn_,
-				const std::string& server_crt_,
-				const std::string& server_key_,
-				IDescriptor& Gsock_,
-                Basic_Credentials_Manager* creds_ = nullptr,
-				IDescriptor* local_sock_fd_ = nullptr,
-				std::vector<uint8_t>* serializedClientInfo_ = nullptr) :
+	TLS_Server(TlsServerEventLoopFn eventLoopFn_,
+			   const std::string& server_crt_,
+			   const std::string& server_key_,
+			   IDescriptor& Gsock_,
+			   Basic_Credentials_Manager* creds_ = nullptr,
+			   IDescriptor* local_sock_fd_ = nullptr,
+			   std::vector<uint8_t> serializedClientInfo_ = {}) :
 			eventLoopFn(eventLoopFn_),
 			server_crt(server_crt_),
 			server_key(server_key_),
@@ -65,11 +65,8 @@ public:
 			local_sock_fd(local_sock_fd_),
 			creds(creds_),
 			lcreds(creds_ == nullptr),
-			server(nullptr) {
-		if (local_sock_fd_ && serializedClientInfo_) { // NON-STANDALONE MODE
-			serializedClientInfo = *serializedClientInfo_;
-		}
-	}
+			serializedClientInfo(serializedClientInfo_),
+			server(nullptr) {}
 
 	void tls_emit_data(const uint8_t *data, size_t size) override {
 		Gsock.writeAllOrExit(data,size);
@@ -105,10 +102,10 @@ public:
             std::copy(sharedHash.begin(),
                       sharedHash.end(),
                       std::back_inserter(serializedClientInfo));
-
-            if(local_sock_fd->write(&serializedClientInfo[0],serializedClientInfo.size()) < serializedClientInfo.size()) {
+			auto size = serializedClientInfo.size();
+            if(local_sock_fd->write(&serializedClientInfo[0], size) < size) {
                 PRINTUNIFIEDERROR("Unable to atomic write connect info to local socket");
-                exit(8563748);
+                _Exit(127);
             }
         }
         else {
