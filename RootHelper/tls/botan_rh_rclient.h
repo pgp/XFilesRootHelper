@@ -196,7 +196,6 @@ public:
         Basic_Credentials_Manager creds;
         const std::vector<std::string> protocols_to_offer = Botan::split_on(next_protos, ',');
         auto version = Botan::TLS::Protocol_Version::TLS_V12;
-        using namespace std::placeholders;
 
         // PostQuantumPolicy policy; // no shared cipher if non-Botan-based XRE server is used
         // ClassicPolicy policy;

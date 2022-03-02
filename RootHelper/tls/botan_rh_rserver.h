@@ -31,8 +31,7 @@ private:
 	const std::string& server_key;
 	TlsServerEventLoopFn eventLoopFn;
 	std::unique_ptr<RingBuffer> inRb;
-	Basic_Credentials_Manager* creds; // server_crt and server_key are ignored, if this is supplied in constructor
-	const bool lcreds;
+	Basic_Credentials_Manager& creds; // server_crt and server_key are ignored, if this is supplied in constructor
 	Botan::TLS::Server* server;
 
 	std::string lastError() {
@@ -55,7 +54,7 @@ public:
 			   const std::string& server_crt_,
 			   const std::string& server_key_,
 			   IDescriptor& Gsock_,
-			   Basic_Credentials_Manager* creds_ = nullptr,
+			   Basic_Credentials_Manager& creds_,
 			   IDescriptor* local_sock_fd_ = nullptr,
 			   std::vector<uint8_t> serializedClientInfo_ = {}) :
 			eventLoopFn(eventLoopFn_),
@@ -64,7 +63,6 @@ public:
 			Gsock(Gsock_),
 			local_sock_fd(local_sock_fd_),
 			creds(creds_),
-			lcreds(creds_ == nullptr),
 			serializedClientInfo(serializedClientInfo_),
 			server(nullptr) {}
 
@@ -123,8 +121,6 @@ public:
 
 	// non-callback, main event loop of server, interacts with ringbuffers and sends/receives TLS packet
 	void go() {
-		using namespace std::placeholders;
-
 		inRb = std::unique_ptr<RingBuffer>(new RingBuffer);
 
 		PRINTUNIFIED("Serving new client\n");
@@ -133,19 +129,9 @@ public:
 		Botan::TLS::Session_Manager_In_Memory session_mgr(rng_);
 		Botan::TLS::Policy policy;
 
-		// TODO should not give exception, try with noexcept non-pointer local variable and test on all platforms with missing certificate files
-        if(creds == nullptr) // do not create if already provided
-            try {creds = new Basic_Credentials_Manager(rng_, server_crt, server_key);}
-            catch(std::exception& e) {
-                PRINTUNIFIED("Server cert path is: %s\n",server_crt.c_str());
-                PRINTUNIFIED("Server key path is: %s\n",server_key.c_str());
-                PRINTUNIFIEDERROR("Exception in loading TLS server crt/key: %s\n",e.what());
-                exit(-1);
-            }
-
 		server = new Botan::TLS::Server(*this,
 										session_mgr,
-										*creds,
+										creds,
 										policy,
 										rng_);
 
@@ -187,10 +173,6 @@ public:
 		if (server) {
 			delete server;
 			server = nullptr;
-		}
-		if (creds && lcreds) {
-			delete creds;
-			creds = nullptr;
 		}
 	}
 
