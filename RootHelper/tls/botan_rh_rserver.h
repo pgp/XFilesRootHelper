@@ -26,6 +26,10 @@ private:
 	IDescriptor* local_sock_fd; // UNUSED FOR STANDALONE RHSS, for communicating shared session hash to RH client once session establishment is complete
 	std::vector<uint8_t> serializedClientInfo; // UNUSED FOR STANDALONE RHSS, pre-populated by constructor caller, filled with shared secret hash and sent to local_sock_fd
 
+	Botan::TLS::Policy policy;
+	Botan::System_RNG rng_;
+	Botan::TLS::Session_Manager_In_Memory session_mgr;
+
 	IDescriptor& Gsock;
 	const std::string& server_crt;
 	const std::string& server_key;
@@ -64,6 +68,7 @@ public:
 			local_sock_fd(local_sock_fd_),
 			creds(creds_),
 			serializedClientInfo(serializedClientInfo_),
+			session_mgr(rng_),
 			server(nullptr) {}
 
 	void tls_emit_data(const uint8_t *data, size_t size) override {
@@ -124,10 +129,6 @@ public:
 		inRb = std::unique_ptr<RingBuffer>(new RingBuffer);
 
 		PRINTUNIFIED("Serving new client\n");
-
-		Botan::System_RNG rng_;
-		Botan::TLS::Session_Manager_In_Memory session_mgr(rng_);
-		Botan::TLS::Policy policy;
 
 		server = new Botan::TLS::Server(*this,
 										session_mgr,
