@@ -34,9 +34,9 @@ private:
 	const std::string& server_crt;
 	const std::string& server_key;
 	TlsServerEventLoopFn eventLoopFn;
-	std::unique_ptr<RingBuffer> inRb;
+	RingBuffer inRb;
 	Basic_Credentials_Manager& creds; // server_crt and server_key are ignored, if this is supplied in constructor
-	Botan::TLS::Server* server;
+	Botan::TLS::Server server;
 
 	std::string lastError() {
 #ifdef _WIN32
@@ -69,14 +69,18 @@ public:
 			creds(creds_),
 			serializedClientInfo(serializedClientInfo_),
 			session_mgr(rng_),
-			server(nullptr) {}
+			server(*this,
+				   session_mgr,
+				   creds,
+				   policy,
+				   rng_) {}
 
 	void tls_emit_data(const uint8_t *data, size_t size) override {
 		Gsock.writeAllOrExit(data,size);
 	}
 
 	void tls_record_received(uint64_t seq_no, const uint8_t buf[], size_t buf_size) override {
-		if (inRb->writeAll(buf,buf_size) < buf_size) exit(9341);
+		if(inRb.writeAll(buf,buf_size) < buf_size) _Exit(131);
 	}
 
 	void tls_alert(Botan::TLS::Alert alert) override {
@@ -126,23 +130,12 @@ public:
 
 	// non-callback, main event loop of server, interacts with ringbuffers and sends/receives TLS packet
 	void go() {
-		inRb = std::unique_ptr<RingBuffer>(new RingBuffer);
-
 		PRINTUNIFIED("Serving new client\n");
-
-		server = new Botan::TLS::Server(*this,
-										session_mgr,
-										creds,
-										policy,
-										rng_);
-
-		// create mainEventLoop thread passing as input parameters the two ringbuffers
-		std::thread mainEventLoopThread(eventLoopFn,std::ref(*inRb),std::ref(*server));
-//		mainEventLoopThread.detach();
+		std::thread mainEventLoopThread(eventLoopFn,std::ref(inRb),std::ref(server));
 
 		try {
 			PRINTUNIFIED("In TLS server loop\n");
-			while(!server->is_closed()) {
+			while(!server.is_closed()) {
 				try {
 					uint8_t buf[4096]{};
 					ssize_t got = Gsock.read(buf, sizeof(buf));
@@ -154,7 +147,7 @@ public:
 						PRINTUNIFIED("EOF on socket\n");
 						threadExit();
 					}
-					server->received_data(buf, got);
+					server.received_data(buf, got);
 				}
 				catch(std::exception& e) {
 					PRINTUNIFIEDERROR("Connection problem: %s\n",e.what());
@@ -170,15 +163,10 @@ public:
 		}
 		cleanup();
 		mainEventLoopThread.join();
-
-		if (server) {
-			delete server;
-			server = nullptr;
-		}
 	}
 
     void cleanup() noexcept {
-        inRb->close();
+        inRb.close();
         Gsock.shutdown();
         // local_sock_fd MUST NOT BE CLOSED by SToC threads (it is process-level, any SToC thread can atomically write to it)
         // local_sock_fd MUST NOT BE DELETED as well, must be passed as pointer to local stack variable of caller
