@@ -178,7 +178,7 @@ private:
 	
 	// |- converted to pointers, from local variables;
 	Botan::TLS::Session_Manager_In_Memory session_mgr;
-	TLS_CallbacksABC* callbacks; // formerly, TLS_Client, subclass of Botan::TLS::Callbacks
+	TLS_CallbacksABC callbacks; // formerly, TLS_Client, subclass of Botan::TLS::Callbacks
 
 public:
     TLSDescriptorABC(IDescriptor& netsock_,
@@ -192,6 +192,7 @@ public:
               verifyCertificates(verifyCertificates_),
               sniHost(std::move(sniHost_)),
               session_mgr(rng_),
+              callbacks(inRb, netsock, verifyCertificates),
               version(Botan::TLS::Protocol_Version::Version_Code::TLS_V12)
     {}
 	
@@ -201,18 +202,10 @@ public:
 			delete channel;
 			channel = nullptr;
 		}
-		if(callbacks != nullptr) {
-			delete callbacks;
-			callbacks = nullptr;
-		}
 	}
 
     Botan::secure_vector<uint8_t> setup() {
-		// ------------------------------------
-		callbacks = new TLS_CallbacksABC(inRb, netsock, verifyCertificates);
-		// ------------------------------------
-		
-		channel = new Botan::TLS::Client(*callbacks,
+		channel = new Botan::TLS::Client(callbacks,
                                         session_mgr,
                                         creds,
                                         policy,
@@ -228,14 +221,14 @@ public:
         while(!channel->is_active()) {
             PRINTUNIFIED(".");
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            if(callbacks->setupAborted || i>50) { // wait till 5 seconds for connection establishment
+            if(callbacks.setupAborted || i>50) { // wait till 5 seconds for connection establishment
                 PRINTUNIFIEDERROR("Client closed during connection setup, or connection timeout\n");
-                return callbacks->sharedHash; // TODO ************************************************ join incomingRbThread, a.k.a. cleanup
+                return callbacks.sharedHash;
             }
             i++;
         }
         PRINTUNIFIED("\nTLS channel ready\n");
-        return callbacks->sharedHash;
+        return callbacks.sharedHash;
 	}
 
     void cleanup() {
