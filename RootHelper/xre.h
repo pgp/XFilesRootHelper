@@ -623,11 +623,11 @@ int xreMain(int argc, C* argv[], const STR& placeholder) {
     xreAnnouncedPath = paths[1];
     xreExposedDirectory = paths[2];
 
-    auto x = TOUNIXPATH(currentXREHomePath);
+    auto x = TOUTF(currentXREHomePath);
     PRINTUNIFIED("Using as home path: %s\n",x.c_str());
-    x = TOUNIXPATH(xreAnnouncedPath);
+    x = TOUTF(xreAnnouncedPath);
     PRINTUNIFIED("Using as announced path: %s\n",x.c_str());
-    x = TOUNIXPATH(xreExposedDirectory);
+    x = TOUTF(xreExposedDirectory);
     PRINTUNIFIED("Using as exposed path: %s\n",x.c_str());
 
     rhss = getServerSocket();
