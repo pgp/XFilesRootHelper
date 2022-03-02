@@ -161,24 +161,21 @@ private:
 
 	std::thread incomingRbThread; // initialized empty, to start use assignment operator=
 
-	// |- converted to pointer
-	Botan::TLS::Channel* channel; // Botan::TLS::Server or Botan::TLS::Client, built from Botan::TLS::Callbacks(subclass-> TLS_Client)
-	
 	// moved from TLS_Client instance variables
 	const int serverPort; // 443 for URL download, 11111 for connecting to XRE server
     const bool verifyCertificates; // true for standard https (e.g. url download), false for connection to XRE server
     const std::string sniHost; // empty for connection to xre server
-	
+
 	// moved from TLS_Client.go() method
 	Botan::System_RNG rng_;
 	Basic_Credentials_Manager creds;
 	const std::vector<std::string> protocols_to_offer; // empty, split_on ignored
 	const Botan::TLS::Protocol_Version::Version_Code version;
 	Botan::TLS::Policy policy; // also, PostQuantumPolicy and ClassicPolicy
-	
-	// |- converted to pointers, from local variables;
+
 	Botan::TLS::Session_Manager_In_Memory session_mgr;
 	TLS_CallbacksABC callbacks; // formerly, TLS_Client, subclass of Botan::TLS::Callbacks
+	Botan::TLS::Client channel; // Botan::TLS::Server or Botan::TLS::Client, built from Botan::TLS::Callbacks(subclass-> TLS_Client)
 
 public:
     TLSDescriptorABC(IDescriptor& netsock_,
@@ -193,32 +190,27 @@ public:
               sniHost(std::move(sniHost_)),
               session_mgr(rng_),
               callbacks(inRb, netsock, verifyCertificates),
-              version(Botan::TLS::Protocol_Version::Version_Code::TLS_V12)
+              version(Botan::TLS::Protocol_Version::Version_Code::TLS_V12),
+			  channel(callbacks,
+					  session_mgr,
+					  creds,
+					  policy,
+					  rng_,
+					  Botan::TLS::Server_Information(sniHost, serverPort),
+					  version,
+					  protocols_to_offer)
     {}
-	
+
 	~TLSDescriptorABC() {
 		cleanup();
-		if(channel != nullptr) {
-			delete channel;
-			channel = nullptr;
-		}
 	}
 
     Botan::secure_vector<uint8_t> setup() {
-		channel = new Botan::TLS::Client(callbacks,
-                                        session_mgr,
-                                        creds,
-                                        policy,
-                                        rng_,
-                                        Botan::TLS::Server_Information(sniHost, serverPort),
-                                        version,
-                                        protocols_to_offer);
+		incomingRbThread = std::thread{incomingRbMemberFnABC, std::ref(netsock), std::ref(channel), std::ref(inRb)}; // thread is started here
 
-		incomingRbThread = std::thread{incomingRbMemberFnABC, std::ref(netsock), std::ref(*channel), std::ref(inRb)}; // thread is started here
-		
 		PRINTUNIFIED("Waiting for TLS channel to be ready");
         int i=0;
-        while(!channel->is_active()) {
+        while(!channel.is_active()) {
             PRINTUNIFIED(".");
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             if(callbacks.setupAborted || i>50) { // wait till 5 seconds for connection establishment
@@ -234,21 +226,19 @@ public:
     void cleanup() {
         inRb.close();
 
-        PRINTUNIFIED("Finished, waiting for TLS client to close...\n");
-        if(channel != nullptr) {
-			channel->close();
-			int i=0;
-			while(!channel->is_closed()) { // allow up to 5 seconds for a graceful TLS shutdown
-				if(i>10) {
-					PRINTUNIFIEDERROR("TLS shutdown taking too much time, closing TCP connection\n");
-					goto finishClose;
-				}
-				PRINTUNIFIED(".");
-				std::this_thread::sleep_for(std::chrono::milliseconds(500));
-				i++;
+		PRINTUNIFIED("Finished, waiting for TLS client to close...\n");
+		channel.close();
+		int i=0;
+		while(!channel.is_closed()) { // allow up to 5 seconds for a graceful TLS shutdown
+			if(i>10) {
+				PRINTUNIFIEDERROR("TLS shutdown taking too much time, closing TCP connection\n");
+				goto finishClose;
 			}
-			PRINTUNIFIED("TLS client closed\n");
+			PRINTUNIFIED(".");
+			std::this_thread::sleep_for(std::chrono::milliseconds(500));
+			i++;
 		}
+		PRINTUNIFIED("TLS client closed\n");
 
         finishClose:
         netsock.shutdown();
@@ -259,13 +249,12 @@ public:
 	inline ssize_t readAll(void* buf, size_t count) override { return inRb.readAll(buf,count); }
 	inline void readAllOrExit(void* buf, size_t count) override { inRb.readAllOrExit(buf,count); }
 
-	// TODO add if channel!=nullptr
 	// the actual behaviour of these methods is decided by the emit_data callback, which depends on the Botan::TLS::Callbacks implementation used by the Botan::TLS::Server
-	inline ssize_t write(const void* buf, size_t count) override { channel->send((uint8_t*)buf,count); return count; } // send return type is void, assume everything has been written
-	ssize_t writeAll(const void* buf, size_t count) override { channel->send((uint8_t*)buf,count); return count; }
-	void writeAllOrExit(const void* buf, size_t count) override { channel->send((uint8_t*)buf,count); }
-	
-	void close() override {inRb.close(); channel->close();}
+	inline ssize_t write(const void* buf, size_t count) override { channel.send((uint8_t*)buf,count); return count; } // send return type is void, assume everything has been written
+	ssize_t writeAll(const void* buf, size_t count) override { channel.send((uint8_t*)buf,count); return count; }
+	void writeAllOrExit(const void* buf, size_t count) override { channel.send((uint8_t*)buf,count); }
+
+	void close() override {inRb.close(); channel.close();}
 };
 
 #endif /* _BOTAN_RH_TLS_DESCRIPTOR_H_ */
