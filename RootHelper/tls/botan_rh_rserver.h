@@ -21,6 +21,48 @@
 
 typedef void (*TlsServerEventLoopFn) (RingBuffer& inRb, Botan::TLS::Server& server);
 
+std::string getLastError() {
+#ifdef _WIN32
+	char* s = nullptr;
+	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+				  nullptr, WSAGetLastError(),
+				  MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+				  (LPTSTR)&s, 0, nullptr);
+	std::string ret = std::string("error code: ")+std::to_string(WSAGetLastError())+"\tError msg: "+s;
+	LocalFree(s);
+	return ret;
+#else
+	return std::string("error code: ")+std::to_string(errno)+"\tError msg: "+strerror(errno);
+#endif
+}
+
+void incomingRbMemberFnDEF(IDescriptor& netsock, Botan::TLS::Channel& channel, RingBuffer& inRb) {
+	PRINTUNIFIED("In TLS server loop\n");
+	ssize_t readBytes = -1;
+	try {
+		while(!channel.is_closed()) {
+			uint8_t buf[4096]{};
+			readBytes = netsock.read(buf, sizeof(buf));
+			if(readBytes == -1) {
+				auto&& s = getLastError();
+				PRINTUNIFIEDERROR("Error in socket read - %s\n",s.c_str());
+				break;
+			}
+			else if(readBytes == 0) {
+				PRINTUNIFIED("EOF on socket\n");
+				break;
+			}
+			channel.received_data(buf, readBytes);
+		}
+	}
+	catch(std::exception& e) {
+		PRINTUNIFIEDERROR("Exception: %s\n",e.what());
+	}
+	catch(threadExitThrowable& i) {}
+	inRb.close(readBytes<0);
+	PRINTUNIFIEDERROR("T1 End of server receiver thread\n");
+}
+
 class TLS_Server final : public Botan::TLS::Callbacks {
 private:
 	IDescriptor* local_sock_fd; // UNUSED FOR STANDALONE RHSS, for communicating shared session hash to RH client once session establishment is complete
@@ -37,21 +79,6 @@ private:
 	RingBuffer inRb;
 	Basic_Credentials_Manager& creds; // server_crt and server_key are ignored, if this is supplied in constructor
 	Botan::TLS::Server server;
-
-	std::string lastError() {
-#ifdef _WIN32
-		char*s = nullptr;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-					   NULL, WSAGetLastError(),
-					   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-					   (LPTSTR)&s, 0, NULL);
-        std::string ret = std::string("error code: ")+std::to_string(WSAGetLastError())+"\tError msg: "+s;
-		LocalFree(s);
-		return ret;
-#else
-        return std::string("error code: ")+std::to_string(errno)+"\tError msg: "+strerror(errno);
-#endif
-	}
 
 public:
 	TLS_Server(TlsServerEventLoopFn eventLoopFn_,
@@ -128,39 +155,14 @@ public:
 		return false; // returning true will cache session for later resumption
 	}
 
-	// non-callback, main event loop of server, interacts with ringbuffers and sends/receives TLS packet
-	void go() {
-		PRINTUNIFIED("Serving new client\n");
-		std::thread mainEventLoopThread(eventLoopFn,std::ref(inRb),std::ref(server));
-
-		try {
-			PRINTUNIFIED("In TLS server loop\n");
-			while(!server.is_closed()) {
-				uint8_t buf[4096]{};
-				ssize_t got = Gsock.read(buf, sizeof(buf));
-				if(got == -1) {
-					PRINTUNIFIEDERROR("Error in socket read - %s\n",lastError().c_str());
-					threadExit();
-				}
-				if(got == 0) {
-					PRINTUNIFIED("EOF on socket\n");
-					threadExit();
-				}
-				server.received_data(buf, got);
-			}
-		}
-		catch(Botan::Exception& e) {
-			PRINTUNIFIEDERROR("Security exception: %s\n",e.what());
-		}
-		catch(std::exception& e) {
-			PRINTUNIFIEDERROR("Connection problem: %s\n",e.what());
-		}
-		catch(threadExitThrowable& i) {
-			PRINTUNIFIEDERROR("T1 Unconditional housekeeping and return\n");
-		}
-		cleanup();
-		mainEventLoopThread.join();
-	}
+    // non-callback, main event loop of server, interacts with ringbuffers and sends/receives TLS packet
+    void go() {
+        PRINTUNIFIED("Serving new client\n");
+        std::thread incomingNetworkThread(incomingRbMemberFnDEF, std::ref(Gsock), std::ref(server), std::ref(inRb));
+        eventLoopFn(inRb, server);
+        cleanup();
+        incomingNetworkThread.join();
+    }
 
     void cleanup() noexcept {
         inRb.close();
