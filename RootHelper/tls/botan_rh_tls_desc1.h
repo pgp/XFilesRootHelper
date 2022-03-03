@@ -277,6 +277,30 @@ TLS_Callbacks_Client get_tls_callbacks(const bool serverSide,
                                 local_sock_fd_);
 }
 
+Botan::TLS::Channel* get_tls_channel(const bool serverSide,
+                                    Botan::TLS::Callbacks& callbacks,
+                                    Botan::TLS::Session_Manager& session_mgr,
+                                    Botan::Credentials_Manager& creds,
+                                    Botan::TLS::Policy& policy,
+                                    Botan::RandomNumberGenerator& rng_,
+                                    std::string sniHost,
+                                    int serverPort,
+                                    Botan::TLS::Protocol_Version::Version_Code version) {
+    return serverSide ?
+           (Botan::TLS::Channel*)(new Botan::TLS::Server(callbacks,
+                              session_mgr,
+                              creds,
+                              policy,
+                              rng_)):
+           (Botan::TLS::Channel*)(new Botan::TLS::Client(callbacks,
+                              session_mgr,
+                              creds,
+                              policy,
+                              rng_,
+                              Botan::TLS::Server_Information(sniHost, serverPort),
+                              version));
+}
+
 // TODO remove ABC suffix
 class TLSDescriptorABC : public IDescriptor {
 private:
@@ -301,8 +325,8 @@ private:
 
 	Botan::TLS::Session_Manager_In_Memory session_mgr;
 	TLS_Callbacks_Client callbacks; // formerly, TLS_Client, subclass of Botan::TLS::Callbacks
-	Botan::TLS::Client channel; // Botan::TLS::Server or Botan::TLS::Client, built from Botan::TLS::Callbacks(subclass-> TLS_Client)
-
+	Botan::TLS::Channel* channel; // Botan::TLS::Server or Botan::TLS::Client, built from Botan::TLS::Callbacks(subclass-> TLS_Client)
+    // TODO make some more experiments with brace-initializer list and ternary operator in constructor
 public:
     TLSDescriptorABC(IDescriptor& netsock_,
                      RingBuffer& inRb_,
@@ -320,34 +344,55 @@ public:
               verifyCertificates(verifyCertificates_),
               sniHost(std::move(sniHost_)),
               session_mgr(rng_),
-              callbacks(get_tls_callbacks(
+              callbacks{get_tls_callbacks(
                       serverSide,
                       inRb_,
                       netsock_,
                       verifyCertificates_,
                       serializedClientInfo_,
-                      callbacks_localsockfd)),
+                      callbacks_localsockfd)},
               version(Botan::TLS::Protocol_Version::Version_Code::TLS_V12),
-			  channel(callbacks,
-					  session_mgr,
-					  creds,
-					  policy,
-					  rng_,
-					  Botan::TLS::Server_Information(sniHost, serverPort),
-					  version,
-					  protocols_to_offer)
+//              channel{serverSide ?
+//                      Botan::TLS::Server(
+//                              callbacks,
+//                              session_mgr,
+//                              creds,
+//                              policy,
+//                              rng_) :
+//                      Botan::TLS::Client(
+//                              callbacks,
+//                              session_mgr,
+//                              creds,
+//                              policy,
+//                              rng_,
+//                              Botan::TLS::Server_Information(sniHost, serverPort),
+//                              version )}
+               channel(get_tls_channel(
+                       serverSide,
+                       callbacks,
+                       session_mgr,
+                       creds,
+                       policy,
+                       rng_,
+                       sniHost, serverPort,
+                       version
+               ))
     {}
 
 	~TLSDescriptorABC() {
 		cleanup();
+        if(channel != nullptr) {
+            delete channel;
+            channel = nullptr;
+        }
 	}
 
     Botan::secure_vector<uint8_t> setup() {
-		incomingRbThread = std::thread{serverSide?incomingRbMemberFnDEF:incomingRbMemberFnABC, std::ref(netsock), std::ref(channel), std::ref(inRb)}; // thread is started here
+		incomingRbThread = std::thread{serverSide?incomingRbMemberFnDEF:incomingRbMemberFnABC, std::ref(netsock), std::ref(*channel), std::ref(inRb)}; // thread is started here
 
 		PRINTUNIFIED("Waiting for TLS channel to be ready");
         int i=0;
-        while(!channel.is_active()) {
+        while(!channel->is_active()) {
             PRINTUNIFIED(".");
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             if(callbacks.setupAborted || i>50) { // wait till 5 seconds for connection establishment
@@ -364,9 +409,9 @@ public:
         inRb.close();
 
 		PRINTUNIFIED("Finished, waiting for TLS client to close...\n");
-		channel.close();
+		channel->close();
 		int i=0;
-		while(!channel.is_closed()) { // allow up to 5 seconds for a graceful TLS shutdown
+		while(!channel->is_closed()) { // allow up to 5 seconds for a graceful TLS shutdown
 			if(i>10) {
 				PRINTUNIFIEDERROR("TLS shutdown taking too much time, closing TCP connection\n");
 				goto finishClose;
@@ -387,11 +432,11 @@ public:
 	inline void readAllOrExit(void* buf, size_t count) override { inRb.readAllOrExit(buf,count); }
 
 	// the actual behaviour of these methods is decided by the emit_data callback, which depends on the Botan::TLS::Callbacks implementation used by the Botan::TLS::Server
-	inline ssize_t write(const void* buf, size_t count) override { channel.send((uint8_t*)buf,count); return count; } // send return type is void, assume everything has been written
-	ssize_t writeAll(const void* buf, size_t count) override { channel.send((uint8_t*)buf,count); return count; }
-	void writeAllOrExit(const void* buf, size_t count) override { channel.send((uint8_t*)buf,count); }
+	inline ssize_t write(const void* buf, size_t count) override { channel->send((uint8_t*)buf,count); return count; } // send return type is void, assume everything has been written
+	ssize_t writeAll(const void* buf, size_t count) override { channel->send((uint8_t*)buf,count); return count; }
+	void writeAllOrExit(const void* buf, size_t count) override { channel->send((uint8_t*)buf,count); }
 
-	void close() override {inRb.close(); channel.close();}
+	void close() override {inRb.close(); channel->close();}
 };
 
 #endif /* _BOTAN_RH_TLS_DESCRIPTOR_H_ */
