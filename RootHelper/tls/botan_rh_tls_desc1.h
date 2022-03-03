@@ -6,6 +6,14 @@
 #include "botan_credentials.h"
 #include "../ReliableRingBuffer.h"
 
+#ifdef _WIN32
+#include "../gui/mfchashview.h"
+#else
+#ifdef USE_X11
+#include "../gui/x11hashview.h"
+#endif
+#endif
+
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
 #endif
@@ -55,7 +63,7 @@ void incomingRbMemberFnABC(IDescriptor& netsock, Botan::TLS::Channel& channel, R
 //~ };
 
 // TODO remove ABC suffix
-class TLS_CallbacksABC final : public Botan::TLS::Callbacks {
+class TLS_CallbacksABC : public Botan::TLS::Callbacks {
     using STR = decltype(STRNAMESPACE());
 public:
 
@@ -150,6 +158,59 @@ public:
             Gsock(Gsock_),
             verifyCertificates(verifyCertificates_)
             {}
+};
+
+class TLS_Callbacks_Server : public TLS_CallbacksABC {
+    using STR = decltype(STRNAMESPACE());
+public:
+	IDescriptor* local_sock_fd;
+	std::vector<uint8_t> serializedClientInfo;
+
+	bool tls_session_established(const Botan::TLS::Session &session) override {
+		PRINTUNIFIED("Handshake complete, %s using %s\n",session.version().to_string().c_str(),
+							session.ciphersuite().to_string().c_str());
+		// auto&& session_id = session.session_id();
+		// auto&& session_ticket = session.session_ticket();
+		auto master_secret = session.master_secret();
+
+		// NEW: SHA256 -> 32 bytes binary data ////////////////////
+		std::unique_ptr<Botan::HashFunction> sha256(Botan::HashFunction::create("SHA-256"));
+		sha256->update(master_secret.data(),master_secret.size());
+		sharedHash = sha256->final();
+
+		PRINTUNIFIED("Master secret's hash for this session is:\n%s\n",Botan::hex_encode(sharedHash).c_str());
+
+        if(local_sock_fd != nullptr) { // NON-STANDALONE MODE
+            std::copy(sharedHash.begin(),
+                      sharedHash.end(),
+                      std::back_inserter(serializedClientInfo));
+			auto size = serializedClientInfo.size();
+            if(local_sock_fd->write(&serializedClientInfo[0], size) < size) {
+                PRINTUNIFIEDERROR("Unable to atomic write connect info to local socket");
+                _Exit(127);
+            }
+        }
+        else {
+			// use X11 (when available and enabled) - or MFC on Windows - to show hashview popup
+            // beware, runSessionWithColorGrid resolves to
+            // two different functions with same name depending on the OS
+#if defined(_WIN32) || defined(USE_X11)
+			std::thread hvThread(runSessionWithColorGrid,sharedHash);
+			hvThread.detach();
+#endif
+		}
+		return false; // returning true will cache session for later resumption
+	}
+
+public:
+	TLS_Callbacks_Server(RingBuffer& inRb_,
+						 IDescriptor& Gsock_,
+						 IDescriptor* local_sock_fd_,
+						 bool verifyCertificates_ = false,
+						 std::vector<uint8_t> serializedClientInfo_ = {}
+    ) : TLS_CallbacksABC(inRb_, Gsock_, verifyCertificates_),
+		local_sock_fd(local_sock_fd_),
+		serializedClientInfo(serializedClientInfo_) {}
 };
 
 // TODO remove ABC suffix
