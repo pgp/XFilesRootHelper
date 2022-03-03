@@ -1,67 +1,9 @@
 #ifndef _BOTAN_RH_RSERVER_H_
 #define _BOTAN_RH_RSERVER_H_
 
-#include <cerrno>
-#include <list>
-
-#include "botan_credentials.h"
-#include "../ReliableRingBuffer.h"
-
-#ifdef _WIN32
-#include "../gui/mfchashview.h"
-#else
-#ifdef USE_X11
-#include "../gui/x11hashview.h"
-#endif
-#endif
-
-#ifndef MSG_NOSIGNAL
-#define MSG_NOSIGNAL 0
-#endif
+#include "botan_rh_tls_desc1.h"
 
 typedef void (*TlsServerEventLoopFn) (RingBuffer& inRb, Botan::TLS::Server& server);
-
-std::string getLastError() {
-#ifdef _WIN32
-	char* s = nullptr;
-	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-				  nullptr, WSAGetLastError(),
-				  MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-				  (LPTSTR)&s, 0, nullptr);
-	std::string ret = std::string("error code: ")+std::to_string(WSAGetLastError())+"\tError msg: "+s;
-	LocalFree(s);
-	return ret;
-#else
-	return std::string("error code: ")+std::to_string(errno)+"\tError msg: "+strerror(errno);
-#endif
-}
-
-void incomingRbMemberFnDEF(IDescriptor& netsock, Botan::TLS::Channel& channel, RingBuffer& inRb) {
-	PRINTUNIFIED("In TLS server loop\n");
-	ssize_t readBytes = -1;
-	try {
-		while(!channel.is_closed()) {
-			uint8_t buf[4096]{};
-			readBytes = netsock.read(buf, sizeof(buf));
-			if(readBytes == -1) {
-				auto&& s = getLastError();
-				PRINTUNIFIEDERROR("Error in socket read - %s\n",s.c_str());
-				break;
-			}
-			else if(readBytes == 0) {
-				PRINTUNIFIED("EOF on socket\n");
-				break;
-			}
-			channel.received_data(buf, readBytes);
-		}
-	}
-	catch(std::exception& e) {
-		PRINTUNIFIEDERROR("Exception: %s\n",e.what());
-	}
-	catch(threadExitThrowable& i) {}
-	inRb.close(readBytes<0);
-	PRINTUNIFIEDERROR("T1 End of server receiver thread\n");
-}
 
 class TLS_Server final : public Botan::TLS::Callbacks {
 private:
