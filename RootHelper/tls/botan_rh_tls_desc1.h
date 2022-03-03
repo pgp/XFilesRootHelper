@@ -280,6 +280,8 @@ TLS_Callbacks_Client get_tls_callbacks(const bool serverSide,
 // TODO remove ABC suffix
 class TLSDescriptorABC : public IDescriptor {
 private:
+    const bool serverSide;
+
     RingBuffer& inRb;
     IDescriptor& netsock;
 
@@ -307,11 +309,12 @@ public:
                      int serverPort_,
                      bool verifyCertificates_ = false,
                      std::string sniHost_ = "",
-                     const bool serverSide = false,
+                     const bool serverSide_ = false,
                      std::vector<uint8_t> serializedClientInfo_ = {},
                      IDescriptor* callbacks_localsockfd = nullptr
     )
-            : netsock(netsock_),
+            : serverSide(serverSide_),
+              netsock(netsock_),
               inRb(inRb_),
               serverPort(serverPort_),
               verifyCertificates(verifyCertificates_),
@@ -340,7 +343,7 @@ public:
 	}
 
     Botan::secure_vector<uint8_t> setup() {
-		incomingRbThread = std::thread{incomingRbMemberFnABC, std::ref(netsock), std::ref(channel), std::ref(inRb)}; // thread is started here
+		incomingRbThread = std::thread{serverSide?incomingRbMemberFnDEF:incomingRbMemberFnABC, std::ref(netsock), std::ref(channel), std::ref(inRb)}; // thread is started here
 
 		PRINTUNIFIED("Waiting for TLS channel to be ready");
         int i=0;
