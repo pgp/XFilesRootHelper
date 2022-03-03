@@ -195,13 +195,14 @@ public:
 public:
     // constructor using an already connected network socket
     TLS_Callbacks_Client(RingBuffer& inRb_,
-               IDescriptor& Gsock_,
-               bool verifyCertificates_ = false
+                         IDescriptor& Gsock_,
+                         bool verifyCertificates_ = false,
+                         std::vector<uint8_t> serializedClientInfo_ = {},
+                         IDescriptor* local_sock_fd_ = nullptr
     ) :
             inRb(inRb_),
             Gsock(Gsock_),
-            verifyCertificates(verifyCertificates_)
-            {}
+            verifyCertificates(verifyCertificates_) {}
 };
 
 class TLS_Callbacks_Server : public TLS_Callbacks_Client {
@@ -249,13 +250,32 @@ public:
 public:
 	TLS_Callbacks_Server(RingBuffer& inRb_,
 						 IDescriptor& Gsock_,
-						 IDescriptor* local_sock_fd_,
 						 bool verifyCertificates_ = false,
-						 std::vector<uint8_t> serializedClientInfo_ = {}
+                         std::vector<uint8_t> serializedClientInfo_ = {},
+                         IDescriptor* local_sock_fd_ = nullptr
     ) : TLS_Callbacks_Client(inRb_, Gsock_, verifyCertificates_),
 		local_sock_fd(local_sock_fd_),
 		serializedClientInfo(serializedClientInfo_) {}
 };
+
+TLS_Callbacks_Client get_tls_callbacks(const bool serverSide,
+                                   RingBuffer& inRb_,
+                                   IDescriptor& Gsock_,
+                                   bool verifyCertificates_ = false,
+                                   std::vector<uint8_t> serializedClientInfo_ = {},
+                                   IDescriptor* local_sock_fd_ = nullptr) {
+    return serverSide ?
+           TLS_Callbacks_Server(inRb_,
+                                Gsock_,
+                                verifyCertificates_,
+                                serializedClientInfo_,
+                                local_sock_fd_) :
+           TLS_Callbacks_Client(inRb_,
+                                Gsock_,
+                                verifyCertificates_,
+                                serializedClientInfo_,
+                                local_sock_fd_);
+}
 
 // TODO remove ABC suffix
 class TLSDescriptorABC : public IDescriptor {
@@ -286,14 +306,24 @@ public:
                      RingBuffer& inRb_,
                      int serverPort_,
                      bool verifyCertificates_ = false,
-                     std::string sniHost_ = "")
+                     std::string sniHost_ = "",
+                     const bool serverSide = false,
+                     std::vector<uint8_t> serializedClientInfo_ = {},
+                     IDescriptor* callbacks_localsockfd = nullptr
+    )
             : netsock(netsock_),
               inRb(inRb_),
               serverPort(serverPort_),
               verifyCertificates(verifyCertificates_),
               sniHost(std::move(sniHost_)),
               session_mgr(rng_),
-              callbacks(inRb, netsock, verifyCertificates),
+              callbacks(get_tls_callbacks(
+                      serverSide,
+                      inRb_,
+                      netsock_,
+                      verifyCertificates_,
+                      serializedClientInfo_,
+                      callbacks_localsockfd)),
               version(Botan::TLS::Protocol_Version::Version_Code::TLS_V12),
 			  channel(callbacks,
 					  session_mgr,
