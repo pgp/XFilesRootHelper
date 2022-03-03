@@ -107,7 +107,7 @@ void incomingRbMemberFnDEF(IDescriptor& netsock, Botan::TLS::Channel& channel, R
 //~ };
 
 // TODO remove ABC suffix
-class TLS_CallbacksABC : public Botan::TLS::Callbacks {
+class TLS_Callbacks_Client : public Botan::TLS::Callbacks {
     using STR = decltype(STRNAMESPACE());
 public:
 
@@ -194,7 +194,7 @@ public:
 
 public:
     // constructor using an already connected network socket
-    TLS_CallbacksABC(RingBuffer& inRb_,
+    TLS_Callbacks_Client(RingBuffer& inRb_,
                IDescriptor& Gsock_,
                bool verifyCertificates_ = false
     ) :
@@ -204,7 +204,7 @@ public:
             {}
 };
 
-class TLS_Callbacks_Server : public TLS_CallbacksABC {
+class TLS_Callbacks_Server : public TLS_Callbacks_Client {
     using STR = decltype(STRNAMESPACE());
 public:
 	IDescriptor* local_sock_fd;
@@ -252,7 +252,7 @@ public:
 						 IDescriptor* local_sock_fd_,
 						 bool verifyCertificates_ = false,
 						 std::vector<uint8_t> serializedClientInfo_ = {}
-    ) : TLS_CallbacksABC(inRb_, Gsock_, verifyCertificates_),
+    ) : TLS_Callbacks_Client(inRb_, Gsock_, verifyCertificates_),
 		local_sock_fd(local_sock_fd_),
 		serializedClientInfo(serializedClientInfo_) {}
 };
@@ -278,7 +278,7 @@ private:
 	Botan::TLS::Policy policy; // also, PostQuantumPolicy and ClassicPolicy
 
 	Botan::TLS::Session_Manager_In_Memory session_mgr;
-	TLS_CallbacksABC callbacks; // formerly, TLS_Client, subclass of Botan::TLS::Callbacks
+	TLS_Callbacks_Client callbacks; // formerly, TLS_Client, subclass of Botan::TLS::Callbacks
 	Botan::TLS::Client channel; // Botan::TLS::Server or Botan::TLS::Client, built from Botan::TLS::Callbacks(subclass-> TLS_Client)
 
 public:
