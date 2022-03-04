@@ -106,7 +106,6 @@ void incomingRbMemberFnDEF(IDescriptor& netsock, Botan::TLS::Channel& channel, R
     //~ }
 //~ };
 
-// TODO remove ABC suffix
 class TLS_Callbacks_Client : public Botan::TLS::Callbacks {
     using STR = decltype(STRNAMESPACE());
 public:
@@ -281,11 +280,11 @@ Botan::TLS::Channel* get_tls_channel(const bool serverSide,
                                     Botan::TLS::Callbacks& callbacks,
                                     Botan::TLS::Session_Manager& session_mgr,
                                     Botan::Credentials_Manager& creds,
-                                    Botan::TLS::Policy& policy,
+                                    const Botan::TLS::Policy& policy,
                                     Botan::RandomNumberGenerator& rng_,
                                     std::string sniHost,
                                     int serverPort,
-                                    Botan::TLS::Protocol_Version::Version_Code version) {
+                                    const Botan::TLS::Protocol_Version::Version_Code& version) {
     return serverSide ?
            (Botan::TLS::Channel*)(new Botan::TLS::Server(callbacks,
                               session_mgr,
@@ -321,7 +320,7 @@ private:
 	Basic_Credentials_Manager creds;
 	const std::vector<std::string> protocols_to_offer; // empty, split_on ignored
 	const Botan::TLS::Protocol_Version::Version_Code version;
-	Botan::TLS::Policy policy; // also, PostQuantumPolicy and ClassicPolicy
+	const Botan::TLS::Policy policy; // also, PostQuantumPolicy and ClassicPolicy
 
 	Botan::TLS::Session_Manager_In_Memory session_mgr;
 	TLS_Callbacks_Client callbacks; // formerly, TLS_Client, subclass of Botan::TLS::Callbacks
@@ -337,11 +336,11 @@ public:
                      std::vector<uint8_t> serializedClientInfo_ = {},
                      IDescriptor* callbacks_localsockfd = nullptr
     )
-            : serverSide(serverSide_),
-              netsock(netsock_),
-              inRb(inRb_),
-              serverPort(serverPort_),
-              verifyCertificates(verifyCertificates_),
+            : serverSide{serverSide_},
+              netsock{netsock_},
+              inRb{inRb_},
+              serverPort{serverPort_},
+              verifyCertificates{verifyCertificates_},
               sniHost(std::move(sniHost_)),
               session_mgr(rng_),
               callbacks{get_tls_callbacks(
@@ -351,7 +350,7 @@ public:
                       verifyCertificates_,
                       serializedClientInfo_,
                       callbacks_localsockfd)},
-              version(Botan::TLS::Protocol_Version::Version_Code::TLS_V12),
+              version{Botan::TLS::Protocol_Version::Version_Code::TLS_V12},
 //              channel{serverSide ?
 //                      Botan::TLS::Server(
 //                              callbacks,
@@ -390,20 +389,22 @@ public:
     Botan::secure_vector<uint8_t> setup() {
 		incomingRbThread = std::thread{serverSide?incomingRbMemberFnDEF:incomingRbMemberFnABC, std::ref(netsock), std::ref(*channel), std::ref(inRb)}; // thread is started here
 
-		PRINTUNIFIED("Waiting for TLS channel to be ready");
-        int i=0;
-        while(!channel->is_active()) {
-            PRINTUNIFIED(".");
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            if(callbacks.setupAborted || i>50) { // wait till 5 seconds for connection establishment
-                PRINTUNIFIEDERROR("Client closed during connection setup, or connection timeout\n");
-                return callbacks.sharedHash;
+        if(!serverSide) {
+            PRINTUNIFIED("Waiting for TLS channel to be ready");
+            int i = 0;
+            while (!channel->is_active()) {
+                PRINTUNIFIED(".");
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                if (callbacks.setupAborted || i > 50) { // wait till 5 seconds for connection establishment
+                    PRINTUNIFIEDERROR("Client closed during connection setup, or connection timeout\n");
+                    return callbacks.sharedHash;
+                }
+                i++;
             }
-            i++;
+            PRINTUNIFIED("\nTLS channel ready\n");
         }
-        PRINTUNIFIED("\nTLS channel ready\n");
         return callbacks.sharedHash;
-	}
+    }
 
     void cleanup() {
         inRb.close();

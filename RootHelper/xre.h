@@ -322,8 +322,7 @@ void tlsServerSession(SOCKET remoteCl, std::string s) {
     // TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,wsd,credsManager);
     RingBuffer inRb;
     TLSDescriptorABC tlsd(wsd, inRb, 11111, false, "", true); // TODO do not hardcode port
-    auto sharedHash = tlsd.setup();
-    if(sharedHash.empty()) threadExit();
+    tlsd.setup();
     tlsServerSessionEventLoop(tlsd);
     // tlsServer.go();
     //~ on_server_session_exit_func(wsd,s);
@@ -443,8 +442,7 @@ void tlsServerSession(int remoteCl) {
 		// TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,pd_remoteCl, credsManager, &pd_rhss_local,connectInfo);
 		RingBuffer inRb;
 		TLSDescriptorABC tlsd(pd_remoteCl, inRb, 11111, false, "", true, connectInfo, &pd_rhss_local); // TODO do not hardcode port
-		auto sharedHash = tlsd.setup();
-		if(sharedHash.empty()) threadExit();
+		tlsd.setup();
 		tlsServerSessionEventLoop(tlsd);
 		// tlsServer.go();
 	}
@@ -452,8 +450,7 @@ void tlsServerSession(int remoteCl) {
 		// TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,pd_remoteCl, credsManager);
 		RingBuffer inRb;
 		TLSDescriptorABC tlsd(pd_remoteCl, inRb, 11111, false, "", true); // TODO do not hardcode port
-		auto sharedHash = tlsd.setup();
-		if(sharedHash.empty()) threadExit();
+		tlsd.setup();
 		tlsServerSessionEventLoop(tlsd);
 		// tlsServer.go();
 	}
