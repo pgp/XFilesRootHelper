@@ -223,7 +223,7 @@ public:
 		auto master_secret = session.master_secret();
 
 		// NEW: SHA256 -> 32 bytes binary data ////////////////////
-		std::unique_ptr<Botan::HashFunction> sha256(Botan::HashFunction::create("SHA-256"));
+		std::unique_ptr<Botan::HashFunction> sha256{Botan::HashFunction::create("SHA-256")};
 		sha256->update(master_secret.data(),master_secret.size());
 		sharedHash = sha256->final();
 
@@ -343,40 +343,26 @@ public:
               verifyCertificates{verifyCertificates_},
               sniHost(std::move(sniHost_)),
               session_mgr(rng_),
-              callbacks{get_tls_callbacks(
-                      serverSide,
-                      inRb_,
-                      netsock_,
-                      verifyCertificates_,
-                      serializedClientInfo_,
-                      callbacks_localsockfd)},
-              version{Botan::TLS::Protocol_Version::Version_Code::TLS_V12},
-//              channel{serverSide ?
-//                      Botan::TLS::Server(
-//                              callbacks,
-//                              session_mgr,
-//                              creds,
-//                              policy,
-//                              rng_) :
-//                      Botan::TLS::Client(
-//                              callbacks,
-//                              session_mgr,
-//                              creds,
-//                              policy,
-//                              rng_,
-//                              Botan::TLS::Server_Information(sniHost, serverPort),
-//                              version )}
-               channel(get_tls_channel(
-                       serverSide,
-                       *callbacks,
-                       session_mgr,
-                       creds,
-                       policy,
-                       rng_,
-                       sniHost, serverPort,
-                       version
-               ))
-    {}
+              version{Botan::TLS::Protocol_Version::Version_Code::TLS_V12}
+    {
+        callbacks = get_tls_callbacks(
+                serverSide,
+                inRb_,
+                netsock_,
+                verifyCertificates_,
+                serializedClientInfo_,
+                callbacks_localsockfd);
+        channel = get_tls_channel(
+                serverSide,
+                *callbacks,
+                session_mgr,
+                creds,
+                policy,
+                rng_,
+                sniHost, serverPort,
+                version
+        );
+    }
 
 	~TLSDescriptorABC() {
 		cleanup();

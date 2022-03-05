@@ -68,7 +68,7 @@ public:
 		auto master_secret = session.master_secret();
 
 		// NEW: SHA256 -> 32 bytes binary data ////////////////////
-		std::unique_ptr<Botan::HashFunction> sha256(Botan::HashFunction::create("SHA-256"));
+		std::unique_ptr<Botan::HashFunction> sha256{Botan::HashFunction::create("SHA-256")};
 		sha256->update(master_secret.data(),master_secret.size());
 		Botan::secure_vector<uint8_t> sharedHash = sha256->final();
 		
