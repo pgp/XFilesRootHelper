@@ -106,17 +106,43 @@ void incomingRbMemberFnDEF(IDescriptor& netsock, Botan::TLS::Channel& channel, R
     //~ }
 //~ };
 
-class TLS_Callbacks_Client : public Botan::TLS::Callbacks {
+class TLS_Common_Callbacks : public Botan::TLS::Callbacks {
     using STR = decltype(STRNAMESPACE());
 public:
-
-    const bool verifyCertificates; // true for URL download, false for connection to XRE server
-
     RingBuffer& inRb;
-    IDescriptor& Gsock;
+    IDescriptor& netsock;
 
     bool setupAborted = false;
     Botan::secure_vector<uint8_t> sharedHash;
+
+public:
+    void tls_emit_data(const uint8_t* data, size_t size) override {
+        netsock.writeAllOrExit(data,size);
+    }
+
+    void tls_alert(Botan::TLS::Alert alert) override {
+        PRINTUNIFIED("Alert: %s\n",alert.type_string().c_str());
+        if (alert.type() == Botan::TLS::Alert::Type::CLOSE_NOTIFY) {
+            PRINTUNIFIED("TLS endpoint closed connection\n");
+            inRb.close(false); // Assume close notify is graceful connection termination
+        }
+    }
+
+    void tls_record_received(uint64_t seq_no, const uint8_t buf[], size_t buf_size) override {
+        if (inRb.writeAll(buf,buf_size) < buf_size) _Exit(91); // RingBuffer is reliable, OK to call exit here
+    }
+
+    // constructor using an already connected network socket
+    TLS_Common_Callbacks(RingBuffer& inRb_,
+                         IDescriptor& netsock_) :
+            inRb(inRb_),
+            netsock(netsock_) {}
+};
+
+class TLS_Callbacks_Client : public TLS_Common_Callbacks {
+    using STR = decltype(STRNAMESPACE());
+public:
+    const bool verifyCertificates; // true for URL download, false for connection to XRE server
 
     void tls_verify_cert_chain(
             const std::vector<Botan::X509_Certificate>& cert_chain,
@@ -152,7 +178,7 @@ public:
             }
             else {
                 PRINTUNIFIEDERROR("Certificate verification failed\n");
-                Gsock.shutdown();
+                netsock.shutdown();
                 inRb.close(true);
                 setupAborted = true;
             }
@@ -167,7 +193,7 @@ public:
         auto master_secret = session.master_secret();
 
         // NEW: SHA256 -> 32 bytes binary data ////////////////////
-        std::unique_ptr<Botan::HashFunction> sha256(Botan::HashFunction::create("SHA-256"));
+        std::unique_ptr<Botan::HashFunction> sha256{Botan::HashFunction::create("SHA-256")};
         sha256->update(master_secret.data(),master_secret.size());
         sharedHash = sha256->final();
 
@@ -175,36 +201,15 @@ public:
         return false;
     }
 
-    void tls_emit_data(const uint8_t* data, size_t size) override {
-        Gsock.writeAllOrExit(data,size);
-    }
-
-    void tls_alert(Botan::TLS::Alert alert) override {
-        PRINTUNIFIED("Alert: %s\n",alert.type_string().c_str());
-        if (alert.type() == Botan::TLS::Alert::Type::CLOSE_NOTIFY) {
-            PRINTUNIFIED("TLS endpoint closed connection\n");
-            inRb.close(false); // Assume close notify is graceful connection termination
-        }
-    }
-
-    void tls_record_received(uint64_t seq_no, const uint8_t buf[], size_t buf_size) override {
-        if (inRb.writeAll(buf,buf_size) < buf_size) _Exit(91); // RingBuffer is reliable, OK to call exit here
-    }
-
-public:
     // constructor using an already connected network socket
     TLS_Callbacks_Client(RingBuffer& inRb_,
-                         IDescriptor& Gsock_,
-                         bool verifyCertificates_ = false,
-                         std::vector<uint8_t> serializedClientInfo_ = {},
-                         IDescriptor* local_sock_fd_ = nullptr
-    ) :
-            inRb(inRb_),
-            Gsock(Gsock_),
-            verifyCertificates(verifyCertificates_) {}
+                         IDescriptor& netsock_,
+                         bool verifyCertificates_ = false) :
+            TLS_Common_Callbacks(inRb_,netsock_),
+            verifyCertificates{verifyCertificates_} {}
 };
 
-class TLS_Callbacks_Server : public TLS_Callbacks_Client {
+class TLS_Callbacks_Server : public TLS_Common_Callbacks {
     using STR = decltype(STRNAMESPACE());
 public:
 	IDescriptor* local_sock_fd;
@@ -239,41 +244,36 @@ public:
             // beware, runSessionWithColorGrid resolves to
             // two different functions with same name depending on the OS
 #if defined(_WIN32) || defined(USE_X11)
-			std::thread hvThread(runSessionWithColorGrid,sharedHash);
+			std::thread hvThread{runSessionWithColorGrid,sharedHash};
 			hvThread.detach();
 #endif
 		}
 		return false; // returning true will cache session for later resumption
 	}
 
-public:
 	TLS_Callbacks_Server(RingBuffer& inRb_,
-						 IDescriptor& Gsock_,
-						 bool verifyCertificates_ = false,
+						 IDescriptor& netsock_,
                          std::vector<uint8_t> serializedClientInfo_ = {},
                          IDescriptor* local_sock_fd_ = nullptr
-    ) : TLS_Callbacks_Client(inRb_, Gsock_, verifyCertificates_),
+    ) : TLS_Common_Callbacks(inRb_, netsock_),
 		local_sock_fd(local_sock_fd_),
 		serializedClientInfo(serializedClientInfo_) {}
 };
 
-TLS_Callbacks_Client get_tls_callbacks(const bool serverSide,
+TLS_Common_Callbacks get_tls_callbacks(const bool serverSide,
                                    RingBuffer& inRb_,
-                                   IDescriptor& Gsock_,
+                                   IDescriptor& netsock_,
                                    bool verifyCertificates_ = false,
                                    std::vector<uint8_t> serializedClientInfo_ = {},
                                    IDescriptor* local_sock_fd_ = nullptr) {
     return serverSide ?
            TLS_Callbacks_Server(inRb_,
-                                Gsock_,
-                                verifyCertificates_,
+                                netsock_,
                                 serializedClientInfo_,
                                 local_sock_fd_) :
            TLS_Callbacks_Client(inRb_,
-                                Gsock_,
-                                verifyCertificates_,
-                                serializedClientInfo_,
-                                local_sock_fd_);
+                                netsock_,
+                                verifyCertificates_);
 }
 
 Botan::TLS::Channel* get_tls_channel(const bool serverSide,
