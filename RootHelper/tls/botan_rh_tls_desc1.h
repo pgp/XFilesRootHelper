@@ -260,20 +260,20 @@ public:
 		serializedClientInfo(serializedClientInfo_) {}
 };
 
-TLS_Common_Callbacks get_tls_callbacks(const bool serverSide,
-                                   RingBuffer& inRb_,
-                                   IDescriptor& netsock_,
-                                   bool verifyCertificates_ = false,
-                                   std::vector<uint8_t> serializedClientInfo_ = {},
-                                   IDescriptor* local_sock_fd_ = nullptr) {
+TLS_Common_Callbacks* get_tls_callbacks(const bool serverSide,
+                                        RingBuffer& inRb_,
+                                        IDescriptor& netsock_,
+                                        bool verifyCertificates_ = false,
+                                        std::vector<uint8_t> serializedClientInfo_ = {},
+                                        IDescriptor* local_sock_fd_ = nullptr) {
     return serverSide ?
-           TLS_Callbacks_Server(inRb_,
-                                netsock_,
-                                serializedClientInfo_,
-                                local_sock_fd_) :
-           TLS_Callbacks_Client(inRb_,
-                                netsock_,
-                                verifyCertificates_);
+           (TLS_Common_Callbacks*)(new TLS_Callbacks_Server(inRb_,
+                                                            netsock_,
+                                                            serializedClientInfo_,
+                                                            local_sock_fd_)) :
+           (TLS_Common_Callbacks*)(new TLS_Callbacks_Client(inRb_,
+                                                            netsock_,
+                                                            verifyCertificates_));
 }
 
 Botan::TLS::Channel* get_tls_channel(const bool serverSide,
@@ -323,7 +323,7 @@ private:
 	const Botan::TLS::Policy policy; // also, PostQuantumPolicy and ClassicPolicy
 
 	Botan::TLS::Session_Manager_In_Memory session_mgr;
-	TLS_Callbacks_Client callbacks; // formerly, TLS_Client, subclass of Botan::TLS::Callbacks
+	TLS_Common_Callbacks* callbacks; // formerly, TLS_Client, subclass of Botan::TLS::Callbacks
 	Botan::TLS::Channel* channel; // Botan::TLS::Server or Botan::TLS::Client, built from Botan::TLS::Callbacks(subclass-> TLS_Client)
     // TODO make some more experiments with brace-initializer list and ternary operator in constructor
 public:
@@ -368,7 +368,7 @@ public:
 //                              version )}
                channel(get_tls_channel(
                        serverSide,
-                       callbacks,
+                       *callbacks,
                        session_mgr,
                        creds,
                        policy,
@@ -384,6 +384,10 @@ public:
             delete channel;
             channel = nullptr;
         }
+        if(callbacks != nullptr) {
+            delete callbacks;
+            callbacks = nullptr;
+        }
 	}
 
     Botan::secure_vector<uint8_t> setup() {
@@ -395,15 +399,15 @@ public:
             while (!channel->is_active()) {
                 PRINTUNIFIED(".");
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                if (callbacks.setupAborted || i > 50) { // wait till 5 seconds for connection establishment
+                if (callbacks->setupAborted || i > 50) { // wait till 5 seconds for connection establishment
                     PRINTUNIFIEDERROR("Client closed during connection setup, or connection timeout\n");
-                    return callbacks.sharedHash;
+                    return callbacks->sharedHash;
                 }
                 i++;
             }
             PRINTUNIFIED("\nTLS channel ready\n");
         }
-        return callbacks.sharedHash;
+        return callbacks->sharedHash;
     }
 
     void cleanup() {
