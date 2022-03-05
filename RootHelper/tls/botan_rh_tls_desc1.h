@@ -317,7 +317,7 @@ private:
 
 	// moved from TLS_Client.go() method
 	Botan::System_RNG rng_;
-	Basic_Credentials_Manager creds;
+	Basic_Credentials_Manager& creds;
 	const std::vector<std::string> protocols_to_offer; // empty, split_on ignored
 	const Botan::TLS::Protocol_Version::Version_Code version;
 	const Botan::TLS::Policy policy; // also, PostQuantumPolicy and ClassicPolicy
@@ -330,6 +330,7 @@ public:
     TLSDescriptorABC(IDescriptor& netsock_,
                      RingBuffer& inRb_,
                      int serverPort_,
+                     Basic_Credentials_Manager& creds_,
                      bool verifyCertificates_ = false,
                      std::string sniHost_ = "",
                      const bool serverSide_ = false,
@@ -340,6 +341,7 @@ public:
               netsock{netsock_},
               inRb{inRb_},
               serverPort{serverPort_},
+              creds{creds_},
               verifyCertificates{verifyCertificates_},
               sniHost(std::move(sniHost_)),
               session_mgr(rng_),

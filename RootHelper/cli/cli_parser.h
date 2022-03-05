@@ -110,7 +110,8 @@ int tls1_FromArgs(int argc, const C* argv[]) {
         return -1;
     }
     RingBuffer rb;
-    TLSDescriptorABC tlsd(remoteCl,rb,port,true,domainOnly);
+    Basic_Credentials_Manager defaultCreds; // don't use the custom credsManager, used for xre
+    TLSDescriptorABC tlsd(remoteCl,rb,port,defaultCreds,true,domainOnly);
     tlsd.setup();
     std::string fullGetString = "GET "+getString+" HTTP/1.0\r\nHost: "+domainOnly+"\r\n"
             "User-Agent: XFilesHTTPSClient/1.0.0\r\n"

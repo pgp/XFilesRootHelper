@@ -413,7 +413,8 @@ int httpsUrlDownload_internal1(IDescriptor& cl,
         }
     }
 
-    TLSDescriptorABC tlsd(remoteCl, inRb, port, true, domainOnly);
+    Basic_Credentials_Manager defaultCreds; // don't use the custom credsManager, used for xre
+    TLSDescriptorABC tlsd(remoteCl, inRb, port, defaultCreds, true, domainOnly);
     auto sharedHash = tlsd.setup();
     if(sharedHash.empty()) {
         PRINTUNIFIEDERROR("Error during TLS connection setup\n");
@@ -553,7 +554,8 @@ int httpsUrlUpload_x0at_internal1(IDescriptor& cl,
         return -1;
     }
 
-    TLSDescriptorABC tlsd(remoteCl, inRb, port, true, domainOnly);
+    Basic_Credentials_Manager defaultCreds; // don't use the custom credsManager, used for xre
+    TLSDescriptorABC tlsd(remoteCl, inRb, port, defaultCreds, true, domainOnly);
     auto sharedHash = tlsd.setup();
     if(sharedHash.empty()) {
         PRINTUNIFIEDERROR("Error during TLS connection setup\n");
