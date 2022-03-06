@@ -89,42 +89,6 @@ int upload_x0at_FromArgs(int argc, const C* argv[]) {
 }
 
 template<typename C>
-int tls1_FromArgs(int argc, const C* argv[]) {
-#ifdef _WIN32
-    { // FIXME call common init method BEFORE invoking cli parser
-        // Initialize Winsock
-        WSADATA wsaData;
-        auto iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
-        if (iResult != 0) {
-            printf("WSAStartup failed with error: %d\n", iResult);
-            _Exit(572);
-        }
-    };
-#endif
-    std::string domainOnly = "ifconfig.io";
-    std::string getString = "/ip";
-    auto port = 443;
-    auto&& remoteCl = netfactory.create(domainOnly, port);
-    if(!remoteCl) {
-        PRINTUNIFIEDERROR("Unable to connect to %s\n",domainOnly.c_str());
-        return -1;
-    }
-    RingBuffer rb;
-    Basic_Credentials_Manager defaultCreds; // don't use the custom credsManager, used for xre
-    TLSDescriptor tlsd(remoteCl,rb,port,defaultCreds,true,domainOnly);
-    tlsd.setup();
-    std::string fullGetString = "GET "+getString+" HTTP/1.0\r\nHost: "+domainOnly+"\r\n"
-            "User-Agent: XFilesHTTPSClient/1.0.0\r\n"
-            "Accept: */*\r\n\r\n";
-    tlsd.writeAllOrExit(fullGetString.c_str(),fullGetString.size());
-    std::string response;
-    response.resize(4096);
-    tlsd.read((uint8_t*)response.c_str(),response.size());
-    PRINTUNIFIED("************Response (both headers and body)************\n\n%s\n\n***************************************************",response.c_str());
-    return 0;
-}
-
-template<typename C>
 int sshKeygenFromArgs(int argc, const C* argv[]) {
     std::string keyType;
     if(argc < 3) goto errorLabel;
@@ -245,7 +209,6 @@ int createFileFromArgs(int argc, const C* argv[]) {
 const std::unordered_map<std::string,std::pair<ControlCodes,cliFunction>> allowedFromCli = {
         {"download", {ControlCodes::ACTION_HTTPS_URL_DOWNLOAD, downloadFromArgs}},
         {"upx0at", {ControlCodes::ACTION_CLOUD_SERVICES, upload_x0at_FromArgs}},
-        {"tls1", {ControlCodes::ACTION_CLOUD_SERVICES, tls1_FromArgs}},
         {"ssh-keygen", {ControlCodes::ACTION_SSH_KEYGEN, sshKeygenFromArgs}},
         {"hashNames", {ControlCodes::ACTION_HASH, hashFromArgs}},
         {"hash", {ControlCodes::ACTION_HASH, hashFromArgs}},
