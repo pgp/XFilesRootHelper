@@ -1,7 +1,7 @@
 #ifndef __XRE_H__
 #define __XRE_H__
 #include <iterator>
-#include "tls/botan_rh_tls_desc1.h"
+#include "tls/botan_rh_tls_descriptor.h"
 
 #ifdef _WIN32
 #include "desc/WinsockDescriptor.h"

@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include "../common_uds.h"
 #include "../tls/basic_https_client.h"
-#include "../tls/botan_rh_tls_desc1.h"
+#include "../tls/botan_rh_tls_descriptor.h"
 #include "../tls/ssh_keygen_ed25519.h"
 #include "../desc/SinkDescriptor.h"
 #include "../rh_hasher_botan.h"

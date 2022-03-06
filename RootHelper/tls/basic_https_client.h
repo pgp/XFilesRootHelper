@@ -9,7 +9,7 @@
 #include "../iowrappers_common.h"
 #include "../desc/NetworkDescriptorFactory.h"
 #include "../desc/FileDescriptorFactory.h"
-#include "botan_rh_tls_desc1.h"
+#include "botan_rh_tls_descriptor.h"
 #include "../progressHook.h"
 
 // Web source: https://stackoverflow.com/questions/3152241/case-insensitive-stdstring-find
