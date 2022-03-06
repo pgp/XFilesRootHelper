@@ -1186,7 +1186,8 @@ void tlsClientSession(IDescriptor& cl) { // cl is local socket
 	PRINTUNIFIED("Remote client session connected to server %s, port %d\n",target.c_str(),port);
 
 	RingBuffer inRb;
-	TLSDescriptor tlsd(remoteCl, inRb, 11111, *credsManager);
+	Basic_Credentials_Manager defaultCreds;
+	TLSDescriptor tlsd(remoteCl, inRb, port, defaultCreds);
 	auto sharedHash = tlsd.setup();
 	if(sharedHash.empty()) {
 		PRINTUNIFIEDERROR("Error during TLS connection setup\n");
