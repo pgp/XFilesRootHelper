@@ -1186,12 +1186,12 @@ void tlsClientSession(IDescriptor& cl) { // cl is local socket
 	PRINTUNIFIED("Remote client session connected to server %s, port %d\n",target.c_str(),port);
 
 	RingBuffer inRb;
-	TLSDescriptor tlsd(remoteCl, inRb, 11111, *credsManager)
+	TLSDescriptor tlsd(remoteCl, inRb, 11111, *credsManager);
 	auto sharedHash = tlsd.setup();
 	if(sharedHash.empty()) {
 		PRINTUNIFIEDERROR("Error during TLS connection setup\n");
 		sendErrorResponse(cl);
-		return -1;
+		return;
 	}
 
 	PRINTUNIFIED("TLS connection established with XRE server\n");
