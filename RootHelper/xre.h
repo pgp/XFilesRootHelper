@@ -1,9 +1,7 @@
 #ifndef __XRE_H__
 #define __XRE_H__
 #include <iterator>
-#include "tls/botan_rh_tls_descriptor.h"
 #include "tls/botan_rh_tls_desc1.h"
-#include "tls/botan_rh_rserver.h"
 
 #ifdef _WIN32
 #include "desc/WinsockDescriptor.h"
@@ -191,7 +189,6 @@ void tlsServerSessionEventLoop(TLSDescriptorABC& rcl) {
     // in order to maintain common interface for actions in the switch,
     // a container of both a RingBuffer and a Botan::TLS::Server implements IDescriptor (rb for read, tls server for write)
     // for local interactions, PosixDescriptor wrapper is used instead
-    // TLSDescriptor rcl(inRb,server);
     try {
         for (;;) {
             // read request type (1 byte: 5 bits + 3 bits of flags)
@@ -319,13 +316,10 @@ std::string getIPAndPortFromDesc(struct sockaddr_in& client) {
 
 void tlsServerSession(SOCKET remoteCl, std::string s) {
     WinsockDescriptor wsd(remoteCl);
-    // TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,wsd,credsManager);
     RingBuffer inRb;
     TLSDescriptorABC tlsd(wsd, inRb, 11111, *credsManager, false, "", true); // TODO do not hardcode port
     tlsd.setup();
     tlsServerSessionEventLoop(tlsd);
-    // tlsServer.go();
-    //~ on_server_session_exit_func(wsd,s);
     on_server_session_exit_func(s);
 }
 
@@ -439,20 +433,16 @@ void tlsServerSession(int remoteCl) {
 		// for tls, send handshake info (hash of shared secret) over rhss_local
 	
 		PosixDescriptor pd_rhss_local(rhss_local);
-		// TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,pd_remoteCl, credsManager, &pd_rhss_local,connectInfo);
 		RingBuffer inRb;
 		TLSDescriptorABC tlsd(pd_remoteCl, inRb, 11111, *credsManager, false, "", true, connectInfo, &pd_rhss_local); // TODO do not hardcode port
 		tlsd.setup();
 		tlsServerSessionEventLoop(tlsd);
-		// tlsServer.go();
 	}
 	else {
-		// TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,pd_remoteCl, credsManager);
 		RingBuffer inRb;
 		TLSDescriptorABC tlsd(pd_remoteCl, inRb, 11111, *credsManager, false, "", true); // TODO do not hardcode port
 		tlsd.setup();
 		tlsServerSessionEventLoop(tlsd);
-		// tlsServer.go();
 	}
 	
 	// at the end of the thread (after join of ringbuffer thread), send disconnect info

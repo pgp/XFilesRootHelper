@@ -11,7 +11,6 @@
 #include "tls/botan_rh_tls_desc1.h"
 #include "desc/AutoFlushBufferedWriteDescriptor.h"
 
-#include "tls/botan_rh_rserver.h"
 #include "tls/basic_https_client.h"
 
 #include "resps/singleStats_resp.h"
@@ -1123,10 +1122,7 @@ void getServerAcceptorStatus(IDescriptor& cl) {
 	}
 }
 
-//void tlsClientSessionEventLoop(RingBuffer& inRb, Botan::TLS::Client& client, IDescriptor& cl) {
-void tlsClientSessionEventLoop(TLS_Client& client_wrapper) {
-  TLSDescriptor rcl(client_wrapper.inRb,*(client_wrapper.client));
-  IDescriptor& cl = client_wrapper.local_sock_fd;
+void tlsClientSessionEventLoop(TLSDescriptorABC& rcl, IDescriptor& cl) {
   try {
 	PRINTUNIFIED("In TLS client event loop...\n");
 	for(;;) {
@@ -1188,11 +1184,25 @@ void tlsClientSession(IDescriptor& cl) { // cl is local socket
     }
 
 	PRINTUNIFIED("Remote client session connected to server %s, port %d\n",target.c_str(),port);
-	sendOkResponse(cl); // OK, from now on java client can communicate with remote server using this local socket
-	
+
 	RingBuffer inRb;
-	TLS_Client tlsClient(tlsClientSessionEventLoop,inRb,cl,remoteCl);
-	tlsClient.go();
+	TLSDescriptorABC tlsd(remoteCl, inRb, 11111, *credsManager)
+	auto sharedHash = tlsd.setup();
+	if(sharedHash.empty()) {
+		PRINTUNIFIEDERROR("Error during TLS connection setup\n");
+		sendErrorResponse(cl);
+		return -1;
+	}
+
+	PRINTUNIFIED("TLS connection established with XRE server\n");
+	sendOkResponse(cl); // OK, from now on java client can communicate with remote server using this local socket
+
+	if(cl.write(&sharedHash[0],sharedHash.size()) < sharedHash.size()) {
+		PRINTUNIFIEDERROR("Unable to atomic write connect info to local socket");
+		threadExit();
+	}
+
+	tlsClientSessionEventLoop(tlsd, cl);
 	
 	// at the end, close the sockets
 	remoteCl.close();

@@ -9,7 +9,6 @@
 #include "../iowrappers_common.h"
 #include "../desc/NetworkDescriptorFactory.h"
 #include "../desc/FileDescriptorFactory.h"
-#include "botan_rh_rclient.h"
 #include "botan_rh_tls_desc1.h"
 #include "../progressHook.h"
 
@@ -329,56 +328,6 @@ brokenDownload:
     rcl.close();
     local_fd.close();
     return -1;
-}
-
-void tlsClientUrlDownloadEventLoop(TLS_Client& client_wrapper) {
-    TLSDescriptor rcl(client_wrapper.inRb,*(client_wrapper.client));
-    try {
-        if(client_wrapper.sniHost.empty() || client_wrapper.downloadPath.empty()) {
-            if(client_wrapper.downloadToFile) {
-                PRINTUNIFIEDERROR("sniHost field or download path is empty");
-                threadExit();
-            }
-        }
-        PRINTUNIFIED("In TLS URL Download event loop, getString is %s ...\n",client_wrapper.getString.c_str());
-        auto&& getString1 = (client_wrapper.getString.empty() || client_wrapper.getString[0] != '/')?
-                            "/"+client_wrapper.getString:
-                            client_wrapper.getString;
-        std::string request = "GET "+getString1+" HTTP/1.0\r\n"
-                                                "Host: "+client_wrapper.sniHost+"\r\n"
-                                                                                "User-Agent: XFilesHTTPClient/1.0.0\r\n"
-                                                                                "Accept: */*\r\n"
-                                                                                "Connection: close\r\n\r\n";
-        rcl.writeAllOrExit(request.c_str(),request.length());
-        // read both header and body into file
-        std::string hdrs;
-        client_wrapper.httpRet = parseHttpResponseHeadersAndBody(rcl,
-                                                                 client_wrapper.local_sock_fd,
-                                                                 client_wrapper.downloadPath,
-                                                                 client_wrapper.targetFilename,
-                                                                 hdrs,
-                                                                 client_wrapper.sniHost+"/"+client_wrapper.getString, // ~ url
-                                                                 client_wrapper.downloadToFile);
-        if (client_wrapper.httpRet == 301 || client_wrapper.httpRet == 302) {
-            // get redirect domain
-            const std::string locLabel = "\nLocation: ";
-            auto redirectLocIdx = findStringIC(hdrs,locLabel);
-            if(redirectLocIdx == std::string::npos) throw std::runtime_error("Malformed redirect response");
-            auto locationtag = hdrs.substr(redirectLocIdx+locLabel.size());
-            redirectLocIdx = locationtag.find("\r\n");
-            if(redirectLocIdx == std::string::npos) throw std::runtime_error("Malformed redirect response after location tag");
-            locationtag = locationtag.substr(0,redirectLocIdx);
-            PRINTUNIFIED("Redirect location is %s\n",locationtag.c_str());
-            client_wrapper.locationToRedirect = locationtag;
-        }
-    }
-    catch (threadExitThrowable& i) {
-        PRINTUNIFIEDERROR("T2 ...\n");
-    }
-    catch (std::exception& e) {
-        PRINTUNIFIEDERROR("exception: %s\n",e.what());
-    }
-    PRINTUNIFIEDERROR("[tlsClientUrlDownloadEventLoop] No housekeeping and return\n");
 }
 
 template<typename STR>
