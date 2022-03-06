@@ -36,7 +36,7 @@ SOCKET Accept(SOCKET &serv, struct sockaddr_in &client_info) {
 #endif
 
 Botan::System_RNG sysRng;
-Basic_Credentials_Manager credsManager;
+Basic_Credentials_Manager* credsManager;
 
 //////////////////////////////////////////////////
 //////////////////////////////////////////////////
@@ -321,7 +321,7 @@ void tlsServerSession(SOCKET remoteCl, std::string s) {
     WinsockDescriptor wsd(remoteCl);
     // TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,wsd,credsManager);
     RingBuffer inRb;
-    TLSDescriptorABC tlsd(wsd, inRb, 11111, credsManager, false, "", true); // TODO do not hardcode port
+    TLSDescriptorABC tlsd(wsd, inRb, 11111, *credsManager, false, "", true); // TODO do not hardcode port
     tlsd.setup();
     tlsServerSessionEventLoop(tlsd);
     // tlsServer.go();
@@ -441,7 +441,7 @@ void tlsServerSession(int remoteCl) {
 		PosixDescriptor pd_rhss_local(rhss_local);
 		// TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,pd_remoteCl, credsManager, &pd_rhss_local,connectInfo);
 		RingBuffer inRb;
-		TLSDescriptorABC tlsd(pd_remoteCl, inRb, 11111, credsManager, false, "", true, connectInfo, &pd_rhss_local); // TODO do not hardcode port
+		TLSDescriptorABC tlsd(pd_remoteCl, inRb, 11111, *credsManager, false, "", true, connectInfo, &pd_rhss_local); // TODO do not hardcode port
 		tlsd.setup();
 		tlsServerSessionEventLoop(tlsd);
 		// tlsServer.go();
@@ -449,7 +449,7 @@ void tlsServerSession(int remoteCl) {
 	else {
 		// TLS_Server tlsServer(tlsServerSessionEventLoop,RH_TLS_CERT_STRING,RH_TLS_KEY_STRING,pd_remoteCl, credsManager);
 		RingBuffer inRb;
-		TLSDescriptorABC tlsd(pd_remoteCl, inRb, 11111, credsManager, false, "", true); // TODO do not hardcode port
+		TLSDescriptorABC tlsd(pd_remoteCl, inRb, 11111, *credsManager, false, "", true); // TODO do not hardcode port
 		tlsd.setup();
 		tlsServerSessionEventLoop(tlsd);
 		// tlsServer.go();
@@ -573,7 +573,7 @@ inline void registerExitRoutines() {
 bool xreAvailable() {
 #if defined(ANDROID_NDK) // under Android, try to load only from working directory
 	bool b = existsIsFileIsDir_(FROMUTF(RH_TLS_CERT_STRING)) == 1 && existsIsFileIsDir_(FROMUTF(RH_TLS_KEY_STRING)) == 1;
-	if(b) credsManager = Basic_Credentials_Manager(sysRng, RH_TLS_CERT_STRING, RH_TLS_KEY_STRING);
+	if(b) credsManager = new Basic_Credentials_Manager(sysRng, RH_TLS_CERT_STRING, RH_TLS_KEY_STRING);
 	else PRINTUNIFIEDERROR("Dummy cert/key files not found\n");
 	return b;
 #elif defined(_WIN32) // under Windows, try to load only from executable's directory
@@ -595,7 +595,7 @@ bool xreAvailable() {
 	auto&& p2 = w + FROMUTF(RH_TLS_KEY_STRING);
 
 	bool b = existsIsFileIsDir_(p1) == 1 && existsIsFileIsDir_(p2) == 1;
-	if(b) credsManager = Basic_Credentials_Manager(sysRng, TOUTF(p1), TOUTF(p2));
+	if(b) credsManager = new Basic_Credentials_Manager(sysRng, TOUTF(p1), TOUTF(p2));
 	else PRINTUNIFIEDERROR("Dummy cert/key files not found\n");
 	return b;
 #else
@@ -607,7 +607,7 @@ bool xreAvailable() {
         auto&& key1 = FROMUTF(key);
         if(existsIsFileIsDir_(crt1) == 1 &&
            existsIsFileIsDir_(key1) == 1) {
-            credsManager = Basic_Credentials_Manager(sysRng, crt, key);
+            credsManager = new Basic_Credentials_Manager(sysRng, crt, key);
             PRINTUNIFIED("Loaded dummy cert/key from %s\n",s.c_str());
             return true;
         }
