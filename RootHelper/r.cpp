@@ -1122,7 +1122,7 @@ void getServerAcceptorStatus(IDescriptor& cl) {
 	}
 }
 
-void tlsClientSessionEventLoop(TLSDescriptorABC& rcl, IDescriptor& cl) {
+void tlsClientSessionEventLoop(TLSDescriptor& rcl, IDescriptor& cl) {
   try {
 	PRINTUNIFIED("In TLS client event loop...\n");
 	for(;;) {
@@ -1186,7 +1186,7 @@ void tlsClientSession(IDescriptor& cl) { // cl is local socket
 	PRINTUNIFIED("Remote client session connected to server %s, port %d\n",target.c_str(),port);
 
 	RingBuffer inRb;
-	TLSDescriptorABC tlsd(remoteCl, inRb, 11111, *credsManager)
+	TLSDescriptor tlsd(remoteCl, inRb, 11111, *credsManager)
 	auto sharedHash = tlsd.setup();
 	if(sharedHash.empty()) {
 		PRINTUNIFIEDERROR("Error during TLS connection setup\n");

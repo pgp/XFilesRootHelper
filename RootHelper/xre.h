@@ -184,7 +184,7 @@ void controlCursor(IDescriptor& cl) {
 }
 
 // compatible signature with TlsServerEventLoopFn function type declared in botan_rh_rserver.h
-void tlsServerSessionEventLoop(TLSDescriptorABC& rcl) {
+void tlsServerSessionEventLoop(TLSDescriptor& rcl) {
 
     // in order to maintain common interface for actions in the switch,
     // a container of both a RingBuffer and a Botan::TLS::Server implements IDescriptor (rb for read, tls server for write)
@@ -317,7 +317,7 @@ std::string getIPAndPortFromDesc(struct sockaddr_in& client) {
 void tlsServerSession(SOCKET remoteCl, std::string s) {
     WinsockDescriptor wsd(remoteCl);
     RingBuffer inRb;
-    TLSDescriptorABC tlsd(wsd, inRb, 11111, *credsManager, false, "", true); // TODO do not hardcode port
+    TLSDescriptor tlsd(wsd, inRb, 11111, *credsManager, false, "", true); // TODO do not hardcode port
     tlsd.setup();
     tlsServerSessionEventLoop(tlsd);
     on_server_session_exit_func(s);
@@ -434,13 +434,13 @@ void tlsServerSession(int remoteCl) {
 	
 		PosixDescriptor pd_rhss_local(rhss_local);
 		RingBuffer inRb;
-		TLSDescriptorABC tlsd(pd_remoteCl, inRb, 11111, *credsManager, false, "", true, connectInfo, &pd_rhss_local); // TODO do not hardcode port
+		TLSDescriptor tlsd(pd_remoteCl, inRb, 11111, *credsManager, false, "", true, connectInfo, &pd_rhss_local); // TODO do not hardcode port
 		tlsd.setup();
 		tlsServerSessionEventLoop(tlsd);
 	}
 	else {
 		RingBuffer inRb;
-		TLSDescriptorABC tlsd(pd_remoteCl, inRb, 11111, *credsManager, false, "", true); // TODO do not hardcode port
+		TLSDescriptor tlsd(pd_remoteCl, inRb, 11111, *credsManager, false, "", true); // TODO do not hardcode port
 		tlsd.setup();
 		tlsServerSessionEventLoop(tlsd);
 	}

@@ -1,5 +1,5 @@
-#ifndef _BOTAN_RH_TLS_DESCRIPTOR1_H_
-#define _BOTAN_RH_TLS_DESCRIPTOR1_H_
+#ifndef _BOTAN_RH_TLS_DESCRIPTOR_H_
+#define _BOTAN_RH_TLS_DESCRIPTOR_H_
 
 #include <chrono>
 #include <cerrno>
@@ -20,8 +20,7 @@
 #define MSG_NOSIGNAL 0
 #endif
 
-// TODO remove ABC suffix
-void incomingRbMemberFnABC(IDescriptor& netsock, Botan::TLS::Channel& channel, RingBuffer& inRb) {
+void incomingRbMemberFnClient(IDescriptor& netsock, Botan::TLS::Channel& channel, RingBuffer& inRb) {
     uint8_t buf[4096];
     for(;;) {
         ssize_t readBytes = netsock.read(buf,4096);
@@ -59,7 +58,7 @@ std::string getLastError() {
 #endif
 }
 
-void incomingRbMemberFnDEF(IDescriptor& netsock, Botan::TLS::Channel& channel, RingBuffer& inRb) {
+void incomingRbMemberFnServer(IDescriptor& netsock, Botan::TLS::Channel& channel, RingBuffer& inRb) {
     PRINTUNIFIED("In TLS server loop\n");
     ssize_t readBytes = -1;
     try {
@@ -300,8 +299,7 @@ Botan::TLS::Channel* get_tls_channel(const bool serverSide,
                               version));
 }
 
-// TODO remove ABC suffix
-class TLSDescriptorABC : public IDescriptor {
+class TLSDescriptor : public IDescriptor {
 private:
     const bool serverSide;
 
@@ -327,15 +325,15 @@ private:
 	Botan::TLS::Channel* channel; // Botan::TLS::Server or Botan::TLS::Client, built from Botan::TLS::Callbacks(subclass-> TLS_Client)
     // TODO make some more experiments with brace-initializer list and ternary operator in constructor
 public:
-    TLSDescriptorABC(IDescriptor& netsock_,
-                     RingBuffer& inRb_,
-                     int serverPort_,
-                     Basic_Credentials_Manager& creds_,
-                     bool verifyCertificates_ = false,
-                     std::string sniHost_ = "",
-                     const bool serverSide_ = false,
-                     std::vector<uint8_t> serializedClientInfo_ = {},
-                     IDescriptor* callbacks_localsockfd = nullptr
+    TLSDescriptor(IDescriptor& netsock_,
+                  RingBuffer& inRb_,
+                  int serverPort_,
+                  Basic_Credentials_Manager& creds_,
+                  bool verifyCertificates_ = false,
+                  std::string sniHost_ = "",
+                  const bool serverSide_ = false,
+                  std::vector<uint8_t> serializedClientInfo_ = {},
+                  IDescriptor* callbacks_localsockfd = nullptr
     )
             : serverSide{serverSide_},
               netsock{netsock_},
@@ -366,7 +364,7 @@ public:
         );
     }
 
-	~TLSDescriptorABC() {
+	~TLSDescriptor() {
 		cleanup();
         if(channel != nullptr) {
             delete channel;
@@ -379,7 +377,7 @@ public:
 	}
 
     Botan::secure_vector<uint8_t> setup() {
-		incomingRbThread = std::thread{serverSide?incomingRbMemberFnDEF:incomingRbMemberFnABC, std::ref(netsock), std::ref(*channel), std::ref(inRb)}; // thread is started here
+		incomingRbThread = std::thread{serverSide?incomingRbMemberFnServer:incomingRbMemberFnClient, std::ref(netsock), std::ref(*channel), std::ref(inRb)}; // thread is started here
 
         if(!serverSide) {
             PRINTUNIFIED("Waiting for TLS channel to be ready");
