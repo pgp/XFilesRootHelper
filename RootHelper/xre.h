@@ -317,7 +317,7 @@ std::string getIPAndPortFromDesc(struct sockaddr_in& client) {
 void tlsServerSession(SOCKET remoteCl, std::string s) {
     WinsockDescriptor wsd(remoteCl);
     RingBuffer inRb;
-    TLSDescriptor tlsd(wsd, inRb, 11111, *credsManager, false, "", true); // TODO do not hardcode port
+    TLSDescriptor tlsd(wsd, inRb, rhServerPort, *credsManager, false, "", true);
     tlsd.setup();
     tlsServerSessionEventLoop(tlsd);
     on_server_session_exit_func(s);
@@ -434,13 +434,13 @@ void tlsServerSession(int remoteCl) {
 	
 		PosixDescriptor pd_rhss_local(rhss_local);
 		RingBuffer inRb;
-		TLSDescriptor tlsd(pd_remoteCl, inRb, 11111, *credsManager, false, "", true, connectInfo, &pd_rhss_local); // TODO do not hardcode port
+		TLSDescriptor tlsd(pd_remoteCl, inRb, rhServerPort, *credsManager, false, "", true, connectInfo, &pd_rhss_local);
 		tlsd.setup();
 		tlsServerSessionEventLoop(tlsd);
 	}
 	else {
 		RingBuffer inRb;
-		TLSDescriptor tlsd(pd_remoteCl, inRb, 11111, *credsManager, false, "", true); // TODO do not hardcode port
+		TLSDescriptor tlsd(pd_remoteCl, inRb, rhServerPort, *credsManager, false, "", true);
 		tlsd.setup();
 		tlsServerSessionEventLoop(tlsd);
 	}
