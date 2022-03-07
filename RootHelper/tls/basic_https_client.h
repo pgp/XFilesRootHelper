@@ -331,7 +331,7 @@ brokenDownload:
 }
 
 template<typename STR>
-int httpsUrlDownload_internal1(IDescriptor& cl,
+int httpsUrlDownload_internal(IDescriptor& cl,
                               std::string& targetUrl,
                               uint16_t port,
                               const STR& downloadPath,
@@ -489,10 +489,10 @@ const std::string tfl = "out_x0at.txt";
 #endif
 
 template<typename STR>
-int httpsUrlUpload_x0at_internal1(IDescriptor& cl,
-                              const STR& sourcePathForUpload,
-                              RingBuffer& inRb,
-                              bool uploadFromCli) {
+int httpsUrlUpload_x0at_internal(IDescriptor& cl,
+                                 const STR& sourcePathForUpload,
+                                 RingBuffer& inRb,
+                                 bool uploadFromCli) {
     std::string domainOnly = "x0.at";
     std::string postString = "/";
     int httpRet = -1;

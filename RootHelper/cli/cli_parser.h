@@ -48,7 +48,7 @@ int downloadFromArgs(int argc, const C* argv[]) {
 
     // HTTP redirect limit
     for(int i=0;i<5;i++) {
-        httpRet = httpsUrlDownload_internal1(cl,targetUrl,port,destDir,destFilename,inRb,redirectUrl,true);
+        httpRet = httpsUrlDownload_internal(cl,targetUrl,port,destDir,destFilename,inRb,redirectUrl,true);
         if(httpRet == 200) return 0;
         if(httpRet != 301 && httpRet != 302) {
             errno = httpRet;
@@ -84,7 +84,7 @@ int upload_x0at_FromArgs(int argc, const C* argv[]) {
     RingBuffer inRb;
     SinkDescriptor cl;
     auto&& srcPath = STRNAMESPACE(argv[2]);
-    auto httpRet = httpsUrlUpload_x0at_internal1(cl,srcPath,inRb,true);
+    auto httpRet = httpsUrlUpload_x0at_internal(cl,srcPath,inRb,true);
     return httpRet==200?0:httpRet;
 }
 

@@ -1238,7 +1238,7 @@ void httpsUrlDownload(IDescriptor& cl, const uint8_t flags) { // cl is local soc
     
     // HTTP redirect limit
     for(int i=0;i<5;i++) {
-        httpRet = httpsUrlDownload_internal1(cl,target,port,downloadPath,targetFilename,inRb,redirectUrl,downloadToFile);
+        httpRet = httpsUrlDownload_internal(cl,target,port,downloadPath,targetFilename,inRb,redirectUrl,downloadToFile);
         if(httpRet == 200) break;
         if(httpRet != 301 && httpRet != 302) {
             errno = httpRet;
@@ -1260,7 +1260,7 @@ void x0atUpload(IDescriptor& cl) { // cl is local socket
 	PRINTUNIFIED("Received source path over local socket:\n%s\n", uploadPath.c_str());
 
 	RingBuffer inRb;
-	auto httpRet = httpsUrlUpload_x0at_internal1(cl,uploadPath,inRb,false);
+	auto httpRet = httpsUrlUpload_x0at_internal(cl,uploadPath,inRb,false);
 
 	// at the end, close the sockets
 	cl.close();
