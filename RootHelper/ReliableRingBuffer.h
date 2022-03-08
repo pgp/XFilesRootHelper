@@ -76,7 +76,7 @@ public:
     void reset() {
         std::unique_lock<std::mutex> lock(ringbuffer_mutex);
         readIdx = writeIdx = 0;
-        PRINTUNIFIEDERROR("RESETTING RINGBUFFER, CURRENT STATUS IS %s",closed?"closed":"open");
+        PRINTUNIFIEDERROR("RESETTING RINGBUFFER, CURRENT STATUS IS %s\n",closed?"closed":"open");
         closed = false;
     }
 

@@ -115,7 +115,7 @@ std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
         }
     }
 
-    PRINTUNIFIED("Content-Disposition header is malformed or not present, using URL splitting...");
+    PRINTUNIFIED("Content-Disposition header is malformed or not present, using URL splitting...\n");
     auto idx = url.find_last_of('/');
     if(idx != std::string::npos) {
         auto&& x = url.substr(idx+1);
@@ -134,7 +134,7 @@ std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
         }
     }
 
-    PRINTUNIFIED("URL splitting didn't return a valid filename, assigning filename as domain name + .html");
+    PRINTUNIFIED("URL splitting didn't return a valid filename, assigning filename as domain name + .html\n");
     idx = url.find_first_of('/');
     if(idx != std::string::npos){
         auto x = url.substr(0,idx);
@@ -203,7 +203,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
 
     std::cout<<hdrs;
 
-    PRINTUNIFIED("Retrieving HTTP response code...");
+    PRINTUNIFIED("Retrieving HTTP response code...\n");
     auto tmpIdx = hdrs.find("\r\n");
     if (tmpIdx == std::string::npos) throw std::runtime_error("Cannot find CRLF token in headers");
     auto firstLine = hdrs.substr(0,tmpIdx); // "HTTP/1.1 301 Moved Permanently"
