@@ -173,6 +173,8 @@ int hashFromArgs(int argc, const C* argv[]) {
     PRINTUNIFIED("dirHashOpts: %u\n",dirHashOpts);
 
     tmparg = TOUTF(argv[2]);
+    tmparg = toUpperCase(tmparg);
+    if(tmparg == "BLAKE2B(256)") tmparg = "Blake2b(256)"; // add custom conversion for Blake2b, since the actual Botan label is not all-uppercase
     for(auto& rhl: rh_hashLabels) tmpAlgoMap[rhl] = tmpIdx++;
     if(tmpAlgoMap.find(tmparg) == tmpAlgoMap.end())
         goto cliHashPrintUsage;

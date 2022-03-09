@@ -7,6 +7,13 @@
 #include "diriterator/IdirIterator.h"
 
 #include <unordered_set>
+#include "ctype.h"
+
+std::string toUpperCase(std::string& src) {
+    std::string dest;
+    std::transform(src.begin(), src.end(), std::back_inserter(dest), toupper);
+    return dest;
+}
 
 constexpr uint32_t HASH_BLOCK_SIZE = 1048576;
 
