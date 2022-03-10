@@ -155,6 +155,10 @@ public:
     WinsockDescriptor create(const std::string& host, int port = 443, int timeout = 2) {
         return {resolve_and_connect_with_timeout(host, port, timeout)};
     }
+
+    WinsockDescriptor* createNew(const std::string& host, int port = 443, int timeout = 2) {
+        return new WinsockDescriptor(resolve_and_connect_with_timeout(host, port, timeout));
+    }
 };
 
 #else
@@ -292,6 +296,10 @@ class NetworkDescriptorFactory {
 public:
     PosixDescriptor create(const std::string& host, int port = 443, int timeout = 2) {
         return {resolve_and_connect_with_timeout(host, port, timeout)};
+    }
+
+    PosixDescriptor* createNew(const std::string& host, int port = 443, int timeout = 2) {
+        return new PosixDescriptor(resolve_and_connect_with_timeout(host, port, timeout));
     }
 };
 #endif

@@ -3,10 +3,10 @@
 
 #include <unordered_map>
 #include "../common_uds.h"
-#include "../tls/basic_https_client.h"
-#include "../tls/botan_rh_tls_descriptor.h"
+#include "../tls/https_requests.h"
 #include "../tls/ssh_keygen_ed25519.h"
 #include "../desc/SinkDescriptor.h"
+#include "../desc/SstreamDescriptor.h"
 #include "../rh_hasher_botan.h"
 
 #ifdef _WIN32
@@ -207,10 +207,82 @@ int createFileFromArgs(int argc, const C* argv[]) {
     return (fileSize != 0)?createRandomFile(filename, fileSize):createEmptyFile(filename, fileSize);
 }
 
+template<typename C>
+int https1_FromArgs(int argc, const C* argv[]) {
+    if(argc < 3) {
+        std::string exeName = TOUTF(argv[0]);
+        PRINTUNIFIED("Usage: %s https1 https://my.domain.tld/my?querystring\n", exeName.c_str());
+        PRINTUNIFIED("Usage: %s httpsd https://my.domain.tld/my?querystring /download/path/file.bin\n", exeName.c_str());
+        _Exit(0);
+    }
+    std::string mode = TOUTF(argv[1]);
+    if(mode == "httpsd") {
+        if(argc < 4) {
+            std::string exeName = TOUTF(argv[0]);
+            PRINTUNIFIED("Usage: %s httpsd https://my.domain.tld/my?querystring /download/path/file.bin\n", exeName.c_str());
+            _Exit(0);
+        }
+    }
+
+#ifdef _WIN32
+    { // FIXME call common init method BEFORE invoking cli parser
+        // Initialize Winsock
+        WSADATA wsaData;
+        auto iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
+        if (iResult != 0) {
+            printf("WSAStartup failed with error: %d\n", iResult);
+            _Exit(572);
+        }
+    };
+#endif
+    HTTPSClient client;
+    IDescriptor* destDesc;
+    std::string url = TOUTF(argv[2]);
+    // test for 301/302 redirects:
+    // https://3.ly/afSg2
+    // redirects to:
+    // https://stackoverflow.com/questions/15261851/100x100-image-with-random-pixel-colour
+
+    // auto ret = client.request(url, "GET", sd, 443, 0); // don't follow redirects
+    int ret = -1;
+    try {
+        if(mode == "https1") {
+            SstreamDescriptor destDesc;
+            ret = client.request(url, "GET", destDesc);
+            auto respBody = destDesc.str();
+            PRINTUNIFIED("||||||||HTTP Response Code: %d ||||||||\n", client.httpResponseCode);
+            PRINTUNIFIED("||||||||HTTP Response Headers:||||||||\n%s\n||||||||\n", client.responseHeaders.c_str());
+            PRINTUNIFIED("||||||||HTTP Response Body:||||||||\n%s\n||||||||\n", respBody.c_str());
+        }
+        else { // download response body to file
+            auto&& destPath = STRNAMESPACE(argv[3]);
+            auto&& destDesc = fdfactory.create(destPath,FileOpenMode::XCL);
+            if (!destDesc) {
+                PRINTUNIFIEDERROR("|||||||| Unable to open destination file, errno is: %d\n", errno);
+                _Exit(-1);
+            }
+            ret = client.request(url, "GET", destDesc);
+            PRINTUNIFIED("||||||||HTTP Response Code: %d ||||||||\n", client.httpResponseCode);
+            PRINTUNIFIED("||||||||HTTP Response Headers:||||||||\n%s\n||||||||\n", client.responseHeaders.c_str());
+        }
+        return ret;
+    }
+    catch(std::exception& e) {
+        std::cerr<<"HTTPS CLI EXCEPTION: "<<e.what()<<std::endl;
+        return -1;
+    }
+    catch(...) { // threadExit and anything else
+        PRINTUNIFIEDERROR("Unknown error\n");
+        return -1;
+    }
+}
+
 // enum ControlCodes in this map is not used at the current time, it's there just for readability
 const std::unordered_map<std::string,std::pair<ControlCodes,cliFunction>> allowedFromCli = {
         {"download", {ControlCodes::ACTION_HTTPS_URL_DOWNLOAD, downloadFromArgs}},
         {"upx0at", {ControlCodes::ACTION_CLOUD_SERVICES, upload_x0at_FromArgs}},
+        {"https1", {ControlCodes::ACTION_CLOUD_SERVICES, https1_FromArgs}},
+        {"httpsd", {ControlCodes::ACTION_CLOUD_SERVICES, https1_FromArgs}},
         {"ssh-keygen", {ControlCodes::ACTION_SSH_KEYGEN, sshKeygenFromArgs}},
         {"hashNames", {ControlCodes::ACTION_HASH, hashFromArgs}},
         {"hash", {ControlCodes::ACTION_HASH, hashFromArgs}},
