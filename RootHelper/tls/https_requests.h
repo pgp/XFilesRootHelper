@@ -97,35 +97,34 @@ public:
 
     int getResponseHeadersAndPartOfBody(IDescriptor& desc, uint64_t& currentProgress) {
         std::string tmpBody;
-        std::stringstream bbuffer;
+        std::stringstream bb;
         auto headersEndIdx = std::string::npos;
         uint32_t headersCurrentSize = 0;
 
         // headers and, in case, part of or whole body
+        char buffer[4096];
         for(;;) {
-            std::string buffer(4096,0);
-            auto readBytes=desc.read((char*)(buffer.c_str()), 4096);
+            auto readBytes=desc.read(buffer, 4096);
             if(readBytes<=0) {
                 PRINTUNIFIEDERROR("EOF or error reading headers, errno is %d\n",errno);
                 return -1;
             }
-            buffer.resize(readBytes);
-            bbuffer<<buffer;
+            bb.write(buffer,readBytes);
             headersCurrentSize += readBytes;
             if(headersCurrentSize>1048576)
                 throw std::runtime_error("HTTP response header too large");
-            auto&& bbuffer_s = bbuffer.str();
+            auto&& bbuffer_s = bb.str();
             headersEndIdx = bbuffer_s.find("\r\n\r\n");
             if(headersEndIdx != std::string::npos) {
                 headersEndIdx += 4;
-                const uint8_t* bb_ptr = (const uint8_t*)bbuffer_s.c_str();
+                const uint8_t* bbP = (const uint8_t*)bbuffer_s.c_str();
                 auto bodySize = bbuffer_s.size() - headersEndIdx;
 
                 responseHeaders.resize(headersEndIdx);
                 tmpBody.resize(bodySize);
 
-                memcpy((uint8_t*)(responseHeaders.c_str()), bb_ptr, headersEndIdx);
-                memcpy((uint8_t*)(tmpBody.c_str()), bb_ptr+headersEndIdx, bodySize);
+                memcpy((uint8_t*)(responseHeaders.c_str()), bbP, headersEndIdx);
+                memcpy((uint8_t*)(tmpBody.c_str()), bbP+headersEndIdx, bodySize);
                 responseBody << tmpBody;
                 currentProgress = bodySize;
                 PRINTUNIFIEDERROR("headers size is %u\n",headersEndIdx);
@@ -136,11 +135,10 @@ public:
 
     // adapted from parseHttpResponseHeadersAndBody
     /*
-    targetPath:
-        - null - do not download to file
-        - empty string - download to current dir, detect filename
-        - non-empty string, is a dir - download to that directory, detect filename
-        - non-empty string, else: treat as file path, download to that path (do not detect filename)
+    when downloadToFile is true, targetPath:
+        - empty string -> download to current dir, detect filename
+        - non-empty string, is a dir -> download to that directory, detect filename
+        - non-empty string, else -> treat as file path, download to that path (do not use detected filename)
     */
     template<typename STR>
     int parseResponseHeadersAndDownloadBody(IDescriptor& desc, bool downloadToFile, const STR& targetPath) {
