@@ -83,6 +83,8 @@ public:
     RingBuffer inRb;
     std::string responseHeaders;
     std::stringstream responseBody;
+    std::string currentUrl;
+    std::string detectedFilename;
     IDescriptor* bodyDesc;
     std::shared_ptr<IDescriptor> tcpd; // WinsockDescriptor or PosixDescriptor
     std::shared_ptr<TLSDescriptor> tlsd;
@@ -147,6 +149,9 @@ public:
         auto&& tmpbody_str = responseBody.str();
         bodyDesc.writeAllOrExit(tmpbody_str.c_str(), tmpbody_str.size());
 
+        PRINTUNIFIED("Extracting a valid filename from content disposition or querystring...\n");
+        detectedFilename = getHttpFilename(responseHeaders,currentUrl);
+
         auto parsedContentLength = parseContentLength(responseHeaders);
 
         auto&& progressHook = getProgressHook(parsedContentLength);
@@ -197,7 +202,7 @@ public:
                 IDescriptor& bodyDesc, // any kind, even stringstreamDescriptor
                 int port = 443,
                 int maxRedirects = 5) {
-        std::string url = url_;
+        currentUrl = url_;
         for(int i=0;i<=maxRedirects;i++) {
             inRb.reset();
             responseHeaders = "";
@@ -238,7 +243,7 @@ public:
 
                 httpResponseCode = parseHttpResponseHeadersAndBody1(*tlsd, bodyDesc);
                 if(httpResponseCode == 301 || httpResponseCode == 302) {
-                    url = getRedirectLocation(responseHeaders);
+                    currentUrl = getRedirectLocation(responseHeaders);
                     tlsd.reset(); // force disconnect, so we can reset the ringbuffer
                 }
                 else if(httpResponseCode != 200) {
@@ -261,6 +266,59 @@ public:
         }
         PRINTUNIFIED("Redirect limit reached without a http 200 response\n");
         return -6;
+    }
+
+    // for downloading to file
+    template<typename STR>
+    int request(const std::string& url_,
+                const std::string& method,
+                // const std::unordered_map& headers,
+                // const std::string& requestBody,
+                const STR& downloadDirectoryOrFullPath, // if directory or empty string, detect filename (and concat to dir if present), else use full path
+                int port = 443,
+                int maxRedirects = 5) {
+        // default conf: randomly generated file name, in the current directory
+        STR parentDir = FROMUTF(".");
+        STR filename_ = FROMUTF(genRandomHexString()".bin");
+        STR fullPath_ = parentDir + getSystemPathSeparator() + filename;
+        bool detectFilename = true;
+
+        int efd = 0;
+        if(!downloadDirectoryOrFullPath.empty()) {
+            efd = existsIsFileIsDir_(downloadDirectoryOrFullPath);
+            if(efd == 2) {
+                parentDir = downloadDirectoryOrFullPath;
+                fullPath_ = parentDir + getSystemPathSeparator() + filename;
+            }
+            else { // not a directory (hopefully a regular, accessible file)
+                fullPath_ = downloadDirectoryOrFullPath;
+                detectFilename = false;
+            }
+        }
+        // else (downloadDirectoryOrFullPath.empty() is true) -> leave default conf unchanged
+
+        auto&& destDesc = fdfactory.create(fullPath_,FileOpenMode::XCL);
+        if(!destDesc) {
+            PRINTUNIFIEDERROR("Unable to open destination file for downloading, errno is: %d\n", errno);
+            return -1;
+        }
+        int ret = client.request(url_, method, destDesc);
+        destDesc.close();
+        if(ret == 0 && detectFilename) // TODO use detectedFilename, smart concat paths, rename
+
+
+    }
+
+    // http response code, response body
+    std::pair<int, std::string> request(const std::string& url_,
+                                        const std::string& method,
+                                        // const std::unordered_map& headers,
+                                        // const std::string& requestBody,
+                                        int port = 443,
+                                        int maxRedirects = 5) {
+        SstreamDescriptor ss;
+        int ret = client.request(url_, method, /* headers, requestBody, */ ss, port, maxRedirects);
+        return std::make_pair(ret, ss.str());
     }
 
 };

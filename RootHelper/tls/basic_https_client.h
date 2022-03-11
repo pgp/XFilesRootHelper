@@ -448,7 +448,7 @@ const std::string CRLF = "\r\n";
 #define PROGRAM    "program"
 #define FILENAME   "file"
 
-std::string genRandomBoundary() {
+std::string genRandomHexString() {
     // 16 random bytes
     std::vector<uint8_t> p1(16);
     botan_rng_t rng{};
@@ -458,7 +458,7 @@ std::string genRandomBoundary() {
     botan_rng_destroy(rng);
 
     // expand to 32 hex chars
-    std::string BOUNDARY = "--------" + Botan::hex_encode(p1);
+    std::string BOUNDARY = Botan::hex_encode(p1);
     return BOUNDARY;
 }
 
@@ -523,7 +523,7 @@ int httpsUrlUpload_x0at_internal(IDescriptor& cl,
     try {
         PRINTUNIFIED("Posting file to x0.at\n");
         std::string fname = TOUTF(sourcePathForUpload); // downloadPath is actually the path of the file to be uploaded here
-        auto&& BOUNDARY = genRandomBoundary();
+        std::string BOUNDARY = "--------" + genRandomHexString();
         PRINTUNIFIED("Using boundary string: %s\n", BOUNDARY.c_str());
         auto&& bh = bodyHeader(fname, BOUNDARY);
         auto&& bt = bodyTrailer(BOUNDARY);
