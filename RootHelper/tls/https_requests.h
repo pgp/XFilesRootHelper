@@ -135,22 +135,44 @@ public:
     }
 
     // adapted from parseHttpResponseHeadersAndBody
-    int parseHttpResponseHeadersAndBody1(IDescriptor& desc, IDescriptor& bodyDesc) {
+    /*
+    targetPath:
+        - null - do not download to file
+        - empty string - download to current dir, detect filename
+        - non-empty string, is a dir - download to that directory, detect filename
+        - non-empty string, else: treat as file path, download to that path (do not detect filename)
+    */
+    template<typename STR>
+    int parseHttpResponseHeadersAndBody1(IDescriptor& desc, STR* targetPath) {
         uint64_t currentProgress = 0, last_progress = 0;
 
         if(getResponseHeadersAndPartOfBody(desc, currentProgress) < 0) return -1;
 
-        //std::cout<<responseHeaders;
-
         auto httpRet = parseResponseCode(responseHeaders);
-        if (httpRet != 200) return httpRet;
-
-        // flush the internal stringstream into the output descriptor...
-        auto&& tmpbody_str = responseBody.str();
-        bodyDesc.writeAllOrExit(tmpbody_str.c_str(), tmpbody_str.size());
+        if (httpRet != 200) return httpRet; // TODO have to download full body anyway, here should return only for 301-302
 
         PRINTUNIFIED("Extracting a valid filename from content disposition or querystring...\n");
         detectedFilename = getHttpFilename(responseHeaders,currentUrl);
+        STR df1 = FROMUTF(detectedFilename);
+        std::unique_ptr<IDescriptor> bodyDesc;
+
+        // init bodyDesc from conditions upon targetPath
+        if(targetPath != nullptr) {
+            auto& tp = *targetPath;
+            STR downloadPath;
+            if(tp.empty()) downloadPath = FROMUTF(".") + getSystemPathSeparator() + df1; // current directory, use detected filename
+            else {
+                int efd = existsIsFileIsDir_(tp);
+                if(efd == 2) downloadPath = tp + getSystemPathSeparator() + df1; // existing directory
+                else downloadPath = tp;
+            }
+            bodyDesc.reset(fdfactory.createNew(downloadPath,FileOpenMode::XCL));
+
+            // flush the internal stringstream into the output descriptor
+            auto&& tmpbody_str = responseBody.str();
+            bodyDesc->writeAllOrExit(tmpbody_str.c_str(), tmpbody_str.size());
+        }
+        // else don't do anything, continue writing into responseBody later
 
         auto parsedContentLength = parseContentLength(responseHeaders);
 
@@ -163,7 +185,8 @@ public:
             if(readBytes<=0) break; // once out of the loop, check further conditions in order to deduce valid or broken download
             currentProgress += readBytes;
 
-            bodyDesc.writeAllOrExit(buf, readBytes);
+            if(targetPath != nullptr) bodyDesc->writeAllOrExit(buf, readBytes);
+            else responseBody.write(buf, readBytes); // TODO check
 
             if(currentProgress-last_progress>1000000) {
                 last_progress = currentProgress;
@@ -277,25 +300,7 @@ public:
                 const STR& downloadDirectoryOrFullPath, // if directory or empty string, detect filename (and concat to dir if present), else use full path
                 int port = 443,
                 int maxRedirects = 5) {
-        // default conf: randomly generated file name, in the current directory
-        STR parentDir = FROMUTF(".");
-        STR filename_ = FROMUTF(genRandomHexString()".bin");
-        STR fullPath_ = parentDir + getSystemPathSeparator() + filename;
-        bool detectFilename = true;
 
-        int efd = 0;
-        if(!downloadDirectoryOrFullPath.empty()) {
-            efd = existsIsFileIsDir_(downloadDirectoryOrFullPath);
-            if(efd == 2) {
-                parentDir = downloadDirectoryOrFullPath;
-                fullPath_ = parentDir + getSystemPathSeparator() + filename;
-            }
-            else { // not a directory (hopefully a regular, accessible file)
-                fullPath_ = downloadDirectoryOrFullPath;
-                detectFilename = false;
-            }
-        }
-        // else (downloadDirectoryOrFullPath.empty() is true) -> leave default conf unchanged
 
         auto&& destDesc = fdfactory.create(fullPath_,FileOpenMode::XCL);
         if(!destDesc) {

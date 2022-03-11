@@ -18,6 +18,11 @@ public:
     WinfileDescriptor create(const STR& filename, FileOpenMode openMode) {
         return {filename,openMode};
     }
+
+    template<typename STR>
+    WinfileDescriptor* createNew(const STR& filename, FileOpenMode openMode) {
+        return new WinfileDescriptor(filename,openMode);
+    }
 };
 
 #else
@@ -26,6 +31,10 @@ class FileDescriptorFactory {
 public:
     PosixDescriptor create(const std::string& filename, FileOpenMode openMode) {
         return {filename,openMode};
+    }
+
+    PosixDescriptor* createNew(const std::string& filename, FileOpenMode openMode) {
+        return new PosixDescriptor(filename,openMode);
     }
 };
 #endif
