@@ -247,21 +247,14 @@ int https1_FromArgs(int argc, const C* argv[]) {
     int ret = -1;
     try {
         if(mode == "https1") {
-            SstreamDescriptor destDesc;
-            ret = client.request(url, "GET", destDesc);
-            auto respBody = destDesc.str();
+            ret = client.request(url, "GET", false, STRNAMESPACE());
+            auto&& respBody = client.responseBody.str();
             PRINTUNIFIED("||||||||HTTP Response Code: %d ||||||||\n", client.httpResponseCode);
             PRINTUNIFIED("||||||||HTTP Response Headers:||||||||\n%s\n||||||||\n", client.responseHeaders.c_str());
             PRINTUNIFIED("||||||||HTTP Response Body:||||||||\n%s\n||||||||\n", respBody.c_str());
         }
         else { // download response body to file
-            auto&& destPath = STRNAMESPACE(argv[3]);
-            auto&& destDesc = fdfactory.create(destPath,FileOpenMode::XCL);
-            if (!destDesc) {
-                PRINTUNIFIEDERROR("|||||||| Unable to open destination file, errno is: %d\n", errno);
-                _Exit(-1);
-            }
-            ret = client.request(url, "GET", destDesc);
+            ret = client.request(url, "GET", true, STRNAMESPACE(argv[3]));
             PRINTUNIFIED("||||||||HTTP Response Code: %d ||||||||\n", client.httpResponseCode);
             PRINTUNIFIED("||||||||HTTP Response Headers:||||||||\n%s\n||||||||\n", client.responseHeaders.c_str());
         }

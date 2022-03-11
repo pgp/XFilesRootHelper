@@ -143,7 +143,7 @@ public:
         - non-empty string, else: treat as file path, download to that path (do not detect filename)
     */
     template<typename STR>
-    int parseHttpResponseHeadersAndBody1(IDescriptor& desc, STR* targetPath) {
+    int parseHttpResponseHeadersAndBody1(IDescriptor& desc, bool downloadToFile, const STR& targetPath) {
         uint64_t currentProgress = 0, last_progress = 0;
 
         if(getResponseHeadersAndPartOfBody(desc, currentProgress) < 0) return -1;
@@ -157,14 +157,13 @@ public:
         std::unique_ptr<IDescriptor> bodyDesc;
 
         // init bodyDesc from conditions upon targetPath
-        if(targetPath != nullptr) {
-            auto& tp = *targetPath;
+        if(downloadToFile) {
             STR downloadPath;
-            if(tp.empty()) downloadPath = FROMUTF(".") + getSystemPathSeparator() + df1; // current directory, use detected filename
+            if(targetPath.empty()) downloadPath = FROMUTF(".") + getSystemPathSeparator() + df1; // current directory, use detected filename
             else {
-                int efd = existsIsFileIsDir_(tp);
-                if(efd == 2) downloadPath = tp + getSystemPathSeparator() + df1; // existing directory
-                else downloadPath = tp;
+                int efd = existsIsFileIsDir_(targetPath);
+                if(efd == 2) downloadPath = targetPath + getSystemPathSeparator() + df1; // existing directory
+                else downloadPath = targetPath;
             }
             bodyDesc.reset(fdfactory.createNew(downloadPath,FileOpenMode::XCL));
 
@@ -185,8 +184,8 @@ public:
             if(readBytes<=0) break; // once out of the loop, check further conditions in order to deduce valid or broken download
             currentProgress += readBytes;
 
-            if(targetPath != nullptr) bodyDesc->writeAllOrExit(buf, readBytes);
-            else responseBody.write(buf, readBytes); // TODO check
+            if(downloadToFile) bodyDesc->writeAllOrExit(buf, readBytes);
+            else responseBody.write((char*)buf, readBytes); // TODO check
 
             if(currentProgress-last_progress>1000000) {
                 last_progress = currentProgress;
@@ -218,21 +217,23 @@ public:
     }
 
     // TODO enable/disable progressHook for downloading response body
-    int request(const std::string& url_,
+    template<typename STR>
+    int request(const std::string& url,
                 const std::string& method,
                 // const std::unordered_map& headers,
                 // const std::string& requestBody,
-                IDescriptor& bodyDesc, // any kind, even stringstreamDescriptor
+                bool downloadToFile,
+                const STR& targetPath, // (use if downloadToFile is true) empty: detect filename, non-empty: download to path (folder or file)
                 int port = 443,
                 int maxRedirects = 5) {
-        currentUrl = url_;
+        currentUrl = url;
         for(int i=0;i<=maxRedirects;i++) {
             inRb.reset();
             responseHeaders = "";
             std::stringstream tmprb;
             responseBody.swap(tmprb);
 
-            auto&& splittedUrl = domainAndQueryStringFromFullUrl(url);
+            auto&& splittedUrl = domainAndQueryStringFromFullUrl(currentUrl);
             auto domainOnly = splittedUrl.first;
             auto queryString = splittedUrl.second;
 
@@ -264,7 +265,7 @@ public:
                 tlsd->writeAllOrExit(rq.c_str(),rq.length());
                 // tlsd->writeAllOrExit(rqBody.c_str(),rqBody.length()); // TODO add request body
 
-                httpResponseCode = parseHttpResponseHeadersAndBody1(*tlsd, bodyDesc);
+                httpResponseCode = parseHttpResponseHeadersAndBody1(*tlsd, downloadToFile, targetPath);
                 if(httpResponseCode == 301 || httpResponseCode == 302) {
                     currentUrl = getRedirectLocation(responseHeaders);
                     tlsd.reset(); // force disconnect, so we can reset the ringbuffer
@@ -289,41 +290,6 @@ public:
         }
         PRINTUNIFIED("Redirect limit reached without a http 200 response\n");
         return -6;
-    }
-
-    // for downloading to file
-    template<typename STR>
-    int request(const std::string& url_,
-                const std::string& method,
-                // const std::unordered_map& headers,
-                // const std::string& requestBody,
-                const STR& downloadDirectoryOrFullPath, // if directory or empty string, detect filename (and concat to dir if present), else use full path
-                int port = 443,
-                int maxRedirects = 5) {
-
-
-        auto&& destDesc = fdfactory.create(fullPath_,FileOpenMode::XCL);
-        if(!destDesc) {
-            PRINTUNIFIEDERROR("Unable to open destination file for downloading, errno is: %d\n", errno);
-            return -1;
-        }
-        int ret = client.request(url_, method, destDesc);
-        destDesc.close();
-        if(ret == 0 && detectFilename) // TODO use detectedFilename, smart concat paths, rename
-
-
-    }
-
-    // http response code, response body
-    std::pair<int, std::string> request(const std::string& url_,
-                                        const std::string& method,
-                                        // const std::unordered_map& headers,
-                                        // const std::string& requestBody,
-                                        int port = 443,
-                                        int maxRedirects = 5) {
-        SstreamDescriptor ss;
-        int ret = client.request(url_, method, /* headers, requestBody, */ ss, port, maxRedirects);
-        return std::make_pair(ret, ss.str());
     }
 
 };
