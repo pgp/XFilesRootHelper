@@ -153,6 +153,7 @@ public:
 
         PRINTUNIFIED("Extracting a valid filename from content disposition or querystring...\n");
         detectedFilename = getHttpFilename(responseHeaders,currentUrl);
+        PRINTUNIFIED("Detected filename is: %s\n",detectedFilename.c_str());
         STR df1 = FROMUTF(detectedFilename);
         std::unique_ptr<IDescriptor> bodyDesc;
 
@@ -165,6 +166,8 @@ public:
                 if(efd == 2) downloadPath = targetPath + getSystemPathSeparator() + df1; // existing directory
                 else downloadPath = targetPath;
             }
+            std::string dp1 = TOUTF(downloadPath);
+            PRINTUNIFIED("Assigned download path is: %s\n",dp1.c_str());
             bodyDesc.reset(fdfactory.createNew(downloadPath,FileOpenMode::XCL));
 
             // flush the internal stringstream into the output descriptor
