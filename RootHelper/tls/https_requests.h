@@ -143,7 +143,7 @@ public:
         - non-empty string, else: treat as file path, download to that path (do not detect filename)
     */
     template<typename STR>
-    int parseHttpResponseHeadersAndBody1(IDescriptor& desc, bool downloadToFile, const STR& targetPath) {
+    int parseResponseHeadersAndDownloadBody(IDescriptor& desc, bool downloadToFile, const STR& targetPath) {
         uint64_t currentProgress = 0, last_progress = 0;
 
         if(getResponseHeadersAndPartOfBody(desc, currentProgress) < 0) return -1;
@@ -265,7 +265,7 @@ public:
                 tlsd->writeAllOrExit(rq.c_str(),rq.length());
                 // tlsd->writeAllOrExit(rqBody.c_str(),rqBody.length()); // TODO add request body
 
-                httpResponseCode = parseHttpResponseHeadersAndBody1(*tlsd, downloadToFile, targetPath);
+                httpResponseCode = parseResponseHeadersAndDownloadBody(*tlsd, downloadToFile, targetPath);
                 if(httpResponseCode == 301 || httpResponseCode == 302) {
                     currentUrl = getRedirectLocation(responseHeaders);
                     tlsd.reset(); // force disconnect, so we can reset the ringbuffer

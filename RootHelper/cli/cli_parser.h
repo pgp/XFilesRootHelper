@@ -212,17 +212,10 @@ int https1_FromArgs(int argc, const C* argv[]) {
     if(argc < 3) {
         std::string exeName = TOUTF(argv[0]);
         PRINTUNIFIED("Usage: %s https1 https://my.domain.tld/my?querystring\n", exeName.c_str());
-        PRINTUNIFIED("Usage: %s httpsd https://my.domain.tld/my?querystring /download/path/file.bin\n", exeName.c_str());
+        PRINTUNIFIED("Usage: %s httpsd https://my.domain.tld/my?querystring </download/path/file.bin>\n", exeName.c_str());
         _Exit(0);
     }
     std::string mode = TOUTF(argv[1]);
-    if(mode == "httpsd") {
-        if(argc < 4) {
-            std::string exeName = TOUTF(argv[0]);
-            PRINTUNIFIED("Usage: %s httpsd https://my.domain.tld/my?querystring /download/path/file.bin\n", exeName.c_str());
-            _Exit(0);
-        }
-    }
 
 #ifdef _WIN32
     { // FIXME call common init method BEFORE invoking cli parser
@@ -254,7 +247,8 @@ int https1_FromArgs(int argc, const C* argv[]) {
             PRINTUNIFIED("||||||||HTTP Response Body:||||||||\n%s\n||||||||\n", respBody.c_str());
         }
         else { // download response body to file
-            ret = client.request(url, "GET", true, STRNAMESPACE(argv[3]));
+            auto targetPath = argc < 4 ? STRNAMESPACE() : STRNAMESPACE(argv[3]);
+            ret = client.request(url, "GET", true, targetPath);
             PRINTUNIFIED("||||||||HTTP Response Code: %d ||||||||\n", client.httpResponseCode);
             PRINTUNIFIED("||||||||HTTP Response Headers:||||||||\n%s\n||||||||\n", client.responseHeaders.c_str());
         }
