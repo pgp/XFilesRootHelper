@@ -207,12 +207,59 @@ int createFileFromArgs(int argc, const C* argv[]) {
     return (fileSize != 0)?createRandomFile(filename, fileSize):createEmptyFile(filename, fileSize);
 }
 
+template<typename C, typename STR>
+void parseHttpCliArgs(int argc, const C* argv[],
+                              std::string& method,
+                              std::unordered_map<std::string,std::string>& headers,
+                              std::string& requestBody,
+                              std::string& url,
+                              STR& downloadPath) {
+    std::string opt;
+    std::string value;
+    bool methodProvided = false, bodyProvided = false;
+    std::runtime_error e("Index out of bounds when parsing http options");
+    std::runtime_error e1("HTTP method provided more than one time");
+    std::runtime_error e2("Body provided more than one time");
+    std::runtime_error e3("Malformed header");
+    for(int i=2; i<argc; i+=2) {
+        // expect -X, -H, or -d, before final parameters url, and the optional download path
+        opt = TOUTF(argv[i]);
+        if(opt == "-H") { // headers, multiple ones allowed
+            if(i+1 >= argc) throw e;
+            std::string hh = TOUTF(argv[i+1]);
+            auto idx = hh.find(": ");
+            if(idx == std::string::npos) throw e3;
+            headers[hh.substr(0,idx)] = hh.substr(idx+2);
+            // TODO should we use a multi-map, are headers with repeated key allowed in HTTP?
+        }
+        else if(opt == "-d") { // body, only one
+            if(bodyProvided) throw e2;
+            if(i+1 >= argc) throw e;
+            requestBody = TOUTF(argv[i+1]);
+            bodyProvided = true;
+        }
+        else if(opt == "-X") { // http method, only one
+            if(methodProvided) throw e1;
+            if(i+1 >= argc) throw e;
+            method = TOUTF(argv[i+1]);
+            methodProvided = true;
+        }
+        else {
+            // assume arg contains url, and next arg, if present, contains download path
+            url = TOUTF(argv[i]);
+            if(i+1 < argc) downloadPath = argv[i+1];
+            break;
+        }
+    }
+
+    if(url.empty()) throw std::runtime_error("Url is empty");
+}
+
 template<typename C>
 int https1_FromArgs(int argc, const C* argv[]) {
     if(argc < 3) {
         std::string exeName = TOUTF(argv[0]);
-        PRINTUNIFIED("Usage: %s https1 https://my.domain.tld/my?querystring\n", exeName.c_str());
-        PRINTUNIFIED("Usage: %s httpsd https://my.domain.tld/my?querystring </download/path/file.bin>\n", exeName.c_str());
+        PRINTUNIFIED("Usage (curl-like syntax): %s <https1|httpsd> [-X {GET|POST|PUT...}] [-H requestHeader1] [-H requestHeader2...] [-d requestBody] https://my.domain.tld/my?querystring [/download/path/file.bin]\n", exeName.c_str());
         _Exit(0);
     }
     std::string mode = TOUTF(argv[1]);
@@ -229,8 +276,11 @@ int https1_FromArgs(int argc, const C* argv[]) {
     };
 #endif
     HTTPSClient client;
-    IDescriptor* destDesc;
-    std::string url = TOUTF(argv[2]);
+    std::string url;
+    auto downloadPath = STRNAMESPACE();
+    std::string httpMethod = "GET";
+    std::unordered_map<std::string,std::string> rqHdrs;
+    std::string rqBody;
     // test for 301/302 redirects:
     // https://3.ly/afSg2
     // redirects to:
@@ -239,17 +289,18 @@ int https1_FromArgs(int argc, const C* argv[]) {
     // auto ret = client.request(url, "GET", sd, 443, 0); // don't follow redirects
     int ret = -1;
     try {
+        parseHttpCliArgs(argc, argv, httpMethod, rqHdrs, rqBody, url, downloadPath);
         if(mode == "https1") {
             // ret = client.request(url, "POST", {{"User-Agent", "ExampleAgent"}}, "Test\r\nTest\r\nTest", false, STRNAMESPACE());
-            ret = client.request(url, "GET", {}, "", false, STRNAMESPACE());
+            ret = client.request(url, httpMethod, rqHdrs, rqBody, false, downloadPath);
             auto&& respBody = client.responseBody.str();
             PRINTUNIFIED("||||||||HTTP Response Code: %d ||||||||\n", client.httpResponseCode);
             PRINTUNIFIED("||||||||HTTP Response Headers:||||||||\n%s\n||||||||\n", client.responseHeaders.c_str());
             PRINTUNIFIED("||||||||HTTP Response Body:||||||||\n%s\n||||||||\n", respBody.c_str());
         }
         else { // download response body to file
-            auto targetPath = argc < 4 ? STRNAMESPACE() : STRNAMESPACE(argv[3]);
-            ret = client.request(url, "GET", {}, "", true, targetPath);
+            // auto targetPath = argc < 4 ? STRNAMESPACE() : STRNAMESPACE(argv[3]);
+            ret = client.request(url, httpMethod, rqHdrs, rqBody, true, downloadPath);
             PRINTUNIFIED("||||||||HTTP Response Code: %d ||||||||\n", client.httpResponseCode);
             PRINTUNIFIED("||||||||HTTP Response Headers:||||||||\n%s\n||||||||\n", client.responseHeaders.c_str());
         }

@@ -186,7 +186,7 @@ public:
             currentProgress += readBytes;
 
             if(downloadToFile) bodyDesc->writeAllOrExit(buf, readBytes);
-            else responseBody.write((char*)buf, readBytes); // TODO check
+            else responseBody.write((char*)buf, readBytes);
 
             if(currentProgress-last_progress>1000000) {
                 last_progress = currentProgress;
