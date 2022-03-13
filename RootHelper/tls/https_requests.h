@@ -85,7 +85,6 @@ public:
     std::stringstream responseBody;
     std::string currentUrl;
     std::string detectedFilename;
-    IDescriptor* bodyDesc;
     std::shared_ptr<IDescriptor> tcpd; // WinsockDescriptor or PosixDescriptor
     std::shared_ptr<TLSDescriptor> tlsd;
     int httpResponseCode;
@@ -147,7 +146,7 @@ public:
         if(getResponseHeadersAndPartOfBody(desc, currentProgress) < 0) return -1;
 
         auto httpRet = parseResponseCode(responseHeaders);
-        if (httpRet != 200) return httpRet; // TODO have to download full body anyway, here should return only for 301-302
+        if (httpRet == 301 || httpRet == 302) return httpRet;
 
         PRINTUNIFIED("Extracting a valid filename from content disposition or querystring...\n");
         detectedFilename = getHttpFilename(responseHeaders,currentUrl);
@@ -297,7 +296,7 @@ public:
                 return -5;
             }
         }
-        PRINTUNIFIED("Redirect limit reached without a http 200 response\n");
+        PRINTUNIFIED("Redirect limit reached\n");
         return -6;
     }
 
