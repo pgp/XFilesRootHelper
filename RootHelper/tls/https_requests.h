@@ -221,8 +221,8 @@ public:
     template<typename STR>
     int request(const std::string& url,
                 const std::string& method,
-                // const std::unordered_map& headers,
-                // const std::string& requestBody,
+                const std::unordered_map<std::string, std::string>& headers,
+                std::string requestBody,
                 bool downloadToFile,
                 const STR& targetPath, // (use if downloadToFile is true) empty: detect filename, non-empty: download to path (folder or file)
                 int port = 443,
@@ -260,11 +260,19 @@ public:
                 PRINTUNIFIED("Performing HTTPS request, querystring is %s ...\n",queryString.c_str());
                 auto&& qs1 = (queryString.empty() || queryString[0] != '/') ? "/"+queryString : queryString;
                 std::stringstream request;
-                request << method << " " << qs1 << " HTTP/1.0\r\nHost: " << domainOnly << "\r\n" << headerMapToStr(defaultHeaders) << "\r\n";
-                // TODO add request headers (create temporary map joining key-values, then headerMapToStr)
+                auto totalHeaders = headers;
+                totalHeaders.insert(defaultHeaders.begin(),defaultHeaders.end()); // keys already existing in headers are not overwritten by those in defaultHeaders
+                request << method << " " << qs1 << " HTTP/1.0\r\nHost: " << domainOnly << "\r\n" << headerMapToStr(totalHeaders);
+                if(!requestBody.empty()) {
+                    request << "Content-Length: " << requestBody.length() << "\r\n";
+                }
+                request << "\r\n";
                 auto rq = request.str();
                 tlsd->writeAllOrExit(rq.c_str(),rq.length());
-                // tlsd->writeAllOrExit(rqBody.c_str(),rqBody.length()); // TODO add request body
+                if(!requestBody.empty()) {
+                    requestBody = requestBody + "\r\n\r\n";
+                    tlsd->writeAllOrExit(requestBody.c_str(),requestBody.length());
+                }
 
                 httpResponseCode = parseResponseHeadersAndDownloadBody(*tlsd, downloadToFile, targetPath);
                 if(httpResponseCode == 301 || httpResponseCode == 302) {

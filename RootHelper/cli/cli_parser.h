@@ -240,7 +240,8 @@ int https1_FromArgs(int argc, const C* argv[]) {
     int ret = -1;
     try {
         if(mode == "https1") {
-            ret = client.request(url, "GET", false, STRNAMESPACE());
+            // ret = client.request(url, "POST", {{"User-Agent", "ExampleAgent"}}, "Test\r\nTest\r\nTest", false, STRNAMESPACE());
+            ret = client.request(url, "GET", {}, "", false, STRNAMESPACE());
             auto&& respBody = client.responseBody.str();
             PRINTUNIFIED("||||||||HTTP Response Code: %d ||||||||\n", client.httpResponseCode);
             PRINTUNIFIED("||||||||HTTP Response Headers:||||||||\n%s\n||||||||\n", client.responseHeaders.c_str());
@@ -248,7 +249,7 @@ int https1_FromArgs(int argc, const C* argv[]) {
         }
         else { // download response body to file
             auto targetPath = argc < 4 ? STRNAMESPACE() : STRNAMESPACE(argv[3]);
-            ret = client.request(url, "GET", true, targetPath);
+            ret = client.request(url, "GET", {}, "", true, targetPath);
             PRINTUNIFIED("||||||||HTTP Response Code: %d ||||||||\n", client.httpResponseCode);
             PRINTUNIFIED("||||||||HTTP Response Headers:||||||||\n%s\n||||||||\n", client.responseHeaders.c_str());
         }
