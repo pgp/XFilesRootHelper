@@ -226,7 +226,7 @@ public:
                 const STR& targetPath, // (use if downloadToFile is true) empty: detect filename, non-empty: download to path (folder or file)
                 bool verifyCertificates = true,
                 int port = 443,
-                int maxRedirects = 5) {
+                uint32_t maxRedirects = 5) {
         currentUrl = url;
         for(int i=0;i<=maxRedirects;i++) {
             inRb.reset();
