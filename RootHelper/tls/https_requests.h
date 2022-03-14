@@ -5,15 +5,38 @@
 #include <utility>
 #include "basic_https_client.h"
 
-std::pair<std::string,std::string> domainAndQueryStringFromFullUrl(std::string url) {
-    if(url.find("http://")==0)
-        throw std::runtime_error("Plain HTTP not allowed");
+typedef struct {
+    bool isHttps;
+    std::string domainOnly;
+    int port;
+    std::string queryString;
+} httpUrlInfo;
+
+// test non-standard TLS port 8443 here:
+// https://clienttest.ssllabs.com:8443/ssltest/viewMyClient.html
+httpUrlInfo getHttpInfo(std::string url, bool allowPlainHttp = false) {
+    httpUrlInfo info;
+    info.isHttps = true; // assume https by default (i.e. when scheme is not provided at all)
+    if(url.find("http://")==0) {
+        if(!allowPlainHttp) throw std::runtime_error("Plain HTTP not allowed");
+        url = url.substr(7);
+        info.isHttps = false;
+    }
     else if(url.find("https://")==0)
         url = url.substr(8);
-    auto slashIdx = url.find('/');
-    auto domainOnly = slashIdx==std::string::npos?url:url.substr(0,slashIdx);
-    std::string queryString = slashIdx==std::string::npos?"":url.substr(slashIdx);
-    return std::make_pair(domainOnly, queryString);
+    auto idx = url.find('/');
+    info.domainOnly = idx==std::string::npos?url:url.substr(0,idx);
+    info.queryString = idx==std::string::npos?"":url.substr(idx);
+
+    // extract port, if present, otherwise use 80 for http and 443 for https
+    info.port = info.isHttps ? 443 : 80;
+    idx = info.domainOnly.find(':');
+    if(idx != std::string::npos) {
+        std::string p = info.domainOnly.substr(idx+1);
+        info.port = stoi(p);
+        info.domainOnly = info.domainOnly.substr(0,idx);
+    }
+    return info;
 }
 
 int parseResponseCode(const std::string& responseHeaders) {
@@ -225,7 +248,6 @@ public:
                 bool downloadToFile,
                 const STR& targetPath, // (use if downloadToFile is true) empty: detect filename, non-empty: download to path (folder or file)
                 bool verifyCertificates = true,
-                int port = 443,
                 uint32_t maxRedirects = 5) {
         currentUrl = url;
         for(int i=0;i<=maxRedirects;i++) {
@@ -234,9 +256,10 @@ public:
             std::stringstream tmprb;
             responseBody.swap(tmprb);
 
-            auto&& splittedUrl = domainAndQueryStringFromFullUrl(currentUrl);
-            auto domainOnly = splittedUrl.first;
-            auto queryString = splittedUrl.second;
+            auto&& info = getHttpInfo(currentUrl);
+            auto& domainOnly = info.domainOnly;
+            auto& queryString = info.queryString;
+            auto& port = info.port;
 
             // create plain TCP socket
             tcpd.reset(netfactory.createNew(domainOnly, port));

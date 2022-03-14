@@ -316,7 +316,7 @@ int https1_FromArgs(int argc, const C* argv[]) {
         parseHttpCliArgs(argc, argv, httpMethod, rqHdrs, rqBody, maxRedirs, verifyCertificates, url, downloadPath);
         if(mode == "https1") {
             // ret = client.request(url, "POST", {{"User-Agent", "ExampleAgent"}}, "Test\r\nTest\r\nTest", false, STRNAMESPACE());
-            ret = client.request(url, httpMethod, rqHdrs, rqBody, false, downloadPath, verifyCertificates, 443, maxRedirs);
+            ret = client.request(url, httpMethod, rqHdrs, rqBody, false, downloadPath, verifyCertificates, maxRedirs);
             auto&& respBody = client.responseBody.str();
             PRINTUNIFIED("||||||||HTTP Response Code: %d ||||||||\n", client.httpResponseCode);
             PRINTUNIFIED("||||||||HTTP Response Headers:||||||||\n%s\n||||||||\n", client.responseHeaders.c_str());
@@ -324,7 +324,7 @@ int https1_FromArgs(int argc, const C* argv[]) {
         }
         else { // download response body to file
             // auto targetPath = argc < 4 ? STRNAMESPACE() : STRNAMESPACE(argv[3]);
-            ret = client.request(url, httpMethod, rqHdrs, rqBody, true, downloadPath, verifyCertificates, 443, maxRedirs);
+            ret = client.request(url, httpMethod, rqHdrs, rqBody, true, downloadPath, verifyCertificates, maxRedirs);
             PRINTUNIFIED("||||||||HTTP Response Code: %d ||||||||\n", client.httpResponseCode);
             PRINTUNIFIED("||||||||HTTP Response Headers:||||||||\n%s\n||||||||\n", client.responseHeaders.c_str());
         }
