@@ -224,6 +224,7 @@ void parseHttpCliArgs(int argc, const C* argv[],
     method = "GET";
     verifyCertificates = true;
     httpsOnly = true;
+    // TODO do some refactoring here
     std::runtime_error e("Index out of bounds when parsing http options");
     std::runtime_error e1("HTTP method provided more than once");
     std::runtime_error e2("Body provided more than once");
@@ -291,7 +292,7 @@ template<typename C>
 int https1_FromArgs(int argc, const C* argv[]) {
     if(argc < 3) {
         std::string exeName = TOUTF(argv[0]);
-        PRINTUNIFIED("Usage (curl-like syntax): %s <https1|httpsd> [-k | --insecure] [-X {GET|POST|PUT...}] [-H requestHeader1] [-H requestHeader2...] [-d requestBody] [--max-redirs N] https://my.domain.tld/my?querystring [/download/path/file.bin]\n"
+        PRINTUNIFIED("Usage (curl-like syntax): %s <https1|httpsd> [-k | --insecure] [--httpsOnly {0|1}] [-X {GET|POST|PUT...}] [-H requestHeader1] [-H requestHeader2...] [-d requestBody] [--max-redirs N] https://my.domain.tld/my?querystring [/download/path/file.bin]\n"
                              "Be aware that, unlike curl, this program will follow redirects by default\n", exeName.c_str());
         _Exit(0);
     }
@@ -317,7 +318,7 @@ int https1_FromArgs(int argc, const C* argv[]) {
     uint32_t maxRedirs;
     bool verifyCertificates;
     bool httpsOnly;
-    // test for 301/302 redirects:
+    // test for 301/302 mixed HTTP/HTTPS redirects:
     // https://3.ly/afSg2
     // redirects to:
     // https://stackoverflow.com/questions/15261851/100x100-image-with-random-pixel-colour
