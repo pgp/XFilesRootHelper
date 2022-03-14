@@ -213,22 +213,31 @@ void parseHttpCliArgs(int argc, const C* argv[],
                       std::unordered_map<std::string,std::string>& headers,
                       std::string& requestBody,
                       uint32_t& maxRedirs,
+                      bool& verifyCertificates,
                       std::string& url,
                       STR& downloadPath) {
     std::string opt;
     std::string value;
-    bool methodProvided = false, bodyProvided = false, maxRedirsProvided = false;
+    bool methodProvided = false, bodyProvided = false, maxRedirsProvided = false, verCertsProvided = false;
     maxRedirs = -1; // a.k.a. 2**32 -1
     method = "GET";
+    verifyCertificates = true;
     std::runtime_error e("Index out of bounds when parsing http options");
     std::runtime_error e1("HTTP method provided more than once");
     std::runtime_error e2("Body provided more than once");
     std::runtime_error e3("Malformed header");
     std::runtime_error e4("Redirection limit provided more than once");
+    std::runtime_error e5("Verify certificates option provided more than once");
     for(int i=2; i<argc; i+=2) {
-        // expect -X, -H, or -d, before final parameters url, and the optional download path
+        // expect -k, -X, -H, or -d, before final parameters url, and the optional download path
         opt = TOUTF(argv[i]);
-        if(opt == "-H") { // headers, multiple ones allowed
+        if(opt == "-k" || opt == "--insecure") {
+            if(verCertsProvided) throw e5;
+            verifyCertificates = false;
+            verCertsProvided = true;
+            i--; // i jumps by 2, so decrement it since here we are not treating a pair of cli args, but only one
+        }
+        else if(opt == "-H") { // headers, multiple ones allowed
             if(i+1 >= argc) throw e;
             std::string hh = TOUTF(argv[i+1]);
             auto idx = hh.find(": ");
@@ -295,6 +304,7 @@ int https1_FromArgs(int argc, const C* argv[]) {
     std::unordered_map<std::string,std::string> rqHdrs;
     std::string rqBody;
     uint32_t maxRedirs;
+    bool verifyCertificates;
     // test for 301/302 redirects:
     // https://3.ly/afSg2
     // redirects to:
@@ -303,10 +313,10 @@ int https1_FromArgs(int argc, const C* argv[]) {
     // auto ret = client.request(url, "GET", sd, 443, 0); // don't follow redirects
     int ret = -1;
     try {
-        parseHttpCliArgs(argc, argv, httpMethod, rqHdrs, rqBody, maxRedirs, url, downloadPath);
+        parseHttpCliArgs(argc, argv, httpMethod, rqHdrs, rqBody, maxRedirs, verifyCertificates, url, downloadPath);
         if(mode == "https1") {
             // ret = client.request(url, "POST", {{"User-Agent", "ExampleAgent"}}, "Test\r\nTest\r\nTest", false, STRNAMESPACE());
-            ret = client.request(url, httpMethod, rqHdrs, rqBody, false, downloadPath, 443, maxRedirs);
+            ret = client.request(url, httpMethod, rqHdrs, rqBody, false, downloadPath, verifyCertificates, 443, maxRedirs);
             auto&& respBody = client.responseBody.str();
             PRINTUNIFIED("||||||||HTTP Response Code: %d ||||||||\n", client.httpResponseCode);
             PRINTUNIFIED("||||||||HTTP Response Headers:||||||||\n%s\n||||||||\n", client.responseHeaders.c_str());
@@ -314,7 +324,7 @@ int https1_FromArgs(int argc, const C* argv[]) {
         }
         else { // download response body to file
             // auto targetPath = argc < 4 ? STRNAMESPACE() : STRNAMESPACE(argv[3]);
-            ret = client.request(url, httpMethod, rqHdrs, rqBody, true, downloadPath, 443, maxRedirs);
+            ret = client.request(url, httpMethod, rqHdrs, rqBody, true, downloadPath, verifyCertificates, 443, maxRedirs);
             PRINTUNIFIED("||||||||HTTP Response Code: %d ||||||||\n", client.httpResponseCode);
             PRINTUNIFIED("||||||||HTTP Response Headers:||||||||\n%s\n||||||||\n", client.responseHeaders.c_str());
         }

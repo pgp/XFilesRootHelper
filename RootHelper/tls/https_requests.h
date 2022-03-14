@@ -224,6 +224,7 @@ public:
                 std::string requestBody,
                 bool downloadToFile,
                 const STR& targetPath, // (use if downloadToFile is true) empty: detect filename, non-empty: download to path (folder or file)
+                bool verifyCertificates = true,
                 int port = 443,
                 int maxRedirects = 5) {
         currentUrl = url;
@@ -245,7 +246,7 @@ public:
             }
 
             // wrap the TLS client socket
-            tlsd.reset(new TLSDescriptor(*tcpd, inRb, port, defaultCreds, true, domainOnly));
+            tlsd.reset(new TLSDescriptor(*tcpd, inRb, port, defaultCreds, verifyCertificates, domainOnly));
             auto sharedHash = tlsd->setup();
             if(sharedHash.empty()) {
                 PRINTUNIFIEDERROR("Error during TLS connection setup\n");
