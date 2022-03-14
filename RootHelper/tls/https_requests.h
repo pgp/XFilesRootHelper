@@ -109,7 +109,7 @@ public:
     std::string currentUrl;
     std::string detectedFilename;
     std::shared_ptr<IDescriptor> tcpd; // WinsockDescriptor or PosixDescriptor
-    std::shared_ptr<IDescriptor> tlsd; // WinsockDescriptor or PosixDescriptor for HTTP, TLSDescriptor for HTTPS connections // TODO rename
+    std::shared_ptr<IDescriptor> wrappedD; // WinsockDescriptor or PosixDescriptor for HTTP, TLSDescriptor for HTTPS connections
     int httpResponseCode;
 
     std::unordered_map<std::string,std::string> defaultHeaders{
@@ -271,15 +271,15 @@ public:
 
             // wrap the TLS client socket
             if(info.isHttps) {
-                tlsd.reset(new TLSDescriptor(*tcpd, inRb, port, defaultCreds, verifyCertificates, domainOnly));
-                TLSDescriptor& tlsd1 = (TLSDescriptor&)(*tlsd);
-                auto sharedHash = tlsd1.setup();
+                wrappedD.reset(new TLSDescriptor(*tcpd, inRb, port, defaultCreds, verifyCertificates, domainOnly));
+                TLSDescriptor& tlsd = (TLSDescriptor&)(*wrappedD);
+                auto sharedHash = tlsd.setup();
                 if(sharedHash.empty()) {
                     PRINTUNIFIEDERROR("Error during TLS connection setup\n");
                     return -2;
                 }
             }
-            else tlsd = tcpd; // short-circuit, use the TCP descriptor
+            else wrappedD = tcpd; // short-circuit, use the TCP descriptor
             const char* transportScheme = info.isHttps ? "TLS" : "TCP";
 
             PRINTUNIFIED("%s connection established with server %s, port %d\n", transportScheme, domainOnly.c_str(),port);
@@ -297,16 +297,16 @@ public:
                 }
                 request << "\r\n";
                 auto rq = request.str();
-                tlsd->writeAllOrExit(rq.c_str(),rq.length());
+                wrappedD->writeAllOrExit(rq.c_str(),rq.length());
                 if(!requestBody.empty()) {
                     requestBody = requestBody + "\r\n\r\n";
-                    tlsd->writeAllOrExit(requestBody.c_str(),requestBody.length());
+                    wrappedD->writeAllOrExit(requestBody.c_str(),requestBody.length());
                 }
 
-                httpResponseCode = parseResponseHeadersAndDownloadBody(*tlsd, downloadToFile, targetPath);
+                httpResponseCode = parseResponseHeadersAndDownloadBody(*wrappedD, downloadToFile, targetPath);
                 if(httpResponseCode == 301 || httpResponseCode == 302) {
                     currentUrl = getRedirectLocation(responseHeaders);
-                    tlsd.reset(); // force disconnect, so we can reset the ringbuffer
+                    wrappedD.reset(); // force disconnect, so we can reset the ringbuffer
                 }
                 else if(httpResponseCode != 200) {
                     PRINTUNIFIED("[https-client] error response http code: %d\n", httpResponseCode);
