@@ -109,7 +109,7 @@ public:
     std::string currentUrl;
     std::string detectedFilename;
     std::shared_ptr<IDescriptor> tcpd; // WinsockDescriptor or PosixDescriptor
-    std::shared_ptr<TLSDescriptor> tlsd;
+    std::shared_ptr<IDescriptor> tlsd; // WinsockDescriptor or PosixDescriptor for HTTP, TLSDescriptor for HTTPS connections // TODO rename
     int httpResponseCode;
 
     std::unordered_map<std::string,std::string> defaultHeaders{
@@ -248,6 +248,7 @@ public:
                 bool downloadToFile,
                 const STR& targetPath, // (use if downloadToFile is true) empty: detect filename, non-empty: download to path (folder or file)
                 bool verifyCertificates = true,
+                bool httpsOnly = true,
                 uint32_t maxRedirects = 5) {
         currentUrl = url;
         for(int i=0;i<=maxRedirects;i++) {
@@ -256,7 +257,7 @@ public:
             std::stringstream tmprb;
             responseBody.swap(tmprb);
 
-            auto&& info = getHttpInfo(currentUrl);
+            auto&& info = getHttpInfo(currentUrl, !httpsOnly);
             auto& domainOnly = info.domainOnly;
             auto& queryString = info.queryString;
             auto& port = info.port;
@@ -269,18 +270,23 @@ public:
             }
 
             // wrap the TLS client socket
-            tlsd.reset(new TLSDescriptor(*tcpd, inRb, port, defaultCreds, verifyCertificates, domainOnly));
-            auto sharedHash = tlsd->setup();
-            if(sharedHash.empty()) {
-                PRINTUNIFIEDERROR("Error during TLS connection setup\n");
-                return -2;
+            if(info.isHttps) {
+                tlsd.reset(new TLSDescriptor(*tcpd, inRb, port, defaultCreds, verifyCertificates, domainOnly));
+                TLSDescriptor& tlsd1 = (TLSDescriptor&)(*tlsd);
+                auto sharedHash = tlsd1.setup();
+                if(sharedHash.empty()) {
+                    PRINTUNIFIEDERROR("Error during TLS connection setup\n");
+                    return -2;
+                }
             }
+            else tlsd = tcpd; // short-circuit, use the TCP descriptor
+            const char* transportScheme = info.isHttps ? "TLS" : "TCP";
 
-            PRINTUNIFIED("TLS connection established with server %s, port %d\n",domainOnly.c_str(),port);
+            PRINTUNIFIED("%s connection established with server %s, port %d\n", transportScheme, domainOnly.c_str(),port);
 
             // send the HTTPS request
             try {
-                PRINTUNIFIED("Performing HTTPS request, querystring is %s ...\n",queryString.c_str());
+                PRINTUNIFIED("Performing HTTP(S) request, querystring is %s ...\n",queryString.c_str());
                 auto&& qs1 = (queryString.empty() || queryString[0] != '/') ? "/"+queryString : queryString;
                 std::stringstream request;
                 auto totalHeaders = headers;
