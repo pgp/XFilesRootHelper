@@ -12,6 +12,15 @@
 #include "botan_rh_tls_descriptor.h"
 #include "../progressHook.h"
 
+void rtrim(std::string& s) {
+    int L = s.length();
+    int i = L-1;
+    for(; i >= 0; i--) {
+        if(s[i] != ' ' && s[i] != '\r' && s[i] != '\n' && s[i] != '\t') break;
+    }
+    if(i+1 != L) s.resize(i+1);
+}
+
 // Web source: https://stackoverflow.com/questions/3152241/case-insensitive-stdstring-find
 size_t findStringIC(const std::string& strHaystack, const std::string& strNeedle) {
     auto it = std::search(
@@ -104,12 +113,14 @@ std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
                     auto&& y = line.substr(rawIdx+1);
                     // sanitize for POSIX path compatibility
                     std::replace(y.begin(),y.end(),'/','_');
+                    rtrim(y);
                     return y;
                 }
             }
             else {
                 // sanitize for POSIX path compatibility
                 std::replace(z.begin(),z.end(),'/','_');
+                rtrim(z);
                 return z;
             }
         }
