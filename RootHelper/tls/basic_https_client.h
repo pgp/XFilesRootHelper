@@ -478,15 +478,7 @@ std::pair<std::string,std::string> ssh_keygen_internal(uint32_t keySize) {
     return std::make_pair(prv_s,pub_s);
 }
 
-// methods for uploading to x0.at
 const std::string CRLF = "\r\n";
-
-// TODO no more IP, but domain name
-#define IP         "https://x0.at"
-#define RECEIVER   "/"
-#define COMPNAME   "compname"
-#define PROGRAM    "program"
-#define FILENAME   "file"
 
 std::string genRandomHexString() {
     // 16 random bytes
@@ -508,7 +500,7 @@ std::string bodyHeader(const std::string& filename, const std::string& BOUNDARY)
     std::stringstream body;
 
     body << "--" << BOUNDARY << CRLF;
-    body << "Content-Disposition: form-data; name=\"" << std::string(FILENAME) << "\"; filename=\"" << filename << "\"" << CRLF;
+    body << "Content-Disposition: form-data; name=\"file\"; filename=\"" << filename << "\"" << CRLF;
     body << "Content-Type: application/octet-stream" << CRLF << CRLF;
     return body.str();
 }
@@ -534,8 +526,8 @@ int httpsUrlUpload_x0at_internal(IDescriptor& cl,
                                  RingBuffer& inRb,
                                  bool uploadFromCli) {
     const std::string domainOnly = "x0.at";
-    int httpRet = -1;
     const auto port = 443;
+    int httpRet = -1;
     auto&& remoteCl = netfactory.create(domainOnly, port);
     if(!remoteCl) {
         sendErrorResponse(cl);
@@ -560,7 +552,7 @@ int httpsUrlUpload_x0at_internal(IDescriptor& cl,
 	}
 
     try {
-        PRINTUNIFIED("Posting file to x0.at\n");
+        PRINTUNIFIED("Posting file to %s\n", domainOnly.c_str());
         std::string fname = TOUTF(sourcePathForUpload); // downloadPath is actually the path of the file to be uploaded here
         std::string BOUNDARY = "--------" + genRandomHexString();
         PRINTUNIFIED("Using boundary string: %s\n", BOUNDARY.c_str());
@@ -573,7 +565,7 @@ int httpsUrlUpload_x0at_internal(IDescriptor& cl,
         auto&& fileToUpload = fdfactory.create(sourcePathForUpload, FileOpenMode::READ);
 
         std::string postHeader = "POST / HTTP/1.1\r\n"
-                              "Host: x0.at\r\n"
+                              "Host: "+domainOnly+"\r\n"
                               "Content-Length: "+std::to_string(wrappedBodyLen)+"\r\n"
                               "User-Agent: XFilesHTTPClient/1.0.0\r\n"
                               "Accept: */*\r\n"
@@ -639,7 +631,7 @@ int httpsUrlUpload_x0at_internal(IDescriptor& cl,
     }
     
     if(uploadFromCli) {
-        if(httpRet == 200) { // @@@ http ret from x0.at, after upload
+        if(httpRet == 200) { // http ret from x0.at, after upload
             // read from downloaded link file
             auto generatedLinkPath = dp1 + tfl;
             auto&& generatedLinkFd = fdfactory.create(generatedLinkPath, FileOpenMode::READ);
