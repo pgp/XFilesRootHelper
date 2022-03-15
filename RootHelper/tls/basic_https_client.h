@@ -12,6 +12,40 @@
 #include "botan_rh_tls_descriptor.h"
 #include "../progressHook.h"
 
+typedef struct {
+    bool isHttps;
+    std::string domainOnly;
+    int port;
+    std::string queryString;
+} httpUrlInfo;
+
+// test non-standard TLS port 8443 here:
+// https://clienttest.ssllabs.com:8443/ssltest/viewMyClient.html
+httpUrlInfo getHttpInfo(std::string url, bool allowPlainHttp = false) {
+    httpUrlInfo info;
+    info.isHttps = true; // assume https by default (i.e. when scheme is not provided at all)
+    if(url.find("http://")==0) {
+        if(!allowPlainHttp) throw std::runtime_error("Plain HTTP not allowed");
+        url = url.substr(7);
+        info.isHttps = false;
+    }
+    else if(url.find("https://")==0)
+        url = url.substr(8);
+    auto idx = url.find('/');
+    info.domainOnly = idx==std::string::npos?url:url.substr(0,idx);
+    info.queryString = idx==std::string::npos?"":url.substr(idx);
+
+    // extract port, if present, otherwise use 80 for http and 443 for https
+    info.port = info.isHttps ? 443 : 80;
+    idx = info.domainOnly.find(':');
+    if(idx != std::string::npos) {
+        std::string p = info.domainOnly.substr(idx+1);
+        info.port = stoi(p);
+        info.domainOnly = info.domainOnly.substr(0,idx);
+    }
+    return info;
+}
+
 void rtrim(std::string& s) {
     int L = s.length();
     int i = L-1;
@@ -344,20 +378,15 @@ brokenDownload:
 template<typename STR>
 int httpsUrlDownload_internal(IDescriptor& cl,
                               std::string& targetUrl,
-                              uint16_t port,
                               const STR& downloadPath,
                               const STR& targetFilename,
                               RingBuffer& inRb,
                               std::string& redirectUrl,
                               const bool downloadToFile) {
-    if(targetUrl.find("http://")==0)
-        throw std::runtime_error("Plain HTTP not allowed");
-    else if(targetUrl.find("https://")==0)
-        targetUrl = targetUrl.substr(8);
-
-    auto slashIdx = targetUrl.find('/');
-    auto domainOnly = slashIdx==std::string::npos?targetUrl:targetUrl.substr(0,slashIdx);
-    std::string getString = slashIdx==std::string::npos?"":targetUrl.substr(slashIdx);
+    auto&& info = getHttpInfo(targetUrl);
+    auto& domainOnly = info.domainOnly;
+    auto& getString = info.queryString;
+    auto& port = info.port;
 
     auto&& remoteCl = netfactory.create(domainOnly, port);
     if(!remoteCl) {
@@ -504,10 +533,9 @@ int httpsUrlUpload_x0at_internal(IDescriptor& cl,
                                  const STR& sourcePathForUpload,
                                  RingBuffer& inRb,
                                  bool uploadFromCli) {
-    std::string domainOnly = "x0.at";
-    std::string postString = "/";
+    const std::string domainOnly = "x0.at";
     int httpRet = -1;
-    auto port = 443;
+    const auto port = 443;
     auto&& remoteCl = netfactory.create(domainOnly, port);
     if(!remoteCl) {
         sendErrorResponse(cl);
@@ -598,7 +626,7 @@ int httpsUrlUpload_x0at_internal(IDescriptor& cl,
                                                   dp1,
                                                   tfl,
                                                   hdrs,
-                                                  domainOnly+postString,
+                                                  domainOnly+"/",
                                                   uploadFromCli); // uploadFromCli ia actually downloadToFile
     }
     catch (threadExitThrowable& i) {

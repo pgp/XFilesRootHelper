@@ -5,40 +5,6 @@
 #include <utility>
 #include "basic_https_client.h"
 
-typedef struct {
-    bool isHttps;
-    std::string domainOnly;
-    int port;
-    std::string queryString;
-} httpUrlInfo;
-
-// test non-standard TLS port 8443 here:
-// https://clienttest.ssllabs.com:8443/ssltest/viewMyClient.html
-httpUrlInfo getHttpInfo(std::string url, bool allowPlainHttp = false) {
-    httpUrlInfo info;
-    info.isHttps = true; // assume https by default (i.e. when scheme is not provided at all)
-    if(url.find("http://")==0) {
-        if(!allowPlainHttp) throw std::runtime_error("Plain HTTP not allowed");
-        url = url.substr(7);
-        info.isHttps = false;
-    }
-    else if(url.find("https://")==0)
-        url = url.substr(8);
-    auto idx = url.find('/');
-    info.domainOnly = idx==std::string::npos?url:url.substr(0,idx);
-    info.queryString = idx==std::string::npos?"":url.substr(idx);
-
-    // extract port, if present, otherwise use 80 for http and 443 for https
-    info.port = info.isHttps ? 443 : 80;
-    idx = info.domainOnly.find(':');
-    if(idx != std::string::npos) {
-        std::string p = info.domainOnly.substr(idx+1);
-        info.port = stoi(p);
-        info.domainOnly = info.domainOnly.substr(0,idx);
-    }
-    return info;
-}
-
 int parseResponseCode(const std::string& responseHeaders) {
     PRINTUNIFIED("Retrieving HTTP response code...\n");
     auto tmpIdx = responseHeaders.find("\r\n");

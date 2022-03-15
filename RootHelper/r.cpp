@@ -1216,6 +1216,8 @@ void httpsUrlDownload(IDescriptor& cl, const uint8_t flags) { // cl is local soc
     const bool downloadToFile = flags == 0; // flags: 000 -> download to file, 111 -> download to memory
 
     // receive port
+    // FIXME this is not needed anymore, since port is auto-detected from url (even custom port, after ':'),
+    //  but have to receive it anyway, until rh protocol is updated
     uint16_t port;
     cl.readAllOrExit(&port,sizeof(uint16_t));
 
@@ -1238,7 +1240,7 @@ void httpsUrlDownload(IDescriptor& cl, const uint8_t flags) { // cl is local soc
     
     // HTTP redirect limit
     for(int i=0;i<5;i++) {
-        httpRet = httpsUrlDownload_internal(cl,target,port,downloadPath,targetFilename,inRb,redirectUrl,downloadToFile);
+        httpRet = httpsUrlDownload_internal(cl,target,downloadPath,targetFilename,inRb,redirectUrl,downloadToFile);
         if(httpRet == 200) break;
         if(httpRet != 301 && httpRet != 302) {
             errno = httpRet;
