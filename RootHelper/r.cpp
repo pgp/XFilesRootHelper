@@ -1262,7 +1262,7 @@ void x0atUpload(IDescriptor& cl) { // cl is local socket
 	PRINTUNIFIED("Received source path over local socket:\n%s\n", uploadPath.c_str());
 
 	RingBuffer inRb;
-	auto httpRet = httpsUrlUpload_x0at_internal(cl,uploadPath,inRb,false);
+	auto httpRet = httpsUrlUpload_internal(cl,"x0.at",uploadPath,inRb,false);
 
 	// at the end, close the sockets
 	cl.close();

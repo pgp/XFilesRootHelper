@@ -521,11 +521,11 @@ const std::string tfl = "out_x0at.txt";
 #endif
 
 template<typename STR>
-int httpsUrlUpload_x0at_internal(IDescriptor& cl,
+int httpsUrlUpload_internal(IDescriptor& cl,
+                                 const std::string& domainOnly,
                                  const STR& sourcePathForUpload,
                                  RingBuffer& inRb,
                                  bool uploadFromCli) {
-    const std::string domainOnly = "x0.at";
     const auto port = 443;
     int httpRet = -1;
     auto&& remoteCl = netfactory.create(domainOnly, port);

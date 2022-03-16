@@ -62,13 +62,14 @@ int downloadFromArgs(int argc, const C* argv[]) {
 }
 
 template<typename C>
-int upload_x0at_FromArgs(int argc, const C* argv[]) {
+int upload_x0at_0x0st(int argc, const C* argv[]) {
     // argv[1] already checked == "upx0at"
     if(argc < 3) {
         std::string x = TOUTF(argv[0]);
-        PRINTUNIFIED("Usage: %s upx0at /your/src/path/file.bin\n", x.c_str());
+        PRINTUNIFIED("Usage: %s <x0at|0x0st> /your/src/path/file.bin\n", x.c_str());
         _Exit(0);
     }
+    std::string cliDomain = TOUTF(argv[1]);
 #ifdef _WIN32
     { // FIXME call common init method BEFORE invoking cli parser
         // Initialize Winsock
@@ -83,7 +84,8 @@ int upload_x0at_FromArgs(int argc, const C* argv[]) {
     RingBuffer inRb;
     SinkDescriptor cl;
     auto&& srcPath = STRNAMESPACE(argv[2]);
-    auto httpRet = httpsUrlUpload_x0at_internal(cl,srcPath,inRb,true);
+    std::string domainOnly = cliDomain == "x0at" ? "x0.at" : "0x0.st";
+    auto httpRet = httpsUrlUpload_internal(cl,domainOnly,srcPath,inRb,true);
     return httpRet==200?0:httpRet;
 }
 
@@ -355,7 +357,8 @@ int https1_FromArgs(int argc, const C* argv[]) {
 // enum ControlCodes in this map is not used at the current time, it's there just for readability
 const std::unordered_map<std::string,std::pair<ControlCodes,cliFunction>> allowedFromCli = {
         {"download", {ControlCodes::ACTION_HTTPS_URL_DOWNLOAD, downloadFromArgs}},
-        {"upx0at", {ControlCodes::ACTION_CLOUD_SERVICES, upload_x0at_FromArgs}},
+        {"x0at", {ControlCodes::ACTION_CLOUD_SERVICES, upload_x0at_0x0st}},
+        {"0x0st", {ControlCodes::ACTION_CLOUD_SERVICES, upload_x0at_0x0st}},
         {"https1", {ControlCodes::ACTION_CLOUD_SERVICES, https1_FromArgs}},
         {"httpsd", {ControlCodes::ACTION_CLOUD_SERVICES, https1_FromArgs}},
         {"ssh-keygen", {ControlCodes::ACTION_SSH_KEYGEN, sshKeygenFromArgs}},
