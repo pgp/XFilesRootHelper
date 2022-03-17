@@ -1213,7 +1213,8 @@ void tlsClientSession(IDescriptor& cl) { // cl is local socket
 void httpsUrlDownload(IDescriptor& cl, const uint8_t flags) { // cl is local socket
     // receive server address
     std::string target = readStringWithLen(cl);
-    const bool downloadToFile = flags == 0; // flags: 000 -> download to file, 111 -> download to memory
+    const bool downloadToFile = b0(flags); // flags: 000 -> download to file, 111 -> download to memory
+    const bool httpsOnly = b1(flags);
 
     // receive port
     // FIXME this is not needed anymore, since port is auto-detected from url (even custom port, after ':'),
@@ -1240,7 +1241,7 @@ void httpsUrlDownload(IDescriptor& cl, const uint8_t flags) { // cl is local soc
     
     // HTTP redirect limit
     for(int i=0;i<5;i++) {
-        httpRet = httpsUrlDownload_internal(cl,target,downloadPath,targetFilename,inRb,redirectUrl,downloadToFile);
+        httpRet = httpsUrlDownload_internal(cl,target,downloadPath,targetFilename,inRb,redirectUrl,downloadToFile,httpsOnly);
         if(httpRet == 200) break;
         if(httpRet != 301 && httpRet != 302) {
             errno = httpRet;

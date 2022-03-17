@@ -382,14 +382,15 @@ int httpsUrlDownload_internal(IDescriptor& cl,
                               const STR& targetFilename,
                               RingBuffer& inRb,
                               std::string& redirectUrl,
-                              const bool downloadToFile) {
-    auto&& info = getHttpInfo(targetUrl);
+                              const bool downloadToFile,
+                              const bool httpsOnly) {
+    auto&& info = getHttpInfo(targetUrl, !httpsOnly);
     auto& domainOnly = info.domainOnly;
     auto& getString = info.queryString;
     auto& port = info.port;
 
-    auto&& remoteCl = netfactory.create(domainOnly, port);
-    if(!remoteCl) {
+    std::shared_ptr<IDescriptor> remoteCl(netfactory.createNew(domainOnly, port));
+    if(!(*remoteCl)) {
         sendErrorResponse(cl);
         return -1;
     }
@@ -403,21 +404,28 @@ int httpsUrlDownload_internal(IDescriptor& cl,
     }
 
     Basic_Credentials_Manager defaultCreds; // don't use the custom credsManager, used for xre
-    TLSDescriptor tlsd(remoteCl, inRb, port, defaultCreds, true, domainOnly);
-    auto sharedHash = tlsd.setup();
-    if(sharedHash.empty()) {
-        PRINTUNIFIEDERROR("Error during TLS connection setup\n");
-        sendErrorResponse(cl);
-        return -1;
+    std::shared_ptr<IDescriptor> wrappedD;
+    if(info.isHttps) {
+        TLSDescriptor* tlsd = new TLSDescriptor(*remoteCl, inRb, port, defaultCreds, true, domainOnly);
+        wrappedD.reset(tlsd);
+        auto sharedHash = tlsd->setup();
+        if(sharedHash.empty()) {
+            PRINTUNIFIEDERROR("Error during TLS connection setup\n");
+            sendErrorResponse(cl);
+            return -1;
+        }
+        // on plain TCP connections, do not even send this part, end-of-redirects indication is enough later
+        sendOkResponse(cl);
+        if(cl.write(&sharedHash[0],sharedHash.size()) < sharedHash.size()) {
+            PRINTUNIFIEDERROR("Unable to atomic write connect info to local socket");
+            threadExit();
+        }
     }
+    else wrappedD = remoteCl; // short-circuit, use the TCP descriptor
 
-    PRINTUNIFIED("TLS connection established with server %s, port %d\n",domainOnly.c_str(),port);
-    sendOkResponse(cl); // OK, from now on java client can communicate with remote server using this local socket
+    const char* transportScheme = info.isHttps ? "TLS" : "TCP";
 
-    if(cl.write(&sharedHash[0],sharedHash.size()) < sharedHash.size()) {
-        PRINTUNIFIEDERROR("Unable to atomic write connect info to local socket");
-        threadExit();
-    }
+    PRINTUNIFIED("%s connection established with server %s, port %d\n", transportScheme, domainOnly.c_str(),port);
 
     try {
         PRINTUNIFIED("Performing HTTPS request, getString is %s ...\n",getString.c_str());
@@ -426,11 +434,11 @@ int httpsUrlDownload_internal(IDescriptor& cl,
                                                                     "User-Agent: XFilesHTTPSClient/1.0.0\r\n"
                                                                     "Accept: */*\r\n"
                                                                     "Connection: close\r\n\r\n";
-        tlsd.writeAllOrExit(request.c_str(),request.length());
+        wrappedD->writeAllOrExit(request.c_str(),request.length());
 
         // read both header and body into file
         std::string hdrs;
-        auto httpRet = parseHttpResponseHeadersAndBody(tlsd,
+        auto httpRet = parseHttpResponseHeadersAndBody(*wrappedD,
                                                        cl,
                                                        downloadPath,
                                                        targetFilename,
@@ -459,7 +467,7 @@ int httpsUrlDownload_internal(IDescriptor& cl,
         PRINTUNIFIEDERROR("exception: %s\n",e.what());
     }
     PRINTUNIFIEDERROR("[https-client] generic error\n");
-    remoteCl.shutdown();
+    remoteCl->shutdown();
     return -1;
 }
 
