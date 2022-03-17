@@ -223,7 +223,9 @@ public:
             std::stringstream tmprb;
             responseBody.swap(tmprb);
 
-            auto&& info = getHttpInfo(currentUrl, !httpsOnly);
+            httpUrlInfo info{};
+            int ret = getHttpInfo(info, currentUrl, !httpsOnly);
+            if(ret) return ret;
             auto& domainOnly = info.domainOnly;
             auto& queryString = info.queryString;
             auto& port = info.port;

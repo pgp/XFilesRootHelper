@@ -21,11 +21,13 @@ typedef struct {
 
 // test non-standard TLS port 8443 here:
 // https://clienttest.ssllabs.com:8443/ssltest/viewMyClient.html
-httpUrlInfo getHttpInfo(std::string url, bool allowPlainHttp = false) {
-    httpUrlInfo info;
+int getHttpInfo(httpUrlInfo& info, std::string url, bool allowPlainHttp) {
     info.isHttps = true; // assume https by default (i.e. when scheme is not provided at all)
     if(url.find("http://")==0) {
-        if(!allowPlainHttp) throw std::runtime_error("Plain HTTP not allowed");
+        if(!allowPlainHttp) {
+            PRINTUNIFIEDERROR("Plain HTTP not allowed\n");
+            return -1;
+        }
         url = url.substr(7);
         info.isHttps = false;
     }
@@ -43,7 +45,7 @@ httpUrlInfo getHttpInfo(std::string url, bool allowPlainHttp = false) {
         info.port = stoi(p);
         info.domainOnly = info.domainOnly.substr(0,idx);
     }
-    return info;
+    return 0;
 }
 
 void rtrim(std::string& s) {
@@ -384,7 +386,9 @@ int httpsUrlDownload_internal(IDescriptor& cl,
                               std::string& redirectUrl,
                               const bool downloadToFile,
                               const bool httpsOnly) {
-    auto&& info = getHttpInfo(targetUrl, !httpsOnly);
+    httpUrlInfo info{};
+    int ret = getHttpInfo(info, targetUrl, !httpsOnly);
+    if(ret) return ret;
     auto& domainOnly = info.domainOnly;
     auto& getString = info.queryString;
     auto& port = info.port;
