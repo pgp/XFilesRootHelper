@@ -1255,14 +1255,18 @@ void httpsUrlDownload(IDescriptor& cl, const uint8_t flags) { // cl is local soc
     cl.close();
 }
 
-void x0atUpload(IDescriptor& cl) { // cl is local socket
+void httpsUpload(IDescriptor& cl) { // cl is local socket
+	// receive domain to upload to (currently available: 0x0.st and x0.at)
+	std::string domainOnly = readStringWithLen(cl);
+	PRINTUNIFIED("Received target domain: %s\n", domainOnly.c_str());
+
 	// receive source path
 	std::string uploadPath = readStringWithLen(cl);
 
-	PRINTUNIFIED("Received source path over local socket:\n%s\n", uploadPath.c_str());
+	PRINTUNIFIED("Received file path to upload: %s\n", uploadPath.c_str());
 
 	RingBuffer inRb;
-	auto httpRet = httpsUrlUpload_internal(cl,"x0.at",uploadPath,inRb,false);
+	auto httpRet = httpsUrlUpload_internal(cl,domainOnly,uploadPath,inRb,false);
 
 	// at the end, close the sockets
 	cl.close();
@@ -1401,8 +1405,8 @@ void serveRequest(int intcl, request_type rq) {
         case ControlCodes::ACTION_CLOUD_SERVICES:
 			cl.readAllOrExit(&cs, sizeof(uint16_t));
 			switch(cs) {
-				case 0x12: // upload to x0.at
-					x0atUpload(cl);
+				case 0x12: // upload to x0.at or 0x0.st
+					httpsUpload(cl);
 					break;
 				default:
 					PRINTUNIFIED("Unexpected cloud service id received\n");
