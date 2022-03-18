@@ -80,7 +80,7 @@ std::string parseContentDispLine(const std::string& line) {
     std::smatch results;
     std::regex_search(line, results, theRegex);
     if(results.size() >= 2) {
-        PRINTUNIFIED("First capture group found: %s",results[1].str().c_str());
+        PRINTUNIFIED("First capture group found: %s\n",results[1].str().c_str());
         return results[1].str(); // result 0 is full match, return 1st capture group instead
     }
     return "";
@@ -170,8 +170,7 @@ std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
 
             // sanitize for POSIX path compatibility
             std::replace(y.begin(),y.end(),'/','_');
-
-            return y;
+            if(!y.empty()) return y;
         }
     }
 
