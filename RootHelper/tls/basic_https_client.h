@@ -133,7 +133,7 @@ std::string urlDecode(const std::string& str){
     return ret;
 }
 
-std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
+std::string getHttpFilename_(const std::string& hdrs, const std::string& url) {
     std::istringstream ss(hdrs);
     std::string line;
     const std::string cdPrefix = "Content-Disposition: ";
@@ -183,6 +183,33 @@ std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
 
     return "file.bin";
 }
+
+// perform sanitizing for Windows paths as well (but only on Windows, clearly)
+// web source:
+// https://stackoverflow.com/questions/1976007/what-characters-are-forbidden-in-windows-and-linux-directory-names#31976060
+#ifdef _WIN32
+std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
+    auto&& s = getHttpFilename_(hdrs, url);
+    char *p = (char*)(s.c_str());
+    for(int i=0;i<s.length();i++) {
+        switch(p[i]) {
+            case '<':
+            case '>':
+            case ':':
+            case '"':
+            case '/':
+            case '\\':
+            case '|':
+            case '?':
+            case '*':
+                p[i] = '_';
+        }
+    }
+    return s;
+}
+#else
+auto& getHttpFilename = getHttpFilename_;
+#endif
 
 // template<typename STR>
 // void dumpToFile(const std::string& content, const STR& path) {
