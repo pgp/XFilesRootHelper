@@ -6,7 +6,6 @@
 #include "../tls/https_requests.h"
 #include "../tls/ssh_keygen_ed25519.h"
 #include "../desc/SinkDescriptor.h"
-#include "../desc/SstreamDescriptor.h"
 #include "../rh_hasher_botan.h"
 
 #ifdef _WIN32
