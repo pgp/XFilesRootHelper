@@ -50,6 +50,7 @@ int getHttpInfo(httpUrlInfo& info, std::string url, bool allowPlainHttp) {
 
 void rtrim(std::string& s) {
     int L = s.length();
+    if(L==0) return;
     int i = L-1;
     for(; i >= 0; i--) {
         if(s[i] != ' ' && s[i] != '\r' && s[i] != '\n' && s[i] != '\t') break;
@@ -141,27 +142,20 @@ std::string getHttpFilename(const std::string& hdrs, const std::string& url) {
             PRINTUNIFIED("Content-Disposition header found\n");
             // try parsing using regex
             auto&& z = parseContentDispLine(line);
-            // TODO simplify using early returns, remove duplicated std::replace
             if(z.empty()) {
                 PRINTUNIFIED("Regex failed, using manual split\n");
                 auto rawIdx = line.find('=');
-                if (rawIdx != std::string::npos) {
-                    auto&& y = line.substr(rawIdx+1);
-                    // sanitize for POSIX path compatibility
-                    std::replace(y.begin(),y.end(),'/','_');
-                    rtrim(y);
-                    return y;
-                }
+                if (rawIdx == std::string::npos) goto nocd;
+                z = line.substr(rawIdx+1);
             }
-            else {
-                // sanitize for POSIX path compatibility
-                std::replace(z.begin(),z.end(),'/','_');
-                rtrim(z);
-                return z;
-            }
+            // sanitize for POSIX path compatibility
+            std::replace(z.begin(),z.end(),'/','_');
+            rtrim(z);
+            return z;
         }
     }
 
+    nocd:
     PRINTUNIFIED("Content-Disposition header is malformed or not present, using URL splitting...\n");
     auto idx = url.find_last_of('/');
     if(idx != std::string::npos) {
