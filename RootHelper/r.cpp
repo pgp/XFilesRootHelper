@@ -25,7 +25,7 @@
 #endif
 
 #include "xre.h"
-#include "cli/cli_parser.h"
+#include "cli.h"
 
 #define PROGRAM_NAME "roothelper"
 char SOCKET_ADDR[32]={};

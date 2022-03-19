@@ -1,12 +1,12 @@
-#ifndef __RH_CLI_PARSER_H__
-#define __RH_CLI_PARSER_H__
+#ifndef __RH_CLI_H__
+#define __RH_CLI_H__
 
 #include <unordered_map>
-#include "../common_uds.h"
-#include "../tls/https_requests.h"
-#include "../tls/ssh_keygen_ed25519.h"
-#include "../desc/SinkDescriptor.h"
-#include "../rh_hasher_botan.h"
+#include "common_uds.h"
+#include "tls/https_requests.h"
+#include "tls/ssh_keygen_ed25519.h"
+#include "desc/SinkDescriptor.h"
+#include "rh_hasher_botan.h"
 
 #ifdef _WIN32
 using cliFunction = int (*)(int argc, const wchar_t* argv[]);
@@ -369,4 +369,4 @@ const std::unordered_map<std::string,std::pair<ControlCodes,cliFunction>> allowe
 
 
 
-#endif /* __RH_CLI_PARSER_H__ */
+#endif /* __RH_CLI_H__ */

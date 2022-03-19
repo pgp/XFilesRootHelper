@@ -5,7 +5,7 @@
 #include <cstdint>
 #include "Utils.h"
 #include "xre.h"
-#include "cli/cli_parser.h"
+#include "cli.h"
 
 int wmain(int argc, const wchar_t* argv[]) {
     initLogging();
