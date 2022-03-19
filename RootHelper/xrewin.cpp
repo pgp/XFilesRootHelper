@@ -31,7 +31,11 @@ int wmain(int argc, const wchar_t* argv[]) {
             return allowedFromCli.at(arg1).second(argc,argv);
         }
         else if(argv[1][0] != L'-') { // allow --homePath, etc...
-            PRINTUNIFIED("Cli usage: r.exe OP args...");
+            PRINTUNIFIED("Cli usage: r.exe OP args...\n");
+			std::stringstream ss;
+			for(auto& pair : allowedFromCli) ss << pair.first << " ";
+			auto&& s = ss.str();
+			PRINTUNIFIED("Available OPs: %s\n",s.c_str());
             return 0;
         }
     }
