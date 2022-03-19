@@ -1216,24 +1216,16 @@ void httpsUrlDownload(IDescriptor& cl, const uint8_t flags) { // cl is local soc
     const bool downloadToFile = b0(flags); // flags: 000 -> download to file, 111 -> download to memory
     const bool httpsOnly = b1(flags);
 
-    // receive port
-    // FIXME this is not needed anymore, since port is auto-detected from url (even custom port, after ':'),
-    //  but have to receive it anyway, until rh protocol is updated
-    uint16_t port;
-    cl.readAllOrExit(&port,sizeof(uint16_t));
-
     // receive destination directory
     std::string downloadPath = readStringWithLen(cl);
 
     // receive target filename, optional, ignore if empty string received
     std::string targetFilename = readStringWithLen(cl);
 
-    PRINTUNIFIED("Received URL, port destination path and target filename over local socket:\n%s\n%d\n%s\n%s\n",
+    PRINTUNIFIED("Received URL, destination path and target filename over local socket:\n%s\n%s\n%s\n",
             target.c_str(),
-            port,
             downloadPath.c_str(),
-            targetFilename.empty()?"[No explicit filename provided]":targetFilename.c_str()
-            );
+            targetFilename.empty()?"[No explicit filename provided]":targetFilename.c_str());
 
     RingBuffer inRb;
     std::string redirectUrl;
