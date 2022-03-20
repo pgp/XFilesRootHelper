@@ -10,6 +10,16 @@ docker pull centos:6.10
 docker run -it --entrypoint "/bin/bash" --name centosbuild centos:6.10 -i
 ```
 
+### Use CentOS Vault repos for yum
+```sh
+sudo -s # not needed within Docker container
+echo "https://vault.centos.org/6.10/os/x86_64/" > /var/cache/yum/x86_64/6/base/mirrorlist.txt
+echo "http://vault.centos.org/6.10/extras/x86_64/" > /var/cache/yum/x86_64/6/extras/mirrorlist.txt
+echo "http://vault.centos.org/6.10/updates/x86_64/" > /var/cache/yum/x86_64/6/updates/mirrorlist.txt
+echo "http://vault.centos.org/6.10/sclo/x86_64/rh" > /var/cache/yum/x86_64/6/centos-sclo-rh/mirrorlist.txt
+echo "http://vault.centos.org/6.10/sclo/x86_64/sclo" > /var/cache/yum/x86_64/6/centos-sclo-sclo/mirrorlist.txt
+```
+
 ### Install toolchain and dependencies
 
 ```sh
@@ -22,9 +32,9 @@ yum install nano git curl wget openssl openssl-devel
 
 # download a python 3 runtime (pypy3), since centos 6 does not provide recent python3 packages
 cd /opt
-wget https://bitbucket.org/pypy/pypy/downloads/pypy3.6-v7.3.1-linux64.tar.bz2
-tar xf pypy3.6-v7.3.1-linux64.tar.bz2
-rm -f pypy3.6-v7.3.1-linux64.tar.bz2
+wget https://downloads.python.org/pypy/pypy3.6-v7.3.3-linux64.tar.bz2
+tar xf pypy3.6-v7.3.3-linux64.tar.bz2
+rm -f pypy3.6-v7.3.3-linux64.tar.bz2
 
 # download and build a recent cmake version
 cd /tmp
@@ -59,12 +69,12 @@ git clone --recursive https://github.com/randombit/botan
 git clone --recursive https://github.com/pgp/XFilesRootHelper
 
 cd botan
-git checkout tags/2.15.0
-/opt/pypy3.6-v7.3.1-linux64/bin/pypy3 configure.py --amalgamation --without-os-feature=getauxval --disable-modules=pkcs11,tls_10 --cpu=x64 --os=linux --cc=gcc
+git checkout tags/2.19.1
+/opt/pypy3.6-v7.3.3-linux64/bin/pypy3 configure.py --amalgamation --without-os-feature=getauxval --disable-modules=pkcs11,tls_10 --cpu=x64 --os=linux --cc=gcc
 mv -f botan_all.* ../XFilesRootHelper/botanAm/desktop/linux/x86_64
 
 cd ../XFilesRootHelper
-./genRootHelperDesktopFull.sh
+./build.sh -f
 
 ```
 
