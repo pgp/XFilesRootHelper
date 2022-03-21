@@ -11,11 +11,30 @@ Precompiled binaries are available for Windows 7+ (x64) and Linux (x64) in the [
 - Follow instructions described in main [XFiles](https://github.com/pgp/XFiles) repository's README in order to generate the executable library needed for the Android app
 
 **Linux**
-- Install gcc toolchain, cmake and X11 libs (e.g. from Ubuntu/Mint):
+
+- Install dependencies (gcc toolchain, cmake and X11 libs):
+
+    **Debian/Ubuntu/Mint**
+
     ```shell
+    sudo apt update
     sudo apt install build-essential cmake libx11-dev
     ```
-- From a bash shell, either run `./build.sh --full`, or the following:
+
+    **Arch/Manjaro**
+
+    ```shell
+    sudo pacman -S gcc make cmake libx11
+    ```
+
+    **Alpine**
+
+    ```shell
+    apk update
+    apk add bash gcc g++ make cmake linux-headers
+    ```
+
+- From a **bash** shell, either run `./build.sh --full`, or the following:
     ```shell
     export CC=gcc
     export CXX=g++
@@ -29,7 +48,7 @@ Precompiled binaries are available for Windows 7+ (x64) and Linux (x64) in the [
 
 **MacOS**
 
-- Install [XQuartz](https://www.xquartz.org/)
+- Install [XQuartz](https://github.com/pgp/BinRels/releases/download/bin-xqtz2711/xqtz.zip)
 - Install [HomeBrew](https://brew.sh/)
 - Install gcc and cmake from HomeBrew:
     ```shell
@@ -45,7 +64,7 @@ Precompiled binaries are available for Windows 7+ (x64) and Linux (x64) in the [
     ```
 
 **Windows (MinGW)**
-- Install [MingW](https://nuwen.net/mingw.html)
+- Install a MingW distribution - e.g. from [here](https://nuwen.net/mingw.html) or [here](https://winlibs.com)
 - (Optional) Add c:\MinGW\bin to PATH
 - Install [CMake](https://cmake.org/download)
 - Add CMake to system PATH from installation GUI
@@ -69,7 +88,7 @@ Precompiled binaries are available for Windows 7+ (x64) and Linux (x64) in the [
     cmake --build msvcbuild --config Release --
     ```
 
-**BSD (e.g. FreeBSD, TrueOS)**
+**BSD (e.g. FreeBSD, GhostBSD, TrueOS)**
 - Install latest gcc and cmake:
     ```shell
     sudo pkg install gcc9 cmake
