@@ -97,6 +97,10 @@ int isDirectoryEmpty(const std::string& dirname) {
 }
 #endif
 
+// predeclaration for osGetSize
+template<typename STR>
+int accumulateTotalFilesAndFoldersCount(const STR& path, folderStats_resp_t& resp);
+
 #ifdef _WIN32
 int osStat(const std::wstring& filepath, singleStats_resp_t& st) {
     WIN32_FILE_ATTRIBUTE_DATA file_attr_data{};
@@ -123,14 +127,19 @@ int osStat(const std::wstring& filepath, singleStats_resp_t& st) {
     else return -1;
 }
 
-int64_t osGetSize(const std::wstring& filepath) {
+int64_t osGetSize(const std::wstring& filepath, bool getDirTotalSize = false) {
     WIN32_FILE_ATTRIBUTE_DATA file_attr_data{};
     if(GetFileAttributesExW(filepath.c_str(), GetFileExInfoStandard, &file_attr_data)) {
         LARGE_INTEGER file_size{};
-
-        if (file_attr_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) return 0; // assume dir node itself has empty size
-
-        // size
+        if(file_attr_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            if(!getDirTotalSize) return 0; // assume dir node itself has empty size
+            else { // for hashing + progress
+                folderStats_resp_t resp{};
+                if(accumulateTotalFilesAndFoldersCount(filepath, resp) != 0) return -1;
+                return resp.totalSize;
+            }
+        }
+        // size of regular file
         file_size.LowPart = file_attr_data.nFileSizeLow;
         file_size.HighPart = file_attr_data.nFileSizeHigh;
         int64_t sz = file_size.QuadPart;
@@ -164,10 +173,17 @@ int osStat(const std::string& filepath, singleStats_resp_t& resp) {
     return 0;
 }
 
-int64_t osGetSize(const std::string& filepath) {
+int64_t osGetSize(const std::string& filepath, bool getDirTotalSize = false) {
     struct stat osSt{};
-    if (lstat(filepath.c_str(),&osSt) != 0) return 0;
-    if (S_ISDIR(osSt.st_mode)) return 0; // assume dir node itself has empty size
+    if(lstat(filepath.c_str(),&osSt) != 0) return 0;
+    if(S_ISDIR(osSt.st_mode)) {
+        if(!getDirTotalSize) return 0; // assume dir node itself has empty size
+        else { // for hashing + progress
+            folderStats_resp_t resp{};
+            if(accumulateTotalFilesAndFoldersCount(filepath, resp) != 0) return -1;
+            return resp.totalSize;
+        }
+    }
     return osSt.st_size;
 }
 #endif
