@@ -158,7 +158,7 @@ int hashFromArgs(int argc, const C* argv[]) {
         cliHashPrintUsage:
         PRINTUNIFIED("Usage: %s <hash|hashNames> algo filesOrDirectories...\n"
                      "Available algorithms: ",exeName.c_str());
-        for(auto& s: rh_hashLabels) PRINTUNIFIED("%s ",s.c_str());
+        for(auto& s: cli_hashLabels) PRINTUNIFIED("%s ",s.c_str());
         PRINTUNIFIED("\n");
         _Exit(0);
     }
@@ -174,9 +174,8 @@ int hashFromArgs(int argc, const C* argv[]) {
 
     tmparg = TOUTF(argv[2]);
     tmparg = toUpperCase(tmparg);
-    if(tmparg == "BLAKE2B(256)") tmparg = "Blake2b(256)"; // add custom conversion for Blake2b, since the actual Botan label is not all-uppercase
-    for(auto& rhl: rh_hashLabels) tmpAlgoMap[rhl] = tmpIdx++;
-    if(tmpAlgoMap.find(tmparg) == tmpAlgoMap.end())
+    for(auto& hl: cli_hashLabels) tmpAlgoMap[hl] = tmpIdx++;
+	if(tmpAlgoMap.find(tmparg) == tmpAlgoMap.end())
         goto cliHashPrintUsage;
 
     for(int i=3; i<argc; i++) {

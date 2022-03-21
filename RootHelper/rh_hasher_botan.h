@@ -37,6 +37,21 @@ const std::vector<std::string> rh_hashLabels {
         "SHA-224",
 };
 
+const std::vector<std::string> cli_hashLabels {
+        "CRC32",
+        "MD5",
+        "SHA1",
+        "SHA256",
+        "SHA384",
+        "SHA512",
+        "SHA3-224",
+        "SHA3-256",
+        "SHA3-384",
+        "SHA3-512",
+        "BLAKE2B-256",
+        "SHA224",
+};
+
 // only needed for remote hash computation
 constexpr size_t rh_hashSizes[] {
         4,
