@@ -130,7 +130,7 @@ public:
     */
     template<typename STR>
     int parseResponseHeadersAndDownloadBody(IDescriptor& desc, bool downloadToFile, const STR& targetPath) {
-        uint64_t currentProgress = 0, last_progress = 0;
+        uint64_t currentProgress = 0;
 
         if(getResponseHeadersAndPartOfBody(desc, currentProgress) < 0) return -1;
 
@@ -164,7 +164,7 @@ public:
 
         auto parsedContentLength = parseContentLength(responseHeaders);
 
-        auto&& progressHook = getProgressHook(parsedContentLength);
+        auto&& progressHook = getProgressHook(parsedContentLength, REMOTE_IO_CHUNK_SIZE);
 
         uint8_t buf[4096]{};
         ssize_t readBytes;
@@ -176,10 +176,7 @@ public:
             if(downloadToFile) bodyDesc->writeAllOrExit(buf, readBytes);
             else responseBody.write((char*)buf, readBytes);
 
-            if(currentProgress-last_progress>1000000) {
-                last_progress = currentProgress;
-                progressHook.publish(currentProgress);
-            }
+            progressHook.publish(currentProgress);
         }
         PRINTUNIFIEDERROR("\nEnd of download: %" PRIu64 " bytes downloaded\n",currentProgress);
 

@@ -938,7 +938,7 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
 
     // END moved into downloadRemoteItems
 
-    auto&& progressHook = getProgressHook(totalSize);
+    auto&& progressHook = getProgressHook(totalSize, REMOTE_IO_CHUNK_SIZE);
 
     std::vector<uint8_t> buffer(REMOTE_IO_CHUNK_SIZE);
 
@@ -1151,7 +1151,7 @@ void server_download(IDescriptor& rcl, const STR& strType) {
         counts.tSize += itemTotals.tSize;
     }
 
-    auto&& progressHook = getProgressHook(counts.tSize);
+    auto&& progressHook = getProgressHook(counts.tSize, REMOTE_IO_CHUNK_SIZE);
 
     // send counts.tFiles to remote descriptor
     rcl.writeAllOrExit(&(counts.tFiles),sizeof(uint64_t));

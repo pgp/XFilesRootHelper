@@ -5,6 +5,7 @@
 #include "botan_all.h"
 #include "desc/FileDescriptorFactory.h"
 #include "diriterator/IdirIterator.h"
+#include "progressHook.h"
 
 #include <unordered_set>
 #include "ctype.h"
@@ -93,7 +94,8 @@ std::vector<uint8_t> rh_computeHash(const STR& filePath,
                     const uint8_t algo,
                     uint8_t* output = nullptr,
                     std::shared_ptr<Botan::HashFunction> hash1 = nullptr,
-                    const bool finalizeHash=true) {
+                    const bool finalizeHash = true,
+                    ProgressHook* progressHook = nullptr) {
 
     if(!hash1)
         hash1 = Botan::HashFunction::create(rh_hashLabels[algo]);
@@ -122,6 +124,7 @@ std::vector<uint8_t> rh_computeHash(const STR& filePath,
 			break;
 		}
 		hash1->update(&buffer[0],readBytes);
+        if(progressHook != nullptr) progressHook->publishDelta(readBytes);
 	}
     fd.close();
 	if(finalizeHash) {
@@ -139,7 +142,8 @@ template<typename STR>
 std::vector<uint8_t> rh_computeHash_dir(
         const STR& filePath,
         const uint8_t algo,
-        uint8_t dirHashOpts) {
+        uint8_t dirHashOpts,
+        ProgressHook* progressHook = nullptr) {
     bool withNames = b0(dirHashOpts); // should be false by default
     bool ignoreThumbsFiles = b1(dirHashOpts); // should be true by default
     bool ignoreUnixHiddenFiles = b2(dirHashOpts); // filenames starting with '.' // should be true by default
@@ -160,7 +164,7 @@ std::vector<uint8_t> rh_computeHash_dir(
                     if(ignoreThumbsFiles && thumbsnames.count(it.getCurrentFilename()) != 0) continue;
                     if(ignoreUnixHiddenFiles && TOUTF(it.getCurrentFilename())[0] == '.') continue;
                     auto&& currentFile = pathConcat(filePath, it.getCurrent());
-                    rh_computeHash(currentFile,algo,nullptr,dirHasher,false); // open file using absolute path
+                    rh_computeHash(currentFile,algo,nullptr,dirHasher,false,progressHook); // open file using absolute path
                     // PRINTUNIFIEDERROR("current shared_ptr count: %d\n",dirHasher.use_count()); // should be constant, NOT increasing
 
                     // allows to compare filenames on windows and unix not by OS encoding (useless) but using UTF-8  as reference encoding
@@ -193,7 +197,7 @@ std::vector<uint8_t> rh_computeHash_dir(
                     if(ignoreUnixHiddenFiles && TOUTF(it.getCurrentFilename())[0] == '.') continue;
                     auto&& currentFile = pathConcat(filePath, it.getCurrent());
 
-                    rh_computeHash(currentFile,algo,&hashes[hashIdx],dirHasher,true); // open file using absolute path // TODO check return value
+                    rh_computeHash(currentFile,algo,&hashes[hashIdx],dirHasher,true,progressHook); // open file using absolute path // TODO check return value
                     hashIdx += hashSize; // TODO handle realloc
                     if (hashIdx == CURRENTMAXSIZE) {
                         CURRENTMAXSIZE += hashSize;
@@ -214,13 +218,22 @@ std::vector<uint8_t> rh_computeHash_dir(
     }
 }
 
+// predeclaration (defined in Utils.h)
+#ifdef _WIN32
+int64_t osGetSize(const std::wstring& filepath, bool getDirTotalSize);
+#else
+int64_t osGetSize(const std::string& filepath, bool getDirTotalSize);
+#endif
+
 template<typename STR>
 std::vector<uint8_t> rh_computeHash_wrapper(
         const STR& path,
         const uint8_t algo,
         const uint8_t dirHashOpts) {
     auto efd = IDirIterator<STR>::efdL(path);
-    return (efd == 'd' || efd == 'L')?rh_computeHash_dir(path,algo,dirHashOpts):rh_computeHash(path,algo);
+    auto totalSize = osGetSize(path, true);
+    auto&& progressHook = getProgressHook(totalSize);
+    return (efd == 'd' || efd == 'L')?rh_computeHash_dir(path,algo,dirHashOpts,&progressHook):rh_computeHash(path,algo,nullptr,nullptr,true,&progressHook);
 }
 
 #endif /* RH_HASHER_H */

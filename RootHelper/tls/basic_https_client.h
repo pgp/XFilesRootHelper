@@ -333,7 +333,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
         PRINTUNIFIEDERROR("PARSED CONTENT LENGTH IS: %" PRIu64 "\n",parsedContentLength);
     }
 
-    auto&& progressHook = getProgressHook(parsedContentLength);
+    auto&& progressHook = getProgressHook(parsedContentLength, REMOTE_IO_CHUNK_SIZE);
 
     tmp_ = TOUTF(httpFilename);
     writeStringWithLen(local_fd,tmp_); // send guessed filename (or send back received one) in order for the GUI to locate it once completed
@@ -607,24 +607,25 @@ int httpsUrlUpload_internal(IDescriptor& cl,
         tlsd.writeAllOrExit(postHeader.c_str(),postHeader.size());
         tlsd.writeAllOrExit(bh.c_str(),bh.size());
         // FIXME duplicated code from downloadRemoteItems, refactor into a function
+        constexpr auto UPLOAD_CHUNK_SIZE = REMOTE_IO_CHUNK_SIZE / 4; // 256k
         /********* quotient + remainder IO loop *********/
         uint64_t currentProgress = 0;
-        uint64_t quotient = fsize / REMOTE_IO_CHUNK_SIZE;
-        uint64_t remainder = fsize % REMOTE_IO_CHUNK_SIZE;
-        auto&& progressHook = getProgressHook(fsize);
+        uint64_t quotient = fsize / UPLOAD_CHUNK_SIZE;
+        uint64_t remainder = fsize % UPLOAD_CHUNK_SIZE;
+        auto&& progressHook = getProgressHook(fsize, UPLOAD_CHUNK_SIZE);
 
         PRINTUNIFIED("Chunk info: quotient is %" PRIu64 ", remainder is %" PRIu64 "\n",quotient,remainder);
-        std::vector<uint8_t> buffer(REMOTE_IO_CHUNK_SIZE);
+        std::vector<uint8_t> buffer(UPLOAD_CHUNK_SIZE);
         uint8_t* v = &buffer[0];
         for(uint64_t i=0;i<quotient;i++) {
-            fileToUpload.readAllOrExit(v,REMOTE_IO_CHUNK_SIZE);
-            tlsd.writeAllOrExit(v,REMOTE_IO_CHUNK_SIZE);
+            fileToUpload.readAllOrExit(v,UPLOAD_CHUNK_SIZE);
+            tlsd.writeAllOrExit(v,UPLOAD_CHUNK_SIZE);
 
             // send progress information back to local socket
-            currentProgress += REMOTE_IO_CHUNK_SIZE;
+            currentProgress += UPLOAD_CHUNK_SIZE;
 
             cl.writeAllOrExit(&currentProgress,sizeof(uint64_t));
-            progressHook.publishDelta(REMOTE_IO_CHUNK_SIZE);
+            progressHook.publishDelta(UPLOAD_CHUNK_SIZE);
         }
 
         if(remainder != 0) {
