@@ -47,7 +47,7 @@ public:
 //          catch(std::exception& e) {
           catch(...) {
 //              PRINTUNIFIEDERROR("exception in reading certificates: %s\n",e.what());
-//              exit(2749);
+//              _Exit(27);
           }
        }
 
@@ -85,7 +85,7 @@ public:
        }
        catch(std::exception& e) {
            PRINTUNIFIEDERROR("exception in loading certificates: %s\n",e.what());
-           exit(2750);
+           _Exit(27);
        }
     }
 

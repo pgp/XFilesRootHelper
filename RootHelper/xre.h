@@ -260,7 +260,7 @@ SOCKET getServerSocket(int cl = -1) {
     iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
     if (iResult != 0) {
         printf("WSAStartup failed with error: %d\n", iResult);
-        exit(571);
+        _Exit(571);
     }
 
     // Create a SOCKET for connecting to server
@@ -268,7 +268,7 @@ SOCKET getServerSocket(int cl = -1) {
     if (ListenSocket == INVALID_SOCKET) {
         PRINTUNIFIEDERROR("socket failed with error: %ld\n", WSAGetLastError());
         WSACleanup();
-        exit(572);
+        _Exit(572);
     }
 
     struct sockaddr_in server;
@@ -283,7 +283,7 @@ SOCKET getServerSocket(int cl = -1) {
         PRINTUNIFIEDERROR("bind failed with error: %d\n", WSAGetLastError());
         closesocket(ListenSocket);
         WSACleanup();
-        exit(573);
+        _Exit(573);
     }
 
     iResult = listen(ListenSocket, 20);
@@ -291,7 +291,7 @@ SOCKET getServerSocket(int cl = -1) {
         PRINTUNIFIEDERROR("listen failed with error: %d\n", WSAGetLastError());
         closesocket(ListenSocket);
         WSACleanup();
-        exit(574);
+        _Exit(574);
     }
 
     PRINTUNIFIED("remote rhServer acceptor started\n");
@@ -332,7 +332,7 @@ void acceptLoop(SOCKET rhss, int unused = -1) {
             printf("accept failed with error: %d\n", WSAGetLastError());
             closesocket(rhss);
             WSACleanup();
-            exit(1);
+            _Exit(1);
         }
         
         std::string s = getIPAndPortFromDesc(client_info);
@@ -548,10 +548,11 @@ void acceptLoop(int& rhss_socket, int local_socket = -1) {
 
 void printNetworkInfo() {
 #ifdef _WIN32
-    system("ipconfig");
+    auto ret = system("ipconfig");
 #else
-    system("ifconfig");
+    auto ret = system("ifconfig");
 #endif
+    if(ret != 0) PRINTUNIFIEDERROR("Unable to retrieve network status\n");
 }
 
 inline void registerExitRoutines() {

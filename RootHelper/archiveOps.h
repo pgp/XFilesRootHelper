@@ -652,7 +652,7 @@ void compressToArchiveFromFds(IDescriptor& inOutDesc) {
     auto createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
     if (!createObjectFunc) {
         PrintError("Can not get CreateObject");
-        exit(-1);
+        _Exit(-1);
     }
 
     auto updateCallbackSpec = new ArchiveUpdateCallbackFromFd(&inOutDesc); // inOutDesc for publishing progress and for receiving fds and stats
@@ -715,7 +715,7 @@ void compressToArchiveFromFds(IDescriptor& inOutDesc) {
         PrintError("Error for file", updateCallbackSpec->FailedFiles[i]);
     }
 
-    // if (updateCallbackSpec->FailedFiles.Size() != 0) exit(-1);
+    // if (updateCallbackSpec->FailedFiles.Size() != 0) _Exit(-1);
 
     sendOkResponse(inOutDesc);
 
@@ -739,7 +739,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
     auto createObjectFunc = (Func_CreateObject)lib.GetProc("CreateObject");
     if (!createObjectFunc) {
         PrintError("Can not get CreateObject");
-        exit(-1);
+        _Exit(-1);
     }
 
     auto updateCallbackSpec = new CArchiveUpdateCallback;
@@ -785,10 +785,12 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
 
     // change working directory to srcFolder
     char currentDirectory[1024]{};
-    getcwd(currentDirectory, 1024);
+    if(getcwd(currentDirectory, 1024) == nullptr) {
+        sendErrorResponse(inOutDesc);
+        return;
+    }
 
     int ret = chdir(srcFolder.c_str()); // errno already set if chdir fails
-
     if (ret != 0)
     {
         PRINTUNIFIEDERROR("Unable to chdir in compressToArchive, error is %d\n",errno);
@@ -928,7 +930,7 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
         PrintError("Error for file", updateCallbackSpec->FailedFiles[j]);
     }
 
-    // if (updateCallbackSpec->FailedFiles.Size() != 0) exit(-1);
+    // if (updateCallbackSpec->FailedFiles.Size() != 0) _Exit(-1);
 
     sendEndProgressAndOkResponse(inOutDesc);
 

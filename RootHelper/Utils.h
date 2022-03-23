@@ -654,11 +654,11 @@ std::vector<std::wstring> listWinDrives() {
     int ret = GetLogicalDriveStringsW(windrivesBufSize, windrivesBuffer);
     if (ret == 0) {
         std::cerr<<"Unable to list drives, exiting..."<<std::endl;
-        exit(179317);
+        _Exit(217);
     }
     else if (ret > windrivesBufSize) {
         std::cerr<<"Unable to list drives (buffer size not enough), exiting..."<<std::endl;
-        exit(179318);
+        _Exit(218);
     }
     else {
         joinedDrives = windrivesBuffer;

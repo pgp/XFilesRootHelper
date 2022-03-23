@@ -112,7 +112,7 @@ std::wstring unixToWindowsPath(std::string s) {
     if(s.empty()) return L"";
     if (s[0] != '/') {
         PRINTUNIFIEDERROR("'/' expected in Unix-to-Windows conversion path\n");
-        exit(-1);
+        _Exit(-1);
     }
     const char* s_ = s.c_str();
     std::string rpl(s_+1);

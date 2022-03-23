@@ -1004,7 +1004,7 @@ void forkP7ZipSession(IDescriptor& cl, request_type rq) {
 	catch (threadExitThrowable& i) {
 		PRINTUNIFIEDERROR("fork7z_child... \n");
 	}
-	exit(0);
+	_Exit(0);
 	}
 	else { // in parent process
 		int wstatus = 0;
@@ -1427,13 +1427,10 @@ void clientSession(int cl) {
       
       if (static_cast<ControlCodes>(rq.request) == ControlCodes::ACTION_EXIT) {
 		  PRINTUNIFIED("Received exit request, exiting...\n");
-		  exit(0);
+		  _Exit(0);
 	  }
-      else {
-		  serveRequest(cl,rq);
-	  }
+      else serveRequest(cl,rq);
     }
-    
 	}
 	catch (threadExitThrowable& i) {
 		PRINTUNIFIED("RH2...\n");

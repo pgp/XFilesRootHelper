@@ -86,12 +86,12 @@ void safeprintf(const char* fmt, ...) {
 #define EXITWITHERROR(...) do { \
 	fprintf(stderr,"Exiting on error:\n"); \
 	fprintf(stderr,__VA_ARGS__); \
-	exit(0); \
+	_Exit(0); \
 } while(0)
 
 #define EXITONSTUB do { \
 	fprintf(stderr,"Feature not implemented, exiting..."); \
-	exit(0); \
+	_Exit(0); \
 } while(0)
 
 // END WINDOWS
@@ -113,12 +113,12 @@ void safeprintf(const char* fmt, ...) {
 #define EXITWITHERROR(...) do { \
 	__android_log_print(ANDROID_LOG_ERROR, LOG_TAG_WITH_SOCKET_ADDR, "Exiting on error:"); \
 	__android_log_print(ANDROID_LOG_ERROR, LOG_TAG_WITH_SOCKET_ADDR, __VA_ARGS__); \
-	exit(0); \
+	_Exit(0); \
 } while(0)
 
 #define EXITONSTUB do { \
 	__android_log_print(ANDROID_LOG_ERROR, LOG_TAG_WITH_SOCKET_ADDR, "Feature not implemented, exiting..."); \
-	exit(0); \
+	_Exit(0); \
 } while(0)
 
 
@@ -145,7 +145,7 @@ void safefprintf(int descriptor, const char* fmt, ...) {
         if (n > -1) size = n + 1;
         else size *= 2;
     }
-    write(descriptor,&str[0],strlen(str.c_str())); // FIXME should replaced with writeAll
+    write(descriptor,&str[0],strlen(str.c_str())); // FIXME should this be replaced with writeAll?
 }
 
 #define  PRINTUNIFIED(...) safefprintf(STDOUT_FILENO, __VA_ARGS__)
@@ -159,12 +159,12 @@ void safefprintf(int descriptor, const char* fmt, ...) {
 #define EXITWITHERROR(...) do { \
 	 fprintf(stderr,"Exiting on error:\n"); \
 	 fprintf(stderr,__VA_ARGS__); \
-	 exit(0); \
+	 _Exit(0); \
 } while(0)
 
 #define EXITONSTUB do { \
 	 fprintf(stderr,"Feature not implemented, exiting..."); \
-	 exit(0); \
+	 _Exit(0); \
 } while(0)
 
 #endif
