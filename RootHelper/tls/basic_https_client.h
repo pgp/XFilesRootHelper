@@ -260,7 +260,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
             memcpy((uint8_t*)(hdrs.c_str()), bb_ptr, headersEndIdx);
             memcpy((uint8_t*)(tmpbody.c_str()), bb_ptr+headersEndIdx, bodySize);
             currentProgress = bodySize;
-            PRINTUNIFIEDERROR("headers size is %u\n",headersEndIdx);
+            PRINTUNIFIEDERROR("headers size is %zu\n",headersEndIdx);
             break;
         }
     }
@@ -352,7 +352,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
         if(downloadToFile) body.writeAllOrExit(buf, readBytes);
         else {
             local_fd.writeAllOrExit(buf,readBytes); // send actual content only if in-memory download has been requested
-            PRINTUNIFIEDERROR("Sent downloaded chunk of %d bytes\n",readBytes);
+            PRINTUNIFIEDERROR("Sent downloaded chunk of %zd bytes\n",readBytes);
         }
 
         if(currentProgress-last_progress>1000000) {
@@ -372,7 +372,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
         if(currentProgress == parsedContentLength)
             PRINTUNIFIED("All expected bytes downloaded, download completed\n");
         else {
-            PRINTUNIFIEDERROR("Expected to download %llu bytes, %llu downloaded instead, broken download\n",parsedContentLength,currentProgress);
+            PRINTUNIFIEDERROR("Expected to download %" PRIu64 " bytes, %" PRIu64 " downloaded instead, broken download\n",parsedContentLength,currentProgress);
             goto brokenDownload;
         }
     }

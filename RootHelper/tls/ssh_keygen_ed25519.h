@@ -80,7 +80,7 @@ static std::pair<std::string,std::string> generate_ed25519_keypair(const char *f
     // DEBUG
 
     if(prvk.size() != 64 || pubk.size() != 32) {
-		PRINTUNIFIEDERROR("Private key must be 64 bytes long, public key 32 bytes, actual prvk size: %u\tactual pubk size: %u\n",prvk.size(),pubk.size());
+		PRINTUNIFIEDERROR("Private key must be 64 bytes long, public key 32 bytes, actual prvk size: %zu\tactual pubk size: %zu\n",prvk.size(),pubk.size());
 		throw std::runtime_error("Keys size mismatch");
     }
     

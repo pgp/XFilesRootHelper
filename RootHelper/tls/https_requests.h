@@ -115,7 +115,7 @@ public:
                 memcpy((uint8_t*)(tmpBody.c_str()), bbP+headersEndIdx, bodySize);
                 responseBody << tmpBody;
                 currentProgress = bodySize;
-                PRINTUNIFIEDERROR("headers size is %u\n",headersEndIdx);
+                PRINTUNIFIEDERROR("headers size is %zu\n",headersEndIdx);
                 return 0;
             }
         }
@@ -185,7 +185,7 @@ public:
             if(currentProgress == parsedContentLength)
                 PRINTUNIFIED("All expected bytes downloaded, download completed\n");
             else {
-                PRINTUNIFIEDERROR("Expected to download %llu bytes, %llu downloaded instead, broken download\n",parsedContentLength,currentProgress);
+                PRINTUNIFIEDERROR("Expected to download %" PRIu64 " bytes, %" PRIu64 " downloaded instead, broken download\n",parsedContentLength,currentProgress);
                 return -1;
             }
         }
