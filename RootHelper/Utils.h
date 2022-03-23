@@ -1197,17 +1197,17 @@ template<typename STR>
 int createRandomFile(const STR& path, uint64_t size) {
     PRINTUNIFIED("Using ARMv8 SHA instructions for random content generation...");
     
-    static const std::map<std::string,size_t> shaParams {
-            {"SHA-1", 20},
-            {"SHA-256", 32},
-            {"SHA-512", 64},
-            {"SHA-224", 28},
-            {"SHA-384", 48},
-    };
+//    static const std::map<std::string,size_t> shaParams {
+//            {"SHA-1", 20},
+//            {"SHA-256", 32},
+//            {"SHA-512", 64},
+//            {"SHA-224", 28},
+//            {"SHA-384", 48},
+//    };
 
-    const char *algo = "SHA-256";
-
-    size_t digestSize = shaParams.at(algo);
+    const char* algo = "SHA-256";
+//    size_t digestSize = shaParams.at(algo);
+    const size_t digestSize = 32;
     size_t blockSize = (HASH_BLOCK_SIZE/digestSize)*digestSize; // round to multiple of sha digest size
     size_t blocks = size/blockSize;
     size_t lastBlockSize = size % blockSize;
@@ -1317,7 +1317,7 @@ int createRandomFile(const STR& path, uint64_t size) {
 template<typename STR>
 int createEmptyFile(const STR& path, uint64_t size) {
     auto&& fd = fdfactory.create(path,FileOpenMode::XCL);
-    if (!fd) return -1;
+    if (!fd) return fd.error;
 
     std::vector<uint8_t> emptyChunk(COPY_CHUNK_SIZE,0);
 
@@ -1356,7 +1356,7 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
     PRINTUNIFIED("Received mode %d\n",mode);
     
     // check access unconditionally (on local, always succeeds because rhss_currentlyServedDirectory is empty)
-    if (rhss_checkAccess(filepath)) {
+    if(rhss_checkAccess(filepath)) {
         PRINTUNIFIEDERROR("Requested file/dir creation denied (rhss restricted access)\n");
         errno = EPERM;
         sendErrorResponse(inOutDesc);
@@ -1364,8 +1364,7 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
     }
 
     // flags: b0 (true: create file, false: create directory)
-    if (b0(flags))
-    {
+    if (b0(flags)) {
         if(b1(flags)) { // advanced options for create file
             PRINTUNIFIED("Creating file with advanced options...");
             // receive one byte with creation strategy: 0: FALLOCATE (fastest), 1: ZEROS, 2: RANDOM (slowest)
@@ -1375,16 +1374,19 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
             
             switch(creationStrategy) {
                 case 1:
-                    ret = createEmptyFile(filepath,filesize);
+                    errno = createEmptyFile(filepath,filesize);
                     break;
                 case 2:
-                    ret = createRandomFile(filepath,filesize);
+                    errno = createRandomFile(filepath,filesize);
                     break;
                 default:
                     PRINTUNIFIEDERROR("Invalid creation strategy for file\n");
                     errno = EINVAL;
-                    sendErrorResponse(inOutDesc);
-                    return;
+                    break;
+            }
+            if(errno != 0) {
+                sendErrorResponse(inOutDesc);
+                return;
             }
         }
         else {
@@ -1393,7 +1395,7 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
             auto parent = getParentDir(filepath);
 
             ret = mkpath(parent, mode);
-            if (ret != 0) {
+            if(ret != 0) {
                 PRINTUNIFIEDERROR("Unable to mkdir for parent before creating file\n");
                 sendErrorResponse(inOutDesc); return;
             }
@@ -1401,15 +1403,14 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
             // create file
             PRINTUNIFIEDERROR("creating %s after parent dir\n",filepath.c_str());
             auto&& fd = fdfactory.create(filepath,FileOpenMode::XCL);
-            if (!fd) {
+            if(!fd) {
                 sendErrorResponse(inOutDesc); return;
             }
             fd.close();
             ret = 0;
         }
     }
-    else
-    {
+    else {
         PRINTUNIFIED("creating directory...\n");
         // mkpath on filepath
         ret = mkpath(filepath, mode, false);
