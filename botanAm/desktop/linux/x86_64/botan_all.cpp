@@ -83177,28 +83177,12 @@ namespace TLS {
 
 namespace {
 
-const uint64_t DOWNGRADE_TLS11 = 0x444F574E47524400;
-//const uint64_t DOWNGRADE_TLS12 = 0x444F574E47524401;
-
 std::vector<uint8_t>
 make_server_hello_random(RandomNumberGenerator& rng,
                          Protocol_Version offered_version,
                          const Policy& policy)
    {
    auto random = make_hello_random(rng, policy);
-
-   if((offered_version == Protocol_Version::TLS_V10 ||
-       offered_version == Protocol_Version::TLS_V11) &&
-      policy.allow_tls12())
-      {
-      store_be(DOWNGRADE_TLS11, &random[24]);
-      }
-
-   if(offered_version == Protocol_Version::DTLS_V10 && policy.allow_dtls12())
-      {
-      store_be(DOWNGRADE_TLS11, &random[24]);
-      }
-
    return random;
    }
 
@@ -83372,7 +83356,7 @@ std::vector<uint8_t> Server_Hello::serialize() const
 bool Server_Hello::random_signals_downgrade() const
    {
    const uint64_t last8 = load_be<uint64_t>(m_random.data(), 3);
-   return (last8 == DOWNGRADE_TLS11);
+   return false;
    }
 
 /*
@@ -87011,21 +86995,11 @@ Supported_Versions::Supported_Versions(Protocol_Version offer, const Policy& pol
       {
       if(offer >= Protocol_Version::DTLS_V12 && policy.allow_dtls12())
          m_versions.push_back(Protocol_Version::DTLS_V12);
-#if defined(BOTAN_HAS_TLS_V10)
-      if(offer >= Protocol_Version::DTLS_V10 && policy.allow_dtls10())
-         m_versions.push_back(Protocol_Version::DTLS_V10);
-#endif
       }
    else
       {
       if(offer >= Protocol_Version::TLS_V12 && policy.allow_tls12())
          m_versions.push_back(Protocol_Version::TLS_V12);
-#if defined(BOTAN_HAS_TLS_V10)
-      if(offer >= Protocol_Version::TLS_V11 && policy.allow_tls11())
-         m_versions.push_back(Protocol_Version::TLS_V11);
-      if(offer >= Protocol_Version::TLS_V10 && policy.allow_tls10())
-         m_versions.push_back(Protocol_Version::TLS_V10);
-#endif
       }
    }
 
@@ -87133,7 +87107,7 @@ uint64_t steady_clock_ms()
 
 Protocol_Version Stream_Handshake_IO::initial_record_version() const
    {
-   return Protocol_Version::TLS_V10;
+   return Protocol_Version::TLS_V12;
    }
 
 void Stream_Handshake_IO::add_record(const uint8_t record[],
@@ -88420,17 +88394,6 @@ bool Policy::acceptable_protocol_version(Protocol_Version version) const
    if(version == Protocol_Version::DTLS_V12 && allow_dtls12())
       return true;
 
-#if defined(BOTAN_HAS_TLS_V10)
-
-   if(version == Protocol_Version::TLS_V11 && allow_tls11())
-      return true;
-   if(version == Protocol_Version::TLS_V10 && allow_tls10())
-      return true;
-   if(version == Protocol_Version::DTLS_V10 && allow_dtls10())
-      return true;
-
-#endif
-
    return false;
    }
 
@@ -88440,22 +88403,12 @@ Protocol_Version Policy::latest_supported_version(bool datagram) const
       {
       if(acceptable_protocol_version(Protocol_Version::DTLS_V12))
          return Protocol_Version::DTLS_V12;
-#if defined(BOTAN_HAS_TLS_V10)
-      if(acceptable_protocol_version(Protocol_Version::DTLS_V10))
-         return Protocol_Version::DTLS_V10;
-#endif
       throw Invalid_State("Policy forbids all available DTLS version");
       }
    else
       {
       if(acceptable_protocol_version(Protocol_Version::TLS_V12))
          return Protocol_Version::TLS_V12;
-#if defined(BOTAN_HAS_TLS_V10)
-      if(acceptable_protocol_version(Protocol_Version::TLS_V11))
-         return Protocol_Version::TLS_V11;
-      if(acceptable_protocol_version(Protocol_Version::TLS_V10))
-         return Protocol_Version::TLS_V10;
-#endif
       throw Invalid_State("Policy forbids all available TLS version");
       }
    }
@@ -89675,22 +89628,12 @@ Protocol_Version select_version(const Botan::TLS::Policy& policy,
          {
          if(policy.allow_dtls12() && value_exists(supported_versions, Protocol_Version(Protocol_Version::DTLS_V12)))
             return Protocol_Version::DTLS_V12;
-#if defined(BOTAN_HAS_TLS_V10)
-         if(policy.allow_dtls10() && value_exists(supported_versions, Protocol_Version(Protocol_Version::DTLS_V10)))
-            return Protocol_Version::DTLS_V10;
-#endif
          throw TLS_Exception(Alert::PROTOCOL_VERSION, "No shared DTLS version");
          }
       else
          {
          if(policy.allow_tls12() && value_exists(supported_versions, Protocol_Version(Protocol_Version::TLS_V12)))
             return Protocol_Version::TLS_V12;
-#if defined(BOTAN_HAS_TLS_V10)
-         if(policy.allow_tls11() && value_exists(supported_versions, Protocol_Version(Protocol_Version::TLS_V11)))
-            return Protocol_Version::TLS_V11;
-         if(policy.allow_tls10() && value_exists(supported_versions, Protocol_Version(Protocol_Version::TLS_V10)))
-            return Protocol_Version::TLS_V10;
-#endif
          throw TLS_Exception(Alert::PROTOCOL_VERSION, "No shared TLS version");
          }
       }
@@ -91386,10 +91329,7 @@ bool Protocol_Version::operator>(const Protocol_Version& other) const
 
 bool Protocol_Version::known_version() const
    {
-   return (m_version == Protocol_Version::TLS_V10 ||
-           m_version == Protocol_Version::TLS_V11 ||
-           m_version == Protocol_Version::TLS_V12 ||
-           m_version == Protocol_Version::DTLS_V10 ||
+   return (m_version == Protocol_Version::TLS_V12 ||
            m_version == Protocol_Version::DTLS_V12);
    }
 
