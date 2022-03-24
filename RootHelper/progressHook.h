@@ -25,7 +25,7 @@ public:
     virtual ~ProgressHook() {
         // this assumes no other console messages are written between last progress and progress hook destructor;
         // in such case, this would delete previous message from the console, if such message does not end with \n
-        SAMELINEPRINT("");
+        SAMELINEPRINT("\n");
     }
 
     virtual void publish(uint64_t current) = 0;

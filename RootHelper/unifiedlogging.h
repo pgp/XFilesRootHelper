@@ -12,6 +12,7 @@
 #include <thread>
 #include <mutex>
 #include <stdexcept>
+#include "console_utils.h"
 
 char LOG_TAG_WITH_SOCKET_ADDR[64]={};
 
@@ -78,8 +79,10 @@ void safeprintf(const char* fmt, ...) {
 #define  PRINTUNIFIED(...) safeprintf(__VA_ARGS__)
 #define  PRINTUNIFIEDERROR(...) safeprintf(__VA_ARGS__)
 
+// TODO this is not efficient! handle SIGWINCH instead
 #define SAMELINEPRINT(...) do { \
-	safeprintf("\r                                                                          \r"); \
+    auto&& wh = sampleConsoleDimensions(); \
+	safeprintf("\r%.*s\r", wh.W, ""); \
 	safeprintf(__VA_ARGS__); \
 } while(0)
 
@@ -151,8 +154,10 @@ void safefprintf(int descriptor, const char* fmt, ...) {
 #define  PRINTUNIFIED(...) safefprintf(STDOUT_FILENO, __VA_ARGS__)
 #define  PRINTUNIFIEDERROR(...) safefprintf(STDERR_FILENO, __VA_ARGS__)
 
+// TODO this is not efficient! handle SIGWINCH instead
 #define SAMELINEPRINT(...) do { \
-	safefprintf(STDOUT_FILENO,"\r                                                                          \r"); \
+	auto&& wh = sampleConsoleDimensions(); \
+	safefprintf(STDOUT_FILENO, "\r%.*s\r", wh.W, ""); \
 	safefprintf(STDOUT_FILENO, __VA_ARGS__); \
 } while(0)
 
