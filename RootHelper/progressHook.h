@@ -2,6 +2,7 @@
 #define __RH_PROGRESS_HOOK__
 
 #include "unifiedlogging.h"
+#include <chrono>
 
 // TODO refactor using non-virtual methods publish and publishDelta, and virtual method doPublish (chain-of-responsibility)
 
@@ -11,13 +12,15 @@ public:
     const uint64_t totalSize;
     const uint32_t throttle; // progress will be actually published every throttle bytes
     uint64_t lastPublished;
+    std::chrono::time_point<std::chrono::steady_clock> lastT;
     uint64_t currentSize;
 
     ProgressHook(uint64_t totalSize_, uint32_t throttle_) :
             totalSize(totalSize_),
             throttle(throttle_),
             currentSize(0),
-            lastPublished(0) {}
+            lastPublished(0),
+            lastT(std::chrono::steady_clock::now()) {}
 
     virtual ~ProgressHook() {
         // this assumes no other console messages are written between last progress and progress hook destructor;
@@ -28,6 +31,15 @@ public:
     virtual void publish(uint64_t current) = 0;
 
     virtual void publishDelta(uint64_t delta) = 0;
+
+    float getCurrentSpeedMbps(uint64_t p1) {
+        auto&& t = std::chrono::steady_clock::now();
+        std::chrono::duration<float> diff = t - lastT;
+        lastT = t;
+        auto ret = (p1 - lastPublished) *1.0f / (diff.count() * 1000000.0f);
+        lastPublished = p1;
+        return ret;
+    }
 };
 
 class ConsoleProgressHook : public ProgressHook {
@@ -39,16 +51,16 @@ public:
     void publish(uint64_t current) override {
         currentSize = current;
         if(currentSize - lastPublished >= throttle) {
-            lastPublished = currentSize;
-            SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %% of %" PRIu64 " bytes", currentSize, ((100.0*currentSize)/totalSize), totalSize);
+            auto curSpeed = getCurrentSpeedMbps(currentSize);
+            SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", currentSize, ((100.0*currentSize)/totalSize), totalSize, curSpeed);
         }
     }
 
     void publishDelta(uint64_t delta) override {
         currentSize += delta;
         if(currentSize - lastPublished >= throttle) {
-            lastPublished = currentSize;
-            SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %% of %" PRIu64 " bytes", currentSize, ((100.0*currentSize)/totalSize), totalSize);
+            auto curSpeed = getCurrentSpeedMbps(currentSize);
+            SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", currentSize, ((100.0*currentSize)/totalSize), totalSize, curSpeed);
         }
     }
 };
@@ -74,18 +86,18 @@ public:
     void publish(uint64_t current) override {
         currentSize = current;
         if(currentSize - lastPublished >= throttle) {
-            lastPublished = currentSize;
+            auto curSpeed = getCurrentSpeedMbps(currentSize);
             /*HRESULT hr = */pTaskbarList->SetProgressValue(hWnd, currentSize, totalSize);
-            SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %% of %" PRIu64 " bytes", currentSize, ((100.0*currentSize)/totalSize), totalSize);
+            SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", currentSize, ((100.0*currentSize)/totalSize), totalSize, curSpeed);
         }
     }
 
     void publishDelta(uint64_t delta) override {
         currentSize += delta;
         if(currentSize - lastPublished >= throttle) {
-            lastPublished = currentSize;
+            auto curSpeed = getCurrentSpeedMbps(currentSize);
             /*HRESULT hr = */pTaskbarList->SetProgressValue(hWnd, currentSize, totalSize);
-            SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %% of %" PRIu64 " bytes", currentSize, ((100.0*currentSize)/totalSize), totalSize);
+            SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", currentSize, ((100.0*currentSize)/totalSize), totalSize, curSpeed);
         }
     }
 };
