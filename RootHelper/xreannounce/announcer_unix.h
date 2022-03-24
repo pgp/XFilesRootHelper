@@ -64,8 +64,8 @@ int xre_announce() { // TODO add sleep period and total time
     if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
         return -1;
 
-    if (setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &trueflag, sizeof trueflag) < 0) {
-        PRINTUNIFIEDERROR("setsockopt error, errno is %d\n",errno);
+    if(setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &trueflag, sizeof trueflag) < 0) {
+        perror("setsockopt error");
         return -2;
     }
 

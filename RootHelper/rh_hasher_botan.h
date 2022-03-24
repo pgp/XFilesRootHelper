@@ -104,9 +104,8 @@ std::vector<uint8_t> rh_computeHash(const STR& filePath,
 //	PRINTUNIFIEDERROR("@@@filepath is:\t%s\n", filePath.c_str());
 //	PRINTUNIFIEDERROR("@@@algorithm is:\t%s\n", algo.c_str());
 
-	// return value and errno
 	if (!fd) {
-		//~ printf("@@@Error opening file, errno is %d\n",errnum);
+		// perror("Error opening file");
 		return rh_errorHash;
 	}
 	std::vector<uint8_t> buffer(HASH_BLOCK_SIZE);
@@ -116,11 +115,11 @@ std::vector<uint8_t> rh_computeHash(const STR& filePath,
 	for(;;) {
 		readBytes = fd.read(&buffer[0],HASH_BLOCK_SIZE);
 		if (readBytes < 0) {
-			//~ printf("@@@Read error\n");
+			// perror("Read error");
 			return rh_errorHash;
 		}
 		else if (readBytes == 0) { // end of file
-			//~ printf("@@@EOF\n");
+			// perror("EOF");
 			break;
 		}
 		hash1->update(&buffer[0],readBytes);

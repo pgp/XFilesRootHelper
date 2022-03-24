@@ -791,9 +791,8 @@ void compressToArchive(IDescriptor& inOutDesc, uint8_t flags) {
     }
 
     int ret = chdir(srcFolder.c_str()); // errno already set if chdir fails
-    if (ret != 0)
-    {
-        PRINTUNIFIEDERROR("Unable to chdir in compressToArchive, error is %d\n",errno);
+    if(ret != 0) {
+        perror("Unable to chdir in compressToArchive");
         errno = 12340;
         sendErrorResponse(inOutDesc);
         return;

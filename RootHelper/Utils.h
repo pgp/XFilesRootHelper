@@ -954,15 +954,16 @@ void downloadRemoteItems(IDescriptor& rcl, IDescriptor* cl = nullptr) {
         if (fileitem.flag == 0x00) {
             auto parent = getParentDir(filepath);
             if (mkpathCopyPermissionsFromNearestAncestor(parent) < 0) {
-                auto&& parent1 = TOUNIXPATH(parent);
-                PRINTUNIFIEDERROR("Cannot create parent directory %s for file %s, exiting thread...\n",parent1.c_str(),fileitem.file.c_str());
+                std::string err_str = "Exiting thread, cannot create parent directory " + TOUTF(parent) + " for file " + fileitem.file;
+                perror(err_str.c_str());
                 rcl.close();
                 threadExit();
             }
 
             auto&& fd = fdfactory.create(filepath,FileOpenMode::XCL);
             if (!fd) {
-                PRINTUNIFIEDERROR("Cannot open output file %s for writing, errno is %d, exiting thread...\n",fileitem.file.c_str(),fd.error);
+                std::string err_str = "Exiting thread, cannot open output file " + fileitem.file + " for writing";
+                perror(err_str.c_str());
                 rcl.close();
                 threadExit();
             }

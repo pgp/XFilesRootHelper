@@ -183,8 +183,8 @@ public:
             errno = 0;
             DIR *dir_ = opendir(current.c_str());
             if (dir_ == nullptr) {
-				int err___ = errno;
-				PRINTUNIFIEDERROR("Error opening dir %s for listing, content won't be available during iteration, errno is %d\n",current.c_str(),err___);
+				std::string err_str = "Error opening dir " + current + " for listing, content won't be available during iteration";
+				perror(err_str.c_str());
 			}
             else listOnStack(dir_,current);
         }

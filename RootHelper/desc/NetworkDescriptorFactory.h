@@ -21,9 +21,7 @@ SOCKET connect_with_timeout(const char* ipaddr, int port, unsigned timeout_secon
 
     // ipaddr valid?
     if(server.sin_addr.s_addr == INADDR_NONE) return INVALID_SOCKET;
-    // std::cout<<"1..."<<std::endl;
     SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    // std::cout<<"2..."<<std::endl;
     // put socket in non-blocking mode...
     u_long block = 1;
     if(ioctlsocket(sock, FIONBIO, &block) == SOCKET_ERROR) {
@@ -73,14 +71,12 @@ SOCKET connect_with_timeout(const char* ipaddr, int port, unsigned timeout_secon
     }
 
     // connection successful
-    // std::cout<<"9..."<<std::endl;
-    // put socked in blocking mode...
+    // put socket in blocking mode...
     block = 0;
     if(ioctlsocket(sock, FIONBIO, &block) == SOCKET_ERROR) {
         closesocket(sock);
         return INVALID_SOCKET;
     }
-    // std::cout<<"10..."<<std::endl;
     return sock;
 }
 
@@ -166,7 +162,6 @@ public:
 
 int connect_with_timeout(int& sock_fd, struct addrinfo* p, unsigned timeout_seconds) {
     int res;
-    //~ struct sockaddr_in addr;
     long arg;
     fd_set myset;
     struct timeval tv{};
@@ -177,26 +172,26 @@ int connect_with_timeout(int& sock_fd, struct addrinfo* p, unsigned timeout_seco
     // sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     sock_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
 
-    if (sock_fd < 0) {
-        PRINTUNIFIEDERROR("Error creating socket (%d %s)\n", errno, strerror(errno));
+    if(sock_fd < 0) {
+        perror("Error creating socket");
         return -1;
     }
 
     // Set non-blocking
-    if( (arg = fcntl(sock_fd, F_GETFL, nullptr)) < 0) {
-        PRINTUNIFIEDERROR("Error fcntl(..., F_GETFL) (%s)\n", strerror(errno));
+    if((arg = fcntl(sock_fd, F_GETFL, nullptr)) < 0) {
+        perror("Error in fcntl(..., F_GETFL)");
         return -2;
     }
     arg |= O_NONBLOCK;
-    if( fcntl(sock_fd, F_SETFL, arg) < 0) {
-        PRINTUNIFIEDERROR("Error fcntl(..., F_SETFL) (%s)\n", strerror(errno));
+    if(fcntl(sock_fd, F_SETFL, arg) < 0) {
+        perror("Error in fcntl(..., F_SETFL)");
         return -3;
     }
     // Trying to connect with timeout
     // res = connect(sock_fd, (struct sockaddr *)&addr, sizeof(addr));
     res = connect(sock_fd, p->ai_addr, p->ai_addrlen);
-    if (res < 0) {
-        if (errno == EINPROGRESS) {
+    if(res < 0) {
+        if(errno == EINPROGRESS) {
             PRINTUNIFIEDERROR("EINPROGRESS in connect() - selecting\n");
             for(;;) {
                 tv.tv_sec = timeout_seconds;
@@ -204,20 +199,21 @@ int connect_with_timeout(int& sock_fd, struct addrinfo* p, unsigned timeout_seco
                 FD_ZERO(&myset);
                 FD_SET(sock_fd, &myset);
                 res = select(sock_fd+1, nullptr, &myset, nullptr, &tv);
-                if (res < 0 && errno != EINTR) {
-                    PRINTUNIFIEDERROR("Error connecting %d - %s\n", errno, strerror(errno));
+                if(res < 0 && errno != EINTR) {
+                    perror("Select error");
                     return -4;
                 }
-                else if (res > 0) {
+                else if(res > 0) {
                     // Socket selected for write
                     lon = sizeof(int);
-                    if (getsockopt(sock_fd, SOL_SOCKET, SO_ERROR, (void*)(&valopt), &lon) < 0) {
-                        PRINTUNIFIEDERROR("Error in getsockopt() %d - %s\n", errno, strerror(errno));
+                    if(getsockopt(sock_fd, SOL_SOCKET, SO_ERROR, (void*)(&valopt), &lon) < 0) {
+                        perror("Error in getsockopt()");
                         return -5;
                     }
                     // Check the value returned...
-                    if (valopt) {
-                        PRINTUNIFIEDERROR("Error in delayed connection() %d - %s\n", valopt, strerror(valopt));
+                    if(valopt) {
+                        errno = valopt;
+                        perror("Error in delayed connection");
                         return -6;
                     }
                     break;
@@ -229,18 +225,18 @@ int connect_with_timeout(int& sock_fd, struct addrinfo* p, unsigned timeout_seco
             }
         }
         else {
-            PRINTUNIFIEDERROR("Error connecting %d - %s\n", errno, strerror(errno));
+            perror("Error connecting");
             return -8;
         }
     }
     // Set to blocking mode again...
-    if( (arg = fcntl(sock_fd, F_GETFL, nullptr)) < 0) {
-        PRINTUNIFIEDERROR("Error fcntl(..., F_GETFL) (%s)\n", strerror(errno));
+    if((arg = fcntl(sock_fd, F_GETFL, nullptr)) < 0) {
+        perror("Error in fcntl(..., F_GETFL)");
         return -9;
     }
     arg &= (~O_NONBLOCK);
-    if( fcntl(sock_fd, F_SETFL, arg) < 0) {
-        PRINTUNIFIEDERROR("Error fcntl(..., F_SETFL) (%s)\n", strerror(errno));
+    if(fcntl(sock_fd, F_SETFL, arg) < 0) {
+        perror("Error in fcntl(..., F_SETFL)");
         return -10;
     }
     return 0; // ok, at this point the socket is connected and again in blocking mode

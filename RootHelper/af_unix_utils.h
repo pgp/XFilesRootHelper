@@ -49,26 +49,26 @@ int getServerUnixDomainSocket(struct sockaddr_un& addr, socklen_t& len, std::str
 	strncpy(addr.sun_path, "/tmp/", 5);
 	strncpy(addr.sun_path + 5, socketPathname.c_str(), socketPathname.size());
 	len = offsetof(struct sockaddr_un, sun_path) + 5 + socketPathname.size();
-	if (unlink(addr.sun_path) != 0) {
+	if(unlink(addr.sun_path) != 0) {
 		if(errno != ENOENT) {
-			PRINTUNIFIEDERROR("Unable to remove already-existing socket, errno is %d\n",errno);
+			perror("Unable to remove already-existing socket");
 			return -1;
 		}
 	}
 #endif
 
 	if ((unixSocketFd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
-		PRINTUNIFIEDERROR("socket error, errno is %d\n",errno);
+		perror("Socket error");
 		return -1;
 	}
 
 	if (bind(unixSocketFd, (struct sockaddr *)(&addr), len) == -1) {
-		PRINTUNIFIEDERROR("bind error, errno is %d\n",errno);
+		perror("Bind error");
 		return -1;
 	}
 
 	if (listen(unixSocketFd, MAX_CLIENTS) == -1) {
-		PRINTUNIFIEDERROR("listen error, errno is %d\n",errno);
+		perror("Listen error");
 		return -1;
 	}
 	return unixSocketFd;

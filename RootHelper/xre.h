@@ -488,7 +488,7 @@ void selectLoop(int listening_xre_socket, int local_socket) {
                     socklen_t stlen{};
                     int remoteCl;
                     if ((remoteCl = accept(listening_xre_socket, (struct sockaddr *) &st, &stlen)) == -1) {
-                        PRINTUNIFIEDERROR("accept error on remote server, errno is %d\n",errno);
+                        perror("Accept error on remote server");
                         continue;
                     }
 
@@ -523,7 +523,7 @@ void acceptLoop(int& rhss_socket, int local_socket = -1) {
         socklen_t stlen{};
         int remoteCl = accept(rhss_socket,(struct sockaddr *)&st,&stlen); // (#1) peer info retrieved and converted to string in spawned thread
         if (remoteCl == -1) {
-            PRINTUNIFIEDERROR("accept error on remote server, errno is %d\n",errno);
+            perror("Accept error on remote server");
             continue;
         }
         

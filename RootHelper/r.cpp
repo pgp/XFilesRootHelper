@@ -124,8 +124,7 @@ int renamePathMakeAncestors(std::string oldPath, std::string newPath) {
 
 // Does not attempt to copy-then-delete, nor to merge folders on move
 // only creates ancestor paths if they don't exist
-void moveFileOrDirectory(IDescriptor& inOutDesc)
-{
+void moveFileOrDirectory(IDescriptor& inOutDesc) {
 	std::vector<std::string> v_fx;
 	std::vector<std::string> v_fy;
   
@@ -144,22 +143,16 @@ void moveFileOrDirectory(IDescriptor& inOutDesc)
 	
 	int ret = 0;
 	
-	for (uint32_t i = 0; i<v_fx.size(); i++) {
-		if (renamePathMakeAncestors(v_fx[i],v_fy[i]) < 0) {
+	for(uint32_t i = 0; i<v_fx.size(); i++) {
+		if(renamePathMakeAncestors(v_fx[i],v_fy[i]) < 0) {
 			ret = -1;
 			break;
 		}
-		
 		inOutDesc.writeAllOrExit(&maxuint,sizeof(uint64_t)); // EOF progress
 	}
 	
 	inOutDesc.writeAllOrExit(&maxuint_2,sizeof(uint64_t)); // EOFs progress
-	// @@@
-	if (ret == 0)
-	PRINTUNIFIEDERROR("@@@MOVE SEEMS OK");
-	else
-	PRINTUNIFIEDERROR("@@@MOVE ERROR, errno is %d",errno);
-	// @@@
+	if(ret != 0) perror("Move error");
 	sendBaseResponse(ret,inOutDesc);
 }
 
@@ -469,7 +462,7 @@ void readOrWriteFile(IDescriptor& inOutDesc, uint8_t flags) {
 		}
 		
 		auto&& fd = fdfactory.create(filepath,FileOpenMode::READ);
-		if (!fd) {
+		if(!fd) {
 			sendErrorResponse(inOutDesc);
 			return;
 		}
@@ -477,17 +470,18 @@ void readOrWriteFile(IDescriptor& inOutDesc, uint8_t flags) {
 		sendOkResponse(inOutDesc);
 		for(;;) {
 			readBytes = fd.read(&iobuffer[0],COPY_CHUNK_SIZE);
-			if (readBytes <= 0) {
-				PRINTUNIFIEDERROR("break, read byte count is %d, errno is %d\n",readBytes,errno);
+			if(readBytes <= 0) {
+			    std::string err_str = "Break, read byte count is " + std::to_string(readBytes);
+				perror(err_str.c_str());
 				break;
 			}
 			writtenBytes = inOutDesc.writeAll(&iobuffer[0],readBytes);
-			if (writtenBytes < readBytes) {
-				PRINTUNIFIEDERROR("break, written byte count is %d, errno is %d\n",writtenBytes,errno);
+			if(writtenBytes < readBytes) {
+			    std::string err_str = "Break, written byte count is " + std::to_string(writtenBytes);
+				perror(err_str.c_str());
 				break;
 			}
 		}
-		
 		fd.close();
 	}
 	else { // receive from client, write to file
@@ -495,24 +489,25 @@ void readOrWriteFile(IDescriptor& inOutDesc, uint8_t flags) {
 		PRINTUNIFIED("Receive from client, write to file\n");
 		
 		auto&& fd = fdfactory.create(filepath,FileOpenMode::XCL);
-		if (!fd) {
+		if(!fd) {
 			sendErrorResponse(inOutDesc);
 			return;
 		}
 		
 		sendOkResponse(inOutDesc);
-
 		// start streaming file from client till EOF or any error
 		PRINTUNIFIED("Receiving stream...\n");
 		for(;;) {
 			readBytes = inOutDesc.read(&iobuffer[0],COPY_CHUNK_SIZE);
-			if (readBytes <= 0) {
-				PRINTUNIFIEDERROR("break, read byte count is %d\n",readBytes);
+			if(readBytes <= 0) {
+				std::string err_str = "Break, read byte count is " + std::to_string(readBytes);
+				perror(err_str.c_str());
 				break;
 			}
 			writtenBytes = fd.writeAll(&iobuffer[0],readBytes);
-			if (writtenBytes < readBytes) {
-				PRINTUNIFIEDERROR("break, written byte count is %d\n",writtenBytes);
+			if(writtenBytes < readBytes) {
+				std::string err_str = "Break, written byte count is " + std::to_string(writtenBytes);
+				perror(err_str.c_str());
 				break;
 			}
 		}

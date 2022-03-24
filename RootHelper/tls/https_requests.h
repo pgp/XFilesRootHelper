@@ -94,7 +94,7 @@ public:
         for(;;) {
             auto readBytes=desc.read(buffer, 4096);
             if(readBytes<=0) {
-                PRINTUNIFIEDERROR("EOF or error reading headers, errno is %d\n",errno);
+                perror("EOF or error reading headers");
                 return -1;
             }
             bb.write(buffer,readBytes);
