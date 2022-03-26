@@ -34,6 +34,23 @@ std::string getThreadIdAsString() {
     return ss.str();
 }
 
+std::string safestr(const char* fmt, ...) {
+    int n, size=100;
+    std::string str;
+    va_list ap;
+
+    for(;;) {
+        str.resize(size);
+        va_start(ap, fmt);
+        int n = vsnprintf(&str[0], size, fmt, ap);
+        va_end(ap);
+        if (n > -1 && n < size) break;
+        if (n > -1) size = n + 1;
+        else size *= 2;
+    }
+    return str;
+}
+
 #ifdef _WIN32
 
 // BEGIN WINDOWS
@@ -56,6 +73,7 @@ void initWindowsConsoleOutput() {
     }
 }
 
+// TODO refactor ( = safestr + WriteFile() )
 void safeprintf(const char* fmt, ...) {
     int n, size=100;
     std::string str;
@@ -79,11 +97,18 @@ void safeprintf(const char* fmt, ...) {
 #define  PRINTUNIFIED(...) safeprintf(__VA_ARGS__)
 #define  PRINTUNIFIEDERROR(...) safeprintf(__VA_ARGS__)
 
+// if s contains tab characters, this doesn't work, in that a tab can occupy from 1 to 4 spaces
+// a modified strlen method would be needed instead of s.size(), rounding used spaces to the next multiple of 4 when encountering a tab
+
 // TODO this is not efficient! handle SIGWINCH instead
 #define SAMELINEPRINT(...) do { \
     auto&& wh = sampleConsoleDimensions(); \
+    auto&& s = safestr(__VA_ARGS__); \
+    char* p = (char*)(s.c_str()); \
+    if(s.size() >= wh.W) p[wh.W-1] = '\0'; \
 	safeprintf("\r%.*s\r", wh.W, ""); \
-	safeprintf(__VA_ARGS__); \
+    DWORD writtenBytes; \
+    WriteFile(conHandle,p,strlen(p),&writtenBytes,nullptr); \
 } while(0)
 
 #define EXITWITHERROR(...) do { \
@@ -132,6 +157,7 @@ void safeprintf(const char* fmt, ...) {
  * https://stackoverflow.com/questions/4983092/c-equivalent-of-sprintf
  * for having a signal-safe printf
  */
+// TODO refactor ( = safestr + write() )
 void safefprintf(int descriptor, const char* fmt, ...) {
     int size=100;
     std::string str;
@@ -156,9 +182,12 @@ void safefprintf(int descriptor, const char* fmt, ...) {
 
 // TODO this is not efficient! handle SIGWINCH instead
 #define SAMELINEPRINT(...) do { \
-	auto&& wh = sampleConsoleDimensions(); \
+    auto&& wh = sampleConsoleDimensions(); \
+    auto&& s = safestr(__VA_ARGS__); \
+    char* p = (char*)(s.c_str()); \
+    if(s.size() >= wh.W) p[wh.W-1] = '\0'; \
 	safefprintf(STDOUT_FILENO, "\r%.*s\r", wh.W, ""); \
-	safefprintf(STDOUT_FILENO, __VA_ARGS__); \
+    write(STDOUT_FILENO,p,strlen(p)); \
 } while(0)
 
 #define EXITWITHERROR(...) do { \

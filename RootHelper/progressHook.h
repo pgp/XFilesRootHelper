@@ -25,7 +25,7 @@ public:
     virtual ~ProgressHook() {
         // this assumes no other console messages are written between last progress and progress hook destructor;
         // in such case, this would delete previous message from the console, if such message does not end with \n
-        SAMELINEPRINT("\n");
+        SAMELINEPRINT("");
     }
 
     virtual void publish(uint64_t current) = 0;
@@ -52,7 +52,7 @@ public:
         currentSize = current;
         if(currentSize - lastPublished >= throttle) {
             auto curSpeed = getCurrentSpeedMbps(currentSize);
-            SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", currentSize, ((100.0*currentSize)/totalSize), totalSize, curSpeed);
+            SAMELINEPRINT("Progress: %" PRIu64 "  Percentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", currentSize, ((100.0*currentSize)/totalSize), totalSize, curSpeed);
         }
     }
 
@@ -60,7 +60,7 @@ public:
         currentSize += delta;
         if(currentSize - lastPublished >= throttle) {
             auto curSpeed = getCurrentSpeedMbps(currentSize);
-            SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", currentSize, ((100.0*currentSize)/totalSize), totalSize, curSpeed);
+            SAMELINEPRINT("Progress: %" PRIu64 "  Percentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", currentSize, ((100.0*currentSize)/totalSize), totalSize, curSpeed);
         }
     }
 };
@@ -88,7 +88,7 @@ public:
         if(currentSize - lastPublished >= throttle) {
             auto curSpeed = getCurrentSpeedMbps(currentSize);
             /*HRESULT hr = */pTaskbarList->SetProgressValue(hWnd, currentSize, totalSize);
-            SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", currentSize, ((100.0*currentSize)/totalSize), totalSize, curSpeed);
+            SAMELINEPRINT("Progress: %" PRIu64 "  Percentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", currentSize, ((100.0*currentSize)/totalSize), totalSize, curSpeed);
         }
     }
 
@@ -97,7 +97,7 @@ public:
         if(currentSize - lastPublished >= throttle) {
             auto curSpeed = getCurrentSpeedMbps(currentSize);
             /*HRESULT hr = */pTaskbarList->SetProgressValue(hWnd, currentSize, totalSize);
-            SAMELINEPRINT("Progress: %" PRIu64 "\tPercentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", currentSize, ((100.0*currentSize)/totalSize), totalSize, curSpeed);
+            SAMELINEPRINT("Progress: %" PRIu64 "  Percentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", currentSize, ((100.0*currentSize)/totalSize), totalSize, curSpeed);
         }
     }
 };
