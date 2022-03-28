@@ -106,7 +106,7 @@ void safeprintf(const char* fmt, ...) {
     auto&& s = safestr(__VA_ARGS__); \
     char* p = (char*)(s.c_str()); \
     if(s.size() >= wh.W) p[wh.W-1] = '\0'; \
-	safeprintf("\r%.*s\r", wh.W, ""); \
+	safeprintf("\r%*s\r", wh.W, ""); \
     DWORD writtenBytes; \
     WriteFile(conHandle,p,strlen(p),&writtenBytes,nullptr); \
 } while(0)
@@ -186,7 +186,7 @@ void safefprintf(int descriptor, const char* fmt, ...) {
     auto&& s = safestr(__VA_ARGS__); \
     char* p = (char*)(s.c_str()); \
     if(s.size() >= wh.W) p[wh.W-1] = '\0'; \
-	safefprintf(STDOUT_FILENO, "\r%.*s\r", wh.W, ""); \
+	safefprintf(STDOUT_FILENO, "\r%*s\r", wh.W, ""); \
     write(STDOUT_FILENO,p,strlen(p)); \
 } while(0)
 
