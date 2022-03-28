@@ -20,8 +20,8 @@ ConsoleDims sampleConsoleDimensions() {
 #ifdef _WIN32
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-    dims.W = csbi.srWindow.Right - csbi.srWindow.Left + 1;
-    dims.H = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+    dims.W = csbi.srWindow.Right - csbi.srWindow.Left;
+    dims.H = csbi.srWindow.Bottom - csbi.srWindow.Top;
 #else
     struct winsize w;
     ioctl(0, TIOCGWINSZ, &w);
