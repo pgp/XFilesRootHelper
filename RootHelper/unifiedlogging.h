@@ -101,6 +101,8 @@ void safeprintf(const char* fmt, ...) {
 // a modified strlen method would be needed instead of s.size(), rounding used spaces to the next multiple of 4 when encountering a tab
 
 // TODO this is not efficient! handle SIGWINCH instead
+// using truncated size instead of strlen doesn't work well for windows
+// (after end of progress, lots of empty spaces are printed before each file hash)
 #define SAMELINEPRINT(...) do { \
     auto&& wh = sampleConsoleDimensions(); \
     auto&& s = safestr(__VA_ARGS__); \
@@ -185,9 +187,10 @@ void safefprintf(int descriptor, const char* fmt, ...) {
     auto&& wh = sampleConsoleDimensions(); \
     auto&& s = safestr(__VA_ARGS__); \
     char* p = (char*)(s.c_str()); \
-    if(s.size() >= wh.W) p[wh.W-1] = '\0'; \
-	safefprintf(STDOUT_FILENO, "\r%*s\r", wh.W, ""); \
-    write(STDOUT_FILENO,p,strlen(p)); \
+    auto sz = s.size(); \
+    if(sz >= wh.W) sz = wh.W-2; \
+    safefprintf(STDOUT_FILENO, "\r%*s\r", wh.W, ""); \
+    write(STDOUT_FILENO,p,sz); \
 } while(0)
 
 #define EXITWITHERROR(...) do { \
