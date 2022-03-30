@@ -847,7 +847,7 @@ void client_upload_from_fds(IDescriptor& cl, IDescriptor& rcl, const request_typ
     uint64_t totalSize,totalFiles=0;
     cl.readAllOrExit(&totalSize,sizeof(uint64_t));
 
-    auto&& progressHook = getProgressHook(totalSize, REMOTE_IO_CHUNK_SIZE);
+    auto&& progressHook = getProgressHook(totalSize);
 
     // send "client upload" request to server
     rcl.writeAllOrExit(&rq, sizeof(uint8_t));
@@ -906,7 +906,7 @@ void client_upload(IDescriptor& cl, IDescriptor& rcl) {
         counts.tSize += itemTotals.tSize;
 	}
 
-	auto&& progressHook = getProgressHook(counts.tSize, REMOTE_IO_CHUNK_SIZE);
+	auto&& progressHook = getProgressHook(counts.tSize);
 
     // No need for auto-flushing buffered descriptor here, genericUploadBasicRecursiveImplWithProgress and internal callees are already manually optimized
 	// send "client upload" request to server

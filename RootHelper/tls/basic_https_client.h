@@ -333,7 +333,7 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
         PRINTUNIFIEDERROR("PARSED CONTENT LENGTH IS: %" PRIu64 "\n",parsedContentLength);
     }
 
-    auto&& progressHook = getProgressHook(parsedContentLength, REMOTE_IO_CHUNK_SIZE);
+    auto&& progressHook = getProgressHook(parsedContentLength);
 
     tmp_ = TOUTF(httpFilename);
     writeStringWithLen(local_fd,tmp_); // send guessed filename (or send back received one) in order for the GUI to locate it once completed
@@ -612,7 +612,7 @@ int httpsUrlUpload_internal(IDescriptor& cl,
         uint64_t currentProgress = 0;
         uint64_t quotient = fsize / UPLOAD_CHUNK_SIZE;
         uint64_t remainder = fsize % UPLOAD_CHUNK_SIZE;
-        auto&& progressHook = getProgressHook(fsize, UPLOAD_CHUNK_SIZE);
+        auto&& progressHook = getProgressHook(fsize);
 
         PRINTUNIFIED("Chunk info: quotient is %" PRIu64 ", remainder is %" PRIu64 "\n",quotient,remainder);
         std::vector<uint8_t> buffer(UPLOAD_CHUNK_SIZE);

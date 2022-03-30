@@ -6,62 +6,77 @@
 
 // TODO refactor using non-virtual methods publish and publishDelta, and virtual method doPublish (chain-of-responsibility)
 
-constexpr uint32_t DEFAULT_PROGRESSHOOK_THROTTLE = 33554432; // 32 Mb, equal to COPY_CHUNK_SIZE in common_uds.h
 class ProgressHook {
 public:
     const uint64_t totalSize;
-    const uint32_t throttle; // progress will be actually published every throttle bytes
     uint64_t lastPublished;
-    std::chrono::time_point<std::chrono::steady_clock> lastT;
-    uint64_t currentSize;
+    /*volatile*/ uint64_t curSize;
+    float curSpeed;
 
-    ProgressHook(uint64_t totalSize_, uint32_t throttle_) :
+    constexpr static auto samplingPeriodMs = 250;
+    constexpr static auto samplingPeriod = std::chrono::milliseconds(samplingPeriodMs);
+
+    std::thread progressThread;
+
+    ProgressHook(uint64_t totalSize_) :
             totalSize(totalSize_),
-            throttle(throttle_),
-            currentSize(0),
-            lastPublished(0),
-            lastT(std::chrono::steady_clock::now()) {}
+            curSize(0),
+            lastPublished(0) {
+        start();
+    }
 
     virtual ~ProgressHook() {
         // this assumes no other console messages are written between last progress and progress hook destructor;
         // in such case, this would delete previous message from the console, if such message does not end with \n
-        SAMELINEPRINT("");
+        curSize = -1;
+        progressThread.join();
     }
 
-    virtual void publish(uint64_t current) = 0;
+    void publish(uint64_t current) {
+        curSize = current;
+    }
 
-    virtual void publishDelta(uint64_t delta) = 0;
+    void publishDelta(uint64_t delta) {
+        curSize += delta;
+    }
 
-    float getCurrentSpeedMbps(uint64_t p1) {
+    virtual void doPublish() = 0;
+
+    /*float getCurrentSpeedMbps(uint64_t p1) {
         auto&& t = std::chrono::steady_clock::now();
         std::chrono::duration<float> diff = t - lastT;
         lastT = t;
         auto ret = (p1 - lastPublished) *1.0f / (diff.count() * 1000000.0f);
         lastPublished = p1;
         return ret;
+    }*/
+
+    // not working, hangs on ctor
+    void start() {
+        progressThread = std::thread( [this] {
+            std::this_thread::sleep_for(samplingPeriod);
+            for(;;) {
+                uint64_t s = curSize;
+                if(s == -1) break; // end-of-progress indication // TODO remember to set it everywhere!
+                auto ds = s - lastPublished;
+                lastPublished = s;
+                curSpeed = (ds*1.0f)/(samplingPeriodMs*1000.0f); // Mbps
+                doPublish();
+                std::this_thread::sleep_for(samplingPeriod);
+            }
+            SAMELINEPRINT("");
+        });
     }
 };
 
 class ConsoleProgressHook : public ProgressHook {
 public:
-    ConsoleProgressHook(uint64_t totalSize_, uint32_t throttle_) : ProgressHook(totalSize_, throttle_) {
+    ConsoleProgressHook(uint64_t totalSize_) : ProgressHook(totalSize_) {
         // PRINTUNIFIED("Total size: %" PRIu64 "\n", totalSize_);
     }
 
-    void publish(uint64_t current) override {
-        currentSize = current;
-        if(currentSize - lastPublished >= throttle) {
-            auto curSpeed = getCurrentSpeedMbps(currentSize);
-            SAMELINEPRINT("Progress: %" PRIu64 "  Percentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", currentSize, ((100.0*currentSize)/totalSize), totalSize, curSpeed);
-        }
-    }
-
-    void publishDelta(uint64_t delta) override {
-        currentSize += delta;
-        if(currentSize - lastPublished >= throttle) {
-            auto curSpeed = getCurrentSpeedMbps(currentSize);
-            SAMELINEPRINT("Progress: %" PRIu64 "  Percentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", currentSize, ((100.0*currentSize)/totalSize), totalSize, curSpeed);
-        }
+    void doPublish() override {
+        SAMELINEPRINT("Progress: %" PRIu64 "  Percentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", lastPublished, ((100.0f*lastPublished)/totalSize), totalSize, curSpeed);
     }
 };
 
@@ -72,8 +87,8 @@ public:
     ITaskbarList3* pTaskbarList;
     HWND hWnd;
 
-    MfcProgressHook(HWND hWnd_, ITaskbarList3* pTaskbarList_, uint64_t totalSize_, uint32_t throttle_) :
-            ConsoleProgressHook(totalSize_, throttle_), hWnd(hWnd_), pTaskbarList(pTaskbarList_) {
+    MfcProgressHook(HWND hWnd_, ITaskbarList3* pTaskbarList_, uint64_t totalSize_) :
+            ConsoleProgressHook(totalSize_), hWnd(hWnd_), pTaskbarList(pTaskbarList_) {
         // PRINTUNIFIED("Total size: %" PRIu64 "\n",totalSize_);
         CoInitialize(nullptr);
     }
@@ -83,34 +98,21 @@ public:
         // pTaskbarList->Release(); // releasing pTaskbarList twice (in x0.at upload for example, when two progress hooks are used) causes access violation on windows 7 (works fine in win8 and win10 instead)
     // }
 
-    void publish(uint64_t current) override {
-        currentSize = current;
-        if(currentSize - lastPublished >= throttle) {
-            auto curSpeed = getCurrentSpeedMbps(currentSize);
-            /*HRESULT hr = */pTaskbarList->SetProgressValue(hWnd, currentSize, totalSize);
-            SAMELINEPRINT("Progress: %" PRIu64 "  Percentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", currentSize, ((100.0*currentSize)/totalSize), totalSize, curSpeed);
-        }
-    }
-
-    void publishDelta(uint64_t delta) override {
-        currentSize += delta;
-        if(currentSize - lastPublished >= throttle) {
-            auto curSpeed = getCurrentSpeedMbps(currentSize);
-            /*HRESULT hr = */pTaskbarList->SetProgressValue(hWnd, currentSize, totalSize);
-            SAMELINEPRINT("Progress: %" PRIu64 "  Percentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", currentSize, ((100.0*currentSize)/totalSize), totalSize, curSpeed);
-        }
-    }
+    void doPublish() override {
+        /*HRESULT hr = */pTaskbarList->SetProgressValue(hWnd, curSize, totalSize);
+        SAMELINEPRINT("Progress: %" PRIu64 "  Percentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", lastPublished, ((100.0f*lastPublished)/totalSize), totalSize, curSpeed);
+    };
 };
 
 #endif
 
 #ifdef _WIN32
-MfcProgressHook getProgressHook(uint64_t totalSize_, uint32_t throttle_ = DEFAULT_PROGRESSHOOK_THROTTLE) {
-    return {console_hwnd,console_pTaskbarList,totalSize_,throttle_};
+MfcProgressHook getProgressHook(uint64_t totalSize_) {
+    return {console_hwnd,console_pTaskbarList,totalSize_};
 }
 #else
-ConsoleProgressHook getProgressHook(uint64_t totalSize_, uint32_t throttle_ = DEFAULT_PROGRESSHOOK_THROTTLE) {
-    return {totalSize_,throttle_};
+ConsoleProgressHook getProgressHook(uint64_t totalSize_) {
+    return {totalSize_};
 }
 #endif
 

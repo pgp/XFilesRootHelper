@@ -164,7 +164,7 @@ public:
 
         auto parsedContentLength = parseContentLength(responseHeaders);
 
-        auto&& progressHook = getProgressHook(parsedContentLength, REMOTE_IO_CHUNK_SIZE);
+        auto&& progressHook = getProgressHook(parsedContentLength);
 
         uint8_t buf[4096]{};
         ssize_t readBytes;
