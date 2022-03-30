@@ -12,6 +12,8 @@ public:
     const uint64_t totalSize;
     uint64_t lastPublished;
     uint64_t curSize;
+    uint64_t lastNonZeroDs;
+    std::chrono::time_point<std::chrono::high_resolution_clock> lastT = std::chrono::high_resolution_clock::now();
     float curSpeed;
 
     std::thread progressThread;
@@ -41,14 +43,24 @@ public:
     virtual void doPublish() = 0;
 
     void start() {
-        progressThread = std::thread( [this] {
+        progressThread = std::thread([this] {
             std::this_thread::sleep_for(samplingPeriod);
             for(;;) {
                 uint64_t s = curSize;
                 if(s == -1) break; // end-of-progress indication
                 auto ds = s - lastPublished;
-                lastPublished = s;
-                curSpeed = (ds*1.0f)/(samplingPeriodMs*1000.0f); // Mbps
+
+                auto t = std::chrono::high_resolution_clock::now();
+                float diff = std::chrono::duration<float, std::micro>(t - lastT).count();
+
+                if(ds != 0) {
+                    lastNonZeroDs = ds;
+                    lastPublished = s;
+                    lastT = t;
+                }
+                // when progress is stale, show a decreasing "instantaneous" speed
+                curSpeed = (lastNonZeroDs*1.0f)/diff; // bytes per microsecond, a.k.a. megabytes per second
+
                 doPublish();
                 std::this_thread::sleep_for(samplingPeriod);
             }
