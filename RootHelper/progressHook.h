@@ -6,15 +6,15 @@
 
 // TODO refactor using non-virtual methods publish and publishDelta, and virtual method doPublish (chain-of-responsibility)
 
+constexpr auto samplingPeriodMs = 250;
+constexpr auto samplingPeriod = std::chrono::milliseconds(samplingPeriodMs);
+
 class ProgressHook {
 public:
     const uint64_t totalSize;
     uint64_t lastPublished;
     /*volatile*/ uint64_t curSize;
     float curSpeed;
-
-    constexpr static auto samplingPeriodMs = 250;
-    constexpr static auto samplingPeriod = std::chrono::milliseconds(samplingPeriodMs);
 
     std::thread progressThread;
 
