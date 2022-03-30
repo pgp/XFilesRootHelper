@@ -4,8 +4,6 @@
 #include "unifiedlogging.h"
 #include <chrono>
 
-// TODO refactor using non-virtual methods publish and publishDelta, and virtual method doPublish (chain-of-responsibility)
-
 constexpr auto samplingPeriodMs = 250;
 constexpr auto samplingPeriod = std::chrono::milliseconds(samplingPeriodMs);
 
@@ -13,7 +11,7 @@ class ProgressHook {
 public:
     const uint64_t totalSize;
     uint64_t lastPublished;
-    /*volatile*/ uint64_t curSize;
+    uint64_t curSize;
     float curSpeed;
 
     std::thread progressThread;
@@ -42,22 +40,12 @@ public:
 
     virtual void doPublish() = 0;
 
-    /*float getCurrentSpeedMbps(uint64_t p1) {
-        auto&& t = std::chrono::steady_clock::now();
-        std::chrono::duration<float> diff = t - lastT;
-        lastT = t;
-        auto ret = (p1 - lastPublished) *1.0f / (diff.count() * 1000000.0f);
-        lastPublished = p1;
-        return ret;
-    }*/
-
-    // not working, hangs on ctor
     void start() {
         progressThread = std::thread( [this] {
             std::this_thread::sleep_for(samplingPeriod);
             for(;;) {
                 uint64_t s = curSize;
-                if(s == -1) break; // end-of-progress indication // TODO remember to set it everywhere!
+                if(s == -1) break; // end-of-progress indication
                 auto ds = s - lastPublished;
                 lastPublished = s;
                 curSpeed = (ds*1.0f)/(samplingPeriodMs*1000.0f); // Mbps
@@ -104,6 +92,21 @@ public:
     };
 };
 
+#else
+
+class LocalSocketProgressHook : public ProgressHook {
+public:
+    PosixDescriptor& desc; // change to IDescriptor& if needed with other use cases than local or network unix socket
+
+    LocalSocketProgressHook(uint64_t totalSize_, PosixDescriptor& desc_) : ProgressHook(totalSize_), desc(desc_) {
+        desc.writeAllOrExit(&totalSize, sizeof(uint64_t));
+    }
+
+    void doPublish() override {
+        desc.writeAllOrExit(&lastPublished, sizeof(uint64_t));
+    }
+};
+
 #endif
 
 #ifdef _WIN32
@@ -113,6 +116,10 @@ MfcProgressHook getProgressHook(uint64_t totalSize_) {
 #else
 ConsoleProgressHook getProgressHook(uint64_t totalSize_) {
     return {totalSize_};
+}
+
+LocalSocketProgressHook getLSProgressHook(uint64_t totalSize_, PosixDescriptor& desc_) {
+    return {totalSize_, desc_};
 }
 #endif
 
