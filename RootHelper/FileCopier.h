@@ -337,16 +337,24 @@ private:
         off_t offset = 0;
         struct stat fileinfo{};
         fstat(input, &fileinfo);
-        ssize_t chunkWrittenBytes;
-
-        // send total fileinfo.st_size
         uint64_t thisFileSize = fileinfo.st_size;
+        int64_t chunkWrittenBytes;
+
+        // send total size
         sockfd.writeAllOrExit(&thisFileSize,sizeof(uint64_t));
         uint64_t currentProgress = 0;
+        std::vector<uint8_t> buf(COPY_CHUNK_SIZE);
 
         for(;;) {
 #ifdef __linux__
+// Android's libc impl (bionic) is missing large file support for sendfile when targeting API 19 and lower on 32-bit archs
+#if defined(ANDROID_NDK) && (__RH_WORDSIZE__ == 32)
+            chunkWrittenBytes = read(input,&buf[0],COPY_CHUNK_SIZE); // actually read bytes, not written
+            if(chunkWrittenBytes <= 0) break;
+            chunkWrittenBytes = write(output,&buf[0],chunkWrittenBytes);
+#else
             chunkWrittenBytes = sendfile(output, input, &offset, COPY_CHUNK_SIZE);
+#endif
 #else
 #ifdef __APPLE__
             off_t inExpectedTransferredBytes_outActuallyTransferredBytes = COPY_CHUNK_SIZE;
@@ -360,8 +368,7 @@ private:
             chunkWrittenBytes = actuallyTransferredBytes;
 #endif
 #endif
-            printf("Current offset: %lu\n",offset);
-            if (chunkWrittenBytes <= 0) break;
+            if(chunkWrittenBytes <= 0) break;
             // send progress
             currentProgress += chunkWrittenBytes;
             sockfd.writeAllOrExit(&currentProgress,sizeof(uint64_t));
