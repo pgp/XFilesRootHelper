@@ -1195,7 +1195,7 @@ void hashFile(IDescriptor& inOutDesc) {
 #ifdef __aarch64__
 // optimize for ARM64 with SHA hardware instructions (best found so far)
 template<typename STR>
-int createRandomFile(const STR& path, uint64_t size) {
+int createRandomFile(const STR& path, uint64_t size, ProgressHook* progressHook = nullptr) {
     PRINTUNIFIED("Using ARMv8 SHA instructions for random content generation...");
     
 //    static const std::map<std::string,size_t> shaParams {
@@ -1238,6 +1238,7 @@ int createRandomFile(const STR& path, uint64_t size) {
             botan_hash_final(hash1,p1+i+digestSize);
         }
         fd.writeAllOrExit(p1,blockSize);
+        if(progressHook != nullptr) progressHook->publishDelta(blockSize);
         memcpy(p1,p1+blockSize,digestSize);
     }
     // remainder
@@ -1246,6 +1247,7 @@ int createRandomFile(const STR& path, uint64_t size) {
             botan_hash_final(hash1,p1+i+digestSize);
     }
     fd.writeAllOrExit(p1,lastBlockSize);
+    if(progressHook != nullptr) progressHook->publishDelta(lastBlockSize);
 
     fd.close();
     botan_hash_destroy(hash1);
@@ -1254,7 +1256,7 @@ int createRandomFile(const STR& path, uint64_t size) {
 #else
 
 template<typename STR>
-int createRandomFile(const STR& path, uint64_t size) {
+int createRandomFile(const STR& path, uint64_t size, ProgressHook* progressHook = nullptr) {
     size_t written=0,consumed=0;
     constexpr unsigned halfblockSize = HASH_BLOCK_SIZE/2;
     constexpr unsigned keySize = 32;
@@ -1294,6 +1296,7 @@ int createRandomFile(const STR& path, uint64_t size) {
         botan_cipher_update(enc, BOTAN_CIPHER_UPDATE_FLAG_FINAL, p1, halfblockSize, &written, p2, halfblockSize, &consumed);
 
         fd.writeAllOrExit(p1,HASH_BLOCK_SIZE);
+        if(progressHook != nullptr) progressHook->publishDelta(HASH_BLOCK_SIZE);
     }
 
     if (remainder != 0) { // there can be at most one block encrypted with same key
@@ -1306,6 +1309,7 @@ int createRandomFile(const STR& path, uint64_t size) {
         botan_cipher_update(enc, BOTAN_CIPHER_UPDATE_FLAG_FINAL, p1, halfblockSize, &written, p2, halfblockSize, &consumed);
 
         fd.writeAllOrExit(p1,remainder);
+        if(progressHook != nullptr) progressHook->publishDelta(remainder);
     }
     /********* end quotient + remainder IO loop *********/
     botan_cipher_destroy(enc);
@@ -1316,7 +1320,7 @@ int createRandomFile(const STR& path, uint64_t size) {
 #endif
 
 template<typename STR>
-int createEmptyFile(const STR& path, uint64_t size) {
+int createEmptyFile(const STR& path, uint64_t size, ProgressHook* progressHook = nullptr) {
     auto&& fd = fdfactory.create(path,FileOpenMode::XCL);
     if (!fd) return fd.error;
 
@@ -1328,11 +1332,14 @@ int createEmptyFile(const STR& path, uint64_t size) {
 
     PRINTUNIFIED("[Create empty file] Chunk info: quotient is %" PRIu64 ", remainder is %" PRIu64 "\n",quotient,remainder);
 
-    for(uint64_t i=0;i<quotient;i++)
+    for(uint64_t i=0;i<quotient;i++) {
         fd.writeAllOrExit(&emptyChunk[0],COPY_CHUNK_SIZE);
-
-    if (remainder != 0)
+        if(progressHook != nullptr) progressHook->publishDelta(COPY_CHUNK_SIZE);
+    }
+    if (remainder != 0) {
         fd.writeAllOrExit(&emptyChunk[0],remainder);
+        if(progressHook != nullptr) progressHook->publishDelta(remainder);
+    }
     /********* end quotient + remainder IO loop *********/
 
     fd.close();
