@@ -137,6 +137,11 @@ std::unique_ptr<ProgressHook> getProgressHookP(uint64_t totalSize_) {
     return std::unique_ptr<ProgressHook>(new MfcProgressHook(console_hwnd,console_pTaskbarList,totalSize_));
 }
 
+// dummy, just to make build work on Windows
+std::unique_ptr<ProgressHook> getLSProgressHookP(uint64_t totalSize_, IDescriptor& desc_) {
+    return std::unique_ptr<ProgressHook>(nullptr);
+}
+
 #else
 ConsoleProgressHook getProgressHook(uint64_t totalSize_) {
     return {totalSize_};
