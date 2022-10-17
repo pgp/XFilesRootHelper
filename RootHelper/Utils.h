@@ -1195,9 +1195,9 @@ void hashFile(IDescriptor& inOutDesc) {
 #ifdef __aarch64__
 // optimize for ARM64 with SHA hardware instructions (best found so far)
 template<typename STR>
-int createRandomFile(const STR& path, uint64_t size, ProgressHook* progressHook = nullptr) {
+int createRandomFile(const STR& path, uint64_t size, IDescriptor* inOutDesc = nullptr) {
     PRINTUNIFIED("Using ARMv8 SHA instructions for random content generation...");
-    
+    bool isLocalSocketProgress = inOutDesc != nullptr;
 //    static const std::map<std::string,size_t> shaParams {
 //            {"SHA-1", 20},
 //            {"SHA-256", 32},
@@ -1229,8 +1229,12 @@ int createRandomFile(const STR& path, uint64_t size, ProgressHook* progressHook 
 
     // generate random data by hashing and write to file
     auto&& fd = fdfactory.create(path,FileOpenMode::XCL);
-    if(!fd) return fd.error;
-    
+    if(!fd) {
+        if(isLocalSocketProgress) sendErrorResponse(*inOutDesc);
+        return fd.error;
+    }
+    if(isLocalSocketProgress) sendOkResponse(*inOutDesc);
+    auto progressHook = isLocalSocketProgress ? getLSProgressHookP(size, *inOutDesc) : getProgressHookP(size);
     // quotient
     for(j=0;j<blocks;j++) {
         for(i=0;i<blockSize;i+=digestSize) {
@@ -1238,7 +1242,7 @@ int createRandomFile(const STR& path, uint64_t size, ProgressHook* progressHook 
             botan_hash_final(hash1,p1+i+digestSize);
         }
         fd.writeAllOrExit(p1,blockSize);
-        if(progressHook != nullptr) progressHook->publishDelta(blockSize);
+        progressHook->publishDelta(blockSize);
         memcpy(p1,p1+blockSize,digestSize);
     }
     // remainder
@@ -1247,8 +1251,9 @@ int createRandomFile(const STR& path, uint64_t size, ProgressHook* progressHook 
             botan_hash_final(hash1,p1+i+digestSize);
     }
     fd.writeAllOrExit(p1,lastBlockSize);
-    if(progressHook != nullptr) progressHook->publishDelta(lastBlockSize);
+    progressHook->publishDelta(lastBlockSize);
 
+    // end-of-progress sent in caller
     fd.close();
     botan_hash_destroy(hash1);
     return 0;
@@ -1256,7 +1261,8 @@ int createRandomFile(const STR& path, uint64_t size, ProgressHook* progressHook 
 #else
 
 template<typename STR>
-int createRandomFile(const STR& path, uint64_t size, ProgressHook* progressHook = nullptr) {
+int createRandomFile(const STR& path, uint64_t size, IDescriptor* inOutDesc = nullptr) {
+    bool isLocalSocketProgress = inOutDesc != nullptr;
     size_t written=0,consumed=0;
     constexpr unsigned halfblockSize = HASH_BLOCK_SIZE/2;
     constexpr unsigned keySize = 32;
@@ -1264,7 +1270,7 @@ int createRandomFile(const STR& path, uint64_t size, ProgressHook* progressHook 
 
     uint8_t* p1 = &inout[0];
     uint8_t* p2 = p1+halfblockSize;
-    
+
     botan_rng_t rng{};
     botan_rng_init(&rng, nullptr);
 
@@ -1278,7 +1284,13 @@ int createRandomFile(const STR& path, uint64_t size, ProgressHook* progressHook 
     //~ botan_cipher_init(&enc, "SHACAL2/CTR", Botan::ENCRYPTION);
 
     auto&& fd = fdfactory.create(path,FileOpenMode::XCL);
-    if(!fd) return fd.error;
+    if(!fd) {
+        if(isLocalSocketProgress) sendErrorResponse(*inOutDesc);
+        return fd.error;
+    }
+    if(isLocalSocketProgress) sendOkResponse(*inOutDesc);
+
+    auto progressHook = isLocalSocketProgress ? getLSProgressHookP(size, *inOutDesc) : getProgressHookP(size);
 
     /********* quotient + remainder IO loop *********/
     uint64_t quotient = size / HASH_BLOCK_SIZE;
@@ -1296,7 +1308,7 @@ int createRandomFile(const STR& path, uint64_t size, ProgressHook* progressHook 
         botan_cipher_update(enc, BOTAN_CIPHER_UPDATE_FLAG_FINAL, p1, halfblockSize, &written, p2, halfblockSize, &consumed);
 
         fd.writeAllOrExit(p1,HASH_BLOCK_SIZE);
-        if(progressHook != nullptr) progressHook->publishDelta(HASH_BLOCK_SIZE);
+        progressHook->publishDelta(HASH_BLOCK_SIZE);
     }
 
     if (remainder != 0) { // there can be at most one block encrypted with same key
@@ -1309,40 +1321,58 @@ int createRandomFile(const STR& path, uint64_t size, ProgressHook* progressHook 
         botan_cipher_update(enc, BOTAN_CIPHER_UPDATE_FLAG_FINAL, p1, halfblockSize, &written, p2, halfblockSize, &consumed);
 
         fd.writeAllOrExit(p1,remainder);
-        if(progressHook != nullptr) progressHook->publishDelta(remainder);
+        progressHook->publishDelta(remainder);
     }
     /********* end quotient + remainder IO loop *********/
     botan_cipher_destroy(enc);
     fd.close();
+    // end-of-progress sent in caller
+//    if(progressHook != nullptr) {
+//        progressHook->publish(maxuint); // end of progress
+//        progressHook->doPublish(); // publish thread terminates upon sentinel value maxuint, without publishing it, see why in progressHook.h
+//    }
     return 0;
 }
 
 #endif
 
 template<typename STR>
-int createEmptyFile(const STR& path, uint64_t size, ProgressHook* progressHook = nullptr) {
+int createEmptyFile(const STR& path, uint64_t size, IDescriptor* inOutDesc = nullptr) {
+    bool isLocalSocketProgress = inOutDesc != nullptr;
     auto&& fd = fdfactory.create(path,FileOpenMode::XCL);
-    if (!fd) return fd.error;
+    if(!fd) {
+        if(isLocalSocketProgress) sendErrorResponse(*inOutDesc);
+        return fd.error;
+    }
+    if(isLocalSocketProgress) sendOkResponse(*inOutDesc);
 
     std::vector<uint8_t> emptyChunk(COPY_CHUNK_SIZE,0);
 
-    /********* quotient + remainder IO loop *********/
-    uint64_t quotient = size / COPY_CHUNK_SIZE;
-    uint64_t remainder = size % COPY_CHUNK_SIZE;
+    if(size != 0) {
+        auto progressHook = isLocalSocketProgress ? getLSProgressHookP(size, *inOutDesc) : getProgressHookP(size);
+        /********* quotient + remainder IO loop *********/
+        uint64_t quotient = size / COPY_CHUNK_SIZE;
+        uint64_t remainder = size % COPY_CHUNK_SIZE;
 
-    PRINTUNIFIED("[Create empty file] Chunk info: quotient is %" PRIu64 ", remainder is %" PRIu64 "\n",quotient,remainder);
+        PRINTUNIFIED("[Create empty file] Chunk info: quotient is %" PRIu64 ", remainder is %" PRIu64 "\n",quotient,remainder);
 
-    for(uint64_t i=0;i<quotient;i++) {
-        fd.writeAllOrExit(&emptyChunk[0],COPY_CHUNK_SIZE);
-        if(progressHook != nullptr) progressHook->publishDelta(COPY_CHUNK_SIZE);
+        for(uint64_t i=0;i<quotient;i++) {
+            fd.writeAllOrExit(&emptyChunk[0],COPY_CHUNK_SIZE);
+            progressHook->publishDelta(COPY_CHUNK_SIZE);
+        }
+        if (remainder != 0) {
+            fd.writeAllOrExit(&emptyChunk[0],remainder);
+            progressHook->publishDelta(remainder);
+        }
+        /********* end quotient + remainder IO loop *********/
     }
-    if (remainder != 0) {
-        fd.writeAllOrExit(&emptyChunk[0],remainder);
-        if(progressHook != nullptr) progressHook->publishDelta(remainder);
-    }
-    /********* end quotient + remainder IO loop *********/
 
     fd.close();
+    // end-of-progress sent in caller
+//    if(progressHook != nullptr) {
+//        progressHook->publish(maxuint); // end of progress
+//        progressHook->doPublish(); // publish thread terminates upon sentinel value maxuint, without publishing it, see why in progressHook.h
+//    }
     return 0;
 }
 
@@ -1362,7 +1392,7 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
     // read mode (mode_t) - 4 bytes
     inOutDesc.readAllOrExit(&mode, sizeof(int32_t));
     PRINTUNIFIED("Received mode %d\n",mode);
-    
+
     // check access unconditionally (on local, always succeeds because rhss_currentlyServedDirectory is empty)
     if(rhss_checkAccess(filepath)) {
         PRINTUNIFIEDERROR("Requested file/dir creation denied (rhss restricted access)\n");
@@ -1372,30 +1402,29 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
     }
 
     // flags: b0 (true: create file, false: create directory)
-    if (b0(flags)) {
+    if(b0(flags)) {
         if(b1(flags)) { // advanced options for create file
             PRINTUNIFIED("Creating file with advanced options...");
             // receive one byte with creation strategy: 0: FALLOCATE (fastest), 1: ZEROS, 2: RANDOM (slowest)
             inOutDesc.readAllOrExit(&creationStrategy,sizeof(uint8_t));
             // receive file size
             inOutDesc.readAllOrExit(&filesize,sizeof(uint64_t));
-            
+
             switch(creationStrategy) {
                 case 1:
-                    errno = createEmptyFile(filepath,filesize);
+                    errno = createEmptyFile(filepath,filesize,&inOutDesc);
                     break;
                 case 2:
-                    errno = createRandomFile(filepath,filesize);
+                    errno = createRandomFile(filepath,filesize,&inOutDesc);
                     break;
                 default:
                     PRINTUNIFIEDERROR("Invalid creation strategy for file\n");
                     errno = EINVAL;
                     break;
             }
-            if(errno != 0) {
-                sendErrorResponse(inOutDesc);
-                return;
-            }
+
+            inOutDesc.writeAllOrExit(&maxuint,sizeof(uint64_t));
+            return;
         }
         else {
             PRINTUNIFIED("Creating file...");
@@ -1411,19 +1440,22 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
             // create file
             PRINTUNIFIEDERROR("creating %s after parent dir\n",filepath.c_str());
             auto&& fd = fdfactory.create(filepath,FileOpenMode::XCL);
-            if(!fd) {
-                sendErrorResponse(inOutDesc); return;
+            if(!fd) ret = -1;
+            else {
+                fd.close();
+                ret = 0;
             }
-            fd.close();
-            ret = 0;
+            sendBaseResponse(ret, inOutDesc);
+            return;
         }
     }
     else {
         PRINTUNIFIED("creating directory...\n");
         // mkpath on filepath
         ret = mkpath(filepath, mode, false);
+        sendBaseResponse(ret, inOutDesc);
+        return;
     }
-    sendBaseResponse(ret, inOutDesc);
 }
 
 void createHardOrSoftLink(IDescriptor& inOutDesc, uint8_t flags) {

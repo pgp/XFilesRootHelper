@@ -203,8 +203,7 @@ int createFileFromArgs(int argc, const C* argv[]) {
     }
 
     // default creation strategy: random (equivalent to dd if=/dev/urandom ...)
-    auto&& progressHook = getProgressHook(fileSize);
-    auto ret = (fileSize != 0) ? createRandomFile(filename, fileSize, &progressHook) : createEmptyFile(filename, fileSize, &progressHook);
+    auto ret = (fileSize != 0) ? createRandomFile(filename, fileSize) : createEmptyFile(filename, fileSize);
     if(ret != 0) perror("Error during file creation");
     return ret;
 }

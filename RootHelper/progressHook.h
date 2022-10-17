@@ -21,9 +21,8 @@ public:
     ProgressHook(uint64_t totalSize_) :
             totalSize(totalSize_),
             curSize(0),
-            lastPublished(0) {
-        start();
-    }
+            lastPublished(0),
+            progressThread(&ProgressHook::tfn, this) {}
 
     virtual ~ProgressHook() {
         // this assumes no other console messages are written between last progress and progress hook destructor;
@@ -42,12 +41,16 @@ public:
 
     virtual void doPublish() = 0;
 
-    void start() {
-        progressThread = std::thread([this] {
-            std::this_thread::sleep_for(samplingPeriod);
+    void tfn() {
+        try {
             for(;;) {
+                std::this_thread::sleep_for(samplingPeriod);
                 uint64_t s = curSize;
-                if(s == -1) break; // end-of-progress indication
+                if(s == 0) continue; // wait a bit if no progress has been done yet
+                if(s == -1) { // cannot send end-of-progress indication from here, it crashes with "pure virtual method call" in destructor; more info: https://stackoverflow.com/questions/962132/calling-virtual-functions-inside-constructors
+                    lastPublished = s;
+                    break;
+                }
                 auto ds = s - lastPublished;
 
                 auto t = std::chrono::high_resolution_clock::now();
@@ -60,12 +63,13 @@ public:
                 }
                 // when progress is stale, show a decreasing "instantaneous" speed
                 curSpeed = (lastNonZeroDs*1.0f)/diff; // bytes per microsecond, a.k.a. megabytes per second
-
                 doPublish();
-                std::this_thread::sleep_for(samplingPeriod);
             }
-            SAMELINEPRINT("");
-        });
+        }
+        catch(threadExitThrowable& i) {
+            PRINTUNIFIED("ThreadExit invoked, exiting...\n");
+        }
+        SAMELINEPRINT("");
     }
 };
 
@@ -76,7 +80,9 @@ public:
     }
 
     void doPublish() override {
-        SAMELINEPRINT("Progress: %" PRIu64 "  Percentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", lastPublished, ((100.0f*lastPublished)/totalSize), totalSize, curSpeed);
+        uint64_t lp = lastPublished;
+        uint64_t ts = totalSize;
+        SAMELINEPRINT("Progress: %" PRIu64 "  Percentage: %.2f %% of %" PRIu64 " bytes, speed: %.3f Mbps", lp, ((100.0f*lp)/ts), ts, curSpeed);
     }
 };
 
@@ -108,14 +114,15 @@ public:
 
 class LocalSocketProgressHook : public ProgressHook {
 public:
-    PosixDescriptor& desc; // change to IDescriptor& if needed with other use cases than local or network unix socket
+    IDescriptor& desc; // change to IDescriptor& if needed with other use cases than local or network unix socket
 
-    LocalSocketProgressHook(uint64_t totalSize_, PosixDescriptor& desc_) : ProgressHook(totalSize_), desc(desc_) {
-        desc.writeAllOrExit(&totalSize, sizeof(uint64_t));
+    LocalSocketProgressHook(uint64_t totalSize_, IDescriptor& desc_) : ProgressHook(totalSize_), desc(desc_) {
+        // desc.writeAllOrExit(&totalSize, sizeof(uint64_t));
     }
 
     void doPublish() override {
-        desc.writeAllOrExit(&lastPublished, sizeof(uint64_t));
+        uint64_t lp = lastPublished;
+        desc.writeAllOrExit(&lp, sizeof(uint64_t));
     }
 };
 
@@ -125,13 +132,22 @@ public:
 MfcProgressHook getProgressHook(uint64_t totalSize_) {
     return {console_hwnd,console_pTaskbarList,totalSize_};
 }
+
+std::unique_ptr<ProgressHook> getProgressHookP(uint64_t totalSize_) {
+    return std::unique_ptr<ProgressHook>(new MfcProgressHook(console_hwnd,console_pTaskbarList,totalSize_));
+}
+
 #else
 ConsoleProgressHook getProgressHook(uint64_t totalSize_) {
     return {totalSize_};
 }
 
-LocalSocketProgressHook getLSProgressHook(uint64_t totalSize_, PosixDescriptor& desc_) {
-    return {totalSize_, desc_};
+std::unique_ptr<ProgressHook> getProgressHookP(uint64_t totalSize_) {
+    return std::unique_ptr<ProgressHook>(new ConsoleProgressHook(totalSize_));
+}
+
+std::unique_ptr<ProgressHook> getLSProgressHookP(uint64_t totalSize_, IDescriptor& desc_) {
+    return std::unique_ptr<ProgressHook>(new LocalSocketProgressHook(totalSize_, desc_));
 }
 #endif
 
