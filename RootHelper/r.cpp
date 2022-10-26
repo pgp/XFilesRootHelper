@@ -663,6 +663,14 @@ void client_createFileOrDirectory(IDescriptor& cl, IDescriptor& rcl, request_typ
 	}
 	else { // OK
 		cl.writeAllOrExit(&resp,sizeof(uint8_t));
+		// propagate progress, when creating files with advanced options
+		if(b0(rqByteWithFlags.flags) && b1(rqByteWithFlags.flags)) {
+		uint64_t progress;
+            do {
+                rcl.readAllOrExit(&progress,sizeof(uint64_t));
+                cl.writeAllOrExit(&progress,sizeof(uint64_t));
+            } while(progress != maxuint);
+		}
 	}
 }
 
