@@ -226,7 +226,8 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
                                     const STR& targetFilename,
                                     std::string& hdrs,
                                     const std::string& url,
-                                    const bool downloadToFile = true) {
+                                    const bool downloadToFile = true,
+                                    const bool isDownloadAfterHttpUpload = false) {
     uint64_t currentProgress = 0, last_progress = 0;
     std::string tmpbody;
     
@@ -337,7 +338,11 @@ int parseHttpResponseHeadersAndBody(IDescriptor& rcl,
 
     tmp_ = TOUTF(httpFilename);
     writeStringWithLen(local_fd,tmp_); // send guessed filename (or send back received one) in order for the GUI to locate it once completed
-    local_fd.writeAllOrExit(&parsedContentLength,sizeof(uint64_t)); // send total size
+
+    // when retrieving generated link for http upload, if content-length response header is not available,
+    // assume all bytes received in first downloaded packet
+    uint64_t actualContentLength = parsedContentLength == maxuint && isDownloadAfterHttpUpload ? tmpbody_str.length() : parsedContentLength;
+    local_fd.writeAllOrExit(&actualContentLength,sizeof(uint64_t)); // send total size
 
     if(!downloadToFile)
         local_fd.writeAllOrExit(tmpbody_str.c_str(),tmpbody_str.length());
@@ -652,7 +657,8 @@ int httpsUrlUpload_internal(IDescriptor& cl,
                                                   tfl,
                                                   hdrs,
                                                   domainOnly+"/",
-                                                  uploadFromCli); // uploadFromCli ia actually downloadToFile
+                                                  uploadFromCli,  // uploadFromCli ia actually downloadToFile
+                                                  true);
     }
     catch (threadExitThrowable& i) {
         PRINTUNIFIEDERROR("T2 ...\n");
