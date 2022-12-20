@@ -2,7 +2,7 @@
 
 set -e
 
-BOTAN_SRC_DIR=/home/pgp/Scaricati/Botan-2.18.0
+BOTAN_SRC_DIR=/home/pgp/Scaricati/Botan-2.19.3
 BOTAN_DEST_DIR=$(pwd)/botanAm
 
 BOTAN_DEST_ANDROID_DIR=$BOTAN_DEST_DIR/android

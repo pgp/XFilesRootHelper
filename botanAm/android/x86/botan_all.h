@@ -1,5 +1,5 @@
 /*
-* Botan 2.18.0 Amalgamation
+* Botan 2.19.3 Amalgamation
 * (C) 1999-2020 The Botan Authors
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -32,7 +32,7 @@
 #include <vector>
 
 /*
-* Build configuration for Botan 2.18.0
+* Build configuration for Botan 2.19.3
 *
 * Automatically generated from
 * 'configure.py --amalgamation --disable-modules=pkcs11,tls_10 --disable-cc-tests --cpu=x86 --os=linux --cc=clang --disable-avx2 --disable-aes-ni --disable-sha-ni'
@@ -44,14 +44,14 @@
 */
 
 #define BOTAN_VERSION_MAJOR 2
-#define BOTAN_VERSION_MINOR 18
-#define BOTAN_VERSION_PATCH 0
-#define BOTAN_VERSION_DATESTAMP 20210415
+#define BOTAN_VERSION_MINOR 19
+#define BOTAN_VERSION_PATCH 3
+#define BOTAN_VERSION_DATESTAMP 20221116
 
 
 #define BOTAN_VERSION_RELEASE_TYPE "release"
 
-#define BOTAN_VERSION_VC_REVISION "git:21c71f73883820f51d7adce25f6c1f54a243c3a4"
+#define BOTAN_VERSION_VC_REVISION "git:15dc32f12d05e99a267f0fc47d88b678b71b8b05"
 
 #define BOTAN_DISTRIBUTION_INFO "unspecified"
 
@@ -125,7 +125,8 @@
 #define BOTAN_HAS_AES 20131128
 #define BOTAN_HAS_AES_VPERM 20190901
 #define BOTAN_HAS_ANSI_X919_MAC 20131128
-#define BOTAN_HAS_ARGON2 20190824
+#define BOTAN_HAS_ARGON2 20210407
+#define BOTAN_HAS_ARGON2_SSSE3 20220303
 #define BOTAN_HAS_ARIA 20170415
 #define BOTAN_HAS_ASN1 20171109
 #define BOTAN_HAS_AUTO_RNG 20161126
@@ -318,6 +319,9 @@
 #define BOTAN_HAS_X942_PRF 20131128
 #define BOTAN_HAS_XMSS_RFC8391 20201101
 #define BOTAN_HAS_XTEA 20131128
+#define BOTAN_HAS_ZFEC 20211211
+#define BOTAN_HAS_ZFEC_SSE2 20211211
+#define BOTAN_HAS_ZFEC_VPERM 20211211
 
 
 /*
@@ -1332,7 +1336,6 @@ std::vector<T, Alloc>&
 operator+=(std::vector<T, Alloc>& out,
            const std::vector<T, Alloc2>& in)
    {
-   out.reserve(out.size() + in.size());
    out.insert(out.end(), in.begin(), in.end());
    return out;
    }
@@ -1348,7 +1351,6 @@ template<typename T, typename Alloc, typename L>
 std::vector<T, Alloc>& operator+=(std::vector<T, Alloc>& out,
                                   const std::pair<const T*, L>& in)
    {
-   out.reserve(out.size() + in.second);
    out.insert(out.end(), in.first, in.first + in.second);
    return out;
    }
@@ -1357,7 +1359,6 @@ template<typename T, typename Alloc, typename L>
 std::vector<T, Alloc>& operator+=(std::vector<T, Alloc>& out,
                                   const std::pair<T*, L>& in)
    {
-   out.reserve(out.size() + in.second);
    out.insert(out.end(), in.first, in.first + in.second);
    return out;
    }
@@ -8932,6 +8933,12 @@ class BOTAN_PUBLIC_API(2,0) Certificate_Store_In_Memory final : public Certifica
       * Adds given certificate to the store.
       */
       explicit Certificate_Store_In_Memory(const X509_Certificate& cert);
+
+      /**
+      * Adds given certificate list to the store.
+      */
+      explicit Certificate_Store_In_Memory(std::vector<std::shared_ptr<const X509_Certificate>> certs)
+         : m_certs(std::move(certs)) {}
 
       /**
       * Create an empty store.
@@ -17197,11 +17204,11 @@ BOTAN_PUBLIC_API(2,0) int botan_rng_init(botan_rng_t* rng, const char* rng_type)
 
 /**
 * Initialize a custom random number generator from a set of callback functions
-* @param rng rng object
+* @param rng_out rng object that will be created
 * @param rng_name name of the rng
 * @param context An application-specific context passed to the callback functions
 * @param get_cb Callback for getting random bytes from the rng, return 0 for success
-* @param add_entry_cb Callback for adding entropy to the rng, return 0 for success, may be NULL
+* @param add_entropy_cb Callback for adding entropy to the rng, return 0 for success, may be NULL
 * @param destroy_cb Callback called when rng is destroyed, may be NULL
 */
 BOTAN_PUBLIC_API(2,18) int botan_rng_init_custom(botan_rng_t* rng_out, const char* rng_name, void* context,
@@ -23983,6 +23990,8 @@ std::map<std::string, std::string> BOTAN_PUBLIC_API(2,0) read_cfg(std::istream& 
 std::map<std::string, std::string> BOTAN_PUBLIC_API(2,8) read_kv(const std::string& kv);
 
 std::string BOTAN_PUBLIC_API(2,0) clean_ws(const std::string& s);
+
+std::string tolower_string(const std::string& s);
 
 /**
 * Check if the given hostname is a match for the specified wildcard
@@ -37285,6 +37294,83 @@ class BOTAN_PUBLIC_API(2,0) XTS_Decryption final : public XTS_Mode
       void finish(secure_vector<uint8_t>& final_block, size_t offset = 0) override;
 
       size_t output_length(size_t input_length) const override;
+   };
+
+}
+
+namespace Botan {
+
+/**
+* A forward error correction code compatible with the zfec
+* library (https://github.com/tahoe-lafs/zfec)
+*
+* This algorithm is *not constant time* and is likely succeptible to
+* side channels. Do not use this class to encode information that
+* should be kept secret. (If nothing else, because the first K shares
+* are simply the original input!)
+*/
+class BOTAN_PUBLIC_API(3,0) ZFEC
+   {
+   public:
+      typedef std::function<void (size_t, const uint8_t[], size_t)> output_cb_t;
+
+      /**
+      * FEC constructor
+      * @param K the number of shares needed for recovery
+      * @param N the number of shares generated
+      */
+      ZFEC(size_t K, size_t N);
+
+      size_t recovery_threshold() const { return m_K; }
+      size_t generated_shares() const { return m_N; }
+
+      std::string provider() const;
+
+      /**
+      * @param input the data to FEC
+      * @param size the length in bytes of input
+      * @param output_cb the output callback
+      */
+      void encode(
+         const uint8_t input[], size_t size,
+         output_cb_t output_cb)
+         const;
+
+      /**
+      * @param shares exactly K shares of data to FEC
+      * @param share_size the length in bytes of each share
+      * @param output_cb the output callback
+      */
+      void encode_shares(
+         const std::vector<const uint8_t*>& shares,
+         size_t share_size,
+         output_cb_t output_cb)
+         const;
+
+      /**
+      * @param shares map of share id to share contents
+      * @param share_size size in bytes of each share
+      * @param output_cb the output callback
+      */
+      void decode_shares(
+         const std::map<size_t, const uint8_t*>& shares,
+         size_t share_size,
+         output_cb_t output_cb)
+         const;
+
+   private:
+      static void addmul(uint8_t z[], const uint8_t x[], uint8_t y, size_t size);
+
+#if defined(BOTAN_HAS_ZFEC_SSE2)
+      static size_t addmul_sse2(uint8_t z[], const uint8_t x[], uint8_t y, size_t size);
+#endif
+
+#if defined(BOTAN_HAS_ZFEC_VPERM)
+      static size_t addmul_vperm(uint8_t z[], const uint8_t x[], uint8_t y, size_t size);
+#endif
+
+      const size_t m_K, m_N;
+      std::vector<uint8_t> m_enc_matrix;
    };
 
 }
