@@ -1195,7 +1195,7 @@ void hashFile(IDescriptor& inOutDesc) {
 #ifdef __aarch64__
 // optimize for ARM64 with SHA hardware instructions (best found so far)
 template<typename STR>
-int createRandomFile(const STR& path, uint64_t size, IDescriptor* inOutDesc = nullptr) {
+int createRandomFile(const STR& path, uint64_t size, const std::string& seed, IDescriptor* inOutDesc = nullptr) {
     PRINTUNIFIED("Using ARMv8 SHA instructions for random content generation...");
     bool isLocalSocketProgress = inOutDesc != nullptr;
 //    static const std::map<std::string,size_t> shaParams {
@@ -1213,16 +1213,23 @@ int createRandomFile(const STR& path, uint64_t size, IDescriptor* inOutDesc = nu
     size_t blocks = size/blockSize;
     size_t lastBlockSize = size % blockSize;
 
-    botan_rng_t rng{};
-    botan_rng_init(&rng, nullptr);
+    botan_hash_t hash1{};
 
     std::vector<uint8_t> inout(blockSize+digestSize,0);
     uint8_t* p1 = &inout[0];
 
-    botan_rng_get(rng,p1,digestSize);
-    botan_rng_destroy(rng);
+    if(seed.empty()) {
+        botan_rng_t rng{};
+        botan_rng_init(&rng, nullptr);
+        botan_rng_get(rng,p1,digestSize);
+        botan_rng_destroy(rng);
+    }
+    else {
+        botan_hash_init(&hash1,algo,0);
+        botan_hash_update(hash1,(uint8_t*)(seed.c_str()),seed.size());
+        botan_hash_final(hash1,p1);
+    }
 
-    botan_hash_t hash1{};
     botan_hash_init(&hash1,algo,0);
 
     int i,j;
@@ -1261,7 +1268,7 @@ int createRandomFile(const STR& path, uint64_t size, IDescriptor* inOutDesc = nu
 #else
 
 template<typename STR>
-int createRandomFile(const STR& path, uint64_t size, IDescriptor* inOutDesc = nullptr) {
+int createRandomFile(const STR& path, uint64_t size, const std::string& seed, IDescriptor* inOutDesc = nullptr) {
     bool isLocalSocketProgress = inOutDesc != nullptr;
     size_t written=0,consumed=0;
     constexpr unsigned halfblockSize = HASH_BLOCK_SIZE/2;
@@ -1271,11 +1278,18 @@ int createRandomFile(const STR& path, uint64_t size, IDescriptor* inOutDesc = nu
     uint8_t* p1 = &inout[0];
     uint8_t* p2 = p1+halfblockSize;
 
-    botan_rng_t rng{};
-    botan_rng_init(&rng, nullptr);
-
-    botan_rng_get(rng,p1,keySize);
-    botan_rng_destroy(rng);
+    if(seed.empty()) {
+        botan_rng_t rng{};
+        botan_rng_init(&rng, nullptr);
+        botan_rng_get(rng,p1,keySize);
+        botan_rng_destroy(rng);
+    }
+    else {
+        botan_hash_t hash1{};
+        botan_hash_init(&hash1,"SHA-256",0);
+        botan_hash_update(hash1,(uint8_t*)(seed.c_str()),seed.size());
+        botan_hash_final(hash1,p1);
+    }
 
     // expansion
     botan_cipher_t enc{};
@@ -1415,7 +1429,7 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
                     errno = createEmptyFile(filepath,filesize,&inOutDesc);
                     break;
                 case 2:
-                    errno = createRandomFile(filepath,filesize,&inOutDesc);
+                    errno = createRandomFile(filepath,filesize,"",&inOutDesc); // TODO propagate seed option here from XFiles as well
                     break;
                 default:
                     PRINTUNIFIEDERROR("Invalid creation strategy for file\n");

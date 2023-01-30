@@ -14,6 +14,75 @@ using cliFunction = int (*)(int argc, const wchar_t* argv[]);
 using cliFunction = int (*)(int argc, const char* argv[]);
 #endif
 
+uint64_t parseSizeString(const std::string& sizeAsStr) {
+    uint64_t ret;
+    // parse b(B),kb(B),...,Gb(B)
+    uint64_t candidateMultiplier, multiplier = 1;
+    int truncIndex = -2;
+    char lastChar = sizeAsStr[sizeAsStr.size()-1];
+    char lastChar2 = sizeAsStr[sizeAsStr.size()-2];
+    switch(lastChar) {
+        case 'b':
+            candidateMultiplier = 1000;
+            break;
+        case 'B':
+            candidateMultiplier = 1024;
+            break;
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+            try {
+                return std::stoull(sizeAsStr);
+            }
+            catch(std::invalid_argument& e) {
+                goto unitError;
+            }
+        default:
+            goto unitError;
+    }
+    switch(lastChar2) {
+        case 'k':
+            multiplier = candidateMultiplier;
+            break;
+        case 'M':
+            multiplier = candidateMultiplier*candidateMultiplier;
+            break;
+        case 'G':
+            multiplier = candidateMultiplier*candidateMultiplier*candidateMultiplier;
+            break;
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+            truncIndex = -1;
+            break;
+        default:
+            goto unitError;
+    }
+
+    {
+    uint64_t ret = std::stoull(sizeAsStr.substr(0,(truncIndex+sizeAsStr.size())))*multiplier;
+    PRINTUNIFIED("Size in bytes is %" PRIu64 "\n", ret);
+    return ret;
+    }
+
+    unitError:
+        throw std::invalid_argument("Please supply size in the form <NUMBER><b,kb,Mb,Gb> for 10-power units or <NUMBER><b,kB,MB,GB> for 1024-power units");
+}
+
 template<typename C>
 int downloadFromArgs(int argc, const C* argv[]) {
     // argv[1] already checked == "download"
@@ -191,21 +260,37 @@ template<typename C>
 int createFileFromArgs(int argc, const C* argv[]) {
     std::string exeName = TOUTF(argv[0]);
     if(argc < 3) {
-        PRINTUNIFIED("Usage: %s <create|touch> filename [size in bytes]\n", exeName.c_str());
+        PRINTUNIFIED("Usage: %s <create|touch> filename [size in bytes] [--seed=SEED_FOR_DETRMINISTIC_PRNG_OUTPUT]\n", exeName.c_str());
         _Exit(0);
     }
 
     auto&& filename = STRNAMESPACE(argv[2]);
     uint64_t fileSize = 0;
-    if(argc >= 4) {
-        auto&& sizeAsStr = STRNAMESPACE(argv[3]);
-        fileSize = std::stoull(sizeAsStr);
-    }
+    std::string seed;
+    try {
+        if(argc >= 4) {
+            auto&& sizeAsStr = TOUTF(argv[3]);
+            // fileSize = std::stoull(sizeAsStr);
+            fileSize = parseSizeString(sizeAsStr);
+            if(argc >= 5) {
+                std::string seed_ = TOUTF(argv[4]);
+                std::string prefix = "--seed=";
+                if(seed_.find(prefix) == 0) {
+                    seed = seed_.substr(prefix.size());
+                    PRINTUNIFIED("Seed for deterministic PRNG output is: %s\n", seed.c_str());
+                }
+            }
+        }
 
-    // default creation strategy: random (equivalent to dd if=/dev/urandom ...)
-    auto ret = (fileSize != 0) ? createRandomFile(filename, fileSize) : createEmptyFile(filename, fileSize);
-    if(ret != 0) perror("Error during file creation");
-    return ret;
+        // default creation strategy: random (equivalent to dd if=/dev/urandom ...)
+        auto ret = (fileSize != 0) ? createRandomFile(filename, fileSize, seed) : createEmptyFile(filename, fileSize);
+        if(ret != 0) perror("Error during file creation");
+        return ret;
+    }
+    catch(std::exception& e) {
+        std::cerr<<"CREATE FILE EXCEPTION: "<<e.what()<<std::endl;
+        return -1;
+    }
 }
 
 template<typename C, typename STR>
