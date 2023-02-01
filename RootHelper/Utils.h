@@ -1418,9 +1418,12 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
     // flags: b0 (true: create file, false: create directory)
     if(b0(flags)) {
         if(b1(flags)) { // advanced options for create file
+            std::string seed = "";
             PRINTUNIFIED("Creating file with advanced options...");
-            // receive one byte with creation strategy: 0: FALLOCATE (fastest), 1: ZEROS, 2: RANDOM (slowest)
+            // receive one byte with creation strategy: 0: FALLOCATE (fastest), 1: ZEROS, 2: RANDOM (slowest), 3: RANDOM CUSTOM SEED
             inOutDesc.readAllOrExit(&creationStrategy,sizeof(uint8_t));
+            // if strategy is 3, receive string seed as well
+            if(creationStrategy == 3) seed = readStringWithLen(inOutDesc);
             // receive file size
             inOutDesc.readAllOrExit(&filesize,sizeof(uint64_t));
 
@@ -1429,7 +1432,8 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
                     errno = createEmptyFile(filepath,filesize,&inOutDesc);
                     break;
                 case 2:
-                    errno = createRandomFile(filepath,filesize,"",&inOutDesc); // TODO propagate seed option here from XFiles as well
+                case 3:
+                    errno = createRandomFile(filepath,filesize,seed,&inOutDesc); // TODO propagate seed option here from XFiles as well
                     break;
                 default:
                     PRINTUNIFIEDERROR("Invalid creation strategy for file\n");
