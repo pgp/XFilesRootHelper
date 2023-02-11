@@ -80,7 +80,7 @@ uint64_t parseSizeString(const std::string& sizeAsStr) {
     }
 
     unitError:
-        throw std::invalid_argument("Please supply size in the form <NUMBER><b,kb,Mb,Gb> for 10-power units or <NUMBER><b,kB,MB,GB> for 1024-power units");
+        throw std::invalid_argument("Please supply size in the form <NUMBER><b,kb,Mb,Gb> for 10-power units or <NUMBER><B,kB,MB,GB> for 1024-power units");
 }
 
 template<typename C>
@@ -259,38 +259,49 @@ int hashFromArgs(int argc, const C* argv[]) {
 template<typename C>
 int createFileFromArgs(int argc, const C* argv[]) {
     std::string exeName = TOUTF(argv[0]);
-    if(argc < 3) {
-        PRINTUNIFIED("Usage: %s <create|touch> filename [size in bytes] [--seed=SEED_FOR_DETRMINISTIC_PRNG_OUTPUT]\n", exeName.c_str());
-        _Exit(0);
-    }
+    if(argc < 3) goto cliCreateFileUsage;
 
-    auto&& filename = STRNAMESPACE(argv[2]);
-    uint64_t fileSize = 0;
-    std::string seed;
     try {
+        auto&& filename = STRNAMESPACE(argv[2]);
+        uint64_t fileSize = 0;
+        std::string seed, outputHashType;
         if(argc >= 4) {
             auto&& sizeAsStr = TOUTF(argv[3]);
             // fileSize = std::stoull(sizeAsStr);
             fileSize = parseSizeString(sizeAsStr);
-            if(argc >= 5) {
-                std::string seed_ = TOUTF(argv[4]);
-                std::string prefix = "--seed=";
-                if(seed_.find(prefix) == 0) {
-                    seed = seed_.substr(prefix.size());
-                    PRINTUNIFIED("Seed for deterministic PRNG output is: %s\n", seed.c_str());
+            if(argc >= 5) { // seed and output hash options make sense only when size is supplied (i.e. it's not 0)
+                for(int k=0;k<argc-4;k++) {
+                    std::string tmp_ = TOUTF(argv[4+k]);
+                    if(tmp_.find("--seed=") == 0) {
+                        seed = tmp_.substr(7); // "--seed=" strlen
+                        PRINTUNIFIED("Seed for deterministic PRNG output is: %s\n", seed.c_str());
+                    }
+                    else if(tmp_.find("--output-hash=") == 0) {
+                        outputHashType = tmp_.substr(14); // "--output-hash=" strlen
+                        PRINTUNIFIED("Enabled output of file hash: %s\n", outputHashType.c_str());
+                    }
+                    else goto cliCreateFileUsage;
                 }
             }
         }
 
         // default creation strategy: random (equivalent to dd if=/dev/urandom ...)
-        auto ret = (fileSize != 0) ? createRandomFile(filename, fileSize, seed) : createEmptyFile(filename, fileSize);
-        if(ret != 0) perror("Error during file creation");
-        return ret;
+        auto&& ret = (fileSize != 0) ? createRandomFile(filename, fileSize, seed, outputHashType) : createEmptyFile(filename, fileSize);
+        if(ret.ret != 0) perror("Error during file creation");
+        if(!outputHashType.empty()) PRINTUNIFIED("%s for the generated file is: %s\n",outputHashType.c_str(),ret.hash.c_str());
+        return ret.ret;
     }
     catch(std::exception& e) {
         std::cerr<<"CREATE FILE EXCEPTION: "<<e.what()<<std::endl;
         return -1;
     }
+
+    cliCreateFileUsage:
+    PRINTUNIFIED("Usage: %s <create|touch> filename [size in bytes] [--seed=SEED_FOR_DETERMINISTIC_PRNG_OUTPUT] [--output-hash=HASHTYPE]\n", exeName.c_str());
+    PRINTUNIFIED("Available algorithms for output-hash option: ");
+    for(auto& s: cli_hashLabels) PRINTUNIFIED("%s ",s.c_str());
+    PRINTUNIFIED("\n");
+    _Exit(0);
 }
 
 template<typename C, typename STR>

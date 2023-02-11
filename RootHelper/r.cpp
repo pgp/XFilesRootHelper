@@ -630,7 +630,7 @@ void client_createFileOrDirectory(IDescriptor& cl, IDescriptor& rcl, request_typ
 	std::string dirpath = readStringWithLen(cl);
 	cl.readAllOrExit(&mode,4);
 
-    BufferedWriteDescriptor brcl(rcl);
+	BufferedWriteDescriptor brcl(rcl);
 	brcl.writeAllOrExit(&rqByteWithFlags, sizeof(uint8_t));
 	writeStringWithLen(brcl,dirpath);
 	brcl.writeAllOrExit(&mode,4);
@@ -642,6 +642,19 @@ void client_createFileOrDirectory(IDescriptor& cl, IDescriptor& rcl, request_typ
 			cl.readAllOrExit(&filesize,sizeof(uint64_t));
 			brcl.writeAllOrExit(&creationStrategy,sizeof(uint8_t));
 			brcl.writeAllOrExit(&filesize,sizeof(uint64_t));
+
+			if(creationStrategy & 2) {
+				if(creationStrategy & 4) {
+					// read custom PRNG seed
+					auto&& prngSeed = readStringWithLen(cl);
+					writeStringWithLen(brcl,prngSeed);
+				}
+				if(creationStrategy & 8) {
+					// read custom PRNG seed
+					auto&& outputHashType = readStringWithLen(cl);
+					writeStringWithLen(brcl,outputHashType);
+				}
+			}
 		}
 		else {
 			// nothing to propagate here
@@ -650,7 +663,7 @@ void client_createFileOrDirectory(IDescriptor& cl, IDescriptor& rcl, request_typ
 	else {
 		// nothing to propagate here
 	}
-    brcl.flush();
+	brcl.flush();
 
 	// read and pass-through response (OK or error)
 	uint8_t resp;
@@ -665,11 +678,15 @@ void client_createFileOrDirectory(IDescriptor& cl, IDescriptor& rcl, request_typ
 		cl.writeAllOrExit(&resp,sizeof(uint8_t));
 		// propagate progress, when creating files with advanced options
 		if(b0(rqByteWithFlags.flags) && b1(rqByteWithFlags.flags)) {
-		uint64_t progress;
-            do {
-                rcl.readAllOrExit(&progress,sizeof(uint64_t));
-                cl.writeAllOrExit(&progress,sizeof(uint64_t));
-            } while(progress != maxuint);
+			uint64_t progress;
+			do {
+				rcl.readAllOrExit(&progress,sizeof(uint64_t));
+				cl.writeAllOrExit(&progress,sizeof(uint64_t));
+			} while(progress != maxuint);
+			if((creationStrategy & 2) && (creationStrategy & 8)) {
+				auto&& outputHash = readStringWithLen(cl);
+				writeStringWithLen(brcl,outputHash);
+			}
 		}
 	}
 }

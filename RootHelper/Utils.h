@@ -1192,10 +1192,16 @@ void hashFile(IDescriptor& inOutDesc) {
     inOutDesc.writeAllOrExit(&digest[0], digest.size());
 }
 
+typedef struct {
+    std::string hash;
+    int ret = 0;
+} retHash;
+
 #ifdef __aarch64__
 // optimize for ARM64 with SHA hardware instructions (best found so far)
 template<typename STR>
-int createRandomFile(const STR& path, uint64_t size, const std::string& seed, IDescriptor* inOutDesc = nullptr) {
+retHash createRandomFile(const STR& path, uint64_t size, const std::string& seed, std::string& output_hash, IDescriptor* inOutDesc = nullptr) {
+    retHash ret;
     PRINTUNIFIED("Using ARMv8 SHA instructions for random content generation...");
     bool isLocalSocketProgress = inOutDesc != nullptr;
 //    static const std::map<std::string,size_t> shaParams {
@@ -1214,9 +1220,22 @@ int createRandomFile(const STR& path, uint64_t size, const std::string& seed, ID
     size_t lastBlockSize = size % blockSize;
 
     botan_hash_t hash1{};
+    botan_hash_t hash_out{};
+    size_t output_hash_size = 0;
+    bool do_output_hash = !output_hash.empty();
 
     std::vector<uint8_t> inout(blockSize+digestSize,0);
     uint8_t* p1 = &inout[0];
+
+    std::vector<uint8_t> outHash_u8;
+    if(do_output_hash) {
+        output_hash = toUpperCase(output_hash); // allowed values are in cli_hashLabels
+        int idx = vecIndexOf(cli_hashLabels, output_hash);
+        output_hash = rh_hashLabels[idx]; // convert to Botan allowed value, exception on not found
+        output_hash_size = rh_hashSizes[idx];
+        botan_hash_init(&hash_out,output_hash.c_str(),0);
+        outHash_u8.resize(output_hash_size);
+    }
 
     if(seed.empty()) {
         botan_rng_t rng{};
@@ -1238,7 +1257,8 @@ int createRandomFile(const STR& path, uint64_t size, const std::string& seed, ID
     auto&& fd = fdfactory.create(path,FileOpenMode::XCL);
     if(!fd) {
         if(isLocalSocketProgress) sendErrorResponse(*inOutDesc);
-        return fd.error;
+        ret.ret = fd.error;
+        return ret;
     }
     if(isLocalSocketProgress) sendOkResponse(*inOutDesc);
     auto progressHook = isLocalSocketProgress ? getLSProgressHookP(size, *inOutDesc) : getProgressHookP(size);
@@ -1249,26 +1269,33 @@ int createRandomFile(const STR& path, uint64_t size, const std::string& seed, ID
             botan_hash_final(hash1,p1+i+digestSize);
         }
         fd.writeAllOrExit(p1,blockSize);
+        if(do_output_hash) botan_hash_update(hash_out,p1,blockSize);
         progressHook->publishDelta(blockSize);
         memcpy(p1,p1+blockSize,digestSize);
     }
     // remainder
     for(i=0;i<blockSize;i+=digestSize) {
-            botan_hash_update(hash1,p1+i,digestSize);
-            botan_hash_final(hash1,p1+i+digestSize);
+        botan_hash_update(hash1,p1+i,digestSize);
+        botan_hash_final(hash1,p1+i+digestSize);
     }
     fd.writeAllOrExit(p1,lastBlockSize);
+    if(do_output_hash) botan_hash_update(hash_out,p1,lastBlockSize);
     progressHook->publishDelta(lastBlockSize);
 
     // end-of-progress sent in caller
     fd.close();
     botan_hash_destroy(hash1);
-    return 0;
+    if(do_output_hash) {
+        botan_hash_final(hash_out,&outHash_u8[0]);
+        ret.hash = Botan::hex_encode(outHash_u8);
+    }
+    return ret;
 }
 #else
 
 template<typename STR>
-int createRandomFile(const STR& path, uint64_t size, const std::string& seed, IDescriptor* inOutDesc = nullptr) {
+retHash createRandomFile(const STR& path, uint64_t size, const std::string& seed, std::string& output_hash, IDescriptor* inOutDesc = nullptr) {
+    retHash ret;
     bool isLocalSocketProgress = inOutDesc != nullptr;
     size_t written=0,consumed=0;
     constexpr unsigned halfblockSize = HASH_BLOCK_SIZE/2;
@@ -1277,6 +1304,20 @@ int createRandomFile(const STR& path, uint64_t size, const std::string& seed, ID
 
     uint8_t* p1 = &inout[0];
     uint8_t* p2 = p1+halfblockSize;
+
+    botan_hash_t hash_out{};
+    size_t output_hash_size = 0;
+    bool do_output_hash = !output_hash.empty();
+
+    std::vector<uint8_t> outHash_u8;
+    if(do_output_hash) {
+        output_hash = toUpperCase(output_hash); // allowed values are in cli_hashLabels
+        int idx = vecIndexOf(cli_hashLabels, output_hash);
+        output_hash = rh_hashLabels[idx]; // convert to Botan allowed value, exception on not found
+        output_hash_size = rh_hashSizes[idx];
+        botan_hash_init(&hash_out,output_hash.c_str(),0);
+        outHash_u8.resize(output_hash_size);
+    }
 
     if(seed.empty()) {
         botan_rng_t rng{};
@@ -1300,7 +1341,8 @@ int createRandomFile(const STR& path, uint64_t size, const std::string& seed, ID
     auto&& fd = fdfactory.create(path,FileOpenMode::XCL);
     if(!fd) {
         if(isLocalSocketProgress) sendErrorResponse(*inOutDesc);
-        return fd.error;
+        ret.ret = fd.error;
+        return ret;
     }
     if(isLocalSocketProgress) sendOkResponse(*inOutDesc);
 
@@ -1322,6 +1364,7 @@ int createRandomFile(const STR& path, uint64_t size, const std::string& seed, ID
         botan_cipher_update(enc, BOTAN_CIPHER_UPDATE_FLAG_FINAL, p1, halfblockSize, &written, p2, halfblockSize, &consumed);
 
         fd.writeAllOrExit(p1,HASH_BLOCK_SIZE);
+        if(do_output_hash) botan_hash_update(hash_out,p1,HASH_BLOCK_SIZE);
         progressHook->publishDelta(HASH_BLOCK_SIZE);
     }
 
@@ -1335,6 +1378,7 @@ int createRandomFile(const STR& path, uint64_t size, const std::string& seed, ID
         botan_cipher_update(enc, BOTAN_CIPHER_UPDATE_FLAG_FINAL, p1, halfblockSize, &written, p2, halfblockSize, &consumed);
 
         fd.writeAllOrExit(p1,remainder);
+        if(do_output_hash) botan_hash_update(hash_out,p1,remainder);
         progressHook->publishDelta(remainder);
     }
     /********* end quotient + remainder IO loop *********/
@@ -1345,18 +1389,24 @@ int createRandomFile(const STR& path, uint64_t size, const std::string& seed, ID
 //        progressHook->publish(maxuint); // end of progress
 //        progressHook->doPublish(); // publish thread terminates upon sentinel value maxuint, without publishing it, see why in progressHook.h
 //    }
-    return 0;
+    if(do_output_hash) {
+        botan_hash_final(hash_out,&outHash_u8[0]);
+        ret.hash = Botan::hex_encode(outHash_u8);
+    }
+    return ret;
 }
 
 #endif
 
 template<typename STR>
-int createEmptyFile(const STR& path, uint64_t size, IDescriptor* inOutDesc = nullptr) {
+retHash createEmptyFile(const STR& path, uint64_t size, IDescriptor* inOutDesc = nullptr) {
+    retHash ret;
     bool isLocalSocketProgress = inOutDesc != nullptr;
     auto&& fd = fdfactory.create(path,FileOpenMode::XCL);
     if(!fd) {
         if(isLocalSocketProgress) sendErrorResponse(*inOutDesc);
-        return fd.error;
+        ret.ret = fd.error;
+        return ret;
     }
     if(isLocalSocketProgress) sendOkResponse(*inOutDesc);
 
@@ -1387,7 +1437,7 @@ int createEmptyFile(const STR& path, uint64_t size, IDescriptor* inOutDesc = nul
 //        progressHook->publish(maxuint); // end of progress
 //        progressHook->doPublish(); // publish thread terminates upon sentinel value maxuint, without publishing it, see why in progressHook.h
 //    }
-    return 0;
+    return ret;
 }
 
 void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
@@ -1418,30 +1468,49 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
     // flags: b0 (true: create file, false: create directory)
     if(b0(flags)) {
         if(b1(flags)) { // advanced options for create file
+            /*
+            creation strategy byte flags:
+            000 000 00 fallocate (unused)
+            000 000 01 zeros   -> & 1
+            000 000 10 random  -> & 2 (elif after & 1)
+
+            000 001 10 random + custom seed ( & 4, && (& 2) )
+                  ^
+                  |
+                  custom seed flag bit
+
+            000 010 10 random + out_hash ( & 8, && (& 2) )
+                 ^
+                 |
+                 out_hash flag bit
+            */
+
             std::string seed = "";
+            std::string output_hash = ""; // use both for storing the hash type requested, and for returning the hash hex string
             PRINTUNIFIED("Creating file with advanced options...");
-            // receive one byte with creation strategy: 0: FALLOCATE (fastest), 1: ZEROS, 2: RANDOM (slowest), 3: RANDOM CUSTOM SEED
+            // receive one byte with creation strategy: 0: FALLOCATE (fastest), 1: ZEROS, 2: RANDOM (slowest), see above for additional flag bits
             inOutDesc.readAllOrExit(&creationStrategy,sizeof(uint8_t));
-            // if strategy is 3, receive string seed as well
-            if(creationStrategy == 3) seed = readStringWithLen(inOutDesc);
             // receive file size
             inOutDesc.readAllOrExit(&filesize,sizeof(uint64_t));
+            if(creationStrategy & 1) { // zeros
+                auto&& retH = createEmptyFile(filepath,filesize,&inOutDesc);
+                errno = retH.ret;
+            }
+            else if(creationStrategy & 2) { // random
+                if(creationStrategy & 4) seed = readStringWithLen(inOutDesc); // receive custom seed for PRNG init
+                if(creationStrategy & 8) output_hash = readStringWithLen(inOutDesc); // request output of file hash
 
-            switch(creationStrategy) {
-                case 1:
-                    errno = createEmptyFile(filepath,filesize,&inOutDesc);
-                    break;
-                case 2:
-                case 3:
-                    errno = createRandomFile(filepath,filesize,seed,&inOutDesc); // TODO propagate seed option here from XFiles as well
-                    break;
-                default:
-                    PRINTUNIFIEDERROR("Invalid creation strategy for file\n");
-                    errno = EINVAL;
-                    break;
+                auto&& retH = createRandomFile(filepath,filesize,seed,output_hash,&inOutDesc);
+                errno = retH.ret;
+                output_hash = retH.hash;
+            }
+            else {
+                PRINTUNIFIEDERROR("Invalid creation strategy for file\n");
+                errno = EINVAL;
             }
 
             inOutDesc.writeAllOrExit(&maxuint,sizeof(uint64_t));
+            if((creationStrategy & 2) && (creationStrategy & 8)) writeStringWithLen(inOutDesc, output_hash);
             return;
         }
         else {

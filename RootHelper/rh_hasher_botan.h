@@ -16,6 +16,13 @@ std::string toUpperCase(std::string& src) {
     return dest;
 }
 
+template<typename T>
+int vecIndexOf(const std::vector<T>& v, const T& K) {
+    auto it = std::find(v.begin(), v.end(), K);
+    if(it != v.end()) return it - v.begin();
+    return -1;
+}
+
 constexpr uint32_t HASH_BLOCK_SIZE = 1048576;
 
 const std::vector<uint8_t> rh_emptyHash{};
