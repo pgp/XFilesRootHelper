@@ -20,6 +20,7 @@
 #include "rh_hasher_botan.h"
 #include "homePaths.h"
 #include "progressHook.h"
+#include "cpuquery.h"
 
 #ifndef _WIN32
 #include "pwd.h"
@@ -1334,9 +1335,12 @@ retHash createRandomFile(const STR& path, uint64_t size, const std::string& seed
 
     // expansion
     botan_cipher_t enc{};
-    //~ botan_cipher_init(&enc, "AES-256/CTR", Botan::ENCRYPTION);
-    botan_cipher_init(&enc, "ChaCha", Botan::ENCRYPTION);
-    //~ botan_cipher_init(&enc, "SHACAL2/CTR", Botan::ENCRYPTION);
+    const char* backendCipher = has_aes_hw_instructions() ? "AES-256/CTR" : "ChaCha";
+    botan_cipher_init(&enc, backendCipher, Botan::ENCRYPTION);
+    // botan_cipher_init(&enc, "AES-256/CTR", Botan::ENCRYPTION);
+    // botan_cipher_init(&enc, "ChaCha", Botan::ENCRYPTION);
+    // botan_cipher_init(&enc, "SHACAL2/CTR", Botan::ENCRYPTION);
+    PRINTUNIFIED("Using %s as underlying cipher for PRNG\n", backendCipher);
 
     auto&& fd = fdfactory.create(path,FileOpenMode::XCL);
     if(!fd) {
