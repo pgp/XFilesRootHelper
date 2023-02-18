@@ -654,6 +654,11 @@ void client_createFileOrDirectory(IDescriptor& cl, IDescriptor& rcl, request_typ
 					auto&& outputHashType = readStringWithLen(cl);
 					writeStringWithLen(brcl,outputHashType);
 				}
+				if(creationStrategy & 16) {
+					// read custom backend cipher
+					auto&& backendCipher = readStringWithLen(cl);
+					writeStringWithLen(brcl,backendCipher);
+				}
 			}
 		}
 		else {

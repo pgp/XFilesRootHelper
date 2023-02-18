@@ -28,6 +28,12 @@ constexpr uint32_t HASH_BLOCK_SIZE = 1048576;
 const std::vector<uint8_t> rh_emptyHash{};
 const std::vector<uint8_t> rh_errorHash{0xFF};
 
+const std::vector<std::string> streamCiphers {
+    "ChaCha", // best most of the times
+    "AES-128/CTR", // best on x64 archs with aes-ni hw instructions
+    "AES-256/CTR", // 2nd-best on x64 archs with aes-ni hw instructions
+    "SHACAL2/CTR" // 2nd-best on ARM archs
+};
 
 // Botan-compatible labels
 const std::vector<std::string> rh_hashLabels {

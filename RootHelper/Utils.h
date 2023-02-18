@@ -1199,12 +1199,12 @@ typedef struct {
 } retHash;
 
 template<typename STR>
-retHash createRandomFile(const STR& path, uint64_t size, const std::string& seed, std::string& output_hash, IDescriptor* inOutDesc = nullptr) {
+retHash createRandomFile(const STR& path, uint64_t size, const std::string& seed, std::string& output_hash, const std::string& backendCipher, IDescriptor* inOutDesc = nullptr) {
     retHash ret;
     bool isLocalSocketProgress = inOutDesc != nullptr;
     size_t written=0,consumed=0;
     constexpr unsigned halfblockSize = HASH_BLOCK_SIZE/2;
-    constexpr unsigned keySize = 32;
+    const unsigned keySize = backendCipher == "AES-128/CTR" ? 16 : 32;
     std::vector<uint8_t> inout(HASH_BLOCK_SIZE,0);
 
     uint8_t* p1 = &inout[0];
@@ -1240,15 +1240,16 @@ retHash createRandomFile(const STR& path, uint64_t size, const std::string& seed
     // expansion
     botan_cipher_t enc{};
 #ifdef __aarch64__
-    const char* backendCipher = "ChaCha";
+    const char* defaultBackendCipher = "ChaCha";
 #else
-    const char* backendCipher = has_aes_hw_instructions() ? "AES-256/CTR" : "ChaCha";
+    const char* defaultBackendCipher = has_aes_hw_instructions() ? "AES-256/CTR" : "ChaCha";
 #endif
-    botan_cipher_init(&enc, backendCipher, Botan::ENCRYPTION);
+    const char* usedCipher = backendCipher.empty() ? defaultBackendCipher : backendCipher.c_str();
+    botan_cipher_init(&enc, usedCipher, Botan::ENCRYPTION);
     // botan_cipher_init(&enc, "AES-256/CTR", Botan::ENCRYPTION);
     // botan_cipher_init(&enc, "ChaCha", Botan::ENCRYPTION);
     // botan_cipher_init(&enc, "SHACAL2/CTR", Botan::ENCRYPTION);
-    PRINTUNIFIED("Using %s as underlying cipher for PRNG\n", backendCipher);
+    PRINTUNIFIED("Using %s as underlying cipher for PRNG\n", usedCipher);
 
     auto&& fd = fdfactory.create(path,FileOpenMode::XCL);
     if(!fd) {
@@ -1393,10 +1394,16 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
                  ^
                  |
                  out_hash flag bit
+
+            000 100 10 random + backend_cipher ( & 16, && (& 2) )
+                ^
+                |
+                backend_cipher flag bit
             */
 
-            std::string seed = "";
-            std::string output_hash = ""; // use both for storing the hash type requested, and for returning the hash hex string
+            std::string seed;
+            std::string output_hash; // use both for storing the hash type requested, and for returning the hash hex string
+            std::string backend_cipher;
             PRINTUNIFIED("Creating file with advanced options...");
             // receive one byte with creation strategy: 0: FALLOCATE (fastest), 1: ZEROS, 2: RANDOM (slowest), see above for additional flag bits
             inOutDesc.readAllOrExit(&creationStrategy,sizeof(uint8_t));
@@ -1409,8 +1416,9 @@ void createFileOrDirectory(IDescriptor& inOutDesc, uint8_t flags) {
             else if(creationStrategy & 2) { // random
                 if(creationStrategy & 4) seed = readStringWithLen(inOutDesc); // receive custom seed for PRNG init
                 if(creationStrategy & 8) output_hash = readStringWithLen(inOutDesc); // request output of file hash
+                if(creationStrategy & 16) backend_cipher = readStringWithLen(inOutDesc); // use custom backend cipher
 
-                auto&& retH = createRandomFile(filepath,filesize,seed,output_hash,&inOutDesc);
+                auto&& retH = createRandomFile(filepath,filesize,seed,output_hash,backend_cipher,&inOutDesc);
                 errno = retH.ret;
                 output_hash = retH.hash;
             }

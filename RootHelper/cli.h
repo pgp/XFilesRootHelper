@@ -277,7 +277,7 @@ int createFileFromArgs(int argc, const C* argv[]) {
     try {
         auto&& filename = STRNAMESPACE(argv[2]);
         uint64_t fileSize = 0;
-        std::string seed, outputHashType;
+        std::string seed, outputHashType, backendCipher;
         if(argc >= 4) {
             auto&& sizeAsStr = TOUTF(argv[3]);
             // fileSize = std::stoull(sizeAsStr);
@@ -291,7 +291,12 @@ int createFileFromArgs(int argc, const C* argv[]) {
                     }
                     else if(tmp_.find("--output-hash=") == 0) {
                         outputHashType = tmp_.substr(14); // "--output-hash=" strlen
+                        if(std::find(cli_hashLabels.begin(), cli_hashLabels.end(), outputHashType) == cli_hashLabels.end()) goto cliCreateFileUsage;
                         PRINTUNIFIED("Enabled output of file hash: %s\n", outputHashType.c_str());
+                    }
+                    else if(tmp_.find("--backend=") == 0) {
+                        backendCipher = tmp_.substr(10); // "--backend=" strlen
+                        if(std::find(streamCiphers.begin(), streamCiphers.end(), backendCipher) == streamCiphers.end()) goto cliCreateFileUsage;
                     }
                     else goto cliCreateFileUsage;
                 }
@@ -299,7 +304,7 @@ int createFileFromArgs(int argc, const C* argv[]) {
         }
 
         // default creation strategy: random (equivalent to dd if=/dev/urandom ...)
-        auto&& ret = (fileSize != 0) ? createRandomFile(filename, fileSize, seed, outputHashType) : createEmptyFile(filename, fileSize);
+        auto&& ret = (fileSize != 0) ? createRandomFile(filename, fileSize, seed, outputHashType, backendCipher) : createEmptyFile(filename, fileSize);
         if(ret.ret != 0) perror("Error during file creation");
         if(!outputHashType.empty()) PRINTUNIFIED("%s for the generated file is: %s\n",outputHashType.c_str(),ret.hash.c_str());
         return ret.ret;
@@ -310,9 +315,12 @@ int createFileFromArgs(int argc, const C* argv[]) {
     }
 
     cliCreateFileUsage:
-    PRINTUNIFIED("Usage: %s <create|touch> filename [size in bytes] [--seed=SEED_FOR_DETERMINISTIC_PRNG_OUTPUT] [--output-hash=HASHTYPE]\n", exeName.c_str());
+    PRINTUNIFIED("Usage: %s <create|touch> filename [size in bytes] [--seed=SEED_FOR_DETERMINISTIC_PRNG_OUTPUT] [--output-hash=HASHTYPE] [--backend=BACKEND_CIPHER]\n", exeName.c_str());
     PRINTUNIFIED("Available algorithms for output-hash option: ");
     for(auto& s: cli_hashLabels) PRINTUNIFIED("%s ",s.c_str());
+    PRINTUNIFIED("\n");
+    PRINTUNIFIED("Available ciphers for backend option: ");
+    for(auto& s: streamCiphers) PRINTUNIFIED("%s ",s.c_str());
     PRINTUNIFIED("\n");
     _Exit(0);
 }
