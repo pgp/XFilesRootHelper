@@ -1198,102 +1198,6 @@ typedef struct {
     int ret = 0;
 } retHash;
 
-#ifdef __aarch64__
-// optimize for ARM64 with SHA hardware instructions (best found so far)
-template<typename STR>
-retHash createRandomFile(const STR& path, uint64_t size, const std::string& seed, std::string& output_hash, IDescriptor* inOutDesc = nullptr) {
-    retHash ret;
-    PRINTUNIFIED("Using ARMv8 SHA instructions for random content generation...");
-    bool isLocalSocketProgress = inOutDesc != nullptr;
-//    static const std::map<std::string,size_t> shaParams {
-//            {"SHA-1", 20},
-//            {"SHA-256", 32},
-//            {"SHA-512", 64},
-//            {"SHA-224", 28},
-//            {"SHA-384", 48},
-//    };
-
-    const char* algo = "SHA-256";
-//    size_t digestSize = shaParams.at(algo);
-    const size_t digestSize = 32;
-    size_t blockSize = (HASH_BLOCK_SIZE/digestSize)*digestSize; // round to multiple of sha digest size
-    size_t blocks = size/blockSize;
-    size_t lastBlockSize = size % blockSize;
-
-    botan_hash_t hash1{};
-    botan_hash_t hash_out{};
-    size_t output_hash_size = 0;
-    bool do_output_hash = !output_hash.empty();
-
-    std::vector<uint8_t> inout(blockSize+digestSize,0);
-    uint8_t* p1 = &inout[0];
-
-    std::vector<uint8_t> outHash_u8;
-    if(do_output_hash) {
-        output_hash = toUpperCase(output_hash); // allowed values are in cli_hashLabels
-        int idx = vecIndexOf(cli_hashLabels, output_hash);
-        output_hash = rh_hashLabels[idx]; // convert to Botan allowed value, exception on not found
-        output_hash_size = rh_hashSizes[idx];
-        botan_hash_init(&hash_out,output_hash.c_str(),0);
-        outHash_u8.resize(output_hash_size);
-    }
-
-    if(seed.empty()) {
-        botan_rng_t rng{};
-        botan_rng_init(&rng, nullptr);
-        botan_rng_get(rng,p1,digestSize);
-        botan_rng_destroy(rng);
-    }
-    else {
-        botan_hash_init(&hash1,algo,0);
-        botan_hash_update(hash1,(uint8_t*)(seed.c_str()),seed.size());
-        botan_hash_final(hash1,p1);
-    }
-
-    botan_hash_init(&hash1,algo,0);
-
-    int i,j;
-
-    // generate random data by hashing and write to file
-    auto&& fd = fdfactory.create(path,FileOpenMode::XCL);
-    if(!fd) {
-        if(isLocalSocketProgress) sendErrorResponse(*inOutDesc);
-        ret.ret = fd.error;
-        return ret;
-    }
-    if(isLocalSocketProgress) sendOkResponse(*inOutDesc);
-    auto progressHook = isLocalSocketProgress ? getLSProgressHookP(size, *inOutDesc) : getProgressHookP(size);
-    // quotient
-    for(j=0;j<blocks;j++) {
-        for(i=0;i<blockSize;i+=digestSize) {
-            botan_hash_update(hash1,p1+i,digestSize);
-            botan_hash_final(hash1,p1+i+digestSize);
-        }
-        fd.writeAllOrExit(p1,blockSize);
-        if(do_output_hash) botan_hash_update(hash_out,p1,blockSize);
-        progressHook->publishDelta(blockSize);
-        memcpy(p1,p1+blockSize,digestSize);
-    }
-    // remainder
-    for(i=0;i<blockSize;i+=digestSize) {
-        botan_hash_update(hash1,p1+i,digestSize);
-        botan_hash_final(hash1,p1+i+digestSize);
-    }
-    fd.writeAllOrExit(p1,lastBlockSize);
-    if(do_output_hash) botan_hash_update(hash_out,p1,lastBlockSize);
-    progressHook->publishDelta(lastBlockSize);
-
-    // end-of-progress sent in caller
-    fd.close();
-    botan_hash_destroy(hash1);
-    if(do_output_hash) {
-        botan_hash_final(hash_out,&outHash_u8[0]);
-        ret.hash = Botan::hex_encode(outHash_u8);
-    }
-    return ret;
-}
-#else
-
 template<typename STR>
 retHash createRandomFile(const STR& path, uint64_t size, const std::string& seed, std::string& output_hash, IDescriptor* inOutDesc = nullptr) {
     retHash ret;
@@ -1335,7 +1239,11 @@ retHash createRandomFile(const STR& path, uint64_t size, const std::string& seed
 
     // expansion
     botan_cipher_t enc{};
+#ifdef __aarch64__
+    const char* backendCipher = "ChaCha";
+#else
     const char* backendCipher = has_aes_hw_instructions() ? "AES-256/CTR" : "ChaCha";
+#endif
     botan_cipher_init(&enc, backendCipher, Botan::ENCRYPTION);
     // botan_cipher_init(&enc, "AES-256/CTR", Botan::ENCRYPTION);
     // botan_cipher_init(&enc, "ChaCha", Botan::ENCRYPTION);
@@ -1399,8 +1307,6 @@ retHash createRandomFile(const STR& path, uint64_t size, const std::string& seed
     }
     return ret;
 }
-
-#endif
 
 template<typename STR>
 retHash createEmptyFile(const STR& path, uint64_t size, IDescriptor* inOutDesc = nullptr) {
