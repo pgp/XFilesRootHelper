@@ -161,7 +161,7 @@ std::vector<uint8_t> rh_computeHash_dir(
 //    const size_t hashSize = dirHasher->output_length();
     const auto& hashSize = rh_hashSizes[algo];
 
-    auto&& it = itf.createIterator(filePath,RELATIVE_WITHOUT_BASE,true,RECURSIVE,withNames, // sorting on evry level is necessary only with dir hashing filenames enabled
+    auto&& it = itf.createIterator(filePath,RELATIVE_WITHOUT_BASE,true,RECURSIVE,withNames, // sorting on every level is necessary only with dir hashing filenames enabled
                                    (ignoreUnixHiddenFiles?"^[^.].+":"")); // enforce dir ordering on every listing during DFS
     if(withNames) {
         if(it) {

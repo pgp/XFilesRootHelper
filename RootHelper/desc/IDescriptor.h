@@ -46,6 +46,21 @@ public:
     // defaults to close(), PosixDescriptor uses ::shutdown syscall instead
     virtual void shutdown() {close();}
 
+    virtual ssize_t readTill(void* buf_, size_t count) {
+        auto buf = (uint8_t*)buf_;
+        size_t alreadyRead = 0;
+        size_t remaining = count;
+        for(;;) {
+            ssize_t curr = read(buf+alreadyRead,remaining);
+            if (curr <= 0) return alreadyRead; // EOF
+
+            remaining -= curr;
+            alreadyRead += curr;
+
+            if (remaining == 0) return count; // all expected bytes read
+        }
+    }
+
     virtual ssize_t readAll(void* buf_, size_t count) {
         auto buf = (uint8_t*)buf_;
         size_t alreadyRead = 0;

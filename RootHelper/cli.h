@@ -7,6 +7,7 @@
 #include "tls/ssh_keygen_ed25519.h"
 #include "desc/SinkDescriptor.h"
 #include "rh_hasher_botan.h"
+#include "Spmc_queue_lockfree.hpp"
 
 #ifdef _WIN32
 using cliFunction = int (*)(int argc, const wchar_t* argv[]);
@@ -248,8 +249,20 @@ int hashFromArgs(int argc, const C* argv[]) {
         goto cliHashPrintUsage;
 
     for(int i=3; i<argc; i++) {
-        auto&& s_arg_i = STRNAMESPACE(argv[i]);
-        auto&& currentHash = rh_computeHash_wrapper(s_arg_i, tmpAlgoMap[tmparg], dirHashOpts);
+        auto&& fileOrDirPath = STRNAMESPACE(argv[i]);
+#ifdef _WIN32
+        auto efd = IDirIterator<std::wstring>::efdL(fileOrDirPath);
+#else
+        auto efd = IDirIterator<std::string>::efdL(fileOrDirPath);
+#endif
+        auto totalSize = osGetSize(fileOrDirPath, true);
+        std::vector<uint8_t> currentHash;
+        { // need scope braces here for invoking progress hook destructor, which calls SAMELINEPRINT("");
+        auto&& progressHook = getProgressHook(totalSize);
+        if(efd == 'd' || efd == 'L') currentHash = rh_computeHash_dir(fileOrDirPath,tmpAlgoMap[tmparg],dirHashOpts,&progressHook);
+        else currentHash = producer_hasher(fileOrDirPath, tmpAlgoMap[tmparg], &progressHook);
+        // auto&& currentHash = rh_computeHash_wrapper(s_arg_i, tmpAlgoMap[tmparg], dirHashOpts);
+        }
         std::string arg_i = TOUTF(argv[i]);
         PRINTUNIFIED("%s: %s\n", Botan::hex_encode(currentHash).c_str(), arg_i.c_str());
     }
