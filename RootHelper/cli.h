@@ -291,6 +291,7 @@ int createFileFromArgs(int argc, const C* argv[]) {
                     }
                     else if(tmp_.find("--output-hash=") == 0) {
                         outputHashType = tmp_.substr(14); // "--output-hash=" strlen
+                        outputHashType = toUpperCase(outputHashType);
                         if(std::find(cli_hashLabels.begin(), cli_hashLabels.end(), outputHashType) == cli_hashLabels.end()) goto cliCreateFileUsage;
                         PRINTUNIFIED("Enabled output of file hash: %s\n", outputHashType.c_str());
                     }
@@ -302,12 +303,26 @@ int createFileFromArgs(int argc, const C* argv[]) {
                 }
             }
         }
+        uint8_t tmpIdx = 0;
+        std::unordered_map<std::string,uint8_t> tmpAlgoMap;
+        for(auto& hl: cli_hashLabels) tmpAlgoMap[hl] = tmpIdx++;
 
         // default creation strategy: random (equivalent to dd if=/dev/urandom ...)
-        auto&& ret = (fileSize != 0) ? createRandomFile(filename, fileSize, seed, outputHashType, backendCipher) : createEmptyFile(filename, fileSize);
-        if(ret.ret != 0) perror("Error during file creation");
-        if(!outputHashType.empty()) PRINTUNIFIED("%s for the generated file is: %s\n",outputHashType.c_str(),ret.hash.c_str());
-        return ret.ret;
+        int retval;
+        uint8_t algo1 = 0;
+        if(fileSize == 0) {
+            auto&& ret = createEmptyFile(filename, fileSize);
+            retval = ret.ret;
+        }
+        else {
+            auto&& progressHook = getProgressHook(fileSize);
+            if(!outputHashType.empty()) algo1 = tmpAlgoMap[outputHashType];
+            retval = producer_createAndHash(filename, (outputHashType.empty() ? nullptr : &algo1), outputHashType, fileSize, seed, backendCipher, &progressHook);
+        }
+        if(retval != 0) perror("Error during file creation");
+        // outputHashType now contains the actual hash, not the label
+        if(!outputHashType.empty()) PRINTUNIFIED("%s for the generated file is: %s\n",cli_hashLabels[algo1].c_str(),outputHashType.c_str());
+        return retval;
     }
     catch(std::exception& e) {
         std::cerr<<"CREATE FILE EXCEPTION: "<<e.what()<<std::endl;

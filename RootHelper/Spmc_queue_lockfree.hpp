@@ -163,13 +163,16 @@ public:
 class FileWriterConsumer : public ConsumerTask {
 public:
     IDescriptor& outputFile;
+    ProgressHook* progressHook;
     // TODO either open output file in caller, or pass path here and open in constructor using fdfactory
-    FileWriterConsumer(Spmc_Queue_Node* rootNode_, uint8_t totalConsumers_, IDescriptor& outputFile_) :
-        ConsumerTask(rootNode_, totalConsumers_), outputFile(outputFile_) {}
+    FileWriterConsumer(Spmc_Queue_Node* rootNode_, uint8_t totalConsumers_, IDescriptor& outputFile_, ProgressHook* progressHook_ = nullptr) :
+        ConsumerTask(rootNode_, totalConsumers_), outputFile(outputFile_), progressHook(progressHook_) {}
 
-    void processItem() override {
+    void processItem() override { // TODO this should be a writeTill, in order to gracefully exit thread in case of disk full / disk quota exceeded errors
         auto& v = curNode->data;
-        outputFile.writeAllOrExit(&v[0], v.size());
+        auto s = v.size();
+        outputFile.writeAll(&v[0], s);
+        if(progressHook != nullptr) progressHook->publishDelta(s);
     }
 };
 
@@ -186,7 +189,7 @@ public:
     void processItem() override {
         auto& v = curNode->data;
         auto s = v.size();
-		hash1->update(&v[0],s);
+        hash1->update(&v[0], s);
         if(progressHook != nullptr) progressHook->publishDelta(s);
     }
 
@@ -246,6 +249,128 @@ std::vector<uint8_t> producer_hasher(const STR& inputFilePath, const uint8_t alg
     // collect hash
     auto result = consumer.hash1->final();
     return std::vector<uint8_t>(result.data(),result.data()+result.size());
+}
+
+// algo can be not provided (have to pass pointer uint8_t*), and in that case hasher consumer must not be instantiated
+template<typename STR>
+int producer_createAndHash(const STR& outputFilePath,
+                            const uint8_t* algo,
+                            std::string& output_hash /* output param, valued only if algo is not null */,
+                            uint64_t size,
+                            const std::string& seed,
+                            const std::string& backendCipher,
+                            ProgressHook* progressHook = nullptr) {
+    auto&& fd = fdfactory.create(outputFilePath,FileOpenMode::XCL);
+    if(!fd) return -1; // TODO caller should provide already-open file
+
+    // auto progressHook = getProgressHookP(size); // TODO who must publish progress? writer consumer or hasher one? maybe better writer one
+    size_t written=0,consumed=0;
+    constexpr unsigned halfblockSize = SPMC_QUEUE_BSIZE/2;
+    const unsigned keySize = backendCipher == "AES-128/CTR" ? 16 : 32;
+
+    Spmc_Queue_Node** curNext;
+    
+    // create first chunk
+    std::vector<uint8_t> v(SPMC_QUEUE_BSIZE); // inout in createRandomFile
+    uint8_t* p1 = &v[0];
+    uint8_t* p2 = p1+halfblockSize;
+    
+    // init with supplied seed or with system entropy
+    if(seed.empty()) {
+        botan_rng_t rng{};
+        botan_rng_init(&rng, nullptr);
+        botan_rng_get(rng,p1,keySize);
+    }
+    else {
+        botan_hash_t hash1{};
+        botan_hash_init(&hash1,"SHA-256",0);
+        botan_hash_update(hash1,(uint8_t*)(seed.c_str()),seed.size());
+        botan_hash_final(hash1,p1);
+    }
+    
+    // expansion
+    botan_cipher_t enc{};
+#ifdef __aarch64__
+    const char* defaultBackendCipher = "ChaCha";
+#else
+    const char* defaultBackendCipher = has_aes_hw_instructions() ? "AES-256/CTR" : "ChaCha";
+#endif
+    const char* usedCipher = backendCipher.empty() ? defaultBackendCipher : backendCipher.c_str();
+    botan_cipher_init(&enc, usedCipher, Botan::ENCRYPTION);
+    // botan_cipher_init(&enc, "AES-256/CTR", Botan::ENCRYPTION);
+    // botan_cipher_init(&enc, "ChaCha", Botan::ENCRYPTION);
+    // botan_cipher_init(&enc, "SHACAL2/CTR", Botan::ENCRYPTION);
+    PRINTUNIFIED("Using %s as underlying cipher for PRNG\n", usedCipher);
+    
+    uint64_t remainingToGenerate = size;
+    uint64_t remainder = size % SPMC_QUEUE_BSIZE;
+    
+    // fill first chunk
+    // ------------------------------------
+    botan_cipher_set_key(enc, p1, keySize);
+    botan_cipher_start(enc, nullptr, 0);
+    botan_cipher_update(enc, BOTAN_CIPHER_UPDATE_FLAG_FINAL, p2, halfblockSize, &written, p1, halfblockSize, &consumed);
+
+    botan_cipher_set_key(enc, p2, keySize);
+    botan_cipher_start(enc, nullptr, 0);
+    botan_cipher_update(enc, BOTAN_CIPHER_UPDATE_FLAG_FINAL, p1, halfblockSize, &written, p2, halfblockSize, &consumed);
+    // ------------------------------------
+    v.resize(remainder);
+    remainingToGenerate -= remainder;
+
+    Spmc_Queue_Node* rootNode = new Spmc_Queue_Node(v);
+    curNext = &(rootNode->nextNode);
+    Spmc_Queue_Size = 1;
+
+    // spawn consumer threads, pass as params: rootNode, N (total number of consumers)
+	uint8_t algo1 = algo != nullptr ? *algo : 0;
+	size_t totalThreads = algo != nullptr ? 2 : 1;
+    HasherConsumer consumer(rootNode, totalThreads, rh_hashLabels[algo1]);
+    std::unique_ptr<std::thread> hasherThread;
+	if(algo != nullptr) hasherThread.reset(new std::thread(&HasherConsumer::run, consumer));
+
+    FileWriterConsumer consumerW(rootNode, totalThreads, fd, progressHook);
+	std::thread writerThread(&FileWriterConsumer::run, consumerW);
+
+    while(remainingToGenerate > 0) {
+        // v has been std::moved in node constructor, so now it is empty
+        v.resize(SPMC_QUEUE_BSIZE);
+		p1 = &v[0];
+		p2 = p1 + halfblockSize;
+        // ------------------------------------
+        botan_cipher_set_key(enc, p1, keySize);
+        botan_cipher_start(enc, nullptr, 0);
+        botan_cipher_update(enc, BOTAN_CIPHER_UPDATE_FLAG_FINAL, p2, halfblockSize, &written, p1, halfblockSize, &consumed);
+
+        botan_cipher_set_key(enc, p2, keySize);
+        botan_cipher_start(enc, nullptr, 0);
+        botan_cipher_update(enc, BOTAN_CIPHER_UPDATE_FLAG_FINAL, p1, halfblockSize, &written, p2, halfblockSize, &consumed);
+        // ------------------------------------
+        
+        while(Spmc_Queue_Size >= SPMC_MAX_QUEUE_SIZE)
+            std::this_thread::sleep_for(std::chrono::milliseconds(SPMC_QUEUE_POLLING_INTERVAL_MS)); // wait for some items to be deallocated
+        rootNode = new Spmc_Queue_Node(v);
+        *curNext = rootNode;
+        curNext = &(rootNode->nextNode);
+        Spmc_Queue_Size++; // fetch_add
+        remainingToGenerate -= SPMC_QUEUE_BSIZE;
+    }
+	*curNext = nullptr; // signal consumers that there is not next block so they can finish their tasks and return
+
+    // join consumer threads
+    writerThread.join();
+    if(algo != nullptr) hasherThread->join();
+    fd.close(); // TODO file had better be closed from writer consumer
+    // PRINTUNIFIED("Queue size at the end was %d\n",Spmc_Queue_Size.load());
+    // Spmc_Queue_Size = 0;
+
+    // collect hash
+    if(algo != nullptr) {
+        auto result = consumer.hash1->final();
+        output_hash = Botan::hex_encode(result);
+    }
+    else output_hash = ""; // reset, contains hash label in input, but it's unused here, since we use *algo
+    return 0;
 }
 
 #endif /* __SPMC_LOCKFREE_QUEUE__ */
