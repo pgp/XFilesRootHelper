@@ -132,10 +132,10 @@ int downloadFromArgs(int argc, const C* argv[]) {
 
 template<typename C>
 int upload_x0at_0x0st(int argc, const C* argv[]) {
-    // argv[1] already checked == "upx0at"
+    // argv[1] already checked ("x0at", "0x0st", or "fileio")
     if(argc < 3) {
         std::string x = TOUTF(argv[0]);
-        PRINTUNIFIED("Usage: %s <x0at|0x0st> /your/src/path/file.bin\n", x.c_str());
+        PRINTUNIFIED("Usage: %s <x0at|0x0st|fileio> /your/src/path/file.bin\n", x.c_str());
         _Exit(0);
     }
     std::string cliDomain = TOUTF(argv[1]);
@@ -153,7 +153,7 @@ int upload_x0at_0x0st(int argc, const C* argv[]) {
     RingBuffer inRb;
     SinkDescriptor cl;
     auto&& srcPath = STRNAMESPACE(argv[2]);
-    std::string domainOnly = cliDomain == "x0at" ? "x0.at" : "0x0.st";
+    std::string domainOnly = cliDomain == "x0at" ? "x0.at" : (cliDomain == "0x0st" ? "0x0.st" : "file.io");
     auto httpRet = httpsUrlUpload_internal(cl,domainOnly,srcPath,inRb,true);
     return httpRet==200?0:httpRet;
 }
@@ -491,6 +491,7 @@ const std::unordered_map<std::string,std::pair<ControlCodes,cliFunction>> allowe
         {"download", {ControlCodes::ACTION_HTTPS_URL_DOWNLOAD, downloadFromArgs}},
         {"x0at", {ControlCodes::ACTION_CLOUD_SERVICES, upload_x0at_0x0st}},
         {"0x0st", {ControlCodes::ACTION_CLOUD_SERVICES, upload_x0at_0x0st}},
+        {"fileio", {ControlCodes::ACTION_CLOUD_SERVICES, upload_x0at_0x0st}},
         {"https1", {ControlCodes::ACTION_CLOUD_SERVICES, https1_FromArgs}},
         {"httpsd", {ControlCodes::ACTION_CLOUD_SERVICES, https1_FromArgs}},
         {"ssh-keygen", {ControlCodes::ACTION_SSH_KEYGEN, sshKeygenFromArgs}},
