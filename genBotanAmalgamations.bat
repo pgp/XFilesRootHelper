@@ -1,8 +1,9 @@
 setlocal enableextensions
 
-REM dummy line
+REM env variables
 
-set BOTAN_SRC_DIR=c:\Windows\Temp\Botan-2.19.3
+set NDK_PATH=%LOCALAPPDATA%\Android\Sdk\ndk\21.3.6528147
+set BOTAN_SRC_DIR=c:\Windows\Temp\Botan-2.19.5
 
 set BOTAN_DEST_ANDROID_DIR=%cd%\botanAm\android
 set BOTAN_DEST_IOS_DIR=%cd%\botanAm\ios
@@ -38,14 +39,21 @@ python configure.py --amalgamation --disable-modules=pkcs11,tls_10 --disable-cc-
 move botan_all.cpp %BOTAN_DEST_ANDROID_DIR%\x86_64
 move botan_all.h %BOTAN_DEST_ANDROID_DIR%\x86_64
 
-python configure.py --amalgamation --disable-modules=pkcs11,tls_10 --disable-cc-tests --cpu=armv7 --os=linux --cc=clang
+set AR=%NDK_PATH%\toolchains\llvm\prebuilt\linux-x86_64\bin\llvm-ar
+set CXX=%NDK_PATH%\toolchains\llvm\prebuilt\linux-x86_64\bin\armv7a-linux-androideabi19-clang++
+
+python configure.py --amalgamation --disable-modules=pkcs11,tls_10 --cpu=armv7 --os=linux --cc=clang
 move botan_all.cpp %BOTAN_DEST_ANDROID_DIR%\arm
 move botan_all.h %BOTAN_DEST_ANDROID_DIR%\arm
 
-python configure.py --amalgamation --disable-modules=pkcs11,tls_10 --disable-cc-tests --cpu=aarch64 --os=linux --cc=clang
+set CXX=%NDK_PATH%\toolchains\llvm\prebuilt\linux-x86_64\bin\aarch64-linux-android21-clang++
+
+python configure.py --amalgamation --disable-modules=pkcs11,tls_10 --cpu=aarch64 --os=linux --cc=clang
 move botan_all.cpp %BOTAN_DEST_ANDROID_DIR%\arm64
 move botan_all.h %BOTAN_DEST_ANDROID_DIR%\arm64
 
+set AR=
+set CXX=
 
 REM ########## IOS
 

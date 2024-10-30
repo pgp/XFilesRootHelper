@@ -1,5 +1,5 @@
 /*
-* Botan 2.19.3 Amalgamation
+* Botan 2.19.5 Amalgamation
 * (C) 1999-2020 The Botan Authors
 *
 * Botan is released under the Simplified BSD License (see license.txt)
@@ -32,7 +32,7 @@
 #include <vector>
 
 /*
-* Build configuration for Botan 2.19.3
+* Build configuration for Botan 2.19.5
 *
 * Automatically generated from
 * 'configure.py --amalgamation --disable-modules=pkcs11,tls_10 --disable-cc-tests --cpu=x64 --os=darwin --cc=gcc'
@@ -45,13 +45,13 @@
 
 #define BOTAN_VERSION_MAJOR 2
 #define BOTAN_VERSION_MINOR 19
-#define BOTAN_VERSION_PATCH 3
-#define BOTAN_VERSION_DATESTAMP 20221116
+#define BOTAN_VERSION_PATCH 5
+#define BOTAN_VERSION_DATESTAMP 20240708
 
 
 #define BOTAN_VERSION_RELEASE_TYPE "release"
 
-#define BOTAN_VERSION_VC_REVISION "git:15dc32f12d05e99a267f0fc47d88b678b71b8b05"
+#define BOTAN_VERSION_VC_REVISION "git:935055e839794a076d209c9e9a1e9cd2255aae01"
 
 #define BOTAN_DISTRIBUTION_INFO "unspecified"
 
@@ -666,6 +666,16 @@
   #define BOTAN_PARALLEL_FOR _Pragma("omp parallel for") for
 #else
   #define BOTAN_PARALLEL_FOR for
+#endif
+
+#endif
+
+#if !defined(BOTAN_ALIGNAS)
+
+#if defined(__GNUC__) && (__GNUC__ == 4) && (__GNUC_MINOR__ < 8)
+  #define BOTAN_ALIGNAS(x) /**/
+#else
+  #define BOTAN_ALIGNAS(x) alignas(x)
 #endif
 
 #endif
@@ -1547,7 +1557,7 @@ class BOTAN_PUBLIC_API(2,0) Buffered_Computation
          return final();
          }
 
-      virtual ~Buffered_Computation() = default;
+      virtual ~Buffered_Computation() {}
    private:
       /**
       * Add more data to the computation
@@ -1610,7 +1620,7 @@ class BOTAN_PUBLIC_API(2,0) HashFunction : public Buffered_Computation
       */
       virtual std::string provider() const { return "base"; }
 
-      virtual ~HashFunction() = default;
+      virtual ~HashFunction() {}
 
       /**
       * Reset the state.
@@ -1895,7 +1905,7 @@ class BOTAN_PUBLIC_API(2,0) Key_Length_Specification final
 class BOTAN_PUBLIC_API(2,0) SymmetricAlgorithm
    {
    public:
-      virtual ~SymmetricAlgorithm() = default;
+      virtual ~SymmetricAlgorithm() {}
 
       /**
       * Reset the state.
@@ -2706,7 +2716,7 @@ class BOTAN_PUBLIC_API(2,0) AEAD_Mode : public Cipher_Mode
       */
       size_t default_nonce_length() const override { return 12; }
 
-      virtual ~AEAD_Mode() = default;
+      virtual ~AEAD_Mode() {}
    };
 
 /**
@@ -2903,7 +2913,7 @@ class BOTAN_PUBLIC_API(2,0) BlockCipher : public SymmetricAlgorithm
       */
       virtual BlockCipher* clone() const = 0;
 
-      virtual ~BlockCipher() = default;
+      virtual ~BlockCipher() {}
    };
 
 /**
@@ -3088,7 +3098,7 @@ namespace Botan {
 class BOTAN_PUBLIC_API(2,8) PasswordHash
    {
    public:
-      virtual ~PasswordHash() = default;
+      virtual ~PasswordHash() {}
 
       virtual std::string to_string() const = 0;
 
@@ -3167,7 +3177,7 @@ class BOTAN_PUBLIC_API(2,8) PasswordHashFamily
       */
       static std::vector<std::string> providers(const std::string& algo_spec);
 
-      virtual ~PasswordHashFamily() = default;
+      virtual ~PasswordHashFamily() {}
 
       /**
       * @return name of this PasswordHash
@@ -3469,7 +3479,7 @@ class BOTAN_PUBLIC_API(2,0) ASN1_Object
       ASN1_Object() = default;
       ASN1_Object(const ASN1_Object&) = default;
       ASN1_Object & operator=(const ASN1_Object&) = default;
-      virtual ~ASN1_Object() = default;
+      virtual ~ASN1_Object() {}
    };
 
 /**
@@ -3861,7 +3871,7 @@ class BER_Decoder;
 class BOTAN_PUBLIC_API(2,4) ASN1_Formatter
    {
    public:
-      virtual ~ASN1_Formatter() = default;
+      virtual ~ASN1_Formatter() {}
 
       /**
       * @param print_context_specific if true, try to parse nested context specific data.
@@ -4018,7 +4028,7 @@ class Entropy_Sources;
 class BOTAN_PUBLIC_API(2,0) RandomNumberGenerator
    {
    public:
-      virtual ~RandomNumberGenerator() = default;
+      virtual ~RandomNumberGenerator() {}
 
       RandomNumberGenerator() = default;
 
@@ -4852,7 +4862,7 @@ class BOTAN_PUBLIC_API(2,0) DataSource
       virtual size_t get_bytes_read() const = 0;
 
       DataSource() = default;
-      virtual ~DataSource() = default;
+      virtual ~DataSource() {}
       DataSource& operator=(const DataSource&) = delete;
       DataSource(const DataSource&) = delete;
    };
@@ -5389,6 +5399,12 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
      * @param n initial value of this BigInt
      */
      BigInt(uint64_t n);
+
+     /**
+     * Create BigInt of specified size, all zeros
+     * @param n size of the internal register in words
+     */
+     static BigInt with_capacity(size_t n);
 
      /**
      * Copy Constructor
@@ -6059,6 +6075,12 @@ class BOTAN_PUBLIC_API(2,0) BigInt final
      * If predicate is true add value to *this
      */
      void ct_cond_add(bool predicate, const BigInt& value);
+
+     /**
+     * Shift @p shift bits to the left, runtime is independent of
+     * the value of @p shift.
+     */
+     void ct_shift_left(size_t shift);
 
      /**
      * If predicate is true flip the sign of *this
@@ -6994,11 +7016,7 @@ namespace Botan {
 */
 inline uint16_t reverse_bytes(uint16_t val)
    {
-#if defined(BOTAN_BUILD_COMPILER_IS_GCC) || defined(BOTAN_BUILD_COMPILER_IS_CLANG) || defined(BOTAN_BUILD_COMPILER_IS_XLC)
-   return __builtin_bswap16(val);
-#else
    return static_cast<uint16_t>((val << 8) | (val >> 8));
-#endif
    }
 
 /**
@@ -7356,7 +7374,7 @@ class BOTAN_PUBLIC_API(2,0) BlockCipherModePaddingMethod
       /**
       * virtual destructor
       */
-      virtual ~BlockCipherModePaddingMethod() = default;
+      virtual ~BlockCipherModePaddingMethod() {}
    };
 
 /**
@@ -7630,7 +7648,7 @@ class BOTAN_PUBLIC_API(2,0) MessageAuthenticationCode : public Buffered_Computat
       */
       static std::vector<std::string> providers(const std::string& algo_spec);
 
-      virtual ~MessageAuthenticationCode() = default;
+      virtual ~MessageAuthenticationCode() {}
 
       /**
       * Prepare for processing a message under the specified nonce
@@ -8196,7 +8214,7 @@ class BOTAN_PUBLIC_API(2,0) X509_Object : public ASN1_Object
       virtual std::vector<std::string> alternate_PEM_labels() const
          { return std::vector<std::string>(); }
 
-      virtual ~X509_Object() = default;
+      virtual ~X509_Object() {}
 
       static std::unique_ptr<PK_Signer>
          choose_sig_format(AlgorithmIdentifier& sig_algo,
@@ -9200,7 +9218,7 @@ class BOTAN_PUBLIC_API(2,0) SQL_Database
             /* Maybe update */
             virtual bool step() = 0;
 
-            virtual ~Statement() = default;
+            virtual ~Statement() {}
          };
 
       /*
@@ -9213,7 +9231,7 @@ class BOTAN_PUBLIC_API(2,0) SQL_Database
 
       virtual void create_table(const std::string& table_schema) = 0;
 
-      virtual ~SQL_Database() = default;
+      virtual ~SQL_Database() {}
 };
 
 }
@@ -9450,7 +9468,7 @@ namespace Botan {
 class BOTAN_PUBLIC_API(2,0) StreamCipher : public SymmetricAlgorithm
    {
    public:
-      virtual ~StreamCipher() = default;
+      virtual ~StreamCipher() {}
 
       /**
       * Create an instance based on a name
@@ -10715,7 +10733,7 @@ class BOTAN_PUBLIC_API(2,0) Public_Key
       Public_Key() =default;
       Public_Key(const Public_Key& other) = default;
       Public_Key& operator=(const Public_Key& other) = default;
-      virtual ~Public_Key() = default;
+      virtual ~Public_Key() {}
 
       /**
       * Get the name of the underlying public key scheme.
@@ -10867,7 +10885,7 @@ class BOTAN_PUBLIC_API(2,0) Private_Key : public virtual Public_Key
       Private_Key() = default;
       Private_Key(const Private_Key& other) = default;
       Private_Key& operator=(const Private_Key& other) = default;
-      virtual ~Private_Key() = default;
+      virtual ~Private_Key() {}
 
       virtual bool stateful_operation() const { return false; }
 
@@ -10985,7 +11003,7 @@ class BOTAN_PUBLIC_API(2,0) PK_Key_Agreement_Key : public virtual Private_Key
       PK_Key_Agreement_Key() = default;
       PK_Key_Agreement_Key(const PK_Key_Agreement_Key&) = default;
       PK_Key_Agreement_Key& operator=(const PK_Key_Agreement_Key&) = default;
-      virtual ~PK_Key_Agreement_Key() = default;
+      virtual ~PK_Key_Agreement_Key() {}
    };
 
 /*
@@ -11026,7 +11044,7 @@ class BigInt;
 class BOTAN_PUBLIC_API(2,0) Credentials_Manager
    {
    public:
-      virtual ~Credentials_Manager() = default;
+      virtual ~Credentials_Manager() {}
 
       /**
       * Return a list of the certificates of CAs that we trust in this
@@ -11423,7 +11441,7 @@ namespace Botan {
 class BOTAN_UNSTABLE_API CurveGFp_Repr
    {
    public:
-      virtual ~CurveGFp_Repr() = default;
+      virtual ~CurveGFp_Repr() {}
 
       virtual const BigInt& get_p() const = 0;
       virtual const BigInt& get_a() const = 0;
@@ -11738,7 +11756,7 @@ class BOTAN_PUBLIC_API(2,0) Filter
       */
       virtual bool attachable() { return true; }
 
-      virtual ~Filter() = default;
+      virtual ~Filter() {}
    protected:
       /**
       * @param in some input for the filter
@@ -11869,7 +11887,7 @@ class BOTAN_PUBLIC_API(2,0) DataSink : public Filter
    public:
       bool attachable() override { return false; }
       DataSink() = default;
-      virtual ~DataSink() = default;
+      virtual ~DataSink() {}
 
       DataSink& operator=(const DataSink&) = delete;
       DataSink(const DataSink&) = delete;
@@ -12091,6 +12109,9 @@ class BOTAN_PUBLIC_API(2,0) Attribute final : public ASN1_Object
 * Handles parsing GeneralName types in their BER and canonical string
 * encoding. Allows matching GeneralNames against each other using
 * the rules laid out in the RFC 5280, sec. 4.2.1.10 (Name Contraints).
+*
+* This entire class is deprecated and will be removed in a future
+* major release
 */
 class BOTAN_PUBLIC_API(2,0) GeneralName final : public ASN1_Object
    {
@@ -12113,6 +12134,7 @@ class BOTAN_PUBLIC_API(2,0) GeneralName final : public ASN1_Object
       * Creates a new GeneralName for its string format.
       * @param str type and name, colon-separated, e.g., "DNS:google.com"
       */
+      BOTAN_DEPRECATED("Deprecated no replacement")
       GeneralName(const std::string& str);
 
       void encode_into(DER_Encoder&) const override;
@@ -12134,15 +12156,17 @@ class BOTAN_PUBLIC_API(2,0) GeneralName final : public ASN1_Object
       * @param cert certificate to be matched
       * @return the match result
       */
+      BOTAN_DEPRECATED("Deprecated no replacement")
       MatchResult matches(const X509_Certificate& cert) const;
+
+      bool matches_dns(const std::string&) const;
+      bool matches_dn(const std::string&) const;
+      bool matches_dn_obj(const X509_DN& dn) const;
+      bool matches_ip(const std::string&) const;
 
    private:
       std::string m_type;
       std::string m_name;
-
-      bool matches_dns(const std::string&) const;
-      bool matches_dn(const std::string&) const;
-      bool matches_ip(const std::string&) const;
    };
 
 std::ostream& operator<<(std::ostream& os, const GeneralName& gn);
@@ -12153,6 +12177,9 @@ std::ostream& operator<<(std::ostream& os, const GeneralName& gn);
 * The Name Constraint extension adds a minimum and maximum path
 * length to a GeneralName to form a constraint. The length limits
 * are currently unused.
+*
+* This entire class is deprecated and will be removed in a future
+* major release
 */
 class BOTAN_PUBLIC_API(2,0) GeneralSubtree final : public ASN1_Object
    {
@@ -12160,6 +12187,7 @@ class BOTAN_PUBLIC_API(2,0) GeneralSubtree final : public ASN1_Object
       /**
       * Creates an empty name constraint.
       */
+      BOTAN_DEPRECATED("Deprecated no replacement")
       GeneralSubtree() : m_base(), m_minimum(0), m_maximum(std::numeric_limits<std::size_t>::max())
       {}
 
@@ -12169,6 +12197,7 @@ class BOTAN_PUBLIC_API(2,0) GeneralSubtree final : public ASN1_Object
       * @param min minimum path length
       * @param max maximum path length
       */
+      BOTAN_DEPRECATED("Deprecated no replacement")
       GeneralSubtree(const GeneralName& base, size_t min, size_t max)
       : m_base(base), m_minimum(min), m_maximum(max)
       {}
@@ -12177,6 +12206,7 @@ class BOTAN_PUBLIC_API(2,0) GeneralSubtree final : public ASN1_Object
       * Creates a new name constraint for its string format.
       * @param str name constraint
       */
+      BOTAN_DEPRECATED("Deprecated no replacement")
       GeneralSubtree(const std::string& str);
 
       void encode_into(DER_Encoder&) const override;
@@ -12225,9 +12255,7 @@ class BOTAN_PUBLIC_API(2,0) NameConstraints final
       * @param excluded_subtrees names for which the certificate is not permitted
       */
       NameConstraints(std::vector<GeneralSubtree>&& permitted_subtrees,
-                    std::vector<GeneralSubtree>&& excluded_subtrees)
-      : m_permitted_subtrees(permitted_subtrees), m_excluded_subtrees(excluded_subtrees)
-      {}
+                      std::vector<GeneralSubtree>&& excluded_subtrees);
 
       /**
       * @return permitted names
@@ -12239,9 +12267,22 @@ class BOTAN_PUBLIC_API(2,0) NameConstraints final
       */
       const std::vector<GeneralSubtree>& excluded() const { return m_excluded_subtrees; }
 
+      /**
+      * Return true if all of the names in the certificate are permitted
+      */
+      bool is_permitted(const X509_Certificate& cert, bool reject_unknown) const;
+
+      /**
+      * Return true if any of the names in the certificate are excluded
+      */
+      bool is_excluded(const X509_Certificate& cert, bool reject_unknown) const;
+
    private:
       std::vector<GeneralSubtree> m_permitted_subtrees;
       std::vector<GeneralSubtree> m_excluded_subtrees;
+
+      std::set<std::string> m_permitted_name_types;
+      std::set<std::string> m_excluded_name_types;
    };
 
 /**
@@ -12298,7 +12339,7 @@ class BOTAN_PUBLIC_API(2,0) Certificate_Extension
             std::vector<std::set<Certificate_Status_Code>>& cert_status,
             size_t pos);
 
-      virtual ~Certificate_Extension() = default;
+      virtual ~Certificate_Extension() {}
    protected:
       friend class Extensions;
       virtual bool should_encode() const { return true; }
@@ -12473,6 +12514,8 @@ class BOTAN_PUBLIC_API(2,0) Extensions final : public ASN1_Object
       class Extensions_Info
          {
          public:
+            Extensions_Info() {}
+
             Extensions_Info(bool critical,
                             Certificate_Extension* ext) :
                m_obj(ext),
@@ -13578,7 +13621,7 @@ class BOTAN_PUBLIC_API(2,0) PK_Encryptor
       virtual size_t ciphertext_length(size_t ctext_len) const = 0;
 
       PK_Encryptor() = default;
-      virtual ~PK_Encryptor() = default;
+      virtual ~PK_Encryptor() {}
 
       PK_Encryptor(const PK_Encryptor&) = delete;
       PK_Encryptor& operator=(const PK_Encryptor&) = delete;
@@ -13658,7 +13701,7 @@ class BOTAN_PUBLIC_API(2,0) PK_Decryptor
       virtual size_t plaintext_length(size_t ctext_len) const = 0;
 
       PK_Decryptor() = default;
-      virtual ~PK_Decryptor() = default;
+      virtual ~PK_Decryptor() {}
 
       PK_Decryptor(const PK_Decryptor&) = delete;
       PK_Decryptor& operator=(const PK_Decryptor&) = delete;
@@ -14315,7 +14358,7 @@ namespace Botan {
 class BOTAN_PUBLIC_API(2,0) KDF
    {
    public:
-      virtual ~KDF() = default;
+      virtual ~KDF() {}
 
       /**
       * Create an instance based on a name
@@ -15652,7 +15695,7 @@ class BOTAN_PUBLIC_API(2,0) EC_PublicKey : public virtual Public_Key
 
       EC_PublicKey(const EC_PublicKey& other) = default;
       EC_PublicKey& operator=(const EC_PublicKey& other) = default;
-      virtual ~EC_PublicKey() = default;
+      virtual ~EC_PublicKey() {}
 
       /**
       * Get the public point of this key.
@@ -16101,7 +16144,7 @@ class BOTAN_PUBLIC_API(2,0) ECIES_KA_Params
       ECIES_KA_Params(const ECIES_KA_Params&) = default;
       ECIES_KA_Params& operator=(const ECIES_KA_Params&) = delete;
 
-      virtual ~ECIES_KA_Params() = default;
+      virtual ~ECIES_KA_Params() {}
 
       inline const EC_Group& domain() const
          {
@@ -16182,7 +16225,7 @@ class BOTAN_PUBLIC_API(2,0) ECIES_System_Params final : public ECIES_KA_Params
 
       ECIES_System_Params(const ECIES_System_Params&) = default;
       ECIES_System_Params& operator=(const ECIES_System_Params&) = delete;
-      virtual ~ECIES_System_Params() = default;
+      virtual ~ECIES_System_Params() {}
 
       /// creates an instance of the message authentication code
       std::unique_ptr<MessageAuthenticationCode> create_mac() const;
@@ -16606,7 +16649,7 @@ class RandomNumberGenerator;
 class BOTAN_PUBLIC_API(2,0) EME
    {
    public:
-      virtual ~EME() = default;
+      virtual ~EME() {}
 
       /**
       * Return the maximum input size in bytes we can support
@@ -16732,7 +16775,7 @@ class RandomNumberGenerator;
 class BOTAN_PUBLIC_API(2,0) EMSA
    {
    public:
-      virtual ~EMSA() = default;
+      virtual ~EMSA() {}
 
       /**
       * Add more data to the signature computation
@@ -17037,7 +17080,7 @@ class BOTAN_PUBLIC_API(2,0) Entropy_Source
       Entropy_Source(Entropy_Source&& other) = delete;
       Entropy_Source& operator=(const Entropy_Source& other) = delete;
 
-      virtual ~Entropy_Source() = default;
+      virtual ~Entropy_Source() {}
    };
 
 class BOTAN_PUBLIC_API(2,0) Entropy_Sources final
@@ -19269,7 +19312,7 @@ class BOTAN_PUBLIC_API(2,0) Buffered_Filter
       */
       Buffered_Filter(size_t block_size, size_t final_minimum);
 
-      virtual ~Buffered_Filter() = default;
+      virtual ~Buffered_Filter() {}
    protected:
       /**
       * The block processor, implemented by subclasses
@@ -23009,10 +23052,19 @@ namespace Botan {
 #elif defined(BOTAN_BUILD_COMPILER_IS_MSVC) && defined(BOTAN_TARGET_CPU_HAS_NATIVE_64BIT)
 
 #include <intrin.h>
+#if defined(_M_ARM64)
+#pragma intrinsic(__umulh)
+#else
 #pragma intrinsic(_umul128)
+#endif
 
+#if defined(_M_ARM64)
+#define BOTAN_FAST_64X64_MUL(a,b,lo,hi) \
+   do { *lo = a * b; *hi = __umulh(a, b); } while(0)
+#else
 #define BOTAN_FAST_64X64_MUL(a,b,lo,hi) \
    do { *lo = _umul128(a, b, hi); } while(0)
+#endif
 
 #elif defined(BOTAN_USE_GCC_INLINE_ASM)
 
@@ -24240,7 +24292,7 @@ class BOTAN_PUBLIC_API(2,0) PBKDF
       */
       virtual std::string name() const = 0;
 
-      virtual ~PBKDF() = default;
+      virtual ~PBKDF() {}
 
       /**
       * Derive a key from a passphrase for a number of iterations
@@ -24855,7 +24907,7 @@ class BOTAN_PUBLIC_API(2,0) Encryption
 
       virtual size_t ciphertext_length(size_t ptext_len) const = 0;
 
-      virtual ~Encryption() = default;
+      virtual ~Encryption() {}
    };
 
 /**
@@ -24870,7 +24922,7 @@ class BOTAN_PUBLIC_API(2,0) Decryption
 
       virtual size_t plaintext_length(size_t ctext_len) const = 0;
 
-      virtual ~Decryption() = default;
+      virtual ~Decryption() {}
    };
 
 /**
@@ -24892,7 +24944,7 @@ class BOTAN_PUBLIC_API(2,0) Verification
       */
       virtual bool is_valid_signature(const uint8_t sig[], size_t sig_len) = 0;
 
-      virtual ~Verification() = default;
+      virtual ~Verification() {}
    };
 
 /**
@@ -24919,7 +24971,7 @@ class BOTAN_PUBLIC_API(2,0) Signature
       */
       virtual size_t signature_length() const = 0;
 
-      virtual ~Signature() = default;
+      virtual ~Signature() {}
    };
 
 /**
@@ -24934,7 +24986,7 @@ class BOTAN_PUBLIC_API(2,0) Key_Agreement
 
       virtual size_t agreed_value_size() const = 0;
 
-      virtual ~Key_Agreement() = default;
+      virtual ~Key_Agreement() {}
    };
 
 /**
@@ -24950,7 +25002,7 @@ class BOTAN_PUBLIC_API(2,0) KEM_Encryption
                                const uint8_t salt[],
                                size_t salt_len) = 0;
 
-      virtual ~KEM_Encryption() = default;
+      virtual ~KEM_Encryption() {}
    };
 
 class BOTAN_PUBLIC_API(2,0) KEM_Decryption
@@ -24962,7 +25014,7 @@ class BOTAN_PUBLIC_API(2,0) KEM_Decryption
                                               const uint8_t salt[],
                                               size_t salt_len) = 0;
 
-      virtual ~KEM_Decryption() = default;
+      virtual ~KEM_Decryption() {}
    };
 
 }
@@ -25703,7 +25755,7 @@ class BOTAN_PUBLIC_API(2,4) PSK_Database
          set(name, psk.data(), psk.size());
          }
 
-      virtual ~PSK_Database() = default;
+      virtual ~PSK_Database() {}
    };
 
 /**
@@ -30855,7 +30907,7 @@ class BOTAN_PUBLIC_API(2,0) Session_Manager
       */
       virtual std::chrono::seconds session_lifetime() const = 0;
 
-      virtual ~Session_Manager() = default;
+      virtual ~Session_Manager() {}
    };
 
 /**
@@ -30961,7 +31013,7 @@ class Certificate_Status_Request;
 class BOTAN_PUBLIC_API(2,0) Callbacks
    {
    public:
-       virtual ~Callbacks() = default;
+       virtual ~Callbacks() {}
 
        /**
        * Mandatory callback: output function
@@ -32021,7 +32073,7 @@ class BOTAN_PUBLIC_API(2,0) Policy
       */
       std::string to_string() const;
 
-      virtual ~Policy() = default;
+      virtual ~Policy() {}
    };
 
 typedef Policy Default_Policy;
@@ -32506,7 +32558,7 @@ class BOTAN_PUBLIC_API(2,0) Blocking_Client
       std::vector<X509_Certificate> peer_cert_chain() const
          { return m_channel.peer_cert_chain(); }
 
-      virtual ~Blocking_Client() = default;
+      virtual ~Blocking_Client() {}
 
    protected:
       /**
@@ -32627,7 +32679,7 @@ class BOTAN_UNSTABLE_API Extension
       */
       virtual bool empty() const = 0;
 
-      virtual ~Extension() = default;
+      virtual ~Extension() {}
    };
 
 /**
@@ -33131,7 +33183,7 @@ class BOTAN_PUBLIC_API(2,0) Handshake_Message
       */
       virtual std::vector<uint8_t> serialize() const = 0;
 
-      virtual ~Handshake_Message() = default;
+      virtual ~Handshake_Message() {}
    };
 
 }
