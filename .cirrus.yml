@@ -1,6 +1,6 @@
-freebsd_12_task:
+freebsd_14_task:
   freebsd_instance:
-    image: freebsd-12-3-release-amd64
+    image: freebsd-14-1-release-amd64-ufs
     cpu: 2
     memory: 3G
   env:
